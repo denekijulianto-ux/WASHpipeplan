@@ -5,7 +5,7 @@ const src = path.join(__dirname, 'src', 'index.dev.html'), out = path.join(__dir
 let html = fs.readFileSync(src, 'utf8');
 const m = html.match(/<script type="text\/babel" data-presets="react">([\s\S]*?)<\/script>/);
 if (!m) throw new Error('Blok <script type="text/babel"> tidak ditemukan');
-const code = Babel.transform(m[1], { presets: ['react'], comments: false }).code;
+const code = Babel.transform(m[1], { presets: ['react'], comments: false, compact: false }).code;
 html = html.replace(m[0], () => '<script>\n' + code + '\n</script>')
   .replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/babel-standalone\/[^"]+"><\/script>\n?/, '')
   .replace("if (!window.Babel) missing.push('Babel');", '')

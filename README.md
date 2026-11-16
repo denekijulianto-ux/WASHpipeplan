@@ -16,6 +16,27 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - **Status & review**: Sedang dikerjakan → Menunggu pemeriksaan → Sudah diperiksa (**Staf LPASL**) → Disetujui (**Kepala LPASL**), dengan opsi kembalikan untuk revisi. Pemeriksaan & persetujuan dilakukan akun admin; akun ber-peran "Staf LPASL" hanya dapat memeriksa. Nama pemeriksa & penyetuju masuk otomatis ke laporan dan kop gambar DED. Mengubah isi proyek yang sudah diperiksa/disetujui mengembalikan statusnya ke "Sedang dikerjakan".
 - Penyimpanan cloud memerlukan aturan terbaru di `firestore.rules` (tempel ulang ke Firestore → Rules → Publish).
 
+## Menara air (tab DED)
+Pilih **Menara Air (Tower Tandon)** lalu **Tambah**. Ada tiga sistem:
+- full beton bertulang (rangka + bak beton);
+- rangka beton + tandon PVC/PE;
+- rangka baja (besi) + tandon PVC/PE.
+
+Ukuran tandon bisa dipilih dari 300 sampai 10.000 L, dengan 1 sampai 6 unit. Gambar DED berisi:
+- tampak depan, denah platform, denah pondasi dan detail pondasi;
+- data teknis, termasuk cek kolom, cek daya dukung tanah dan cek gaya angkat. Cek ini bersifat indikatif dan wajib diverifikasi ahli struktur;
+- volume pekerjaan, yang otomatis masuk ke RAB.
+
+Bila menara dihubungkan ke node reservoir, aplikasi menghitung tinggi menara minimum agar sisa tekanan ≥ 10 mka.
+
+## Pipa lengkung (HDPE / pipa fleksibel)
+Pipa tidak harus lurus dari node ke node:
+- **Di peta:** pilih pipa, lalu seret titik ⊕ di tengah garis untuk melengkungkannya. Titik belok bisa diseret untuk dipindah atau diklik untuk dihapus.
+- **Saat menggambar:** pakai **Gambar pipa**, lalu ubah ke **Klik = titik lengkung** (tombol L) untuk membelokkan pipa tanpa membuat node.
+- **Saat merekam GPS atau impor GPX** dengan pipa HDPE/PE: belokan jejak menjadi titik lengkung, dan node hanya dibuat tiap ± jarak maksimum.
+
+Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
+
 ## Mengedit BoQ & RAB
 Di tab **BoQ & RAB**, tekan **Edit item RAB** untuk:
 - mengubah uraian, volume dan satuan item (ikon ↺ mengembalikan nilai otomatis);

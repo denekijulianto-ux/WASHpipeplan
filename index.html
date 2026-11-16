@@ -89,6 +89,9 @@
   #app-shell { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
   .tp-struct { width: 100%; height: 100%; padding: 0 4px; border-radius: 3px; background: #3730a3; color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); font: 700 9px/16px "IBM Plex Mono", monospace; text-align: center; box-sizing: border-box; white-space: nowrap; }
   .tp-struct.sel { box-shadow: 0 0 0 3px rgba(255,255,255,.95), 0 0 0 6px #f97316; }
+  .tp-vtx { width: 100%; height: 100%; border-radius: 50%; background: #fff; border: 3px solid #f97316; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: move; }
+  .tp-vtx.bad { border-color: #dc2626; background: #fee2e2; }
+  .tp-vadd { width: 100%; height: 100%; border-radius: 50%; background: rgba(255,255,255,.75); border: 1.5px dashed #f97316; color: #c2410c; font: 700 12px/1 sans-serif; display: flex; align-items: center; justify-content: center; box-sizing: border-box; cursor: copy; }
   @keyframes tp-rec { 50% { opacity: .35; } }
   .tp-rec { animation: tp-rec 1.2s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .tp-rec { animation: none; } }
@@ -318,7 +321,8 @@ const MATERIALS = {
   HDPE: {
     C: 130,
     label: 'HDPE PE100 PN10',
-    dash: ''
+    dash: '',
+    flex: 25
   },
   PVC: {
     C: 140,
@@ -334,7 +338,8 @@ const MATERIALS = {
     C: 140,
     label: 'Pipa fleksibel PE (gulungan)',
     short: 'Fleksibel',
-    dash: '0.8 0.8'
+    dash: '0.8 0.8',
+    flex: 20
   }
 };
 const pipeName = mat => {
@@ -361,7 +366,8 @@ const DEFAULT_SETTINGS = {
   gpsMinStep: 3,
   autoNodes: true,
   autoTol: 6,
-  autoMaxSeg: 100
+  autoMaxSeg: 100,
+  flexCurve: true
 };
 const DEFAULT_DED = {
   sheet: 'layout',
@@ -685,6 +691,127 @@ function segDist(p, a, b) {
   const t = L2 ? clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / L2, 0, 1) : 0;
   return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
 }
+const isFlex = mat => !!MATERIALS[mat]?.flex;
+const pipeSmooth = p => p.curve ?? isFlex(p.material);
+function pipeVerts(p, a, b) {
+  return [[a.lat, a.lng], ...(p.path || []).filter(v => v && isFinite(v[0]) && isFinite(v[1])), [b.lat, b.lng]];
+}
+function smoothLL(v, seg = 8) {
+  if (v.length < 3) return v;
+  const n = v.length;
+  const out = [v[0]];
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = v[Math.max(0, i - 1)],
+      p1 = v[i],
+      p2 = v[i + 1],
+      p3 = v[Math.min(n - 1, i + 2)];
+    for (let k = 1; k <= seg; k++) {
+      const t = k / seg,
+        t2 = t * t,
+        t3 = t2 * t;
+      out.push([0, 1].map(j => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
+    }
+  }
+  return out;
+}
+function pipeLine(p, a, b) {
+  const v = pipeVerts(p, a, b);
+  return v.length > 2 && pipeSmooth(p) ? smoothLL(v) : v;
+}
+function lineLength(ll) {
+  let L = 0;
+  for (let i = 1; i < ll.length; i++) L += haversine({
+    lat: ll[i - 1][0],
+    lng: ll[i - 1][1]
+  }, {
+    lat: ll[i][0],
+    lng: ll[i][1]
+  });
+  return L;
+}
+function pipeLength(p, a, b) {
+  return a && b ? lineLength(pipeLine(p, a, b)) : 0;
+}
+function alongLine(ll, frac) {
+  const total = lineLength(ll) * frac;
+  let acc = 0;
+  for (let i = 1; i < ll.length; i++) {
+    const d = haversine({
+      lat: ll[i - 1][0],
+      lng: ll[i - 1][1]
+    }, {
+      lat: ll[i][0],
+      lng: ll[i][1]
+    });
+    if (acc + d >= total) {
+      const t = d ? (total - acc) / d : 0;
+      return {
+        i,
+        pt: [ll[i - 1][0] + (ll[i][0] - ll[i - 1][0]) * t, ll[i - 1][1] + (ll[i][1] - ll[i - 1][1]) * t],
+        a: ll[i - 1],
+        b: ll[i]
+      };
+    }
+    acc += d;
+  }
+  const n = ll.length - 1;
+  return {
+    i: n,
+    pt: ll[n],
+    a: ll[Math.max(0, n - 1)],
+    b: ll[n]
+  };
+}
+function pipeNear(p, nodeId, nmap) {
+  const a = nmap[p.from],
+    b = nmap[p.to];
+  if (!a || !b) return null;
+  const v = pipeVerts(p, a, b);
+  const q = p.from === nodeId ? v[1] : v[v.length - 2];
+  return {
+    lat: q[0],
+    lng: q[1]
+  };
+}
+function bendAt(o, a, b) {
+  const P = makeProjector(o.lat, o.lng);
+  const A = P.toXY(a.lat, a.lng),
+    B = P.toXY(b.lat, b.lng);
+  const l1 = Math.hypot(A.x, A.y),
+    l2 = Math.hypot(B.x, B.y);
+  const defl = 180 - Math.acos(clamp((A.x * B.x + A.y * B.y) / (l1 * l2 || 1), -1, 1)) * 180 / Math.PI;
+  const R = defl > 0.5 ? Math.min(l1, l2) / 2 / Math.tan(defl * Math.PI / 360) : Infinity;
+  return {
+    defl,
+    R
+  };
+}
+function pipeBends(p, a, b, bendAngle = 15) {
+  const v = pipeVerts(p, a, b);
+  const flex = MATERIALS[p.material]?.flex;
+  const Rmin = flex ? flex * (+p.diameter || 0) / 1000 : 0;
+  const out = [];
+  for (let i = 1; i < v.length - 1; i++) {
+    const ll = q => ({
+      lat: q[0],
+      lng: q[1]
+    });
+    const {
+      defl,
+      R
+    } = bendAt(ll(v[i]), ll(v[i - 1]), ll(v[i + 1]));
+    out.push({
+      i,
+      defl,
+      R,
+      Rmin,
+      fitting: flex ? R < Rmin : defl >= bendAngle,
+      lat: v[i][0],
+      lng: v[i][1]
+    });
+  }
+  return out;
+}
 function simplifyIdx(pts, tol, maxSeg, force = new Set()) {
   if (pts.length < 3) return pts.map((_, i) => i);
   const P = makeProjector(pts[0].lat, pts[0].lng);
@@ -730,6 +857,7 @@ function guessKind(str) {
   if (/\bbpt|pelepas|break ?pressure/.test(s)) return 'st:bpt';
   if (/pembagi|division|\bbp[-\s]?\d*\b/.test(s)) return 'st:bak_pembagi';
   if (/sumur ?bor|borehole|deep ?well|\bsb[-\s]?\d*\b|pompa/.test(s)) return 'borehole';
+  if (/menara|tower|\bma[-\s]?\d*\b/.test(s)) return 'st:tower';
   if (/reserv|tandon|\brsv|\br[-\s]?\d+\b/.test(s)) return 'reservoir';
   if (/air ?valve|\bav[-\s]?\d*\b/.test(s)) return 'air_valve';
   if (/wash|penguras|\bwo[-\s]?\d*\b/.test(s)) return 'wash_out';
@@ -746,22 +874,31 @@ function addPoints(p, rows, opts = {}) {
   const ids = [];
   const bendAng = p.settings?.bendAngle || 15;
   let prev = opts.connectFrom && nodes.some(n => n.id === opts.connectFrom) ? opts.connectFrom : null;
-  const mkPipe = (a, b) => ({
+  const mkPipe = (a, b, path) => ({
     id: uid('p'),
     label: nextLabel(pipes, 'P'),
     from: a,
     to: b,
     material: opts.material || 'PVC',
-    diameter: opts.diameter || 90
+    diameter: opts.diameter || 90,
+    ...(path && path.length ? {
+      path: path.map(q => [+(+q[0]).toFixed(7), +(+q[1]).toFixed(7)])
+    } : {})
   });
   const bendFix = id => {
     const n = nodes.find(x => x.id === id);
     if (!n || !n.auto || n.type !== 'junction') return;
     const conn = pipes.filter(x => x.from === id || x.to === id);
     if (conn.length !== 2) return;
-    const o = conn.map(x => nodes.find(y => y.id === (x.from === id ? x.to : x.from)));
+    const nm = Object.fromEntries(nodes.map(x => [x.id, x]));
+    const o = conn.map(x => pipeNear(x, id, nm));
     if (o.some(x => !x)) return;
-    if (deflAngle(n, o[0], o[1]) >= bendAng) {
+    const {
+      defl,
+      R
+    } = bendAt(n, o[0], o[1]);
+    if (conn.every(x => isFlex(x.material)) && R >= Math.max(...conn.map(x => MATERIALS[x.material].flex * x.diameter / 1000))) return;
+    if (defl >= bendAng) {
       const lab = nextLabel(nodes, 'B');
       nodes = nodes.map(x => x.id === id ? {
         ...x,
@@ -770,16 +907,16 @@ function addPoints(p, rows, opts = {}) {
       } : x);
     }
   };
-  const link = (a, b) => {
+  const link = (a, b, path) => {
     if (a && b && a !== b && !pipes.some(x => x.from === a && x.to === b || x.from === b && x.to === a)) {
-      pipes.push(mkPipe(a, b));
+      pipes.push(mkPipe(a, b, path));
       bendFix(a);
     }
   };
   rows.forEach(r => {
     if (r.existing) {
       if (opts.connect) {
-        link(prev, r.existing);
+        link(prev, r.existing, r.path);
         prev = r.existing;
       }
       ids.push(r.existing);
@@ -822,7 +959,7 @@ function addPoints(p, rows, opts = {}) {
     nodes.push(node);
     ids.push(node.id);
     if (opts.connect) {
-      link(prev, node.id);
+      link(prev, node.id, r.path);
       prev = node.id;
     }
   });
@@ -939,8 +1076,9 @@ function importGpx(p, parsed, opts) {
       const n = proj.nodes.find(n => haversine(n, pts[k]) < 15);
       if (n) snap.set(k, n.id);
     });
-    const keep = simplifyIdx(pts, opts.tol, opts.maxSeg, new Set(snap.keys()));
-    const trRows = keep.map(k => snap.has(k) ? {
+    const flex = opts.flexCurve && isFlex(opts.material);
+    const keep = flex ? simplifyIdx(pts, Math.min(opts.tol, 3), 1e9, new Set(snap.keys())) : simplifyIdx(pts, opts.tol, opts.maxSeg, new Set(snap.keys()));
+    const mkRow = k => snap.has(k) ? {
       existing: snap.get(k)
     } : {
       lat: pts[k].lat,
@@ -949,7 +1087,24 @@ function importGpx(p, parsed, opts) {
       auto: true,
       elev: opts.useEle && t.points[k][2] != null ? t.points[k][2] + off : null,
       elevSrc: 'gps'
-    });
+    };
+    let trRows;
+    if (!flex) trRows = keep.map(mkRow);else {
+      trRows = [];
+      let path = [],
+        acc = 0;
+      keep.forEach((k, j) => {
+        if (j) acc += haversine(pts[keep[j - 1]], pts[k]);
+        if (j === 0 || j === keep.length - 1 || snap.has(k) || acc >= opts.maxSeg) {
+          trRows.push({
+            ...mkRow(k),
+            path
+          });
+          path = [];
+          acc = 0;
+        } else path.push([pts[k].lat, pts[k].lng]);
+      });
+    }
     proj = addPoints(proj, trRows, {
       connect: true,
       material: opts.material,
@@ -1114,7 +1269,8 @@ function createExampleProject() {
       from: 'n_gv1',
       to: 'n_av1',
       material: 'HDPE',
-      diameter: 110
+      diameter: 110,
+      path: [[-6.83975, 107.49880], [-6.84075, 107.49920]]
     }, {
       id: 'p_3',
       label: 'P3',
@@ -1247,11 +1403,15 @@ function normalizeProject(p) {
         ...(t.q || {})
       }
     })) : p.nodes.some(n => n.id === 'n_r1') ? exampleTreatments() : [],
-    pipes: p.pipes.map(x => ({
-      material: 'PVC',
-      diameter: 90,
-      ...x
-    })),
+    pipes: p.pipes.map(x => {
+      const q = {
+        material: 'PVC',
+        diameter: 90,
+        ...x
+      };
+      if (Array.isArray(q.path)) q.path = q.path.filter(v => Array.isArray(v) && isFinite(+v[0]) && isFinite(+v[1])).map(v => [+v[0], +v[1]]);else delete q.path;
+      return q;
+    }),
     structures: Array.isArray(p.structures) ? p.structures.filter(x => STRUCT_TYPES[x.type]).map(x => ({
       nodeId: '',
       elevAuto: false,
@@ -1424,7 +1584,7 @@ function computeHydraulics(project) {
   pipes.forEach(p => {
     const a = nmap[p.from],
       b = nmap[p.to];
-    lengths[p.id] = a && b ? haversine(a, b) : 0;
+    lengths[p.id] = a && b ? pipeLength(p, a, b) : 0;
     if (a && b) {
       adj[p.from].push({
         pipe: p,
@@ -1774,6 +1934,19 @@ function computeHydraulics(project) {
       });
     }
   });
+  pipes.forEach(p => {
+    const a = nmap[p.from],
+      b = nmap[p.to];
+    if (!a || !b || !(p.path || []).length || !isFlex(p.material)) return;
+    const bad = pipeBends(p, a, b, s.bendAngle).filter(x => x.fitting);
+    if (!bad.length) return;
+    const w = bad.reduce((m, x) => x.R < m.R ? x : m);
+    warnings.push({
+      level: 'low',
+      ref: p.id,
+      text: `Lengkung ${p.label} (${p.material} Ø${p.diameter}) terlalu tajam di ${bad.length} titik belok: R ≈ ${fmt(w.R, 1)} m < ${MATERIALS[p.material].flex}×OD = ${fmt(w.Rmin, 1)} m. Dihitung memakai fitting bend; perlebar lengkungan bila ingin tanpa fitting.`
+    });
+  });
   const totalDemand = nodes.filter(n => !isSrc(n)).reduce((a, n) => a + Math.max(0, +n.demand || 0), 0);
   const totalLength = Object.values(lengths).reduce((a, b) => a + b, 0);
   const pressured = nodes.filter(n => nodeRes[n.id].pressure !== null && !isSrc(n) && !nodeRes[n.id].trans);
@@ -2041,24 +2214,18 @@ function computeBoQ(project, hyd) {
       counts.reducer++;
     }
     if (deg === 2) {
-      const a = proj.toXY(nmap[c[0].other].lat, nmap[c[0].other].lng),
-        b = proj.toXY(nmap[c[1].other].lat, nmap[c[1].other].lng),
-        o = proj.toXY(n.lat, n.lng);
-      const v1 = {
-          x: a.x - o.x,
-          y: a.y - o.y
-        },
-        v2 = {
-          x: b.x - o.x,
-          y: b.y - o.y
-        };
-      const cos = (v1.x * v2.x + v1.y * v2.y) / (Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y) || 1);
-      const defl = 180 - Math.acos(clamp(cos, -1, 1)) * 180 / Math.PI;
-      if (n.type === 'bend' || defl >= s.bendAngle) {
+      const {
+        defl,
+        R
+      } = bendAt(n, pipeNear(c[0].p, n.id, nmap), pipeNear(c[1].p, n.id, nmap));
+      const flexOk = c.every(x => isFlex(x.p.material)) && R >= Math.max(...c.map(x => MATERIALS[x.p.material].flex * x.p.diameter / 1000));
+      if (n.type === 'bend' || defl >= s.bendAngle && !flexOk) {
         add('bend', dMax, n, String(bendClass(defl)));
         counts.bend++;
-        thrust(dMax, n);
-        counts.thrust++;
+        if (!c.every(x => isFlex(x.p.material))) {
+          thrust(dMax, n);
+          counts.thrust++;
+        }
       }
     }
     if (n.type === 'gate_valve') {
@@ -2106,6 +2273,25 @@ function computeBoQ(project, hyd) {
       counts.thrust++;
     }
   });
+  project.pipes.forEach(p => {
+    const a = nmap[p.from],
+      b = nmap[p.to];
+    if (!a || !b || !(p.path || []).length) return;
+    pipeBends(p, a, b, s.bendAngle).forEach(x => {
+      if (!x.fitting) return;
+      const d = +p.diameter;
+      add('bend', d, {
+        label: `${p.label}/tb${x.i}`
+      }, String(bendClass(x.defl)));
+      counts.bend++;
+      if (!isFlex(p.material)) {
+        thrust(d, {
+          label: `${p.label}/tb${x.i}`
+        });
+        counts.thrust++;
+      }
+    });
+  });
   const order = ['tee', 'bend', 'reducer', 'endcap', 'gv', 'av', 'wo', 'hu', 'box', 'thrust'];
   const fittings = Object.values(fits).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.key.localeCompare(b.key));
   fittings.forEach(f => {
@@ -2114,6 +2300,16 @@ function computeBoQ(project, hyd) {
   });
   const structures = (project.structures || []).map(st => {
     const g = structGeom(st, project);
+    if (st.type === 'tower') {
+      const q = towerQty(g, hyd.totalDemand);
+      return {
+        st,
+        g,
+        q,
+        items: towerItems(st, g, q),
+        minHt: towerMinHt(g, project, hyd)
+      };
+    }
     const q = structQty(g, hyd.totalDemand);
     return {
       st,
@@ -2271,6 +2467,11 @@ const STRUCT_TYPES = {
     label: 'Hidran Umum (Bak & Kran)',
     short: 'HU',
     sheet: 'HIDRAN UMUM'
+  },
+  tower: {
+    label: 'Menara Air (Tower Tandon)',
+    short: 'MA',
+    sheet: 'MENARA AIR'
   }
 };
 const STRUCT_DEFAULTS = {
@@ -2350,6 +2551,40 @@ const STRUCT_DEFAULTS = {
     embed: 0.5,
     steelRatio: 100
   },
+  tower: {
+    system: 'steel_pe',
+    tankSize: 2000,
+    tankCount: 2,
+    Ht: 6,
+    col: 0.3,
+    beamB: 0.2,
+    beamH: 0.35,
+    slab: 0.15,
+    colProfile: 'H125.125',
+    braceProfile: 'L70.70.7',
+    L: 2.5,
+    B: 2.5,
+    Hw: 1.5,
+    fb: 0.3,
+    tw: 0.15,
+    tr: 0.12,
+    mh: 0.6,
+    footB: 1.2,
+    footT: 0.3,
+    footD: 1.5,
+    soil: 100,
+    dIn: 50,
+    dOut: 75,
+    dOf: 50,
+    dDr: 50,
+    steelRatio: 130,
+    rebarCol: '8D16, sk. D10-150',
+    rebarBeam: '4D16 + 2D13, sk. D10-150',
+    rebarFoot: 'D13-150 dua arah',
+    needPct: 15,
+    peakFactor: 1.5,
+    embed: 0
+  },
   hidran: {
     L: 1.5,
     B: 1.0,
@@ -2405,7 +2640,16 @@ function exampleStructures() {
   }, {
     lat: -6.83700,
     lng: 107.49700
-  }), mk('reservoir', 'RSV-1', 'n_r1'), mk('hidran', 'HU-1', 'n_hu1')];
+  }), mk('reservoir', 'RSV-1', 'n_r1'), mk('hidran', 'HU-1', 'n_hu1'), mk('tower', 'MA-1', '', {
+    elev: 806.0,
+    Ht: 6,
+    system: 'steel_pe',
+    tankSize: 2000,
+    tankCount: 2
+  }, {
+    lat: -6.84430,
+    lng: 107.50200
+  })];
 }
 const rebarSpacing = s => {
   const m = String(s || '').match(/-(\d+)/);
@@ -2420,6 +2664,7 @@ const roman = n => {
   return s;
 };
 function structGeom(st, project) {
+  if (st.type === 'tower') return towerGeom(st, project);
   const p = {
     ...STRUCT_DEFAULTS.common,
     ...STRUCT_DEFAULTS[st.type],
@@ -2734,6 +2979,464 @@ function structItems(st, g, q) {
   if (taps) items.push(['st|tap', 'Kran air ½" kuningan + pipa GIP & fitting', taps, 'bh', 95000]);
   items.push([`st|pipe|${st.id}`, 'Perpipaan, katup & fitting dalam bangunan (inlet, outlet, peluap, penguras)', 1, 'ls', r500(pipePrice)]);
   items.push(['st|leak', 'Uji kebocoran bak (diisi penuh 24 jam)', 1, 'ls', 750000]);
+  return items;
+}
+const TANDON = [{
+  v: 300,
+  D: 0.72,
+  H: 0.95,
+  w: 12,
+  price: 950000
+}, {
+  v: 500,
+  D: 0.83,
+  H: 1.12,
+  w: 16,
+  price: 1350000
+}, {
+  v: 700,
+  D: 0.92,
+  H: 1.25,
+  w: 21,
+  price: 1800000
+}, {
+  v: 1000,
+  D: 1.05,
+  H: 1.40,
+  w: 26,
+  price: 2300000
+}, {
+  v: 1200,
+  D: 1.12,
+  H: 1.48,
+  w: 31,
+  price: 2750000
+}, {
+  v: 1500,
+  D: 1.20,
+  H: 1.60,
+  w: 38,
+  price: 3400000
+}, {
+  v: 2000,
+  D: 1.32,
+  H: 1.78,
+  w: 48,
+  price: 4400000
+}, {
+  v: 3000,
+  D: 1.55,
+  H: 1.92,
+  w: 70,
+  price: 6900000
+}, {
+  v: 5000,
+  D: 1.88,
+  H: 2.18,
+  w: 110,
+  price: 11500000
+}, {
+  v: 10000,
+  D: 2.40,
+  H: 2.70,
+  w: 230,
+  price: 26000000
+}];
+const TOWER_SYSTEMS = {
+  rc_tank: {
+    label: 'Full beton bertulang (rangka + bak beton)',
+    short: 'Full beton',
+    frame: 'rc',
+    tank: 'rc'
+  },
+  rc_pe: {
+    label: 'Rangka beton bertulang + tandon PVC/PE',
+    short: 'Beton + tandon',
+    frame: 'rc',
+    tank: 'pe'
+  },
+  steel_pe: {
+    label: 'Rangka baja (besi) + tandon PVC/PE',
+    short: 'Baja + tandon',
+    frame: 'steel',
+    tank: 'pe'
+  }
+};
+const STEEL_PROFILES = {
+  'L70.70.7': {
+    kg: 7.38,
+    A: 9.40,
+    r: 1.37,
+    b: 0.07
+  },
+  'L80.80.8': {
+    kg: 9.63,
+    A: 12.3,
+    r: 1.56,
+    b: 0.08
+  },
+  'L100.100.10': {
+    kg: 15.0,
+    A: 19.0,
+    r: 1.95,
+    b: 0.10
+  },
+  'WF150.75': {
+    kg: 14.0,
+    A: 17.85,
+    r: 1.66,
+    b: 0.15
+  },
+  'H100.100': {
+    kg: 17.2,
+    A: 21.9,
+    r: 2.47,
+    b: 0.10
+  },
+  'H125.125': {
+    kg: 23.8,
+    A: 30.3,
+    r: 3.11,
+    b: 0.125
+  },
+  'H150.150': {
+    kg: 31.5,
+    A: 40.1,
+    r: 3.75,
+    b: 0.15
+  },
+  'Pipa 4" Sch40': {
+    kg: 16.07,
+    A: 20.5,
+    r: 3.82,
+    b: 0.114
+  },
+  'Pipa 6" Sch40': {
+    kg: 28.26,
+    A: 36.0,
+    r: 5.69,
+    b: 0.168
+  }
+};
+const TOWER_BEAM = {
+  kg: 14.0,
+  name: 'WF150.75'
+};
+function towerGeom(st, project) {
+  const p = {
+    ...STRUCT_DEFAULTS.common,
+    ...STRUCT_DEFAULTS.tower,
+    ...(st.params || {})
+  };
+  const sys = TOWER_SYSTEMS[p.system] || TOWER_SYSTEMS.steel_pe;
+  const steel = sys.frame === 'steel',
+    rcTank = sys.tank === 'rc';
+  const node = st.nodeId ? project.nodes.find(n => n.id === st.nodeId) : null;
+  const ground = node ? +node.elev || 0 : +p.elev || 0;
+  const Ht = clamp(+p.Ht || 0, 1, 40);
+  const tlk = Math.max(0, +p.tlk || 0.05);
+  let tank,
+    n = 1,
+    cols = 1,
+    rows = 1,
+    W,
+    Dp,
+    tankH,
+    Hw,
+    cap;
+  const gap = 0.3,
+    edge = 0.35;
+  if (rcTank) {
+    const L = Math.max(0.8, +p.L || 0),
+      B = Math.max(0.8, +p.B || 0),
+      tw = Math.max(0.1, +p.tw || 0),
+      tr = Math.max(0.08, +p.tr || 0),
+      fb = Math.max(0, +p.fb || 0);
+    Hw = Math.max(0.3, +p.Hw || 0);
+    W = L + 2 * tw;
+    Dp = B + 2 * tw;
+    tankH = Hw + fb + tr;
+    cap = L * B * Hw;
+    tank = {
+      L,
+      B,
+      tw,
+      tr,
+      fb,
+      Hin: Hw + fb,
+      mh: clamp(+p.mh || 0.6, 0.4, Math.min(L, B) - 0.1)
+    };
+  } else {
+    tank = TANDON.find(t => t.v === +p.tankSize) || TANDON[6];
+    n = clamp(Math.round(+p.tankCount || 1), 1, 6);
+    cols = n <= 2 ? n : n <= 4 ? 2 : 3;
+    rows = Math.ceil(n / cols);
+    W = cols * tank.D + (cols - 1) * gap + 2 * edge;
+    Dp = rows * tank.D + (rows - 1) * gap + 2 * edge;
+    const bmin = Math.max(1.5, Ht / 5);
+    W = Math.max(W, bmin);
+    Dp = Math.max(Dp, bmin, 0.6 * W);
+    tankH = tank.H;
+    Hw = tank.H * 0.85;
+    cap = n * tank.v / 1000;
+  }
+  const pc = STEEL_PROFILES[p.colProfile] || STEEL_PROFILES['H125.125'],
+    pb = STEEL_PROFILES[p.braceProfile] || STEEL_PROFILES['L70.70.7'];
+  const colB = steel ? pc.b : clamp(+p.col || 0.3, 0.2, 0.8);
+  const Sx = Math.max(0.6, W - colB),
+    Sy = Math.max(0.6, Dp - colB);
+  const nLev = Math.max(1, Math.ceil(Ht / (steel ? 2.5 : 3)));
+  const z0 = steel ? 0.3 : 0;
+  const levels = Array.from({
+    length: nLev + 1
+  }, (_, i) => z0 + (Ht - z0) * i / nLev);
+  const footB = Math.max(0.6, +p.footB || 0),
+    footT = Math.max(0.2, +p.footT || 0),
+    footD = Math.max(footT + 0.4, +p.footD || 0);
+  const ts = steel ? 0.15 : Math.max(0.1, +p.slab || 0.15);
+  const outZ = rcTank ? 0.15 : 0.1;
+  const floorEl = ground + Ht;
+  const mat = floorEl + Hw;
+  const lowEl = floorEl + outZ + 0.05;
+  return {
+    p,
+    sys,
+    steel,
+    rcTank,
+    type: 'tower',
+    label: st.label,
+    node,
+    ground,
+    Ht,
+    tank,
+    n,
+    cols,
+    rows,
+    gap,
+    edge,
+    W,
+    Dp,
+    Sx,
+    Sy,
+    colB,
+    pc,
+    pb,
+    ts,
+    tlk,
+    tankH,
+    Hw,
+    cap,
+    nLev,
+    levels,
+    z0,
+    footB,
+    footT,
+    footD,
+    floorEl,
+    mat,
+    lowEl,
+    outZ,
+    ped: steel ? 0.45 : colB,
+    L: W,
+    B: Dp,
+    Hin: Ht + tankH,
+    floor: floorEl
+  };
+}
+function towerMinHt(g, project, hyd) {
+  if (!g.node || g.node.type !== 'reservoir' || !hyd || !hyd.nodes[g.node.id]) return null;
+  const H0 = hyd.nodes[g.node.id].head;
+  if (H0 == null) return null;
+  const pMin = +project.settings.pMin || 10;
+  let req = -Infinity,
+    crit = null;
+  project.nodes.forEach(n => {
+    const r = hyd.nodes[n.id];
+    if (!r || n.id === g.node.id || r.source !== g.node.id || r.head == null || isSrc(n) || r.trans) return;
+    const need = (+n.elev || 0) + pMin + (H0 - r.head);
+    if (need > req) {
+      req = need;
+      crit = n;
+    }
+  });
+  if (!crit) return null;
+  return {
+    Ht: Math.max(1, Math.ceil((req - g.ground - g.outZ - 0.05) * 2) / 2),
+    crit
+  };
+}
+function towerQty(g, totalDemand) {
+  const {
+    p,
+    steel,
+    rcTank,
+    Ht,
+    Sx,
+    Sy,
+    colB,
+    footB,
+    footT,
+    footD,
+    nLev,
+    W,
+    Dp,
+    tlk,
+    ped,
+    z0
+  } = g;
+  const perim = 2 * (Sx + Sy);
+  const ex = 0.3;
+  const galian = 4 * (footB + 2 * ex) ** 2 * (footD + tlk);
+  const lk = 4 * (footB + 0.1) ** 2 * tlk;
+  const pedH = footD - footT + z0;
+  const footing = 4 * (footB * footB * footT + ped * ped * pedH);
+  const urugan = Math.max(0, galian - lk - 4 * (footB * footB * footT + ped * ped * (footD - footT)));
+  let frame = 0,
+    tankV = 0,
+    formwork = 4 * (4 * footB * footT + 4 * ped * pedH),
+    plIn = 0,
+    plOut = 0,
+    profile = 0,
+    paint = 0,
+    plate = 0;
+  if (!steel) {
+    const bb = Math.max(0.15, +p.beamB || 0.2),
+      hb = Math.max(0.2, +p.beamH || 0.35);
+    const nBeam = nLev + 1;
+    frame = 4 * colB * colB * Ht + nBeam * perim * bb * hb + W * Dp * g.ts;
+    formwork += 4 * 4 * colB * Ht + nBeam * perim * (2 * hb + bb) + W * Dp + 2 * (W + Dp) * g.ts;
+  }
+  if (rcTank) {
+    const t = g.tank;
+    tankV = 2 * (t.L + t.tw + (t.B + t.tw)) * t.tw * t.Hin + (W * Dp - t.mh * t.mh) * t.tr;
+    formwork += 2 * (W + Dp) * (t.Hin + t.tr) + 2 * (t.L + t.B) * t.Hin + t.L * t.B;
+    plIn = 2 * (t.L + t.B) * t.Hin + t.L * t.B;
+    plOut = 2 * (W + Dp) * (t.Hin + t.tr) + 4 * 4 * colB * Ht;
+  }
+  if (steel) {
+    const pc = g.pc,
+      pb = g.pb;
+    const h = (Ht - z0) / nLev;
+    const cols = 4 * (Ht - z0) * pc.kg;
+    const horiz = (nLev - 1) * perim * pb.kg;
+    const diag = nLev * 4 * (Math.hypot(Sx, h) + Math.hypot(Sy, h)) * pb.kg;
+    const nJ = Math.max(1, Math.ceil(W / 0.6) - 1);
+    const top = (perim + nJ * Sy) * TOWER_BEAM.kg;
+    const base = 4 * 0.35 * 0.35 * 0.012 * 7850 + 4 * 6;
+    profile = cols + horiz + diag + top + base;
+    paint = profile * 0.033;
+    plate = W * Dp;
+    Object.assign(g, {
+      kgCols: cols,
+      kgBrace: horiz + diag,
+      kgTop: top
+    });
+  }
+  const concrete = footing + frame + tankV;
+  const rebar = footing * 90 + (frame + tankV) * (+p.steelRatio || 130);
+  const rail = rcTank ? 2 * (W + Dp) : 2 * (W + Dp);
+  const ladder = Ht + g.tankH + (rcTank ? 0.3 : 1.0);
+  const riser = 2 * (Ht + g.tankH + 1.5) + (Ht + 1.5) + 2 * Math.max(W, Dp);
+  const need = (+p.needPct || 15) / 100 * totalDemand * 86.4 / (+p.peakFactor || 1.5);
+  const water = g.cap * 9.81;
+  const tankKN = rcTank ? tankV * 24 : g.n * g.tank.w * 0.00981;
+  const frameKN = steel ? (profile + plate * 37) * 0.00981 : frame * 24;
+  const live = W * Dp * 1.0;
+  const Dl = tankKN + frameKN;
+  const qw = 0.6;
+  const Aw = W * g.tankH * (rcTank ? 1.3 : 0.8);
+  const Af = 2 * colB * Ht * 1.6 + (steel ? 0.12 * Sx * Ht : 0);
+  const M = qw * Aw * (Ht + g.tankH / 2) + qw * Af * Ht / 2;
+  const S = Math.min(Sx, Sy);
+  const Pu = Math.max(1.4 * (Dl + water) / 4, (1.2 * (Dl + water) + 1.6 * live) / 4 + M / (2 * S));
+  let phiPn,
+    lambda = null;
+  if (steel) {
+    const r = g.pc.r,
+      A = g.pc.A * 100;
+    const Lk = (Ht - z0) / nLev * 100;
+    lambda = Lk / r;
+    const E = 200000,
+      Fy = 240;
+    const Fe = Math.PI ** 2 * E / lambda ** 2;
+    const Fcr = lambda <= 4.71 * Math.sqrt(E / Fy) ? Math.pow(0.658, Fy / Fe) * Fy : 0.877 * Fe;
+    phiPn = 0.9 * Fcr * A / 1000;
+  } else {
+    const Ag = colB * colB * 1e6,
+      As = 0.01 * Ag;
+    phiPn = 0.65 * 0.8 * (0.85 * 20.75 * (Ag - As) + 420 * As) / 1000;
+  }
+  const footW = (footB * footB * footT + ped * ped * (footD - footT)) * 24 + (footB * footB - ped * ped) * (footD - footT) * 18;
+  const Pserv = (Dl + water + live) / 4 + M / (2 * S) + footW;
+  const sigma = Pserv / (footB * footB);
+  const soil = Math.max(20, +p.soil || 100);
+  const uplift = Dl / 4 + footW - M / (2 * S);
+  const check = {
+    Pu,
+    phiPn,
+    rCol: Pu / phiPn,
+    lambda,
+    sigma,
+    soil,
+    rSoil: sigma / soil,
+    uplift,
+    M,
+    Dl,
+    water
+  };
+  return {
+    concrete,
+    footing,
+    frame,
+    tankV,
+    lk,
+    galian,
+    urugan,
+    formwork,
+    rebar,
+    steel: rebar + profile,
+    profile,
+    paint,
+    plate,
+    plIn,
+    plOut,
+    rail,
+    ladder,
+    riser,
+    cap: g.cap,
+    need,
+    check
+  };
+}
+function towerItems(st, g, q) {
+  const p = g.p;
+  const items = [['tw|dig', 'Galian tanah pondasi telapak menara', q.galian, 'm³', 95000], ['tw|lk', `Lantai kerja beton K-100 t = ${fmt(g.tlk * 100, 0)} cm`, q.lk, 'm³', 1150000], ['tw|foot', `Beton bertulang K-250 pondasi telapak ${fmt(g.footB, 2)} × ${fmt(g.footB, 2)} m + ${g.steel ? 'pedestal' : 'stek kolom'} (4 titik)`, q.footing, 'm³', 1650000]];
+  if (!g.steel) items.push(['tw|frame', `Beton bertulang K-250 kolom ${fmt(g.colB * 100, 0)}×${fmt(g.colB * 100, 0)}, sloof, balok ring & pelat lantai menara`, q.frame, 'm³', 1750000]);
+  if (g.rcTank) items.push(['tw|tank', 'Beton bertulang K-250 dinding & pelat atap bak menara', q.tankV, 'm³', 1750000]);
+  items.push(['tw|rebar', 'Pembesian BJTS 420B', q.rebar, 'kg', 17500]);
+  items.push(['tw|bek', g.steel ? 'Bekisting pondasi & pedestal' : 'Bekisting multiplek 12 mm + perancah (scaffolding) menara', q.formwork, 'm²', g.steel ? 185000 : 265000]);
+  if (g.steel) {
+    items.push(['tw|steel', `Rangka baja BJ 37 (kolom ${p.colProfile}, ikatan ${p.braceProfile}, balok platform ${TOWER_BEAM.name}): fabrikasi + pasang`, q.profile, 'kg', 32000]);
+    items.push(['tw|plate', 'Lantai platform pelat bordes 4,5 mm', q.plate, 'm²', 520000]);
+    items.push(['tw|anchor', 'Angkur M19 + pelat landas 12 mm + grouting (set per kolom)', 4, 'set', 650000]);
+    items.push(['tw|paint', 'Pengecatan baja: cat dasar zinc chromate + 2 lapis cat akhir', q.paint, 'm²', 65000]);
+  }
+  if (g.rcTank) {
+    items.push(['tw|plin', 'Plesteran 1:2 + acian kedap air, dalam bak', q.plIn, 'm²', 115000]);
+    items.push(['tw|plout', 'Plesteran 1:4 + acian, bagian luar bak & kolom', q.plOut, 'm²', 85000]);
+    items.push(['tw|mh', `Tutup manhole ${fmt(g.tank.mh * 100, 0)}×${fmt(g.tank.mh * 100, 0)} cm plat besi + gembok, pipa ventilasi leher angsa`, 1, 'unit', 1600000]);
+  } else {
+    items.push([`tw|tandon|${g.tank.v}`, `Tandon air PVC/PE ${fmt(g.tank.v, 0)} L (Ø${fmt(g.tank.D * 100, 0)} × ${fmt(g.tank.H * 100, 0)} cm), terpasang`, g.n, 'unit', g.tank.price]);
+    items.push(['tw|strap', 'Pengikat tandon (sabuk pelat + kawat seling) & ganjal dudukan', g.n, 'set', 275000]);
+  }
+  items.push(['tw|rail', `Railing pengaman ${g.rcTank ? 'atap bak' : 'platform'} pipa GIP 1½" tinggi 1,0 m`, q.rail, "m'", 385000]);
+  items.push(['tw|ladder', 'Tangga monyet besi Ø19 mm galvanis + pelindung punggung', q.ladder, "m'", 450000]);
+  const dMax = Math.max(+p.dIn, +p.dOut);
+  items.push([`tw|riser|${dMax}`, `Pipa tegak GIP inlet, outlet, peluap & penguras (s.d. Ø${dMax} mm) + klem`, q.riser, "m'", r500(defPipePrice('GIP', dMax) * 1.15)]);
+  const valves = FITTING_DEF.gv.price(+p.dOut) + FITTING_DEF.gv.price(+p.dDr) + r500(450000 + 900000 * Math.pow(+p.dIn / 110, 1.3)) + (g.rcTank ? 0 : g.n * 325000) + 450000;
+  items.push([`tw|valve|${st.id}`, `Katup & fitting: float valve inlet, gate valve outlet & penguras${g.rcTank ? '' : `, manifold ${g.n} tandon (ball valve + union)`}`, 1, 'ls', r500(valves)]);
+  items.push(['tw|fill', 'Urugan tanah kembali dipadatkan', q.urugan, 'm³', 48000]);
+  items.push(['tw|test', g.rcTank ? 'Uji kebocoran bak (diisi penuh 24 jam)' : 'Uji pengisian penuh & kebocoran sambungan tandon', 1, 'ls', g.rcTank ? 750000 : 450000]);
   return items;
 }
 const WQ = [{
@@ -4204,7 +4907,7 @@ function LeafletMap(props) {
     map.on('mousemove', e => {
       const p = propsRef.current;
       const a = p.activeNode && p.project.nodes.find(n => n.id === p.activeNode);
-      if (p.tool === 'draw' && a) rubberRef.current.setLatLngs([[a.lat, a.lng], e.latlng]);else rubberRef.current.setLatLngs([]);
+      if (p.tool === 'draw' && a) rubberRef.current.setLatLngs([[a.lat, a.lng], ...(p.pending || []), e.latlng]);else rubberRef.current.setLatLngs([]);
       p.onCursor && p.onCursor(e.latlng);
     });
     map.on('moveend', () => {
@@ -4284,8 +4987,10 @@ function LeafletMap(props) {
     const c = map.getContainer();
     c.classList.remove('tool-draw', 'tool-node', 'tool-delete', 'tool-select');
     c.classList.add('tool-' + tool);
-    if (tool !== 'draw' || !activeNode) rubberRef.current.setLatLngs([]);
-  }, [tool, activeNode]);
+    const a = activeNode && project.nodes.find(n => n.id === activeNode);
+    const pend = props.pending || [];
+    if (!a || tool !== 'draw' && !pend.length) rubberRef.current.setLatLngs([]);else if (pend.length) rubberRef.current.setLatLngs([[a.lat, a.lng], ...pend]);
+  }, [tool, activeNode, props.pending]);
   useEffect(() => {
     const group = layerRef.current;
     if (!group) return;
@@ -4298,7 +5003,7 @@ function LeafletMap(props) {
       const r = hyd.pipes[p.id];
       const st = colorMode === 'velocity' ? r.status : hyd.nodes[r.down]?.status || 'iso';
       const color = STATUS_COLORS[st === 'src' ? 'ok' : st] || '#94a3b8';
-      const latlngs = [[a.lat, a.lng], [b.lat, b.lng]];
+      const latlngs = pipeLine(p, a, b);
       const sel = selection?.kind === 'pipe' && selection.id === p.id;
       const w = 3 + Math.min(6, p.diameter / 40);
       L.polyline(latlngs, {
@@ -4325,12 +5030,14 @@ function LeafletMap(props) {
       hit.bindTooltip(`<b>${p.label}</b> · ${p.material} Ø${p.diameter} mm<br>L = ${fmt(r.length, 1)} m · Q = ${fmt(r.Q)} L/dtk<br>v = ${fmt(r.v)} m/s · hf = ${fmt(r.hf)} m`, {
         sticky: true
       });
-      const mid = [(a.lat + b.lat) / 2, (a.lng + b.lng) / 2];
+      const am = alongLine(latlngs, 0.5);
+      const mid = am.pt;
       if (r.inTree && r.Q > 0) {
-        const up = nmap[r.up],
-          dn = nmap[r.down];
-        const dx = (dn.lng - up.lng) * Math.cos(up.lat * Math.PI / 180),
-          dy = dn.lat - up.lat;
+        const fw = r.up === p.from;
+        const s0 = fw ? am.a : am.b,
+          s1 = fw ? am.b : am.a;
+        const dx = (s1[1] - s0[1]) * Math.cos(s0[0] * Math.PI / 180),
+          dy = s1[0] - s0[0];
         const deg = -Math.atan2(dy, dx) * 180 / Math.PI;
         L.marker(mid, {
           interactive: false,
@@ -4351,7 +5058,63 @@ function LeafletMap(props) {
           interactive: false
         }).setLatLng(mid).setContent(`${p.label} Ø${p.diameter} · ${fmt(r.length, 0)} m`).addTo(group);
       }
+      if (sel && tool === 'select') {
+        const v = pipeVerts(p, a, b);
+        const bends = pipeBends(p, a, b, props.bendAngle || 15);
+        const ms = props.mobile ? 22 : 16;
+        for (let k = 0; k < v.length - 1; k++) {
+          const m = [(v[k][0] + v[k + 1][0]) / 2, (v[k][1] + v[k + 1][1]) / 2];
+          const h = L.marker(m, {
+            draggable: true,
+            bubblingMouseEvents: false,
+            zIndexOffset: 1400,
+            icon: L.divIcon({
+              className: 'tp-node-wrap',
+              iconSize: [ms, ms],
+              iconAnchor: [ms / 2, ms / 2],
+              html: '<div class="tp-vadd">+</div>'
+            })
+          }).addTo(group);
+          h.bindTooltip('Seret untuk melengkungkan pipa', {
+            direction: 'top',
+            offset: [0, -8]
+          });
+          h.on('click', () => propsRef.current.onPipeVertex(p.id, 'add', k, {
+            lat: m[0],
+            lng: m[1]
+          }));
+          h.on('dragend', e => propsRef.current.onPipeVertex(p.id, 'add', k, e.target.getLatLng()));
+        }
+        (p.path || []).forEach((q, k) => {
+          const bad = bends[k]?.fitting;
+          const h = L.marker(q, {
+            draggable: true,
+            bubblingMouseEvents: false,
+            zIndexOffset: 1500,
+            icon: L.divIcon({
+              className: 'tp-node-wrap',
+              iconSize: [ms, ms],
+              iconAnchor: [ms / 2, ms / 2],
+              html: `<div class="tp-vtx${bad ? ' bad' : ''}"></div>`
+            })
+          }).addTo(group);
+          h.bindTooltip(`Titik belok ${k + 1}${bends[k] ? ` · ${fmt(bends[k].defl, 0)}°${isFinite(bends[k].R) ? ` · R ≈ ${fmt(bends[k].R, 1)} m` : ''}${bad ? ' · perlu fitting bend' : ''}` : ''}<br>Seret untuk memindah · klik untuk menghapus`, {
+            direction: 'top',
+            offset: [0, -8]
+          });
+          h.on('click', () => propsRef.current.onPipeVertex(p.id, 'del', k));
+          h.on('dragend', e => propsRef.current.onPipeVertex(p.id, 'move', k, e.target.getLatLng()));
+        });
+      }
     });
+    (props.pending || []).forEach(q => L.circleMarker(q, {
+      radius: 4,
+      color: '#fff',
+      weight: 2,
+      fillColor: '#f97316',
+      fillOpacity: 1,
+      interactive: false
+    }).addTo(group));
     (project.structures || []).forEach(st => {
       if (st.nodeId || st.lat == null || st.lng == null) return;
       const sel = selection?.kind === 'struct' && selection.id === st.id;
@@ -4422,7 +5185,7 @@ function LeafletMap(props) {
         offset: [0, -12]
       });
     });
-  }, [project.nodes, project.pipes, project.structures, hyd, selection, activeNode, tool, colorMode, showLabels]);
+  }, [project.nodes, project.pipes, project.structures, hyd, selection, activeNode, tool, colorMode, showLabels, props.pending]);
   return React.createElement("div", {
     ref: divRef,
     className: "absolute inset-0"
@@ -4607,9 +5370,26 @@ function CanvasMap(props) {
     const a = nmap[p.from],
       b = nmap[p.to];
     if (!a || !b) return null;
+    const r = hyd.pipes[p.id];
     const A = xy(a),
       B = xy(b);
-    const r = hyd.pipes[p.id];
+    const ll = pipeLine(p, a, b);
+    const pts = ll.map((q, i) => i === 0 ? A : i === ll.length - 1 ? B : (() => {
+      const t = P.toXY(q[0], q[1]);
+      return {
+        x: t.x,
+        y: -t.y
+      };
+    })());
+    const ptsStr = pts.map(q => `${q.x},${q.y}`).join(' ');
+    const M = (() => {
+      const m = alongLine(ll, 0.5).pt;
+      const t = P.toXY(m[0], m[1]);
+      return {
+        x: t.x,
+        y: -t.y
+      };
+    })();
     const st = colorMode === 'velocity' ? r.status : hyd.nodes[r.down]?.status || 'iso';
     const sel = selection?.kind === 'pipe' && selection.id === p.id;
     return React.createElement("g", {
@@ -4624,33 +5404,29 @@ function CanvasMap(props) {
       style: {
         cursor: 'pointer'
       }
-    }, React.createElement("line", {
-      x1: A.x,
-      y1: A.y,
-      x2: B.x,
-      y2: B.y,
+    }, React.createElement("polyline", {
+      points: ptsStr,
+      fill: "none",
       stroke: "transparent",
       strokeWidth: u * 14
-    }), sel && React.createElement("line", {
-      x1: A.x,
-      y1: A.y,
-      x2: B.x,
-      y2: B.y,
+    }), sel && React.createElement("polyline", {
+      points: ptsStr,
+      fill: "none",
       stroke: "#f97316",
       strokeWidth: u * 10,
       strokeLinecap: "round",
+      strokeLinejoin: "round",
       opacity: 0.5
-    }), React.createElement("line", {
-      x1: A.x,
-      y1: A.y,
-      x2: B.x,
-      y2: B.y,
+    }), React.createElement("polyline", {
+      points: ptsStr,
+      fill: "none",
       stroke: STATUS_COLORS[st === 'src' ? 'ok' : st],
       strokeWidth: u * (3 + Math.min(6, p.diameter / 40)),
-      strokeLinecap: "round"
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
     }), showLabels && React.createElement("text", {
-      x: (A.x + B.x) / 2,
-      y: (A.y + B.y) / 2 - u * 8,
+      x: M.x,
+      y: M.y - u * 8,
       fontSize: u * 11,
       textAnchor: "middle",
       fill: "#10232a",
@@ -4731,11 +5507,15 @@ function CanvasMap(props) {
       stroke: "#fff",
       strokeWidth: u * 3
     }));
-  })(), act && tool === 'draw' && hover && React.createElement("line", {
-    x1: xy(act).x,
-    y1: xy(act).y,
-    x2: hover.x,
-    y2: hover.y,
+  })(), act && tool === 'draw' && hover && React.createElement("polyline", {
+    points: [xy(act), ...(props.pending || []).map(q => {
+      const t = P.toXY(q[0], q[1]);
+      return {
+        x: t.x,
+        y: -t.y
+      };
+    }), hover].map(q => `${q.x},${q.y}`).join(' '),
+    fill: "none",
     stroke: "#f97316",
     strokeWidth: u * 2.5,
     strokeDasharray: `${u * 6} ${u * 6}`,
@@ -4995,7 +5775,7 @@ function StructMapInspector({
     className: "text-slate-500"
   }, "Kapasitas"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, fmt(g.L * g.B * g.Hw, 2), " m\xB3")), React.createElement(StampInfo, {
+  }, fmt(g.cap ?? g.L * g.B * g.Hw, 2), " m\xB3")), React.createElement(StampInfo, {
     item: st
   }), React.createElement(Btn, {
     icon: "DraftingCompass",
@@ -5132,7 +5912,7 @@ function GpsPanel({
     className: "flex items-center gap-2"
   }, React.createElement("span", {
     className: "flex-1"
-  }, "Jalur pipa aktif dari ", React.createElement("b", null, chain.label), rec && s.autoNodes ? ': node dibuat otomatis di belokan.' : '.'), React.createElement("button", {
+  }, "Jalur pipa aktif dari ", React.createElement("b", null, chain.label), rec && s.autoNodes ? s.flexCurve !== false && isFlex(prefs.material) ? `: pipa ${prefs.material} mengikuti lengkungan jejak${field.pending.length ? ` (${field.pending.length} titik lengkung)` : ''}, node tiap ± ${s.autoMaxSeg} m.` : ': node dibuat otomatis di belokan.' : '.'), React.createElement("button", {
     type: "button",
     className: "font-semibold text-aqua-700 hover:underline shrink-0",
     onClick: () => setActiveNode(null)
@@ -5205,7 +5985,15 @@ function GpsPanel({
     type: "checkbox",
     checked: !!s.autoNodes,
     onChange: e => setS('autoNodes', e.target.checked)
-  }), "Node otomatis di belokan saat merekam"), React.createElement("label", {
+  }), "Node otomatis di belokan saat merekam"), isFlex(prefs.material) && React.createElement("label", {
+    className: "flex items-start gap-2"
+  }, React.createElement("input", {
+    id: "gps-flex",
+    type: "checkbox",
+    className: "mt-0.5",
+    checked: s.flexCurve !== false,
+    onChange: e => setS('flexCurve', e.target.checked)
+  }), React.createElement("span", null, "Pipa ", prefs.material, " fleksibel mengikuti lengkung jejak (tanpa node di tiap belokan)")), React.createElement("label", {
     className: "flex items-center gap-2"
   }, React.createElement("input", {
     id: "gps-follow",
@@ -5326,7 +6114,10 @@ function MapWorkspace({
     setPrefs,
     activeNode,
     setActiveNode,
-    createPoint
+    createPoint,
+    pending,
+    setPending,
+    takePending
   } = field;
   const [tool, setTool] = useState('select');
   const [colorMode, setColorMode] = useState('velocity');
@@ -5337,14 +6128,19 @@ function MapWorkspace({
   const [cursor, setCursor] = useState(null);
   const newType = prefs.type;
   const placingStruct = newType.startsWith('st:');
-  const makePipe = (p, from, to) => ({
+  const makePipe = (p, from, to, path) => ({
     id: uid('p'),
     label: nextLabel(p.pipes, 'P'),
     from,
     to,
     material: prefs.material,
-    diameter: prefs.diameter
+    diameter: prefs.diameter,
+    ...(path && path.length ? {
+      path
+    } : {})
   });
+  const bendMode = tool === 'draw' && !!prefs.bendMode && !placingStruct;
+  const llr = ll => [+(+ll.lat).toFixed(7), +(+ll.lng).toFixed(7)];
   const pipeExists = (p, a, b) => p.pipes.some(x => x.from === a && x.to === b || x.from === b && x.to === a);
   const onMapClick = ll => {
     if ((tool === 'node' || tool === 'draw') && placingStruct) {
@@ -5364,7 +6160,7 @@ function MapWorkspace({
         kind: 'node',
         id
       });
-    } else if (tool === 'draw') {
+    } else if (tool === 'draw' && bendMode && activeNode) setPending(q => [...q, llr(ll)]);else if (tool === 'draw') {
       const kind = activeNode ? newType : project.nodes.some(isSrc) ? newType : 'reservoir';
       const id = createPoint(ll, kind, {
         connect: true
@@ -5381,10 +6177,13 @@ function MapWorkspace({
       return;
     }
     if (tool === 'draw' && !placingStruct) {
-      if (activeNode && activeNode !== id) setProject(p => pipeExists(p, activeNode, id) ? p : {
-        ...p,
-        pipes: [...p.pipes, makePipe(p, activeNode, id)]
-      });
+      if (activeNode && activeNode !== id) {
+        const path = takePending();
+        setProject(p => pipeExists(p, activeNode, id) ? p : {
+          ...p,
+          pipes: [...p.pipes, makePipe(p, activeNode, id, path)]
+        });
+      }
       setActiveNode(id);
     }
     setSelection({
@@ -5402,6 +6201,18 @@ function MapWorkspace({
       id
     });
   };
+  const onPipeVertex = (id, op, i, ll) => setProject(p => ({
+    ...p,
+    pipes: p.pipes.map(x => {
+      if (x.id !== id) return x;
+      const path = [...(x.path || [])];
+      if (op === 'move') path[i] = llr(ll);else if (op === 'add') path.splice(i, 0, llr(ll));else if (op === 'del') path.splice(i, 1);
+      return {
+        ...x,
+        path
+      };
+    })
+  }));
   const onStructClick = id => {
     if (tool === 'delete') {
       deleteStruct(id);
@@ -5459,12 +6270,14 @@ function MapWorkspace({
     const pipe = project.pipes.find(x => x.id === id);
     const a = project.nodes.find(n => n.id === pipe.from),
       b = project.nodes.find(n => n.id === pipe.to);
+    const verts = pipeVerts(pipe, a, b);
+    const mid = alongLine(verts, 0.5);
     const created = {
       id: uid('n'),
       label: nextLabel(project.nodes, 'J'),
       type: 'junction',
-      lat: +((a.lat + b.lat) / 2).toFixed(7),
-      lng: +((a.lng + b.lng) / 2).toFixed(7),
+      lat: +mid.pt[0].toFixed(7),
+      lng: +mid.pt[1].toFixed(7),
       elev: round2((+a.elev + +b.elev) / 2),
       elevAuto: project.settings.elevSource !== 'off',
       elevSrc: 'est',
@@ -5473,13 +6286,15 @@ function MapWorkspace({
     };
     const p1 = {
       ...pipe,
-      to: created.id
+      to: created.id,
+      path: verts.slice(1, mid.i)
     };
     const p2 = {
       ...pipe,
       id: uid('p'),
       label: nextLabel(project.pipes, 'P'),
-      from: created.id
+      from: created.id,
+      path: verts.slice(mid.i, verts.length - 1)
     };
     setProject(p => ({
       ...p,
@@ -5512,6 +6327,15 @@ function MapWorkspace({
         setActiveNode(null);
         setSelection(null);
       }
+      if (e.key === 'Backspace' && pending.length) {
+        e.preventDefault();
+        setPending(q => q.slice(0, -1));
+        return;
+      }
+      if (e.key === 'l' || e.key === 'L') setPrefs(p => ({
+        ...p,
+        bendMode: !p.bendMode
+      }));
       if ((e.key === 'Delete' || e.key === 'Backspace') && selection) {
         e.preventDefault();
         selection.kind === 'node' ? deleteNode(selection.id) : selection.kind === 'pipe' ? deletePipe(selection.id) : deleteStruct(selection.id);
@@ -5531,8 +6355,8 @@ function MapWorkspace({
     }
   }, [tool]);
   const hint = placingStruct && (tool === 'draw' || tool === 'node') ? `Klik peta untuk meletakkan ${KIND_LABEL(newType)}. Elevasi terisi otomatis.` : {
-    select: 'Klik node, pipa, atau bangunan untuk mengedit. Seret untuk memindahkan; elevasi diperbarui otomatis.',
-    draw: activeNode ? 'Klik peta untuk node berikutnya (pipa & elevasi otomatis), atau klik node lain untuk menyambung. Esc untuk mengakhiri.' : 'Klik peta untuk titik awal (jaringan kosong dimulai dengan Reservoir), atau klik node yang ada untuk melanjutkan.',
+    select: selection?.kind === 'pipe' ? 'Seret titik ⊕ di tengah garis untuk melengkungkan pipa, seret titik belok untuk memindah, klik titik belok untuk menghapusnya.' : 'Klik node, pipa, atau bangunan untuk mengedit. Seret untuk memindahkan; elevasi diperbarui otomatis.',
+    draw: activeNode ? bendMode ? `Mode titik lengkung: klik peta untuk membelokkan pipa tanpa node (${pending.length} titik). Matikan mode (L) lalu klik peta/node untuk mengakhiri segmen.` : 'Klik peta untuk node berikutnya (pipa & elevasi otomatis), atau klik node lain untuk menyambung. Tekan L untuk titik lengkung tanpa node. Esc untuk mengakhiri.' : 'Klik peta untuk titik awal (jaringan kosong dimulai dengan Reservoir), atau klik node yang ada untuk melanjutkan.',
     node: 'Klik peta untuk menempatkan node tanpa pipa.',
     delete: 'Klik node, pipa, atau bangunan untuk menghapusnya.'
   }[tool];
@@ -5702,6 +6526,7 @@ function MapWorkspace({
     pipe: selPipe,
     res: hyd.pipes[selPipe.id],
     nmap: nmap,
+    bendAngle: project.settings.bendAngle,
     upd: patch => updPipe(selPipe.id, patch),
     onDelete: () => deletePipe(selPipe.id),
     onSplit: () => splitPipe(selPipe.id)
@@ -5807,11 +6632,14 @@ function MapWorkspace({
     colorMode: colorMode,
     showLabels: showLabels,
     fitSignal: fitSignal,
+    bendAngle: project.settings.bendAngle,
     tracks: project.tracks,
     gpsPos: field.gps.pos,
     follow: field.follow && field.gps.watching,
     focus: field.focus,
     mobile: mobile,
+    pending: pending,
+    onPipeVertex: onPipeVertex,
     onMapClick: onMapClick,
     onNodeClick: id => {
       onNodeClick(id);
@@ -5957,11 +6785,27 @@ function MapWorkspace({
     className: "relative flex-1 min-h-[520px] min-w-0"
   }, mapJsx, React.createElement("div", {
     className: "absolute top-2 left-1/2 -translate-x-1/2 z-[500] max-w-[70%] bg-deep/90 text-white text-[12px] rounded-md px-3 py-1.5 shadow pointer-events-none text-center"
-  }, hint), tool === 'draw' && activeNode && !field.rec && React.createElement("button", {
+  }, hint), tool === 'draw' && activeNode && !field.rec && React.createElement("div", {
+    className: "absolute bottom-8 right-3 z-[500] flex flex-col items-end gap-1.5"
+  }, React.createElement("div", {
+    className: "flex items-center gap-1 bg-white rounded-full shadow border border-line p-0.5 text-[12px] font-semibold"
+  }, [[false, 'Klik = node'], [true, 'Klik = titik lengkung']].map(([v, l]) => React.createElement("button", {
+    key: l,
+    type: "button",
+    onClick: () => setPrefs(p => ({
+      ...p,
+      bendMode: v
+    })),
+    className: `rounded-full px-3 py-1 ${!!prefs.bendMode === v ? 'bg-aqua-600 text-white' : 'text-slate-600'}`
+  }, l))), pending.length > 0 && React.createElement("button", {
+    type: "button",
+    onClick: () => setPending(q => q.slice(0, -1)),
+    className: "bg-white border border-line text-[12px] font-semibold rounded-full px-3 py-1 shadow text-slate-700"
+  }, "Batalkan titik lengkung (", pending.length, ")"), React.createElement("button", {
     type: "button",
     onClick: () => setActiveNode(null),
-    className: "absolute bottom-8 right-3 z-[500] bg-orange-500 hover:bg-orange-600 text-white text-[12px] font-semibold rounded-full px-4 py-1.5 shadow"
-  }, "Selesai menggambar (Esc)"), cursor && engine === 'leaflet' && React.createElement("div", {
+    className: "bg-orange-500 hover:bg-orange-600 text-white text-[12px] font-semibold rounded-full px-4 py-1.5 shadow"
+  }, "Selesai menggambar (Esc)")), cursor && engine === 'leaflet' && React.createElement("div", {
     className: "absolute bottom-1 right-1 z-[500] bg-white/90 text-[11px] font-mono num px-2 py-0.5 rounded border border-line"
   }, cursor.lat.toFixed(6), ", ", cursor.lng.toFixed(6), " \xB7 UTM ", utmTxt(cursor.lat, cursor.lng)), React.createElement(GpsPanel, {
     project: project,
@@ -6142,13 +6986,66 @@ function NodeInspector({
     className: "pill s-idle hover:ring-1 hover:ring-aqua-400"
   }, p.label, " \xB7 \xD8", p.diameter)))));
 }
+function PipeRoute({
+  pipe,
+  nmap,
+  upd,
+  bendAngle
+}) {
+  const a = nmap[pipe.from],
+    b = nmap[pipe.to];
+  if (!a || !b) return null;
+  const nv = (pipe.path || []).length;
+  const flex = MATERIALS[pipe.material]?.flex;
+  const bends = pipeBends(pipe, a, b, bendAngle);
+  const need = bends.filter(x => x.fitting);
+  const minR = bends.reduce((m, x) => Math.min(m, x.R), Infinity);
+  const straight = haversine(a, b);
+  return React.createElement("div", {
+    className: "rounded-md border border-line p-2.5 space-y-2 text-[12px]"
+  }, React.createElement("div", {
+    className: "flex items-center justify-between gap-2"
+  }, React.createElement("span", {
+    className: "font-semibold text-ink flex items-center gap-1.5"
+  }, React.createElement(Icon, {
+    name: "Spline",
+    size: 14,
+    className: "text-aqua-700"
+  }), "Jalur pipa"), React.createElement("span", {
+    className: "text-slate-500"
+  }, nv ? `${nv} titik belok · +${fmt(Math.max(0, pipeLength(pipe, a, b) - straight), 1)} m dari garis lurus` : 'lurus antar node')), nv > 0 && React.createElement("div", {
+    className: "flex rounded-md border border-line overflow-hidden"
+  }, [[true, 'Lengkung halus'], [false, 'Garis patah']].map(([v, l]) => React.createElement("button", {
+    key: l,
+    type: "button",
+    onClick: () => upd({
+      curve: v
+    }),
+    className: `flex-1 py-1 ${pipeSmooth(pipe) === v ? 'bg-deep text-white' : 'bg-white text-slate-600'}`
+  }, l))), nv > 0 && (flex ? need.length ? React.createElement("div", {
+    className: "rounded bg-amber-50 border border-amber-200 text-amber-900 px-2 py-1"
+  }, need.length, " lengkung terlalu tajam (R terkecil \u2248 ", fmt(minR, 1), " m; batas ", flex, "\xD7OD = ", fmt(flex * pipe.diameter / 1000, 2), " m) \u2192 dihitung fitting bend.") : React.createElement("div", {
+    className: "rounded bg-emerald-50 border border-emerald-200 text-emerald-900 px-2 py-1"
+  }, "Radius lengkung terkecil \u2248 ", fmt(minR, 1), " m \u2265 ", flex, "\xD7OD = ", fmt(flex * pipe.diameter / 1000, 2), " m. Pipa ", pipe.material, " cukup dilengkungkan, tanpa fitting.") : React.createElement("div", {
+    className: "rounded bg-sky-50 border border-sky-200 text-sky-900 px-2 py-1"
+  }, "Pipa ", pipe.material, " kaku: ", need.length, " belokan \u2265 ", bendAngle, "\xB0 dihitung fitting bend + thrust block. Pakai HDPE/PE agar jalur bisa melengkung.")), React.createElement("p", {
+    className: "text-slate-500 leading-snug"
+  }, "Seret titik \u2295 di tengah garis pipa pada peta untuk menambah lengkungan; seret titik belok untuk memindah, klik untuk menghapus."), nv > 0 && React.createElement(Btn, {
+    icon: "MoveRight",
+    variant: "outline",
+    onClick: () => upd({
+      path: []
+    })
+  }, "Luruskan pipa"));
+}
 function PipeInspector({
   pipe,
   res,
   nmap,
   upd,
   onDelete,
-  onSplit
+  onSplit,
+  bendAngle = 15
 }) {
   return React.createElement("div", {
     className: "space-y-3"
@@ -6224,7 +7121,12 @@ function PipeInspector({
     className: "text-slate-500"
   }, "Gradien hidrolis"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, fmt(res.hfkm, 2), " m/km")), React.createElement(StampInfo, {
+  }, fmt(res.hfkm, 2), " m/km")), React.createElement(PipeRoute, {
+    pipe: pipe,
+    nmap: nmap,
+    upd: upd,
+    bendAngle: bendAngle
+  }), React.createElement(StampInfo, {
     item: pipe
   }), React.createElement(Btn, {
     icon: "Scissors",
@@ -6239,17 +7141,18 @@ function NetworkSchematic({
   height = 360,
   onSelect
 }) {
-  const pts = useMemo(() => {
+  const P = useMemo(() => {
     const c = centroid(project.nodes);
-    const P = makeProjector(c.lat, c.lng);
-    return Object.fromEntries(project.nodes.map(n => {
-      const q = P.toXY(n.lat, n.lng);
-      return [n.id, {
-        x: q.x,
-        y: -q.y
-      }];
-    }));
+    return makeProjector(c.lat, c.lng);
   }, [project.nodes]);
+  const pts = useMemo(() => Object.fromEntries(project.nodes.map(n => {
+    const q = P.toXY(n.lat, n.lng);
+    return [n.id, {
+      x: q.x,
+      y: -q.y
+    }];
+  })), [project.nodes, P]);
+  const nmapS = Object.fromEntries(project.nodes.map(n => [n.id, n]));
   const arr = Object.values(pts);
   if (!arr.length) return React.createElement("div", {
     className: "text-sm text-slate-500 p-6"
@@ -6276,11 +7179,23 @@ function NetworkSchematic({
     const r = hyd.pipes[p.id];
     const st = mode === 'velocity' ? r.status : hyd.nodes[r.down]?.status || 'iso';
     const col = STATUS_COLORS[st === 'src' ? 'ok' : st];
-    const mx = (a.x + b.x) / 2,
-      my = (a.y + b.y) / 2;
-    const ll = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    let nx = -(b.y - a.y) / ll,
-      ny = (b.x - a.x) / ll;
+    const line = pipeLine(p, nmapS[p.from], nmapS[p.to]);
+    const xyL = q => {
+      const t = P.toXY(q[0], q[1]);
+      return {
+        x: t.x,
+        y: -t.y
+      };
+    };
+    const am = alongLine(line, 0.5);
+    const A2 = xyL(am.a),
+      B2 = xyL(am.b),
+      M2 = xyL(am.pt);
+    const mx = M2.x,
+      my = M2.y;
+    const ll = Math.hypot(B2.x - A2.x, B2.y - A2.y) || 1;
+    let nx = -(B2.y - A2.y) / ll,
+      ny = (B2.x - A2.x) / ll;
     if (nx > 0) {
       nx = -nx;
       ny = -ny;
@@ -6294,14 +7209,16 @@ function NetworkSchematic({
       style: {
         cursor: 'pointer'
       }
-    }, React.createElement("line", {
-      x1: a.x,
-      y1: a.y,
-      x2: b.x,
-      y2: b.y,
+    }, React.createElement("polyline", {
+      points: line.map(q => {
+        const t = xyL(q);
+        return t.x + ',' + t.y;
+      }).join(' '),
+      fill: "none",
       stroke: col,
       strokeWidth: u * (4 + p.diameter / 30),
-      strokeLinecap: "round"
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
     }), React.createElement("text", {
       x: mx + nx * u * 9,
       y: my + ny * u * 9 + u * 4,
@@ -8513,26 +9430,34 @@ function SheetLayout({
       b = pts[p.to];
     if (!a || !b) return null;
     const r = hyd.pipes[p.id];
-    const x1 = X(a),
-      y1 = Y(a),
-      x2 = X(b),
-      y2 = Y(b);
+    const ll = pipeLine(p, nmap[p.from], nmap[p.to]);
+    const pp = ll.map(q => {
+      const t = P.toXY(q[0], q[1]);
+      return [X(t), Y(t)];
+    });
+    const am = alongLine(ll, 0.5);
+    const ta = P.toXY(am.a[0], am.a[1]),
+      tb = P.toXY(am.b[0], am.b[1]),
+      tm = P.toXY(am.pt[0], am.pt[1]);
+    const x1 = X(ta),
+      y1 = Y(ta),
+      x2 = X(tb),
+      y2 = Y(tb);
     let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
     if (ang > 90) ang -= 180;
     if (ang < -90) ang += 180;
-    const mx = (x1 + x2) / 2,
-      my = (y1 + y2) / 2;
-    const len = Math.hypot(x2 - x1, y2 - y1);
+    const mx = X(tm),
+      my = Y(tm);
+    const len = (r.length || 0) * k;
     return React.createElement("g", {
       key: p.id
-    }, React.createElement("line", {
-      x1: x1,
-      y1: y1,
-      x2: x2,
-      y2: y2,
+    }, React.createElement("polyline", {
+      points: pp.map(q => q.join(',')).join(' '),
+      fill: "none",
       stroke: "#000",
       strokeWidth: 0.3 + p.diameter / 250,
-      strokeDasharray: MATERIALS[p.material].dash
+      strokeDasharray: MATERIALS[p.material].dash,
+      strokeLinejoin: "round"
     }), React.createElement("g", {
       transform: `translate(${mx},${my}) rotate(${ang})`
     }, React.createElement("text", {
@@ -10405,6 +11330,1011 @@ function SheetStructure({
     w: 150
   }));
 }
+const tankXs = g => Array.from({
+  length: g.cols
+}, (_, j) => -g.W / 2 + (g.W - (g.cols * g.tank.D + (g.cols - 1) * g.gap)) / 2 + g.tank.D / 2 + j * (g.tank.D + g.gap));
+const tankYs = g => Array.from({
+  length: g.rows
+}, (_, j) => -g.Dp / 2 + (g.Dp - (g.rows * g.tank.D + (g.rows - 1) * g.gap)) / 2 + g.tank.D / 2 + j * (g.tank.D + g.gap));
+function TowerElevation({
+  g,
+  ox,
+  oy,
+  w,
+  h,
+  k,
+  S
+}) {
+  const {
+    W,
+    Ht,
+    tankH,
+    footB,
+    footT,
+    footD,
+    colB,
+    Sx,
+    ped,
+    z0,
+    p
+  } = g;
+  const zTop = Ht + tankH + (g.rcTank ? 0.5 : 0.35),
+    zBot = -footD - g.tlk - 0.3;
+  const avail = h - 16;
+  const cx = ox + w / 2 - 6;
+  const U = u => cx + u * k,
+    Z = z => oy + 4 + Math.max(0, (avail - (zTop - zBot) * k) / 2) + (zTop - z) * k;
+  const R = (u1, z1, u2, z2, props) => React.createElement("rect", _extends({
+    x: U(Math.min(u1, u2)),
+    y: Z(Math.max(z1, z2)),
+    width: Math.abs(u2 - u1) * k,
+    height: Math.abs(z2 - z1) * k
+  }, props));
+  const conc = {
+    fill: 'url(#pat-concrete)',
+    stroke: '#000',
+    strokeWidth: 0.35
+  };
+  const colsU = [-Sx / 2, Sx / 2];
+  const soilW = W / 2 + 1.3;
+  const pw = d => Math.max(0.45, d / 1000 * k);
+  const uIn = -W / 2 - 0.15,
+    uOut = W / 2 + 0.15,
+    uDr = W / 2 + 0.32,
+    uLad = -W / 2 - 0.85;
+  const tkTop = Ht + tankH;
+  const xs = g.rcTank ? [0] : tankXs(g);
+  return React.createElement("g", null, R(-soilW, 0, soilW, zBot, {
+    fill: 'url(#pat-soil)'
+  }), colsU.map((c, i) => React.createElement("g", {
+    key: i
+  }, R(c - footB / 2 - 0.3, 0, c + footB / 2 + 0.3, -footD - g.tlk, {
+    fill: '#fff'
+  }), R(c - footB / 2 - 0.3, 0, c + footB / 2 + 0.3, -footD - g.tlk, {
+    fill: 'url(#pat-backfill)',
+    opacity: 0.6
+  }), R(c - footB / 2 - 0.05, -footD, c + footB / 2 + 0.05, -footD - g.tlk, {
+    fill: '#d4d4d4',
+    stroke: '#000',
+    strokeWidth: 0.2
+  }), R(c - footB / 2, -footD + footT, c + footB / 2, -footD, conc), R(c - ped / 2, z0, c + ped / 2, -footD + footT, {
+    ...conc,
+    fill: '#fff'
+  }), R(c - ped / 2, z0, c + ped / 2, -footD + footT, conc))), React.createElement("line", {
+    x1: U(-soilW),
+    x2: U(soilW),
+    y1: Z(0),
+    y2: Z(0),
+    stroke: "#5b4421",
+    strokeWidth: 0.55
+  }), g.steel ? React.createElement("g", null, colsU.map((c, i) => React.createElement("g", {
+    key: i
+  }, R(c - 0.18, z0, c + 0.18, z0 + 0.012, {
+    fill: '#000'
+  }), R(c - colB / 2, z0, c + colB / 2, Ht - 0.15, {
+    fill: '#cfd6dd',
+    stroke: '#000',
+    strokeWidth: 0.3
+  }), React.createElement("line", {
+    x1: U(c),
+    x2: U(c),
+    y1: Z(z0),
+    y2: Z(Ht - 0.15),
+    stroke: "#000",
+    strokeWidth: 0.15,
+    strokeDasharray: "2 0.6 0.4 0.6"
+  }))), g.levels.slice(0, -1).map((z, i) => {
+    const z2 = g.levels[i + 1] - (i === g.nLev - 1 ? 0.15 : 0);
+    const sw = Math.max(0.3, g.pb.b * k * 0.5);
+    return React.createElement("g", {
+      key: i,
+      stroke: "#000",
+      strokeWidth: sw
+    }, i > 0 && React.createElement("line", {
+      x1: U(-Sx / 2),
+      x2: U(Sx / 2),
+      y1: Z(z),
+      y2: Z(z),
+      strokeWidth: Math.max(0.4, g.pb.b * k * 0.8)
+    }), React.createElement("line", {
+      x1: U(-Sx / 2 + colB / 2),
+      y1: Z(z),
+      x2: U(Sx / 2 - colB / 2),
+      y2: Z(z2)
+    }), React.createElement("line", {
+      x1: U(Sx / 2 - colB / 2),
+      y1: Z(z),
+      x2: U(-Sx / 2 + colB / 2),
+      y2: Z(z2)
+    }));
+  }), R(-W / 2, Ht - 0.15, W / 2, Ht, {
+    fill: '#9aa5b1',
+    stroke: '#000',
+    strokeWidth: 0.3
+  }), R(-W / 2, Ht, W / 2, Ht + 0.0045, {
+    fill: '#000'
+  })) : React.createElement("g", null, colsU.map((c, i) => React.createElement("g", {
+    key: i
+  }, R(c - colB / 2, 0, c + colB / 2, Ht - g.ts, conc))), [0.2, ...g.levels.slice(1, -1)].map((z, i) => {
+    const hb = +p.beamH || 0.35;
+    return React.createElement("g", {
+      key: i
+    }, R(-W / 2, z - (i === 0 ? hb : hb / 2), W / 2, z + (i === 0 ? 0 : hb / 2), conc));
+  }), R(-W / 2, Ht - g.ts - (+p.beamH || 0.35), W / 2, Ht, conc), React.createElement("line", {
+    x1: U(-W / 2),
+    x2: U(W / 2),
+    y1: Z(Ht - g.ts),
+    y2: Z(Ht - g.ts),
+    stroke: "#000",
+    strokeWidth: 0.2
+  })), g.rcTank ? (() => {
+    const t = g.tank;
+    const zi = Ht + t.Hin;
+    return React.createElement("g", null, React.createElement("path", _extends({
+      d: `M${U(-W / 2)} ${Z(Ht)} L${U(-W / 2)} ${Z(zi + t.tr)} L${U(W / 2)} ${Z(zi + t.tr)} L${U(W / 2)} ${Z(Ht)} L${U(t.L / 2)} ${Z(Ht)} L${U(t.L / 2)} ${Z(zi)} L${U(-t.L / 2)} ${Z(zi)} L${U(-t.L / 2)} ${Z(Ht)} Z`
+    }, conc)), R(-t.L / 2, Ht, t.L / 2, Ht + g.Hw, {
+      fill: '#d6ebf8'
+    }), React.createElement("line", {
+      x1: U(-t.L / 2),
+      x2: U(t.L / 2),
+      y1: Z(Ht + g.Hw),
+      y2: Z(Ht + g.Hw),
+      stroke: "#0b4fa8",
+      strokeWidth: 0.3,
+      strokeDasharray: "1.6 0.8"
+    }), R(-t.mh / 2 - 0.1, zi + t.tr, t.mh / 2 + 0.1, zi + t.tr + 0.06, {
+      fill: '#000'
+    }), React.createElement("path", {
+      d: `M${U(t.L / 2 - 0.4)} ${Z(zi + t.tr)} L${U(t.L / 2 - 0.4)} ${Z(zi + t.tr + 0.35)} A${0.1 * k} ${0.1 * k} 0 0 1 ${U(t.L / 2 - 0.2)} ${Z(zi + t.tr + 0.35)} L${U(t.L / 2 - 0.2)} ${Z(zi + t.tr + 0.25)}`,
+      fill: "none",
+      stroke: "#0b4fa8",
+      strokeWidth: 0.6
+    }), React.createElement(HaloText, {
+      x: U(0),
+      y: Z(Ht + g.Hw / 2) + 0.7,
+      fontSize: 2,
+      textAnchor: "middle",
+      fontWeight: 700
+    }, "BAK BETON ", fmt(g.cap, 1), " m\xB3"), React.createElement(HaloText, {
+      x: U(0),
+      y: Z(zi + t.tr) - 2.2,
+      fontSize: 1.6,
+      textAnchor: "middle"
+    }, "Manhole + tutup besi"));
+  })() : xs.map((x, i) => {
+    const D = g.tank.D,
+      H = g.tank.H;
+    const zb = Ht + 0.005,
+      zs = zb + H * 0.86;
+    return React.createElement("g", {
+      key: i
+    }, React.createElement("path", {
+      d: `M${U(x - D / 2)} ${Z(zb)} L${U(x - D / 2)} ${Z(zs)} Q${U(x - D / 2)} ${Z(zb + H)} ${U(x)} ${Z(zb + H)} Q${U(x + D / 2)} ${Z(zb + H)} ${U(x + D / 2)} ${Z(zs)} L${U(x + D / 2)} ${Z(zb)} Z`,
+      fill: "#eef3f8",
+      stroke: "#000",
+      strokeWidth: 0.35
+    }), R(x - D / 2 + 0.02, zb, x + D / 2 - 0.02, zb + g.Hw, {
+      fill: '#d6ebf8',
+      opacity: 0.8
+    }), [0.25, 0.5, 0.75].map(f => React.createElement("line", {
+      key: f,
+      x1: U(x - D / 2),
+      x2: U(x + D / 2),
+      y1: Z(zb + H * 0.86 * f),
+      y2: Z(zb + H * 0.86 * f),
+      stroke: "#000",
+      strokeWidth: 0.12
+    })), R(x - 0.2, zb + H - 0.01, x + 0.2, zb + H + 0.05, {
+      fill: '#fff',
+      stroke: '#000',
+      strokeWidth: 0.25
+    }), React.createElement(HaloText, {
+      x: U(x),
+      y: Z(zb + H * 0.45),
+      fontSize: Math.min(2, D * k / 9),
+      textAnchor: "middle",
+      fontWeight: 700
+    }, fmt(g.tank.v, 0), " L"));
+  }), !g.rcTank && React.createElement("g", {
+    stroke: "#000",
+    strokeWidth: 0.3
+  }, [-W / 2 + 0.03, 0, W / 2 - 0.03].map(u => React.createElement("line", {
+    key: u,
+    x1: U(u),
+    x2: U(u),
+    y1: Z(Ht),
+    y2: Z(Ht + 1)
+  })), React.createElement("line", {
+    x1: U(-W / 2),
+    x2: U(W / 2),
+    y1: Z(Ht + 1),
+    y2: Z(Ht + 1),
+    strokeWidth: 0.45
+  }), React.createElement("line", {
+    x1: U(-W / 2),
+    x2: U(W / 2),
+    y1: Z(Ht + 0.5),
+    y2: Z(Ht + 0.5)
+  })), (() => {
+    const top = g.rcTank ? tkTop + 0.3 : Ht + 1.0;
+    const a = uLad - 0.2,
+      b = uLad + 0.2;
+    return React.createElement("g", {
+      stroke: "#000",
+      strokeWidth: 0.3
+    }, React.createElement("line", {
+      x1: U(a),
+      x2: U(a),
+      y1: Z(0),
+      y2: Z(top)
+    }), React.createElement("line", {
+      x1: U(b),
+      x2: U(b),
+      y1: Z(0),
+      y2: Z(top)
+    }), Array.from({
+      length: Math.floor(top / 0.3)
+    }).map((_, j) => React.createElement("line", {
+      key: j,
+      x1: U(a),
+      x2: U(b),
+      y1: Z(0.3 + j * 0.3),
+      y2: Z(0.3 + j * 0.3),
+      strokeWidth: 0.2
+    })), Array.from({
+      length: Math.max(0, Math.floor((top - 2.4) / 0.7))
+    }).map((_, j) => React.createElement("path", {
+      key: 'c' + j,
+      d: `M${U(a)} ${Z(2.4 + j * 0.7)} q${-0.15 * k} ${-0.05 * k} 0 ${0.0}`,
+      fill: "none",
+      strokeWidth: 0.15
+    })));
+  })(), React.createElement("g", {
+    fill: "none",
+    stroke: "#0b4fa8",
+    strokeLinejoin: "round"
+  }, React.createElement("path", {
+    d: g.rcTank ? `M${U(uIn - 0.6)} ${Z(-0.6)} L${U(uIn)} ${Z(-0.6)} L${U(uIn)} ${Z(Ht + g.Hw + g.tank.fb * 0.5)} L${U(-g.tank.L / 2 + 0.25)} ${Z(Ht + g.Hw + g.tank.fb * 0.5)}` : `M${U(uIn - 0.6)} ${Z(-0.6)} L${U(uIn)} ${Z(-0.6)} L${U(uIn)} ${Z(tkTop + 0.15)} L${U(xs[0])} ${Z(tkTop + 0.15)} L${U(xs[0])} ${Z(tkTop - 0.05)}`,
+    strokeWidth: pw(p.dIn)
+  }), React.createElement("path", {
+    d: `M${U(xs[xs.length - 1] + (g.rcTank ? g.tank.L / 2 : g.tank.D / 2))} ${Z(Ht + g.outZ)} L${U(uOut)} ${Z(Ht + g.outZ)} L${U(uOut)} ${Z(-0.6)} L${U(uOut + 1.0)} ${Z(-0.6)}`,
+    strokeWidth: pw(p.dOut)
+  }), React.createElement("path", {
+    d: `M${U(xs[xs.length - 1] + (g.rcTank ? g.tank.L / 2 : g.tank.D / 2))} ${Z(Ht + g.Hw + 0.05)} L${U(uDr)} ${Z(Ht + g.Hw + 0.05)} L${U(uDr)} ${Z(0.15)}`,
+    strokeWidth: pw(p.dOf),
+    strokeDasharray: "1.4 0.7"
+  })), React.createElement(DedSymbol, {
+    type: "gate_valve",
+    x: U(uOut),
+    y: Z(1.0),
+    angle: 90,
+    s: 0.9
+  }), React.createElement(HaloText, {
+    x: U(uIn) - 1.2,
+    y: Z(Ht * 0.45),
+    fontSize: 1.6,
+    textAnchor: "middle",
+    transform: `rotate(-90 ${U(uIn) - 1.2} ${Z(Ht * 0.45)})`
+  }, "Inlet \xD8", p.dIn, " dari sumber"), React.createElement(HaloText, {
+    x: U(uOut + 0.35),
+    y: Z(-0.6) + 2.6,
+    fontSize: 1.6
+  }, "Outlet \xD8", p.dOut, " \u2192 jaringan"), React.createElement(HaloText, {
+    x: U(uDr) + 1,
+    y: Z(Ht * 0.7),
+    fontSize: 1.6
+  }, "Peluap/penguras \xD8", p.dOf), React.createElement(HaloText, {
+    x: U(uLad),
+    y: Z(0) + 2.6,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Tangga \xD819"), React.createElement(HaloText, {
+    x: U(0),
+    y: Z(g.levels[1] ? (g.levels[0] + g.levels[1]) / 2 : Ht / 2),
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, g.steel ? `Ikatan silang ${p.braceProfile}` : `Balok ring ${fmt(+p.beamB * 100, 0)}/${fmt(+p.beamH * 100, 0)}`), React.createElement(HaloText, {
+    x: U(-Sx / 2) + colB * k / 2 + 1,
+    y: Z(Ht * 0.62),
+    fontSize: 1.6
+  }, g.steel ? `Kolom ${p.colProfile}` : `Kolom ${fmt(colB * 100, 0)}/${fmt(colB * 100, 0)}`), React.createElement(HaloText, {
+    x: U(0),
+    y: Z(Ht) + 2.6 + (g.steel ? 0.15 : g.ts + +p.beamH) * k,
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, g.steel ? `Balok ${TOWER_BEAM.name} + pelat bordes 4,5 mm` : `Pelat lantai t = ${fmt(g.ts * 100, 0)} cm`), React.createElement(HaloText, {
+    x: U(colsU[1]),
+    y: Z(-footD) + 2.8,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Pondasi ", fmt(footB, 2), "\xD7", fmt(footB, 2)), React.createElement(ElevMark, {
+    x: U(uDr + 0.35),
+    y: Z(0),
+    text: `MT ${elevTxt(g.ground)}`
+  }), React.createElement(ElevMark, {
+    x: U(uDr + 0.35),
+    y: Z(Ht),
+    text: `Lantai ${elevTxt(g.floorEl)}`
+  }), React.createElement(ElevMark, {
+    x: U(uDr + 0.35),
+    y: Z(Ht + g.Hw),
+    text: `MAT ${elevTxt(g.mat)}`,
+    color: "#0b4fa8"
+  }), React.createElement(ElevMark, {
+    x: U(uDr + 0.35),
+    y: Z(tkTop),
+    text: elevTxt(g.ground + tkTop)
+  }), React.createElement(ElevMark, {
+    x: U(colsU[1] + footB / 2 + 0.35),
+    y: Z(-footD),
+    text: elevTxt(g.ground - footD),
+    below: true
+  }), React.createElement(DimLine, {
+    x1: U(-soilW),
+    y1: Z(Ht),
+    x2: U(-soilW),
+    y2: Z(0),
+    off: -3,
+    vertical: true,
+    size: 1.8,
+    text: `Ht = ${fmt(Ht, 2)}`
+  }), React.createElement(DimLine, {
+    x1: U(-soilW),
+    y1: Z(tkTop),
+    x2: U(-soilW),
+    y2: Z(Ht),
+    off: -3,
+    vertical: true,
+    size: 1.6,
+    text: fmt(tankH, 2)
+  }), React.createElement(DimLine, {
+    x1: U(-soilW),
+    y1: Z(0),
+    x2: U(-soilW),
+    y2: Z(-footD),
+    off: -3,
+    vertical: true,
+    size: 1.6,
+    text: fmt(footD, 2)
+  }), React.createElement(DimLine, {
+    x1: U(-soilW),
+    y1: Z(tkTop),
+    x2: U(-soilW),
+    y2: Z(-footD),
+    off: -8,
+    vertical: true,
+    size: 1.8,
+    text: fmt(tkTop + footD, 2)
+  }), React.createElement(DimLine, {
+    x1: U(-Sx / 2),
+    y1: Z(zBot),
+    x2: U(Sx / 2),
+    y2: Z(zBot),
+    off: 4,
+    size: 1.8,
+    text: `${fmt(Sx, 2)} (as kolom)`
+  }), React.createElement(DimLine, {
+    x1: U(-W / 2),
+    y1: Z(zBot),
+    x2: U(W / 2),
+    y2: Z(zBot),
+    off: 8.5,
+    size: 1.8,
+    text: fmt(W, 2)
+  }), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 5,
+    title: "TAMPAK DEPAN MENARA AIR",
+    S: S
+  }));
+}
+function TowerPlan({
+  g,
+  ox,
+  oy,
+  w,
+  h,
+  k,
+  S
+}) {
+  const {
+    W,
+    Dp,
+    Sx,
+    Sy,
+    colB,
+    p
+  } = g;
+  const cx = ox + w / 2 + 2,
+    cy = oy + (h - 14) / 2 + 3;
+  const X = x => cx + x * k,
+    Y = y => cy + y * k;
+  const colPts = [[-Sx / 2, -Sy / 2], [Sx / 2, -Sy / 2], [-Sx / 2, Sy / 2], [Sx / 2, Sy / 2]];
+  const t = g.tank;
+  return React.createElement("g", null, React.createElement("rect", {
+    x: X(-W / 2),
+    y: Y(-Dp / 2),
+    width: W * k,
+    height: Dp * k,
+    fill: g.steel ? '#eef2f6' : 'url(#pat-concrete)',
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), g.steel && Array.from({
+    length: Math.max(1, Math.ceil(W / 0.6) - 1)
+  }).map((_, j, a) => {
+    const x = -W / 2 + W * (j + 1) / (a.length + 1);
+    return React.createElement("line", {
+      key: j,
+      x1: X(x),
+      x2: X(x),
+      y1: Y(-Dp / 2),
+      y2: Y(Dp / 2),
+      stroke: "#000",
+      strokeWidth: 0.15,
+      strokeDasharray: "1 0.6"
+    });
+  }), g.rcTank ? React.createElement("g", null, React.createElement("rect", {
+    x: X(-t.L / 2),
+    y: Y(-t.B / 2),
+    width: t.L * k,
+    height: t.B * k,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement("rect", {
+    x: X(-t.mh / 2),
+    y: Y(-t.mh / 2),
+    width: t.mh * k,
+    height: t.mh * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.25,
+    strokeDasharray: "1.2 0.6"
+  }), React.createElement("line", {
+    x1: X(-t.mh / 2),
+    y1: Y(-t.mh / 2),
+    x2: X(t.mh / 2),
+    y2: Y(t.mh / 2),
+    stroke: "#000",
+    strokeWidth: 0.12
+  }), React.createElement("line", {
+    x1: X(t.mh / 2),
+    y1: Y(-t.mh / 2),
+    x2: X(-t.mh / 2),
+    y2: Y(t.mh / 2),
+    stroke: "#000",
+    strokeWidth: 0.12
+  }), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(t.mh / 2) + 2.6,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "MH ", fmt(t.mh * 100, 0), "\xD7", fmt(t.mh * 100, 0)), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(-t.B / 2) + 3,
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, fmt(t.L, 2), " \xD7 ", fmt(t.B, 2), " \xD7 ", fmt(g.Hw, 2), " m")) : React.createElement("g", null, React.createElement("rect", {
+    x: X(-W / 2 + 0.05),
+    y: Y(-Dp / 2 + 0.05),
+    width: (W - 0.1) * k,
+    height: (Dp - 0.1) * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.3,
+    strokeDasharray: "2 0.8"
+  }), tankYs(g).flatMap((y, r) => tankXs(g).map((x, c) => {
+    const idx = r * g.cols + c;
+    if (idx >= g.n) return null;
+    return React.createElement("g", {
+      key: idx
+    }, React.createElement("circle", {
+      cx: X(x),
+      cy: Y(y),
+      r: t.D / 2 * k,
+      fill: "#fff",
+      stroke: "#000",
+      strokeWidth: 0.35
+    }), React.createElement("circle", {
+      cx: X(x),
+      cy: Y(y),
+      r: 0.2 * k,
+      fill: "none",
+      stroke: "#000",
+      strokeWidth: 0.2,
+      strokeDasharray: "0.8 0.5"
+    }), React.createElement(HaloText, {
+      x: X(x),
+      y: Y(y) + t.D / 2 * k * 0.55,
+      fontSize: Math.min(1.8, t.D * k / 8),
+      textAnchor: "middle"
+    }, "T", idx + 1, " \xB7 ", fmt(t.v, 0), " L"));
+  })), React.createElement("path", {
+    d: `M${X(tankXs(g)[0])} ${Y(Dp / 2 - 0.12)} L${X(W / 2 + 0.15)} ${Y(Dp / 2 - 0.12)}`,
+    stroke: "#0b4fa8",
+    strokeWidth: 0.5,
+    fill: "none"
+  }), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(Dp / 2) + 2.5,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Manifold outlet \xD8", p.dOut, " + ball valve tiap tandon")), colPts.map(([x, y], i) => g.steel ? React.createElement("g", {
+    key: i
+  }, React.createElement("rect", {
+    x: X(x - colB / 2),
+    y: Y(y - colB / 2),
+    width: colB * k,
+    height: colB * k,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.25
+  }), React.createElement("path", {
+    d: `M${X(x - colB / 2)} ${Y(y - colB / 2)} h${colB * k} M${X(x - colB / 2)} ${Y(y + colB / 2)} h${colB * k} M${X(x)} ${Y(y - colB / 2)} v${colB * k}`,
+    stroke: "#000",
+    strokeWidth: 0.5
+  })) : React.createElement("rect", {
+    key: i,
+    x: X(x - colB / 2),
+    y: Y(y - colB / 2),
+    width: colB * k,
+    height: colB * k,
+    fill: "#555",
+    stroke: "#000",
+    strokeWidth: 0.25
+  })), React.createElement("rect", {
+    x: X(-W / 2 - 0.6),
+    y: Y(-0.2),
+    width: 0.4 * k,
+    height: 0.4 * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.25
+  }), [0.1, 0.2, 0.3].map(v => React.createElement("line", {
+    key: v,
+    x1: X(-W / 2 - 0.6),
+    x2: X(-W / 2 - 0.2),
+    y1: Y(-0.2 + v),
+    y2: Y(-0.2 + v),
+    stroke: "#000",
+    strokeWidth: 0.15
+  })), React.createElement(HaloText, {
+    x: X(-W / 2 - 0.4),
+    y: Y(0.2) + 2.4,
+    fontSize: 1.4,
+    textAnchor: "middle"
+  }, "Tangga"), React.createElement(DimLine, {
+    x1: X(-W / 2),
+    y1: Y(-Dp / 2),
+    x2: X(W / 2),
+    y2: Y(-Dp / 2),
+    off: -4,
+    size: 1.7,
+    text: fmt(W, 2)
+  }), React.createElement(DimLine, {
+    x1: X(W / 2),
+    y1: Y(-Dp / 2),
+    x2: X(W / 2),
+    y2: Y(Dp / 2),
+    off: 4,
+    vertical: true,
+    size: 1.7,
+    text: fmt(Dp, 2)
+  }), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 6,
+    title: g.rcTank ? 'DENAH BAK ATAS' : 'DENAH PLATFORM TANDON',
+    S: S
+  }));
+}
+function TowerFoundPlan({
+  g,
+  ox,
+  oy,
+  w,
+  h,
+  k,
+  S
+}) {
+  const {
+    Sx,
+    Sy,
+    footB,
+    ped,
+    colB,
+    p
+  } = g;
+  const cx = ox + w / 2 + 3,
+    cy = oy + (h - 14) / 2 + 3;
+  const X = x => cx + x * k,
+    Y = y => cy + y * k;
+  const pts = [[-Sx / 2, -Sy / 2], [Sx / 2, -Sy / 2], [-Sx / 2, Sy / 2], [Sx / 2, Sy / 2]];
+  const ext = footB / 2 + 0.6;
+  const bb = Math.max(0.15, +p.beamB || 0.2);
+  return React.createElement("g", null, [-Sx / 2, Sx / 2].map((x, i) => React.createElement("g", {
+    key: 'x' + i
+  }, React.createElement("line", {
+    x1: X(x),
+    x2: X(x),
+    y1: Y(-Sy / 2 - ext),
+    y2: Y(Sy / 2 + ext),
+    stroke: "#000",
+    strokeWidth: 0.15,
+    strokeDasharray: "3 0.8 0.5 0.8"
+  }), React.createElement("circle", {
+    cx: X(x),
+    cy: Y(-Sy / 2 - ext) - 2,
+    r: 2,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.25
+  }), React.createElement("text", {
+    x: X(x),
+    y: Y(-Sy / 2 - ext) - 1.3,
+    fontSize: 2,
+    textAnchor: "middle",
+    fontWeight: 700
+  }, 'AB'[i]))), [-Sy / 2, Sy / 2].map((y, i) => React.createElement("g", {
+    key: 'y' + i
+  }, React.createElement("line", {
+    y1: Y(y),
+    y2: Y(y),
+    x1: X(-Sx / 2 - ext),
+    x2: X(Sx / 2 + ext),
+    stroke: "#000",
+    strokeWidth: 0.15,
+    strokeDasharray: "3 0.8 0.5 0.8"
+  }), React.createElement("circle", {
+    cx: X(-Sx / 2 - ext) - 2,
+    cy: Y(y),
+    r: 2,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.25
+  }), React.createElement("text", {
+    x: X(-Sx / 2 - ext) - 2,
+    y: Y(y) + 0.7,
+    fontSize: 2,
+    textAnchor: "middle",
+    fontWeight: 700
+  }, i + 1))), !g.steel && React.createElement("g", null, [[-Sx / 2, -Sy / 2, Sx / 2, -Sy / 2], [-Sx / 2, Sy / 2, Sx / 2, Sy / 2], [-Sx / 2, -Sy / 2, -Sx / 2, Sy / 2], [Sx / 2, -Sy / 2, Sx / 2, Sy / 2]].map(([x1, y1, x2, y2], i) => React.createElement("rect", {
+    key: i,
+    x: X(Math.min(x1, x2) - (x1 === x2 ? bb / 2 : 0)),
+    y: Y(Math.min(y1, y2) - (y1 === y2 ? bb / 2 : 0)),
+    width: (Math.abs(x2 - x1) + (x1 === x2 ? bb : 0)) * k,
+    height: (Math.abs(y2 - y1) + (y1 === y2 ? bb : 0)) * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.2,
+    strokeDasharray: "1.2 0.6"
+  })), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(-Sy / 2) - 1.2,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Sloof ", fmt(bb * 100, 0), "/", fmt((+p.beamH || 0.35) * 100, 0))), pts.map(([x, y], i) => React.createElement("g", {
+    key: i
+  }, React.createElement("rect", {
+    x: X(x - footB / 2),
+    y: Y(y - footB / 2),
+    width: footB * k,
+    height: footB * k,
+    fill: "url(#pat-concrete)",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement("rect", {
+    x: X(x - ped / 2),
+    y: Y(y - ped / 2),
+    width: ped * k,
+    height: ped * k,
+    fill: g.steel ? '#fff' : '#555',
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), g.steel && [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b], j) => React.createElement("circle", {
+    key: j,
+    cx: X(x + a * 0.12),
+    cy: Y(y + b * 0.12),
+    r: 0.45,
+    fill: "#000"
+  })))), React.createElement(HaloText, {
+    x: X(Sx / 2),
+    y: Y(Sy / 2 + footB / 2) + 2.6,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "P", fmt(footB * 100, 0), "\xD7", fmt(footB * 100, 0)), React.createElement(DimLine, {
+    x1: X(-Sx / 2),
+    y1: Y(Sy / 2 + footB / 2),
+    x2: X(Sx / 2),
+    y2: Y(Sy / 2 + footB / 2),
+    off: 6,
+    size: 1.7,
+    text: fmt(Sx, 2)
+  }), React.createElement(DimLine, {
+    x1: X(Sx / 2 + footB / 2),
+    y1: Y(-Sy / 2),
+    x2: X(Sx / 2 + footB / 2),
+    y2: Y(Sy / 2),
+    off: 4,
+    vertical: true,
+    size: 1.7,
+    text: fmt(Sy, 2)
+  }), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 6,
+    title: "DENAH PONDASI",
+    S: S
+  }));
+}
+function TowerFootDetail({
+  g,
+  ox,
+  oy,
+  w,
+  h,
+  k,
+  S
+}) {
+  const {
+    footB,
+    footT,
+    footD,
+    ped,
+    z0,
+    p,
+    colB
+  } = g;
+  const cx = ox + w / 2 + 3;
+  const zTop = z0 + (g.steel ? 0.55 : 0.6),
+    zBot = -footD - g.tlk - 0.25;
+  const avail = h - 14;
+  const U = u => cx + u * k,
+    Z = z => oy + 6 + Math.max(0, (avail - (zTop - zBot) * k) / 2) + (zTop - z) * k;
+  const R = (u1, z1, u2, z2, pr) => React.createElement("rect", _extends({
+    x: U(Math.min(u1, u2)),
+    y: Z(Math.max(z1, z2)),
+    width: Math.abs(u2 - u1) * k,
+    height: Math.abs(z2 - z1) * k
+  }, pr));
+  const conc = {
+    fill: 'url(#pat-concrete)',
+    stroke: '#000',
+    strokeWidth: 0.35
+  };
+  const sw = footB / 2 + 0.45;
+  const c = 0.05;
+  return React.createElement("g", null, R(-sw, 0, sw, zBot, {
+    fill: 'url(#pat-soil)'
+  }), R(-footB / 2 - 0.3, 0, footB / 2 + 0.3, -footD - g.tlk, {
+    fill: '#fff'
+  }), R(-footB / 2 - 0.3, 0, footB / 2 + 0.3, -footD - g.tlk, {
+    fill: 'url(#pat-backfill)',
+    opacity: 0.6
+  }), React.createElement("line", {
+    x1: U(-sw),
+    x2: U(sw),
+    y1: Z(0),
+    y2: Z(0),
+    stroke: "#5b4421",
+    strokeWidth: 0.5
+  }), R(-footB / 2 - 0.05, -footD, footB / 2 + 0.05, -footD - g.tlk, {
+    fill: '#d4d4d4',
+    stroke: '#000',
+    strokeWidth: 0.2
+  }), R(-footB / 2, -footD + footT, footB / 2, -footD, conc), R(-ped / 2, g.steel ? z0 : zTop, ped / 2, -footD + footT, conc), React.createElement("line", {
+    x1: U(-footB / 2 + c),
+    x2: U(footB / 2 - c),
+    y1: Z(-footD + c),
+    y2: Z(-footD + c),
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), Array.from({
+    length: Math.floor((footB - 0.1) / rebarSpacing(p.rebarFoot)) + 1
+  }).map((_, j) => React.createElement("circle", {
+    key: j,
+    cx: U(-footB / 2 + c + j * rebarSpacing(p.rebarFoot)),
+    cy: Z(-footD + c + 0.015),
+    r: 0.3,
+    fill: "#000"
+  })), [-1, 1].map(sd => React.createElement("path", {
+    key: sd,
+    d: `M${U(sd * (ped / 2 - c))} ${Z(g.steel ? z0 - 0.05 : zTop)} L${U(sd * (ped / 2 - c))} ${Z(-footD + c + 0.03)} L${U(sd * (ped / 2 - c + 0.25))} ${Z(-footD + c + 0.03)}`,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.35
+  })), g.steel && React.createElement("g", null, R(-0.175, z0, 0.175, z0 + 0.012, {
+    fill: '#000'
+  }), R(-colB / 2, z0 + 0.012, colB / 2, zTop, {
+    fill: '#cfd6dd',
+    stroke: '#000',
+    strokeWidth: 0.3
+  }), R(-ped / 2, z0 - 0.03, ped / 2, z0, {
+    fill: '#999'
+  }), [-0.12, 0.12].map(u => React.createElement("path", {
+    key: u,
+    d: `M${U(u)} ${Z(z0 + 0.05)} L${U(u)} ${Z(z0 - 0.45)} l${(u < 0 ? -1 : 1) * 0.08 * k} 0`,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.45
+  })), React.createElement(HaloText, {
+    x: U(ped / 2) + 1,
+    y: Z(z0 - 0.2),
+    fontSize: 1.5
+  }, "Angkur 4 M19 L=45 cm"), React.createElement(HaloText, {
+    x: U(ped / 2) + 1,
+    y: Z(z0 + 0.02),
+    fontSize: 1.5
+  }, "Pelat landas 350\xD7350\xD712 + grout")), React.createElement(HaloText, {
+    x: U(0),
+    y: Z(-footD) + 3,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Tul. ", p.rebarFoot, " \xB7 lantai kerja t = ", fmt(g.tlk * 100, 0), " cm"), !g.steel && React.createElement(HaloText, {
+    x: U(ped / 2) + 1,
+    y: Z(-footD / 2),
+    fontSize: 1.5
+  }, "Kolom ", fmt(colB * 100, 0), "/", fmt(colB * 100, 0), " \xB7 ", p.rebarCol), React.createElement(ElevMark, {
+    x: U(-sw) + 1.5,
+    y: Z(0),
+    text: `MT ${elevTxt(g.ground)}`
+  }), React.createElement(DimLine, {
+    x1: U(-footB / 2),
+    y1: Z(zBot),
+    x2: U(footB / 2),
+    y2: Z(zBot),
+    off: 3,
+    size: 1.6,
+    text: fmt(footB, 2)
+  }), React.createElement(DimLine, {
+    x1: U(-sw),
+    y1: Z(-footD + footT),
+    x2: U(-sw),
+    y2: Z(-footD),
+    off: -2.5,
+    vertical: true,
+    size: 1.5,
+    text: fmt(footT, 2)
+  }), React.createElement(DimLine, {
+    x1: U(-sw),
+    y1: Z(0),
+    x2: U(-sw),
+    y2: Z(-footD),
+    off: -6,
+    vertical: true,
+    size: 1.6,
+    text: fmt(footD, 2)
+  }), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 5,
+    title: "DETAIL PONDASI",
+    S: S
+  }));
+}
+function TowerTables({
+  g,
+  q,
+  x,
+  y,
+  w
+}) {
+  const p = g.p,
+    c = q.check;
+  const ok = v => v <= 1 ? '✓ ' : '✗ ';
+  const data = [['Sistem', g.sys.short], ['Penampung', g.rcTank ? `Bak beton ${fmt(g.tank.L, 2)}×${fmt(g.tank.B, 2)}×${fmt(g.Hw, 2)} m` : `${g.n} × tandon ${fmt(g.tank.v, 0)} L`], ['Kapasitas / kebutuhan', `${fmt(g.cap, 2)} / ${fmt(q.need, 1)} m³`], ['Tinggi menara (lantai)', `${fmt(g.Ht, 2)} m`], ['Elevasi lantai / MAT', `${elevTxt(g.floorEl)} / ${elevTxt(g.mat)}`], ['Kolom', g.steel ? `4 × ${p.colProfile} (BJ 37)` : `4 × ${fmt(g.colB * 100, 0)}/${fmt(g.colB * 100, 0)} · ${p.rebarCol}`], ['Ikatan', g.steel ? `${p.braceProfile}, ${g.nLev} panel X` : `Balok ring ${g.nLev - 1} lapis · ${p.rebarBeam}`], ['Cek kolom Pu / φPn', `${ok(c.rCol)}${fmt(c.Pu, 1)} / ${fmt(c.phiPn, 1)} kN`], ['Tegangan tanah σ / σijin', `${ok(c.rSoil)}${fmt(c.sigma, 0)} / ${fmt(c.soil, 0)} kN/m²`], ['Gaya angkat (tandon kosong)', c.uplift >= 0 ? '✓ tidak terjadi' : `✗ ${fmt(-c.uplift, 1)} kN/kolom`]];
+  const vol = [['Galian tanah', q.galian, 'm³'], ['Beton K-250', q.concrete, 'm³'], ['Baja tulangan', q.rebar, 'kg'], ...(g.steel ? [['Baja profil', q.profile, 'kg'], ['Pelat bordes', q.plate, 'm²']] : []), ['Bekisting', q.formwork, 'm²'], ['Railing / tangga', q.rail + q.ladder, "m'"]];
+  return React.createElement("g", null, React.createElement(SvgTable, {
+    x: x,
+    y: y + 4,
+    w: w,
+    title: "DATA TEKNIS",
+    fs: 1.6,
+    rh: 4,
+    cols: [0.44, 0.56],
+    head: ['Uraian', 'Nilai'],
+    rows: data
+  }), React.createElement(SvgTable, {
+    x: x,
+    y: y + 4 + (data.length + 1) * 4 + 8,
+    w: w,
+    title: "VOLUME PEKERJAAN",
+    fs: 1.6,
+    rh: 4,
+    cols: [0.56, 0.28, 0.16],
+    head: ['Uraian', 'Volume', 'Sat.'],
+    rows: vol.map(r => [r[0], fmt(r[1], r[2] === 'kg' ? 0 : 2), r[2]])
+  }));
+}
+const towerLegend = g => noteLegend([['url(#pat-concrete)', 'Beton bertulang K-250'], ['#d4d4d4', 'Lantai kerja K-100'], ...(g.steel ? [['#cfd6dd', 'Baja profil BJ 37']] : []), ['url(#pat-soil)', 'Tanah asli'], ['#d6ebf8', 'Air']], ["1. Beton K-250 (fc' 20,75 MPa), baja BJTS 420B.", ...(g.steel ? ['2. Baja BJ 37, sambungan las E70 / baut A325;', '    dicat zinc chromate + 2 lapis cat akhir.'] : ['2. Selimut beton kolom/balok 4 cm, pondasi 5 cm.']), `3. Daya dukung tanah min. ${fmt(+g.p.soil || 100, 0)} kN/m² (uji sondir).`, '4. Cek struktur indikatif: angin 0,6 kN/m²,', '    wajib diverifikasi ahli struktur.', ...(g.rcTank ? ['5. Bak diuji bocor 24 jam sebelum dipakai.'] : ['5. Tandon diikat sabuk pelat ke rangka', '    agar aman terhadap angin & gempa.']), '6. Pasang penangkal petir bila menara > 10 m.']);
+function SheetTower({
+  project,
+  s,
+  sheetNo,
+  sheetTotal
+}) {
+  const {
+    st,
+    g,
+    q
+  } = s;
+  const zSpan = g.Ht + g.tankH + (g.rcTank ? 0.5 : 0.35) + g.footD + g.tlk + 0.3;
+  const SE = STRUCT_SCALES.find(v => zSpan * 1000 / v + 22 <= 262 && (g.W + 2.6) * 1000 / v + 36 <= 150) || 200;
+  const span = Math.max(g.W, g.Dp, g.Sx + g.footB, g.Sy + g.footB) + 1.4;
+  const SP = STRUCT_SCALES.find(v => span * 1000 / v + 14 <= 76 && span * 1000 / v + 26 <= 135) || 200;
+  const SF = STRUCT_SCALES.find(v => (g.footB + 0.9) * 1000 / v + 24 <= 74 && (g.footD + 1.4) * 1000 / v + 24 <= 134) || 100;
+  return React.createElement(Sheet, {
+    meta: project.meta,
+    title: `MENARA AIR ${st.label}`,
+    scaleText: SE === SP && SP === SF ? fmtScale(SE) : 'Tertera',
+    sheetNo: sheetNo,
+    sheetTotal: sheetTotal,
+    legend: towerLegend(g)
+  }, React.createElement("line", {
+    x1: 172,
+    x2: 172,
+    y1: FRAME.y0,
+    y2: FRAME.y1,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("line", {
+    x1: 172,
+    x2: FRAME.tbX,
+    y1: 148.5,
+    y2: 148.5,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("line", {
+    x1: 252,
+    x2: 252,
+    y1: FRAME.y0,
+    y2: 148.5,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("line", {
+    x1: 248,
+    x2: 248,
+    y1: 148.5,
+    y2: FRAME.y1,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement(TowerElevation, {
+    g: g,
+    ox: 18,
+    oy: 10,
+    w: 152,
+    h: 277,
+    k: 1000 / SE,
+    S: SE
+  }), React.createElement(TowerPlan, {
+    g: g,
+    ox: 173,
+    oy: 10,
+    w: 78,
+    h: 137,
+    k: 1000 / SP,
+    S: SP
+  }), React.createElement(TowerFoundPlan, {
+    g: g,
+    ox: 253,
+    oy: 10,
+    w: 78,
+    h: 137,
+    k: 1000 / SP,
+    S: SP
+  }), React.createElement(TowerFootDetail, {
+    g: g,
+    ox: 173,
+    oy: 150,
+    w: 74,
+    h: 137,
+    k: 1000 / SF,
+    S: SF
+  }), React.createElement(TowerTables, {
+    g: g,
+    q: q,
+    x: 250,
+    y: 152,
+    w: 80
+  }));
+}
 const noteLegend = (items, notes) => (x, y) => React.createElement("g", {
   fontSize: 2
 }, items.map(([f, l], i) => React.createElement("g", {
@@ -11566,9 +13496,14 @@ function extraSheets(project, hyd, boq) {
     key: 'st:' + x.st.id,
     label: x.st.label,
     sub: STRUCT_TYPES[x.st.type].label.split(' (')[0],
-    icon: 'Building2',
+    icon: x.st.type === 'tower' ? 'TowerControl' : 'Building2',
     group: 'Bangunan pelengkap',
-    render: (no, tot) => React.createElement(SheetStructure, {
+    render: (no, tot) => x.st.type === 'tower' ? React.createElement(SheetTower, {
+      project: project,
+      s: x,
+      sheetNo: no,
+      sheetTotal: tot
+    }) : React.createElement(SheetStructure, {
       project: project,
       s: x,
       sheetNo: no,
@@ -11637,6 +13572,241 @@ function extraSheets(project, hyd, boq) {
   return out;
 }
 const sheetCount = project => 3 + (project.structures || []).length + project.nodes.filter(n => n.type === 'borehole').length + (project.treatments || []).reduce((a, t) => a + (t.scale === 'household' ? 1 : 2), 0);
+function TowerEditor({
+  s,
+  project,
+  setProject,
+  onDelete,
+  onDuplicate
+}) {
+  const {
+    st,
+    g,
+    q
+  } = s;
+  const p = g.p;
+  const c = q.check;
+  const [confirmDel, setConfirmDel] = useState(false);
+  const upd = patch => setProject(pr => ({
+    ...pr,
+    structures: pr.structures.map(x => x.id === st.id ? {
+      ...x,
+      ...patch
+    } : x)
+  }));
+  const setP = (k, v) => setProject(pr => ({
+    ...pr,
+    structures: pr.structures.map(x => x.id === st.id ? {
+      ...x,
+      params: {
+        ...x.params,
+        [k]: v
+      }
+    } : x)
+  }));
+  const num = (k, label, step = 0.05, min = 0) => React.createElement(Field, {
+    key: k,
+    label: label
+  }, React.createElement(NumField, {
+    id: `st-${k}`,
+    value: p[k],
+    step: step,
+    min: min,
+    onChange: v => setP(k, Math.max(min, v))
+  }));
+  const dia = (k, label) => React.createElement(Field, {
+    key: k,
+    label: label
+  }, React.createElement("select", {
+    id: `st-${k}`,
+    className: "tp-field num",
+    value: p[k],
+    onChange: e => setP(k, +e.target.value)
+  }, [20, ...DIAMETERS].map(d => React.createElement("option", {
+    key: d,
+    value: d
+  }, "\xD8", d))));
+  const txt = (k, label) => React.createElement(Field, {
+    key: k,
+    label: label
+  }, React.createElement("input", {
+    id: `st-${k}`,
+    className: "tp-field",
+    value: p[k] || '',
+    onChange: e => setP(k, e.target.value)
+  }));
+  const prof = (k, label, keys) => React.createElement(Field, {
+    key: k,
+    label: label
+  }, React.createElement("select", {
+    id: `st-${k}`,
+    className: "tp-field",
+    value: p[k],
+    onChange: e => setP(k, e.target.value)
+  }, keys.map(x => React.createElement("option", {
+    key: x,
+    value: x
+  }, x, " (", fmt(STEEL_PROFILES[x].kg, 1), " kg/m)"))));
+  const H = ({
+    children
+  }) => React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-aqua-700 pt-1"
+  }, children);
+  const node = g.node;
+  const resLinked = node && node.type === 'reservoir';
+  const wl = round2(g.mat - g.ground);
+  const mismatch = resLinked && Math.abs((+node.waterLevel || 0) - wl) > 0.005;
+  const mh = s.minHt;
+  const pill = r => React.createElement("span", {
+    className: 'pill ' + (r <= 1 ? 's-ok' : 's-high')
+  }, fmt(r * 100, 0), "%");
+  return React.createElement("div", {
+    className: "space-y-2.5"
+  }, React.createElement("div", {
+    className: "min-w-0"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, STRUCT_TYPES.tower.label), React.createElement("input", {
+    id: "st-label",
+    className: "tp-field !text-[15px] font-semibold mt-1",
+    value: st.label,
+    onChange: e => upd({
+      label: e.target.value
+    })
+  })), React.createElement(Field, {
+    label: "Lokasi pada jaringan",
+    hint: resLinked ? 'Menara menjadi sumber jaringan: muka air menara = elevasi node + tinggi menara + tinggi air.' : node ? 'Elevasi node dipakai sebagai muka tanah.' : 'Isi elevasi muka tanah secara manual.'
+  }, React.createElement("select", {
+    id: "st-node",
+    className: "tp-field",
+    value: st.nodeId || '',
+    onChange: e => upd({
+      nodeId: e.target.value
+    })
+  }, React.createElement("option", {
+    value: ""
+  }, "Tidak terhubung ke node"), project.nodes.map(n => React.createElement("option", {
+    key: n.id,
+    value: n.id
+  }, n.label, " \xB7 ", NODE_TYPES[n.type].label)))), !node && React.createElement(StructLocFields, {
+    st: st,
+    setProject: setProject
+  }), mismatch && React.createElement("div", {
+    className: "rounded-md bg-amber-50 border border-amber-200 p-2 text-[12px] text-amber-900"
+  }, "Tinggi muka air node ", node.label, " di analisis hidrolis ", fmt(node.waterLevel, 2), " m di atas tanah, sedangkan MAT menara ", fmt(wl, 2), " m.", React.createElement("button", {
+    type: "button",
+    className: "block mt-1 font-semibold text-aqua-700 hover:underline",
+    onClick: () => setProject(pr => ({
+      ...pr,
+      nodes: pr.nodes.map(n => n.id === node.id ? {
+        ...n,
+        waterLevel: wl
+      } : n)
+    }))
+  }, "Samakan node ", node.label, " menjadi ", fmt(wl, 2), " m")), mh && React.createElement("div", {
+    className: 'rounded-md border p-2 text-[12px] ' + (g.Ht >= mh.Ht ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900')
+  }, "Tinggi menara minimum agar sisa tekan \u2265 ", project.settings.pMin, " mka di ", mh.crit.label, " saat tandon hampir kosong: ", React.createElement("b", null, fmt(mh.Ht, 1), " m"), ".", Math.abs(g.Ht - mh.Ht) > 0.01 && React.createElement("button", {
+    type: "button",
+    className: "block mt-1 font-semibold text-aqua-700 hover:underline",
+    onClick: () => setP('Ht', mh.Ht)
+  }, "Pakai tinggi ", fmt(mh.Ht, 1), " m")), React.createElement(H, null, "Sistem menara"), React.createElement("div", {
+    className: "grid gap-1"
+  }, Object.entries(TOWER_SYSTEMS).map(([k, t]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setP('system', k),
+    className: `text-left rounded-md border px-2.5 py-1.5 text-[12.5px] ${p.system === k ? 'bg-aqua-600 text-white border-aqua-600' : 'border-line hover:border-aqua-400'}`
+  }, t.label))), g.rcTank ? React.createElement(React.Fragment, null, React.createElement(H, null, "Bak beton (m)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('L', 'Panjang dalam', 0.05, 0.8), num('B', 'Lebar dalam', 0.05, 0.8), num('Hw', 'Tinggi air', 0.05, 0.3), num('fb', 'Tinggi jagaan', 0.05), num('tw', 'Tebal dinding', 0.01, 0.1), num('tr', 'Tebal atap', 0.01, 0.08))) : React.createElement(React.Fragment, null, React.createElement(H, null, "Tandon PVC/PE"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, React.createElement(Field, {
+    label: "Ukuran tandon"
+  }, React.createElement("select", {
+    id: "st-tankSize",
+    className: "tp-field num",
+    value: g.tank.v,
+    onChange: e => setP('tankSize', +e.target.value)
+  }, TANDON.map(t => React.createElement("option", {
+    key: t.v,
+    value: t.v
+  }, fmt(t.v, 0), " L \xB7 \xD8", fmt(t.D * 100, 0), "\xD7", fmt(t.H * 100, 0), " cm")))), React.createElement(Field, {
+    label: "Jumlah tandon (1\u20136)"
+  }, React.createElement("select", {
+    id: "st-tankCount",
+    className: "tp-field num",
+    value: g.n,
+    onChange: e => setP('tankCount', +e.target.value)
+  }, [1, 2, 3, 4, 5, 6].map(v => React.createElement("option", {
+    key: v,
+    value: v
+  }, v, " unit")))))), React.createElement(H, null, "Rangka & pondasi (m)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('Ht', 'Tinggi menara (lantai)', 0.5, 1), g.steel ? React.createElement(React.Fragment, null, prof('colProfile', 'Profil kolom', ['H100.100', 'H125.125', 'H150.150', 'WF150.75', 'L100.100.10', 'Pipa 4" Sch40', 'Pipa 6" Sch40']), prof('braceProfile', 'Profil ikatan', ['L70.70.7', 'L80.80.8', 'L100.100.10'])) : React.createElement(React.Fragment, null, num('col', 'Kolom (sisi)', 0.05, 0.2), num('beamB', 'Lebar balok', 0.05, 0.15), num('beamH', 'Tinggi balok', 0.05, 0.2), num('slab', 'Tebal pelat lantai', 0.01, 0.1)), num('footB', 'Lebar pondasi telapak', 0.05, 0.6), num('footT', 'Tebal pondasi', 0.05, 0.2), num('footD', 'Kedalaman pondasi', 0.1, 0.6), num('soil', 'Daya dukung tanah (kN/m²)', 10, 20)), React.createElement(H, null, "Perpipaan (mm)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, dia('dIn', 'Ø inlet'), dia('dOut', 'Ø outlet'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras')), React.createElement(H, null, "Penulangan"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, !g.steel && txt('rebarCol', 'Tulangan kolom'), !g.steel && txt('rebarBeam', 'Tulangan balok'), txt('rebarFoot', 'Tulangan pondasi'), num('steelRatio', 'Rasio besi (kg/m³)', 5, 40)), React.createElement("div", {
+    className: "rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]"
+  }, React.createElement("span", {
+    className: "text-slate-500"
+  }, "Kapasitas"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(g.cap, 2), " m\xB3"), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Kebutuhan tampungan"), React.createElement("span", {
+    className: "text-right"
+  }, React.createElement("span", {
+    className: 'pill ' + (g.cap >= q.need ? 's-ok' : 's-low')
+  }, fmt(q.need, 1), " m\xB3")), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Elevasi MAT"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, elevTxt(g.mat)), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Kolom Pu/\u03C6Pn"), React.createElement("span", {
+    className: "text-right"
+  }, pill(c.rCol)), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Tanah \u03C3/\u03C3ijin"), React.createElement("span", {
+    className: "text-right"
+  }, pill(c.rSoil)), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Gaya angkat"), React.createElement("span", {
+    className: "text-right"
+  }, React.createElement("span", {
+    className: 'pill ' + (c.uplift >= 0 ? 's-ok' : 's-high')
+  }, c.uplift >= 0 ? 'aman' : fmt(-c.uplift, 1) + ' kN')), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Beton K-250"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(q.concrete, 2), " m\xB3"), React.createElement("span", {
+    className: "text-slate-500"
+  }, g.steel ? 'Baja profil' : 'Baja tulangan'), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(g.steel ? q.profile : q.rebar, 0), " kg")), (c.rCol > 1 || c.rSoil > 1 || c.uplift < 0) && React.createElement("div", {
+    className: "rounded-md bg-red-50 border border-red-200 p-2 text-[12px] text-red-900"
+  }, c.rCol > 1 && React.createElement("div", null, "Kolom terlalu lemah: ", g.steel ? 'pilih profil lebih besar' : 'perbesar ukuran kolom', "."), c.rSoil > 1 && React.createElement("div", null, "Tegangan tanah melebihi daya dukung: perbesar lebar pondasi telapak."), c.uplift < 0 && React.createElement("div", null, "Angin dapat mengangkat kolom saat tandon kosong: perdalam/perbesar pondasi.")), React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, "Cek struktur bersifat indikatif (beban terfaktor & angin 0,6 kN/m\xB2); verifikasi ahli struktur tetap diperlukan."), React.createElement("div", {
+    className: "flex gap-2"
+  }, React.createElement(Btn, {
+    icon: "FilePlus2",
+    variant: "outline",
+    onClick: onDuplicate
+  }, "Duplikat"), confirmDel ? React.createElement(React.Fragment, null, React.createElement(Btn, {
+    variant: "danger",
+    icon: "Trash2",
+    onClick: onDelete
+  }, "Ya, hapus"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => setConfirmDel(false)
+  }, "Batal")) : React.createElement(Btn, {
+    icon: "Trash2",
+    variant: "danger",
+    onClick: () => setConfirmDel(true)
+  }, "Hapus")));
+}
 function StructureEditor({
   s,
   project,
@@ -11644,6 +13814,13 @@ function StructureEditor({
   onDelete,
   onDuplicate
 }) {
+  if (s.st.type === 'tower') return React.createElement(TowerEditor, {
+    s: s,
+    project: project,
+    setProject: setProject,
+    onDelete: onDelete,
+    onDuplicate: onDuplicate
+  });
   const {
     st,
     g,
@@ -12947,6 +15124,7 @@ function CoordDialog({
     wpt: true,
     saveTracks: true,
     toPipes: true,
+    flexCurve: true,
     useEle: project.settings.elevSource === 'gps',
     tol: project.settings.autoTol,
     maxSeg: project.settings.autoMaxSeg
@@ -13246,7 +15424,17 @@ function CoordDialog({
       ...o,
       toPipes: e.target.checked
     }))
-  }), "Ubah jejak menjadi jalur pipa ", prefs.material, " \xD8", prefs.diameter), React.createElement("label", {
+  }), "Ubah jejak menjadi jalur pipa ", prefs.material, " \xD8", prefs.diameter), gOpt.toPipes && isFlex(prefs.material) && React.createElement("label", {
+    className: "flex items-center gap-2"
+  }, React.createElement("input", {
+    id: "gpx-flex",
+    type: "checkbox",
+    checked: gOpt.flexCurve,
+    onChange: e => setGOpt(o => ({
+      ...o,
+      flexCurve: e.target.checked
+    }))
+  }), "Pipa fleksibel mengikuti lengkung jejak (node hanya tiap jarak maks.)"), React.createElement("label", {
     className: "flex items-center gap-2"
   }, React.createElement("input", {
     id: "gpx-ele",
@@ -14941,7 +17129,20 @@ function App({
   prefsRef.current = prefs;
   const [activeNode, setActiveNodeS] = useState(null);
   const activeRef = useRef(null);
+  const [pending, setPendingS] = useState([]);
+  const pendingRef = useRef([]);
+  const setPending = useCallback(fn => {
+    const v = typeof fn === 'function' ? fn(pendingRef.current) : fn;
+    pendingRef.current = v;
+    setPendingS(v);
+  }, []);
+  const takePending = useCallback(() => {
+    const v = pendingRef.current;
+    if (v.length) setPending([]);
+    return v;
+  }, []);
   const setActiveNode = useCallback(v => {
+    if (v !== activeRef.current) setPending([]);
     activeRef.current = v;
     setActiveNodeS(v);
   }, []);
@@ -15038,6 +17239,8 @@ function App({
     const id = uid(isSt ? 's' : 'n');
     const gpsElev = opt.alt != null && s.elevSource === 'gps' ? opt.alt + (+s.geoidOffset || 0) : null;
     const explicit = opt.elev !== null && opt.elev !== undefined && opt.elev !== '' && isFinite(opt.elev);
+    const connect = !isSt && !!opt.connect;
+    const from = connect ? activeRef.current : null;
     const row = {
       id,
       lat: ll.lat,
@@ -15047,10 +17250,9 @@ function App({
       demand: opt.demand,
       auto: opt.auto,
       elev: explicit ? +opt.elev : gpsElev,
-      elevSrc: explicit ? 'manual' : 'gps'
+      elevSrc: explicit ? 'manual' : 'gps',
+      path: from ? takePending() : undefined
     };
-    const connect = !isSt && !!opt.connect;
-    const from = connect ? activeRef.current : null;
     setProject(p => addPoints(p, [row], {
       connect,
       connectFrom: from,
@@ -15095,6 +17297,19 @@ function App({
     } catch (e) {}
   };
   const stopRec = () => {
+    const last = lastPtRef.current;
+    const chain = activeRef.current && projectRef.current.nodes.find(n => n.id === activeRef.current);
+    if (rec && last && chain && projectRef.current.settings.autoNodes && (pendingRef.current.length || haversine(chain, {
+      lat: last[0],
+      lng: last[1]
+    }) > 5)) createPoint({
+      lat: last[0],
+      lng: last[1]
+    }, 'junction', {
+      connect: true,
+      auto: true,
+      alt: last[2]
+    });
     setRec(null);
     try {
       wakeRef.current?.release();
@@ -15151,7 +17366,13 @@ function App({
     }
     const buf = [...bufRef.current, pt];
     bufRef.current = buf;
-    const P = makeProjector(chain.lat, chain.lng);
+    const flex = s.flexCurve !== false && isFlex(prefsRef.current.material);
+    const pend = pendingRef.current;
+    const o = flex && pend.length ? {
+      lat: pend[pend.length - 1][0],
+      lng: pend[pend.length - 1][1]
+    } : chain;
+    const P = makeProjector(o.lat, o.lng);
     const xy = buf.map(b => P.toXY(b[0], b[1]));
     const c = xy[xy.length - 1];
     let md = 0,
@@ -15166,7 +17387,25 @@ function App({
         mi = i;
       }
     }
-    if (md > (+s.autoTol || 6) && mi >= 0) {
+    const tol = flex ? Math.min(+s.autoTol || 6, 3) : +s.autoTol || 6;
+    if (flex) {
+      const run = lineLength([[chain.lat, chain.lng], ...pend, [pt[0], pt[1]]]);
+      if (run >= (+s.autoMaxSeg || 100)) {
+        createPoint({
+          lat: pt[0],
+          lng: pt[1]
+        }, 'junction', {
+          connect: true,
+          auto: true,
+          alt: pt[2]
+        });
+        bufRef.current = [];
+      } else if (md > tol && mi >= 0) {
+        const v = buf[mi];
+        setPending(q => [...q, [v[0], v[1]]]);
+        bufRef.current = buf.slice(mi + 1);
+      }
+    } else if (md > tol && mi >= 0) {
       const v = buf[mi];
       createPoint({
         lat: v[0],
@@ -15331,6 +17570,9 @@ function App({
     activeNode,
     setActiveNode,
     createPoint,
+    pending,
+    setPending,
+    takePending,
     gps,
     rec,
     startRec,
