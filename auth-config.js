@@ -19,16 +19,16 @@ import { getAnalytics } from "firebase/analytics";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCndGEZn1bQY1etP9HuGpMjdweKdwY-t_I",
-  authDomain: "washpipe-93f48.firebaseapp.com",
-  projectId: "washpipe-93f48",
-  storageBucket: "washpipe-93f48.firebasestorage.app",
-  messagingSenderId: "1054406683881",
-  appId: "1:1054406683881:web:9991193f50e19aa3a31478",
-  measurementId: "G-ECDPX4R44K"
+window.TIRTAPLAN_AUTH = {
+  firebase: {
+    apiKey: "AIzaSy...",
+    authDomain: "washpipeplan.firebaseapp.com",
+    projectId: "washpipeplan",
+    storageBucket: "washpipeplan.appspot.com",
+    messagingSenderId: "1234567890",
+    appId: "1:1234567890:web:abc123"
+  },
+  adminEmails: ["denekijulianto@gmail.com". "eki_julianto@pmi.or.id"],
 };
 
 // Initialize Firebase
