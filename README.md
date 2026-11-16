@@ -40,7 +40,7 @@ Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD 
 ## Reservoir bersekat, broncaptering V, hidran & skema instalasi filter
 - **Reservoir → Sistem penyekat**: pilih sekat pengendapan (ambang luapan + penguras ruang endap), sekat pengendapan + saringan pasir (ruang endap → saringan aliran turun → lubang bawah sekat → ruang air bersih), atau sekat berliku (bak kontak klorin).
 - **Pondasi panggung batu kali** (semua bak): isi tinggi pondasi > 0 agar bak berdiri di atas pasangan batu kali/batu pecah.
-- **Hidran umum**: ukuran kran/outlet ½" sampai 2" (½, ¾, 1, 1¼, 1½, 2 inci).
+- **Hidran umum**: ukuran kran/outlet ½" sampai 2½" (Ø15–Ø75 mm).
 - **Broncaptering bentuk V**: dinding sayap batu kali, area tangkapan kerikil–ijuk–lempung–tanah urug, dinding depan dengan V-notch (debit → tinggi air), bak pengumpul + manhole, pipa ventilasi, dan saluran terbuka pengalih air hujan. Lembar DED berisi denah, potongan 1–1, detail V-notch, dan tutup manhole.
 - **Skema instalasi filter** (mode tabung FRP): pompa → tabung filter → menara tandon → distribusi. Katup bisa berupa multiport valve atau manifold 5 katup manual, lengkap dengan tabel operasi filter / cuci balik / bilas.
 

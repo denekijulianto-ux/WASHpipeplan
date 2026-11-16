@@ -1011,7 +1011,7 @@ const STRUCT_DEFAULTS = {
                    steelRatio: 130, rebarCol: '8D16, sk. D10-150', rebarBeam: '4D16 + 2D13, sk. D10-150', rebarFoot: 'D13-150 dua arah', needPct: 15, peakFactor: 1.5, embed: 0 },
   hidran:        { tapD: 15, podium: 0, L: 1.5, B: 1.0, Hw: 0.9, fb: 0.2, tw: 0.15, tb: 0.15, tr: 0.10, dIn: 32, taps: 4, dOf: 32, dDr: 32, embed: 0.2, mh: 0.5, steelRatio: 95 },
 };
-const TAP_SIZES = { 15: '½"', 20: '¾"', 25: '1"', 32: '1¼"', 40: '1½"', 50: '2"' };
+const TAP_SIZES = { 15: '½"', 20: '¾"', 25: '1"', 32: '1¼"', 40: '1½"', 50: '2"', 75: '2½"' };
 const BAFFLES = { none: 'Tanpa sekat', sed: 'Sekat pengendapan (ambang luapan)', sedfilt: 'Sekat pengendapan + saringan pasir', berliku: 'Sekat berliku (bak kontak klorin)' };
 function newStructure(type, list, extra = {}) {
   return { id: uid('s'), type, label: nextLabel(list, STRUCT_TYPES[type].short + '-'), nodeId: '', params: { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[type] }, ...extra };
