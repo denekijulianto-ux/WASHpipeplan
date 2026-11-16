@@ -12,7 +12,7 @@ import { getAnalytics } from "firebase/analytics";
 
 window.TIRTAPLAN_AUTH = {
   firebase: {
-    apiKey: "AIzaSy...",
+    apiKey: "AIzaSyCndGEZn1bQY1etP9HuGpMjdweKdwY-t_I",
     authDomain: "washpipeplan.firebaseapp.com",
     projectId: "washpipeplan",
     storageBucket: "washpipeplan.appspot.com",
