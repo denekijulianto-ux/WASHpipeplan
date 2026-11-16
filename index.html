@@ -49,6 +49,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="auth-config.js"></script>
 <style>
   html, body, #root { height: 100%; }
   body { margin: 0; background: #eef2f1; color: #10232a; font-family: "IBM Plex Sans", system-ui, "Segoe UI", Arial, sans-serif; }
@@ -328,9 +329,19 @@ const MATERIALS = {
     C: 110,
     label: 'GIP Medium',
     dash: '4 1 0.6 1'
+  },
+  PE: {
+    C: 140,
+    label: 'Pipa fleksibel PE (gulungan)',
+    short: 'Fleksibel',
+    dash: '0.8 0.8'
   }
 };
-const DIAMETERS = [25, 32, 40, 50, 63, 75, 90, 110, 125, 150, 160, 200, 225, 250, 315];
+const pipeName = mat => {
+  const l = MATERIALS[mat]?.label || mat;
+  return /^pipa/i.test(l) ? l : 'Pipa ' + l;
+};
+const DIAMETERS = [16, 20, 25, 32, 40, 50, 63, 75, 90, 110, 125, 150, 160, 200, 225, 250, 315];
 const DEFAULT_SETTINGS = {
   trenchWidth: 0.6,
   trenchDepth: 1.0,
@@ -1300,9 +1311,14 @@ function mergeProject(base, incoming) {
     stats
   };
 }
-function loadInitialProject() {
+const projectKey = user => user ? STORAGE_KEY + ':' + user.uid : STORAGE_KEY;
+function loadInitialProject(key = STORAGE_KEY) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(key);
+    if (!raw && key !== STORAGE_KEY && !localStorage.getItem('tirtaplan-legacy-claimed')) {
+      raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) localStorage.setItem('tirtaplan-legacy-claimed', key);
+    }
     if (raw) return normalizeProject(JSON.parse(raw));
   } catch (e) {}
   return createExampleProject();
@@ -1842,6 +1858,7 @@ const r500 = v => Math.round(v / 500) * 500;
 function defPipePrice(mat, d) {
   if (mat === 'HDPE') return r500(9000 + 145000 * Math.pow(d / 110, 1.7));
   if (mat === 'GIP') return r500(30000 + 420000 * Math.pow(d / 100, 1.4));
+  if (mat === 'PE') return r500(5000 + 70000 * Math.pow(d / 110, 1.7));
   return r500(7500 + 88000 * Math.pow(d / 110, 1.7));
 }
 const FITTING_DEF = {
@@ -2142,7 +2159,7 @@ function buildRAB(project, boq) {
   }, {
     code: 'III',
     title: 'PENGADAAN & PEMASANGAN PIPA',
-    items: boq.pipeGroups.map(g => it(`pipe|${g.material}|${g.diameter}`, `Pipa ${MATERIALS[g.material].label} Ø${g.diameter} mm (termasuk waste ${project.settings.wastePct}%)`, g.lengthTotal, "m'", defPipePrice(g.material, g.diameter)))
+    items: boq.pipeGroups.map(g => it(`pipe|${g.material}|${g.diameter}`, `${pipeName(g.material)} Ø${g.diameter} mm (termasuk waste ${project.settings.wastePct}%)`, g.lengthTotal, "m'", defPipePrice(g.material, g.diameter)))
   }, {
     code: 'IV',
     title: 'AKSESORIS & FITTING JARINGAN',
@@ -4252,7 +4269,8 @@ function LeafletMap(props) {
         color,
         weight: w,
         opacity: 1,
-        dashArray: p.material === 'PVC' ? null : p.material === 'GIP' ? '10 4 2 4' : null,
+        dashArray: p.material === 'GIP' ? '10 4 2 4' : p.material === 'PE' ? '2 6' : null,
+        lineCap: p.material === 'PE' ? 'round' : 'butt',
         interactive: false
       }).addTo(group);
       const hit = L.polyline(latlngs, {
@@ -5105,7 +5123,40 @@ function GpsPanel({
       ...p,
       connectGps: e.target.checked
     }))
-  }), "Sambungkan titik dengan pipa (", prefs.material, " \xD8", prefs.diameter, ")"), React.createElement("label", {
+  }), "Sambungkan titik dengan pipa"), prefs.connectGps && React.createElement("div", {
+    className: "rounded-md border border-line p-2 space-y-1.5 ml-5"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Jenis pipa yang dipasang"), React.createElement("div", {
+    className: "grid grid-cols-4 gap-1"
+  }, Object.entries(MATERIALS).map(([k, m]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setPrefs(p => ({
+      ...p,
+      material: k,
+      diameter: k === 'PE' && p.diameter > 63 ? 32 : p.diameter
+    })),
+    className: `rounded-md border px-1 py-1.5 text-[11.5px] font-semibold ${prefs.material === k ? 'bg-aqua-600 text-white border-aqua-600' : 'border-line text-slate-700'}`,
+    title: m.label
+  }, m.short || k))), React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, React.createElement("span", {
+    className: "text-slate-500 shrink-0"
+  }, "Diameter"), React.createElement("select", {
+    id: "gps-dia",
+    className: "tp-field num",
+    value: prefs.diameter,
+    onChange: e => setPrefs(p => ({
+      ...p,
+      diameter: +e.target.value
+    }))
+  }, DIAMETERS.filter(d => prefs.material !== 'PE' || d <= 63).map(d => React.createElement("option", {
+    key: d,
+    value: d
+  }, "\xD8", d, " mm")))), React.createElement("div", {
+    className: "text-[11px] text-slate-500"
+  }, MATERIALS[prefs.material].label, " \xB7 C = ", MATERIALS[prefs.material].C, ". Pipa fleksibel cocok untuk sambungan rumah & jalur berkelok.")), React.createElement("label", {
     className: "flex items-center gap-2"
   }, React.createElement("input", {
     id: "gps-auto",
@@ -5544,9 +5595,10 @@ function MapWorkspace({
       ...p,
       material: e.target.value
     }))
-  }, Object.keys(MATERIALS).map(m => React.createElement("option", {
-    key: m
-  }, m))), React.createElement("select", {
+  }, Object.entries(MATERIALS).map(([k, m]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, m.short || k))), React.createElement("select", {
     id: "new-dia",
     className: "tp-field num",
     value: prefs.diameter,
@@ -8067,7 +8119,7 @@ function LayoutLegend(x, y, w) {
     }), React.createElement("text", {
       x: x + 16,
       y: yy + 0.7
-    }, "Pipa ", k, " (", m.label, ")"));
+    }, pipeName(k)));
   }), React.createElement("g", {
     fontSize: 1.75,
     fill: "#222"
@@ -8914,7 +8966,7 @@ function SheetCrossSection({
     vertical: true,
     size: 1.8,
     text: fmt(H - sz, 2)
-  }), leader(X(W / 4), Y((H - sz) / 2), X(W / 2 + ext) + 4, Y(0) + 8, ['Urugan tanah kembali,', 'dipadatkan per lapis 20 cm']), tape > 0.05 && leader(X(W / 2) - 2, Y(tape), X(W / 2 + ext) + 4, Y(tape) + 6, ['Pita penanda pipa', `(±${fmt(tape, 2)} m dari muka tanah)`]), leader(cx + D / 2 * k * 0.7, Y(pipeY) - D / 2 * k * 0.7, X(W / 2 + ext) + 4, Y(pipeY) - 1, [`Pipa ${grp ? MATERIALS[grp.material].label : ''} Ø${D0} mm`]), leader(X(-W / 4), Y(H - bed / 2), X(W / 2 + ext) + 4, Y(H) + 3, [`Pasir alas t = ${fmt(bed, 2)} m &`, `pasir penutup ${fmt(cov, 2)} m di atas pipa`]), leader(X(W / 2 + ext * 0.6), Y(0) + 4, X(W / 2 + ext) + 4, Y(0) - 7, ['Muka tanah asli']), React.createElement("text", {
+  }), leader(X(W / 4), Y((H - sz) / 2), X(W / 2 + ext) + 4, Y(0) + 8, ['Urugan tanah kembali,', 'dipadatkan per lapis 20 cm']), tape > 0.05 && leader(X(W / 2) - 2, Y(tape), X(W / 2 + ext) + 4, Y(tape) + 6, ['Pita penanda pipa', `(±${fmt(tape, 2)} m dari muka tanah)`]), leader(cx + D / 2 * k * 0.7, Y(pipeY) - D / 2 * k * 0.7, X(W / 2 + ext) + 4, Y(pipeY) - 1, [`${grp ? pipeName(grp.material) : 'Pipa'} Ø${D0} mm`]), leader(X(-W / 4), Y(H - bed / 2), X(W / 2 + ext) + 4, Y(H) + 3, [`Pasir alas t = ${fmt(bed, 2)} m &`, `pasir penutup ${fmt(cov, 2)} m di atas pipa`]), leader(X(W / 2 + ext * 0.6), Y(0) + 4, X(W / 2 + ext) + 4, Y(0) - 7, ['Muka tanah asli']), React.createElement("text", {
     x: X(-W / 2),
     y: Y(H) + 0.12 * k + 3.5,
     fontSize: 1.9
@@ -13072,8 +13124,789 @@ function DeviceDialog({
     onClick: () => shareData('gpx')
   }, "Bagikan .gpx"))))));
 }
-function App() {
-  const [project, setProjectRaw] = useState(loadInitialProject);
+const AUTH_CFG = window.TIRTAPLAN_AUTH && window.TIRTAPLAN_AUTH.firebase && window.TIRTAPLAN_AUTH.firebase.apiKey ? window.TIRTAPLAN_AUTH : null;
+const AUTH_MODE = AUTH_CFG ? 'firebase' : 'local';
+const FB_VER = '10.12.2';
+const loadScript = src => new Promise((res, rej) => {
+  const el = document.createElement('script');
+  el.src = src;
+  el.onload = res;
+  el.onerror = () => rej(new Error('Gagal memuat ' + src + '. Periksa koneksi internet.'));
+  document.head.appendChild(el);
+});
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+async function hashPw(pw, saltB64) {
+  if (!(window.crypto && crypto.subtle)) throw new Error('Browser ini tidak mendukung enkripsi kata sandi. Buka aplikasi lewat alamat https.');
+  const salt = saltB64 ? Uint8Array.from(atob(saltB64), c => c.charCodeAt(0)) : crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({
+    name: 'PBKDF2',
+    salt,
+    iterations: 120000,
+    hash: 'SHA-256'
+  }, key, 256);
+  return {
+    salt: b64(salt),
+    hash: b64(bits)
+  };
+}
+const normEmail = e => String(e || '').trim().toLowerCase();
+const LOCAL_USERS = 'tirtaplan-users',
+  LOCAL_SESSION = 'tirtaplan-session';
+const USER_STATUS = {
+  pending: ['Menunggu persetujuan', 's-low'],
+  approved: ['Aktif', 's-ok'],
+  rejected: ['Ditolak', 's-high'],
+  suspended: ['Ditangguhkan', 's-idle']
+};
+function makeLocalAuth() {
+  const read = () => {
+    try {
+      return JSON.parse(localStorage.getItem(LOCAL_USERS) || '[]');
+    } catch (e) {
+      return [];
+    }
+  };
+  const write = u => localStorage.setItem(LOCAL_USERS, JSON.stringify(u));
+  const pub = u => u ? {
+    uid: u.uid,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    org: u.org,
+    phone: u.phone,
+    status: u.status,
+    admin: !!u.admin,
+    createdAt: u.createdAt
+  } : null;
+  const session = id => localStorage.setItem(LOCAL_SESSION, JSON.stringify({
+    uid: id,
+    exp: Date.now() + 30 * 864e5
+  }));
+  let listener = null;
+  const emit = () => {
+    let s = null;
+    try {
+      s = JSON.parse(localStorage.getItem(LOCAL_SESSION) || 'null');
+    } catch (e) {}
+    const u = s && s.exp > Date.now() ? read().find(x => x.uid === s.uid) : null;
+    listener && listener(pub(u));
+  };
+  return {
+    mode: 'local',
+    init(cb) {
+      listener = cb;
+      emit();
+      return () => {
+        listener = null;
+      };
+    },
+    async signUp({
+      email,
+      password,
+      name,
+      role,
+      org,
+      phone
+    }) {
+      email = normEmail(email);
+      const users = read();
+      if (users.some(u => u.email === email)) throw new Error('Email ini sudah terdaftar di perangkat ini. Silakan masuk.');
+      const h = await hashPw(password);
+      const first = users.length === 0;
+      const u = {
+        uid: uid('u'),
+        email,
+        name,
+        role,
+        org,
+        phone,
+        ...h,
+        status: first ? 'approved' : 'pending',
+        admin: first,
+        createdAt: Date.now()
+      };
+      write([...users, u]);
+      session(u.uid);
+      emit();
+    },
+    async signIn(email, password) {
+      const u = read().find(x => x.email === normEmail(email));
+      if (!u) throw new Error('Email atau kata sandi salah.');
+      if ((await hashPw(password, u.salt)).hash !== u.hash) throw new Error('Email atau kata sandi salah.');
+      session(u.uid);
+      emit();
+    },
+    async signOut() {
+      localStorage.removeItem(LOCAL_SESSION);
+      emit();
+    },
+    async resetPassword() {
+      throw new Error('Mode lokal: minta admin di perangkat ini mengatur ulang kata sandi Anda (Menu → Kelola pengguna).');
+    },
+    async refresh() {
+      emit();
+    },
+    async listUsers() {
+      return read().map(pub);
+    },
+    async setStatus(id, status) {
+      write(read().map(u => u.uid === id ? {
+        ...u,
+        status
+      } : u));
+    },
+    async setAdmin(id, admin) {
+      write(read().map(u => u.uid === id ? {
+        ...u,
+        admin,
+        status: admin ? 'approved' : u.status
+      } : u));
+    },
+    async remove(id) {
+      write(read().filter(u => u.uid !== id));
+    },
+    async adminSetPassword(id, pw) {
+      const h = await hashPw(pw);
+      write(read().map(u => u.uid === id ? {
+        ...u,
+        ...h
+      } : u));
+    }
+  };
+}
+function fbErr(e) {
+  const m = {
+    'auth/email-already-in-use': 'Email ini sudah terdaftar. Silakan masuk.',
+    'auth/invalid-email': 'Format email tidak valid.',
+    'auth/weak-password': 'Kata sandi terlalu lemah (minimal 8 karakter).',
+    'auth/wrong-password': 'Email atau kata sandi salah.',
+    'auth/user-not-found': 'Email atau kata sandi salah.',
+    'auth/invalid-credential': 'Email atau kata sandi salah.',
+    'auth/invalid-login-credentials': 'Email atau kata sandi salah.',
+    'auth/network-request-failed': 'Tidak ada koneksi internet. Masuk pertama kali di perangkat ini memerlukan internet.',
+    'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.',
+    'auth/unauthorized-domain': 'Domain ini belum diizinkan di Firebase (Authentication → Settings → Authorized domains).',
+    'permission-denied': 'Akses ditolak oleh aturan keamanan database (periksa firestore.rules).'
+  };
+  return m[e?.code] || e?.message || String(e);
+}
+async function makeFirebaseAuth() {
+  if (!window.firebase || !firebase.firestore) for (const m of ['app', 'auth', 'firestore']) await loadScript(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-${m}-compat.js`);
+  if (!firebase.apps.length) firebase.initializeApp(AUTH_CFG.firebase);
+  const auth = firebase.auth(),
+    db = firebase.firestore();
+  const admins = (AUTH_CFG.adminEmails || []).map(normEmail);
+  const isAdm = email => admins.includes(normEmail(email));
+  const cacheKey = id => 'tirtaplan-profile:' + id;
+  let form = null,
+    listener = null;
+  const loadProfile = async u => {
+    const ref = db.collection('users').doc(u.uid);
+    try {
+      let snap = await ref.get();
+      if (!snap.exists) {
+        await ref.set({
+          email: normEmail(u.email),
+          name: form?.name || u.displayName || u.email,
+          role: form?.role || '',
+          org: form?.org || '',
+          phone: form?.phone || '',
+          status: 'pending',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        snap = await ref.get();
+      }
+      const d = snap.data();
+      const prof = {
+        uid: u.uid,
+        email: u.email,
+        name: d.name,
+        role: d.role,
+        org: d.org,
+        phone: d.phone,
+        status: isAdm(u.email) ? 'approved' : d.status,
+        admin: isAdm(u.email),
+        verified: u.emailVerified
+      };
+      try {
+        localStorage.setItem(cacheKey(u.uid), JSON.stringify({
+          ...prof,
+          cachedAt: Date.now()
+        }));
+      } catch (e) {}
+      return prof;
+    } catch (e) {
+      let c = null;
+      try {
+        c = JSON.parse(localStorage.getItem(cacheKey(u.uid)) || 'null');
+      } catch (x) {}
+      if (c && Date.now() - c.cachedAt < 30 * 864e5) return {
+        ...c,
+        offline: true
+      };
+      throw e;
+    }
+  };
+  const fire = async u => {
+    if (!listener) return;
+    if (!u) {
+      listener(null);
+      return;
+    }
+    try {
+      listener(await loadProfile(u));
+    } catch (e) {
+      listener({
+        uid: u.uid,
+        email: u.email,
+        name: u.displayName || u.email,
+        status: 'error',
+        error: fbErr(e)
+      });
+    }
+  };
+  return {
+    mode: 'firebase',
+    init(cb) {
+      listener = cb;
+      const un = auth.onAuthStateChanged(fire);
+      return () => {
+        listener = null;
+        un();
+      };
+    },
+    async signUp({
+      email,
+      password,
+      name,
+      role,
+      org,
+      phone
+    }) {
+      form = {
+        name,
+        role,
+        org,
+        phone
+      };
+      const cr = await auth.createUserWithEmailAndPassword(normEmail(email), password).catch(e => {
+        throw new Error(fbErr(e));
+      });
+      try {
+        await cr.user.updateProfile({
+          displayName: name
+        });
+        await cr.user.sendEmailVerification();
+      } catch (e) {}
+    },
+    async signIn(email, password) {
+      await auth.signInWithEmailAndPassword(normEmail(email), password).catch(e => {
+        throw new Error(fbErr(e));
+      });
+    },
+    async signOut() {
+      await auth.signOut();
+    },
+    async resetPassword(email) {
+      await auth.sendPasswordResetEmail(normEmail(email)).catch(e => {
+        throw new Error(fbErr(e));
+      });
+    },
+    async refresh() {
+      if (auth.currentUser) {
+        await auth.currentUser.reload().catch(() => {});
+        await auth.currentUser.getIdToken(true).catch(() => {});
+        await fire(auth.currentUser);
+      }
+    },
+    async resendVerify() {
+      if (auth.currentUser) await auth.currentUser.sendEmailVerification().catch(e => {
+        throw new Error(fbErr(e));
+      });
+    },
+    async listUsers() {
+      if (auth.currentUser) {
+        await auth.currentUser.reload().catch(() => {});
+        await auth.currentUser.getIdToken(true).catch(() => {});
+      }
+      const q = await db.collection('users').get().catch(e => {
+        throw new Error(fbErr(e));
+      });
+      return q.docs.map(d => {
+        const x = d.data();
+        return {
+          uid: d.id,
+          ...x,
+          status: isAdm(x.email) ? 'approved' : x.status,
+          admin: isAdm(x.email),
+          createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0
+        };
+      });
+    },
+    async setStatus(id, status) {
+      await db.collection('users').doc(id).update({
+        status
+      }).catch(e => {
+        throw new Error(fbErr(e));
+      });
+    },
+    async remove(id) {
+      await db.collection('users').doc(id).delete().catch(e => {
+        throw new Error(fbErr(e));
+      });
+    }
+  };
+}
+let AUTH_API = null;
+const getAuthApi = async () => AUTH_API || (AUTH_API = AUTH_MODE === 'firebase' ? await makeFirebaseAuth() : makeLocalAuth());
+function AuthShell({
+  children
+}) {
+  return React.createElement("div", {
+    className: "min-h-full flex flex-col items-center justify-start sm:justify-center bg-deep px-4 py-8",
+    style: {
+      paddingTop: 'max(2rem, env(safe-area-inset-top, 0px))'
+    }
+  }, React.createElement("div", {
+    className: "w-full max-w-md"
+  }, React.createElement("div", {
+    className: "bg-white rounded-xl px-4 py-3 mb-4 flex justify-center"
+  }, React.createElement(OrgLogos, {
+    meta: {},
+    height: 38,
+    gap: 14,
+    className: "flex-wrap justify-center"
+  })), React.createElement("div", {
+    className: "flex items-center gap-2.5 mb-4 text-white"
+  }, React.createElement("div", {
+    className: "w-10 h-10 rounded-lg bg-aqua-500 flex items-center justify-center shrink-0"
+  }, React.createElement(Icon, {
+    name: "Droplets",
+    size: 22
+  })), React.createElement("div", null, React.createElement("div", {
+    className: "text-[18px] font-semibold leading-tight"
+  }, "TirtaPlan Studio"), React.createElement("div", {
+    className: "text-[12.5px] text-aqua-100"
+  }, "Perencanaan & survei jaringan air bersih"))), React.createElement("div", {
+    className: "bg-white rounded-xl shadow-xl"
+  }, children), React.createElement("p", {
+    className: "text-[11.5px] text-aqua-100/80 mt-3 text-center"
+  }, AUTH_MODE === 'firebase' ? 'Akun baru aktif setelah disetujui admin organisasi.' : 'Mode lokal: akun tersimpan di perangkat ini saja. Akun pertama menjadi admin perangkat.')));
+}
+function PwField({
+  id,
+  value,
+  onChange,
+  placeholder,
+  autoComplete
+}) {
+  const [show, setShow] = useState(false);
+  return React.createElement("div", {
+    className: "relative"
+  }, React.createElement("input", {
+    id: id,
+    type: show ? 'text' : 'password',
+    className: "tp-field pr-16",
+    value: value,
+    onChange: e => onChange(e.target.value),
+    placeholder: placeholder,
+    autoComplete: autoComplete
+  }), React.createElement("button", {
+    type: "button",
+    onClick: () => setShow(v => !v),
+    className: "absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-semibold text-aqua-700"
+  }, show ? 'Sembunyi' : 'Lihat'));
+}
+function AuthScreen({
+  api
+}) {
+  const [tab, setTab] = useState('in');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [f, setF] = useState({
+    email: '',
+    password: '',
+    password2: '',
+    name: '',
+    role: OFFICER_ROLES[0],
+    org: '',
+    phone: ''
+  });
+  const set = (k, v) => {
+    setF(x => ({
+      ...x,
+      [k]: v
+    }));
+    setErr('');
+  };
+  const run = async fn => {
+    setBusy(true);
+    setErr('');
+    setMsg('');
+    try {
+      await fn();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = e => {
+    e.preventDefault();
+    if (tab === 'in') return run(() => api.signIn(f.email, f.password));
+    if (tab === 'reset') return run(async () => {
+      await api.resetPassword(f.email);
+      setMsg('Tautan atur ulang kata sandi sudah dikirim ke email Anda.');
+    });
+    if (!f.name.trim()) return setErr('Isi nama lengkap.');
+    if (!/^\S+@\S+\.\S+$/.test(f.email)) return setErr('Format email tidak valid.');
+    if (f.password.length < 8) return setErr('Kata sandi minimal 8 karakter.');
+    if (f.password !== f.password2) return setErr('Konfirmasi kata sandi tidak sama.');
+    return run(() => api.signUp({
+      ...f,
+      name: f.name.trim(),
+      email: f.email.trim()
+    }));
+  };
+  return React.createElement(AuthShell, null, React.createElement("div", {
+    className: "flex border-b border-line"
+  }, [['in', 'Masuk'], ['up', 'Daftar akun']].map(([k, l]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => {
+      setTab(k);
+      setErr('');
+      setMsg('');
+    },
+    className: `flex-1 py-3 text-[14px] font-semibold ${tab === k || k === 'in' && tab === 'reset' ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`
+  }, l))), React.createElement("form", {
+    className: "p-5 space-y-3 text-[13px]",
+    onSubmit: submit
+  }, tab === 'reset' && React.createElement("p", {
+    className: "text-slate-600"
+  }, "Masukkan email akun Anda untuk menerima tautan atur ulang kata sandi."), tab === 'up' && React.createElement(Field, {
+    label: "Nama lengkap"
+  }, React.createElement("input", {
+    id: "au-name",
+    className: "tp-field",
+    value: f.name,
+    onChange: e => set('name', e.target.value),
+    autoComplete: "name"
+  })), React.createElement(Field, {
+    label: "Email"
+  }, React.createElement("input", {
+    id: "au-email",
+    type: "email",
+    inputMode: "email",
+    className: "tp-field",
+    value: f.email,
+    onChange: e => set('email', e.target.value),
+    autoComplete: "email"
+  })), tab !== 'reset' && React.createElement(Field, {
+    label: "Kata sandi"
+  }, React.createElement(PwField, {
+    id: "au-pw",
+    value: f.password,
+    onChange: v => set('password', v),
+    autoComplete: tab === 'in' ? 'current-password' : 'new-password',
+    placeholder: tab === 'up' ? 'minimal 8 karakter' : ''
+  })), tab === 'up' && React.createElement(React.Fragment, null, React.createElement(Field, {
+    label: "Ulangi kata sandi"
+  }, React.createElement(PwField, {
+    id: "au-pw2",
+    value: f.password2,
+    onChange: v => set('password2', v),
+    autoComplete: "new-password"
+  })), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, React.createElement(Field, {
+    label: "Peran"
+  }, React.createElement("select", {
+    id: "au-role",
+    className: "tp-field",
+    value: f.role,
+    onChange: e => set('role', e.target.value)
+  }, OFFICER_ROLES.map(r => React.createElement("option", {
+    key: r
+  }, r)))), React.createElement(Field, {
+    label: "No. HP"
+  }, React.createElement("input", {
+    id: "au-phone",
+    inputMode: "tel",
+    className: "tp-field",
+    value: f.phone,
+    onChange: e => set('phone', e.target.value),
+    autoComplete: "tel"
+  }))), React.createElement(Field, {
+    label: "Instansi / unit"
+  }, React.createElement("input", {
+    id: "au-org",
+    className: "tp-field",
+    value: f.org,
+    onChange: e => set('org', e.target.value),
+    placeholder: "mis. PMI Kab. Bandung Barat"
+  }))), err && React.createElement("div", {
+    className: "rounded-md bg-red-50 text-red-800 px-3 py-2"
+  }, err), msg && React.createElement("div", {
+    className: "rounded-md bg-green-50 text-green-900 px-3 py-2"
+  }, msg), React.createElement("button", {
+    type: "submit",
+    disabled: busy,
+    className: "w-full rounded-md bg-aqua-600 hover:bg-aqua-700 text-white font-semibold py-2.5 text-[14px] disabled:opacity-60"
+  }, busy ? 'Memproses…' : tab === 'in' ? 'Masuk' : tab === 'up' ? 'Daftar' : 'Kirim tautan'), tab === 'in' && React.createElement("button", {
+    type: "button",
+    className: "w-full text-[12.5px] font-semibold text-aqua-700",
+    onClick: () => {
+      setTab('reset');
+      setErr('');
+    }
+  }, "Lupa kata sandi?"), tab === 'reset' && React.createElement("button", {
+    type: "button",
+    className: "w-full text-[12.5px] font-semibold text-aqua-700",
+    onClick: () => setTab('in')
+  }, "Kembali ke Masuk")));
+}
+function PendingScreen({
+  user,
+  api
+}) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const st = user.status;
+  return React.createElement(AuthShell, null, React.createElement("div", {
+    className: "p-5 space-y-3 text-[13.5px]"
+  }, React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: st === 'error' ? 'TriangleAlert' : 'UserRound',
+    size: 20,
+    className: st === 'error' ? 'text-red-600' : 'text-amber-600'
+  }), React.createElement("b", {
+    className: "text-[15px]"
+  }, st === 'pending' ? 'Menunggu persetujuan admin' : st === 'rejected' ? 'Pendaftaran ditolak' : st === 'suspended' ? 'Akun ditangguhkan' : 'Tidak dapat memeriksa status akun')), React.createElement("p", {
+    className: "text-slate-600"
+  }, st === 'pending' ? `Akun ${user.email} sudah terdaftar. Admin perlu menyetujuinya sebelum Anda dapat memakai aplikasi.` : st === 'error' ? user.error : 'Hubungi admin organisasi bila menurut Anda ini keliru.'), AUTH_MODE === 'firebase' && user.verified === false && st === 'pending' && React.createElement("p", {
+    className: "text-slate-600"
+  }, "Periksa juga kotak masuk email Anda untuk memverifikasi alamat email."), msg && React.createElement("div", {
+    className: "rounded-md bg-green-50 text-green-900 px-3 py-2"
+  }, msg), React.createElement("div", {
+    className: "flex flex-wrap gap-2 pt-1"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    icon: "RotateCcw",
+    disabled: busy,
+    onClick: async () => {
+      setBusy(true);
+      await api.refresh();
+      setBusy(false);
+      setMsg('Status diperiksa ulang.');
+    }
+  }, "Periksa lagi"), AUTH_MODE === 'firebase' && api.resendVerify && React.createElement(Btn, {
+    variant: "outline",
+    onClick: async () => {
+      try {
+        await api.resendVerify();
+        setMsg('Email verifikasi dikirim ulang.');
+      } catch (e) {
+        setMsg(e.message);
+      }
+    }
+  }, "Kirim ulang verifikasi"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "X",
+    onClick: () => api.signOut()
+  }, "Keluar"))));
+}
+function UserAdminDialog({
+  api,
+  me,
+  onClose
+}) {
+  const [users, setUsers] = useState(null);
+  const [err, setErr] = useState('');
+  const [pwFor, setPwFor] = useState(null);
+  const [pw, setPw] = useState('');
+  const load = async () => {
+    try {
+      setErr('');
+      const u = await api.listUsers();
+      setUsers(u.sort((a, b) => (a.status === 'pending' ? -1 : 0) - (b.status === 'pending' ? -1 : 0) || (b.createdAt || 0) - (a.createdAt || 0)));
+    } catch (e) {
+      setErr(e.message);
+      setUsers([]);
+    }
+  };
+  useEffect(() => {
+    load();
+  }, []);
+  const act = async fn => {
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+  const nPend = (users || []).filter(u => u.status === 'pending').length;
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-3xl max-h-[92vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center justify-between px-5 py-3 border-b border-line"
+  }, React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 17,
+    className: "text-aqua-600"
+  }), "Kelola pengguna ", nPend > 0 && React.createElement("span", {
+    className: "pill s-low"
+  }, nPend, " menunggu")), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "p-5 overflow-y-auto space-y-3 text-[13px]"
+  }, React.createElement("p", {
+    className: "text-slate-600"
+  }, AUTH_MODE === 'firebase' ? 'Pengguna terdaftar di semua perangkat. Setujui akun agar pemiliknya dapat memakai aplikasi; tangguhkan untuk mencabut akses.' : 'Mode lokal: daftar ini hanya berisi akun di perangkat ini.'), AUTH_MODE === 'firebase' && me.admin && me.verified === false && React.createElement("div", {
+    className: "rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"
+  }, "Verifikasi email admin Anda dulu (cek kotak masuk), lalu keluar dan masuk lagi, agar aturan keamanan mengizinkan Anda mengelola pengguna."), err && React.createElement("div", {
+    className: "rounded-md bg-red-50 text-red-800 px-3 py-2"
+  }, err), !users && React.createElement("p", {
+    className: "text-slate-500"
+  }, "Memuat\u2026"), users && users.map(u => React.createElement("div", {
+    key: u.uid,
+    className: "rounded-lg border border-line p-3 flex flex-wrap items-center gap-3"
+  }, React.createElement("div", {
+    className: "flex-1 min-w-[200px]"
+  }, React.createElement("div", {
+    className: "font-semibold"
+  }, u.name, " ", u.admin && React.createElement("span", {
+    className: "pill s-src ml-1"
+  }, "admin"), " ", u.uid === me.uid && React.createElement("span", {
+    className: "pill s-idle ml-1"
+  }, "Anda")), React.createElement("div", {
+    className: "text-[12px] text-slate-500"
+  }, [u.email, u.role, u.org, u.phone].filter(Boolean).join(' · ')), u.createdAt > 0 && React.createElement("div", {
+    className: "text-[11px] text-slate-400"
+  }, "Daftar ", new Date(u.createdAt).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }))), React.createElement("span", {
+    className: 'pill ' + (USER_STATUS[u.status] || USER_STATUS.pending)[1]
+  }, (USER_STATUS[u.status] || USER_STATUS.pending)[0]), u.uid !== me.uid && !(AUTH_MODE === 'firebase' && u.admin) && React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, u.status !== 'approved' && React.createElement(Btn, {
+    variant: "primary",
+    icon: "CircleCheck",
+    onClick: () => act(() => api.setStatus(u.uid, 'approved'))
+  }, "Setujui"), u.status === 'pending' && React.createElement(Btn, {
+    variant: "danger",
+    onClick: () => act(() => api.setStatus(u.uid, 'rejected'))
+  }, "Tolak"), u.status === 'approved' && React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => act(() => api.setStatus(u.uid, 'suspended'))
+  }, "Tangguhkan"), api.setAdmin && u.status === 'approved' && React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => act(() => api.setAdmin(u.uid, !u.admin))
+  }, u.admin ? 'Cabut admin' : 'Jadikan admin'), api.adminSetPassword && React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => {
+      setPwFor(u);
+      setPw('');
+    }
+  }, "Atur sandi"), React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Trash2",
+    title: "Hapus akun",
+    onClick: () => act(() => api.remove(u.uid))
+  })), pwFor?.uid === u.uid && React.createElement("div", {
+    className: "w-full flex gap-2 items-center"
+  }, React.createElement(PwField, {
+    id: 'pw-' + u.uid,
+    value: pw,
+    onChange: setPw,
+    placeholder: "Kata sandi baru (min. 8)",
+    autoComplete: "new-password"
+  }), React.createElement(Btn, {
+    variant: "primary",
+    disabled: pw.length < 8,
+    onClick: () => act(async () => {
+      await api.adminSetPassword(u.uid, pw);
+      setPwFor(null);
+    })
+  }, "Simpan")))))));
+}
+function Root() {
+  const [st, setSt] = useState({
+    phase: 'loading',
+    user: null,
+    err: ''
+  });
+  const [api, setApi] = useState(null);
+  useEffect(() => {
+    let un = null;
+    let alive = true;
+    getAuthApi().then(a => {
+      if (!alive) return;
+      setApi(a);
+      un = a.init(u => setSt({
+        phase: !u ? 'login' : u.status === 'approved' ? 'ready' : 'pending',
+        user: u
+      }));
+    }).catch(e => setSt({
+      phase: 'error',
+      err: e.message || String(e)
+    }));
+    return () => {
+      alive = false;
+      un && un();
+    };
+  }, []);
+  useEffect(() => {
+    if (st.phase !== 'loading') {
+      const b = document.getElementById('boot');
+      if (b) b.remove();
+    }
+  }, [st.phase]);
+  if (st.phase === 'loading') return null;
+  if (st.phase === 'error') return React.createElement(AuthShell, null, React.createElement("div", {
+    className: "p-5 space-y-3 text-[13.5px]"
+  }, React.createElement("b", null, "Layanan login tidak dapat dimuat"), React.createElement("p", {
+    className: "text-slate-600"
+  }, st.err), React.createElement(Btn, {
+    variant: "primary",
+    icon: "RotateCcw",
+    onClick: () => location.reload()
+  }, "Muat ulang")));
+  if (st.phase === 'login') return React.createElement(AuthScreen, {
+    api: api
+  });
+  if (st.phase === 'pending') return React.createElement(PendingScreen, {
+    user: st.user,
+    api: api
+  });
+  return React.createElement(App, {
+    key: st.user.uid,
+    user: st.user,
+    api: api
+  });
+}
+function App({
+  user,
+  api
+}) {
+  const PKEY = projectKey(user);
+  const [project, setProjectRaw] = useState(() => loadInitialProject(PKEY));
   const history = useRef([]);
   const [histLen, setHistLen] = useState(0);
   const officerRef = useRef(null);
@@ -13148,6 +13981,35 @@ function App() {
   const officer = (project.team || []).find(t => t.id === officerId) || null;
   officerRef.current = officer;
   const [pickOfficer, setPickOfficer] = useState(null);
+  const [userAdmin, setUserAdmin] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    const m = {
+      id: user.uid,
+      name: user.name || user.email,
+      role: user.role || OFFICER_ROLES[0],
+      org: user.org || '',
+      phone: user.phone || '',
+      idno: '',
+      email: user.email
+    };
+    setProject(p => {
+      const t = p.team || [];
+      const ex = t.find(x => x.id === m.id);
+      return ex ? p : {
+        ...p,
+        team: [...t, m]
+      };
+    }, {
+      noStamp: true
+    });
+    if (!officerId || officerId === user.uid || !(project.team || []).some(t => t.id === officerId)) setOfficerId(user.uid);
+  }, [user && user.uid]);
+  const logout = async () => {
+    stopRec();
+    gps.stop();
+    await api.signOut();
+  };
   const requireOfficer = fn => {
     if (officerRef.current) fn();else setPickOfficer({
       then: fn
@@ -13493,13 +14355,9 @@ function App() {
   const boq = useMemo(() => computeBoQ(project, hyd), [project, hyd]);
   const rab = useMemo(() => buildRAB(project, boq), [project, boq]);
   useEffect(() => {
-    const b = document.getElementById('boot');
-    if (b) b.remove();
-  }, []);
-  useEffect(() => {
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+        localStorage.setItem(PKEY, JSON.stringify(project));
         setSavedAt(new Date());
       } catch (e) {
         setSavedAt('err');
@@ -13691,7 +14549,17 @@ function App() {
     gap: 12
   })), React.createElement("div", {
     className: "flex-1"
-  }), React.createElement("button", {
+  }), user.admin && React.createElement(Btn, {
+    variant: "dark",
+    icon: "UserRound",
+    onClick: () => setUserAdmin(true),
+    title: "Setujui pendaftar & atur akses"
+  }, "Kelola pengguna"), React.createElement(Btn, {
+    variant: "dark",
+    icon: "X",
+    onClick: logout,
+    title: `Keluar (${user.email})`
+  }, "Keluar"), React.createElement("button", {
     type: "button",
     onClick: () => setPickOfficer({
       then: null
@@ -13952,7 +14820,11 @@ function App() {
   }, React.createElement(Btn, {
     variant: "outline",
     onClick: () => setPendingLoad(null)
-  }, "Batal")))), deviceDlg && React.createElement(DeviceDialog, {
+  }, "Batal")))), userAdmin && React.createElement(UserAdminDialog, {
+    api: api,
+    me: user,
+    onClose: () => setUserAdmin(false)
+  }), deviceDlg && React.createElement(DeviceDialog, {
     onClose: () => setDeviceDlg(false),
     install: installEvt ? install : null,
     shareData: shareData
@@ -14005,7 +14877,7 @@ function App() {
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Muat proyek contoh', () => setConfirm({
+  }, "Ganti"))), [['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Muat proyek contoh', () => setConfirm({
     text: 'Muat ulang Proyek Contoh desa? Proyek saat ini akan diganti.',
     yes: () => {
       stopRec();
@@ -14015,7 +14887,7 @@ function App() {
       });
       setSelection(null);
     }
-  })], ['FilePlus2', 'Proyek baru (kosong)', () => setConfirm({
+  })], ['X', `Keluar (${user.email})`, logout], ['FilePlus2', 'Proyek baru (kosong)', () => setConfirm({
     text: 'Buat proyek baru yang kosong? Proyek saat ini akan diganti (simpan dulu ke .json bila perlu).',
     yes: () => {
       stopRec();
@@ -14091,7 +14963,7 @@ function App() {
     rab: rab
   })));
 }
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App, null));
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Root, null));
 </script>
 </body>
 </html>

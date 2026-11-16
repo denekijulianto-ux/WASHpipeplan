@@ -5,8 +5,26 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 ## Isi folder
 - `index.html`: aplikasi siap pakai (hasil build, cepat dibuka di HP).
 - `src/index.dev.html`: kode sumber (React + JSX). Edit berkas ini, lalu jalankan build.
+- `auth-config.js`, `firestore.rules`: pengaturan login daring (lihat bagian Akun & login).
 - `manifest.webmanifest`, `sw.js`, `icons/`: membuat aplikasi bisa dipasang di HP dan tetap jalan offline.
 - `build.js`, `package.json`: skrip build.
+
+## Akun & login
+Aplikasi meminta **Daftar / Masuk** sebelum dipakai. Data proyek dipisah per akun, dan akun yang masuk otomatis tercatat sebagai petugas.
+
+**Mode lokal** (bawaan, selama `auth-config.js` belum diisi): akun tersimpan di perangkat masing-masing, kata sandi di-hash (PBKDF2). Akun pertama di perangkat menjadi admin; pendaftar berikutnya menunggu persetujuan admin perangkat itu. Mode ini hanya mengunci aplikasi per perangkat — siapa pun yang membuka situs di perangkatnya sendiri tetap bisa membuat akun lokal.
+
+**Login daring (disarankan) — hanya orang yang disetujui admin yang bisa memakai aplikasi:**
+1. Buka https://console.firebase.google.com → *Add project* (paket gratis Spark cukup).
+2. *Build → Authentication → Get started → Email/Password* → aktifkan.
+3. *Build → Firestore Database → Create database* (mode produksi, lokasi `asia-southeast2` / Jakarta).
+4. *Firestore → Rules*: tempel isi `firestore.rules`, ganti `admin@organisasi.org` dengan email admin → *Publish*.
+5. *Authentication → Settings → Authorized domains*: tambahkan `denekijulianto-ux.github.io`.
+6. *Project settings → General → Your apps → Web (</>)* → daftarkan aplikasi → salin `firebaseConfig`.
+7. Edit `auth-config.js` di GitHub: tempel konfigurasi ke `firebase: {...}` dan isi `adminEmails` → *Commit*. Situs diperbarui dalam 1–2 menit.
+8. Admin mendaftar dengan email admin, klik tautan verifikasi di email, keluar lalu masuk lagi. Pendaftar lain disetujui lewat **Kelola pengguna**.
+
+Login pertama di sebuah perangkat butuh internet; setelah itu aplikasi tetap bisa dibuka offline (status akun disimpan 30 hari).
 
 ## Memakai di HP (wajib HTTPS agar GPS berfungsi)
 1. Unggah seluruh folder ini ke hosting HTTPS, mis. Netlify Drop (app.netlify.com/drop), GitHub Pages, atau Cloudflare Pages.

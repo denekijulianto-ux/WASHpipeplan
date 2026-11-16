@@ -1,0 +1,21 @@
+rules_version = '2';
+// Aturan keamanan Firestore untuk TirtaPlan Studio.
+// Ganti ADMIN@ORGANISASI.ORG dengan email admin (huruf kecil), sama seperti di auth-config.js.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['admin@organisasi.org'];
+    }
+    match /users/{uid} {
+      // Pengguna hanya bisa membaca profilnya sendiri; admin bisa membaca semua.
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      // Pendaftar baru selalu berstatus "pending" sampai disetujui admin.
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.status == 'pending';
+      // Hanya admin yang boleh menyetujui, menolak, menangguhkan, atau menghapus.
+      allow update, delete: if isAdmin();
+    }
+  }
+}
