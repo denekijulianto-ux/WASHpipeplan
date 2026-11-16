@@ -5988,7 +5988,7 @@ function App({ user, api }) {
   }, [user && user.uid]);
   const logout = async () => { stopRec(); gps.stop(); await api.signOut(); };
   const requireOfficer = (fn) => { if (officerRef.current) fn(); else setPickOfficer({ then: fn }); };
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); const [logoutAsk, setLogoutAsk] = useState(false);
   const [deviceDlg, setDeviceDlg] = useState(false);
   const [pendingLoad, setPendingLoad] = useState(null);
   const [installEvt, setInstallEvt] = useState(null);
@@ -6359,6 +6359,9 @@ function App({ user, api }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-line"><span className="font-semibold">Menu</span><button type="button" className="p-2 -mr-2" aria-label="Tutup menu" onClick={() => setMenuOpen(false)}><Icon name="X" size={20} /></button></div>
         <div className="px-4 py-3 border-b border-line space-y-2.5">
           <OrgLogos meta={project.meta} height={30} gap={10} className="flex-wrap" />
+          <div className="flex items-center gap-2.5 px-1 text-[12.5px]"><Icon name="CircleUserRound" size={19} className="text-slate-500" />
+            <span className="flex-1 min-w-0"><span className="block font-semibold truncate">{user.name || user.email}{user.admin ? ' · admin' : ''}</span><span className="block text-slate-500 truncate">{user.email}</span></span>
+            <button type="button" onClick={() => { setMenuOpen(false); setLogoutAsk(true); }} className="shrink-0 inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-[12.5px] font-semibold text-red-700"><Icon name="LogOut" size={14} />Keluar</button></div>
           <button type="button" onClick={() => { setMenuOpen(false); setPickOfficer({ then: null }); }} className="w-full flex items-center gap-2.5 rounded-md bg-ground px-3 py-2.5 text-left">
             <Icon name="UserRound" size={19} className="text-aqua-700" /><span className="flex-1 min-w-0"><span className="block text-[11px] text-slate-500">Petugas di perangkat ini</span>
             <span className="block text-[14px] font-semibold truncate">{officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih'}</span></span><span className="text-[12px] font-semibold text-aqua-700">Ganti</span></button>
@@ -6379,13 +6382,20 @@ function App({ user, api }) {
           ['Printer', 'Cetak DED', () => setPrintMode('ded')],
           ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())],
           ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')],
-        ].map(([ic, l, fn, dis], i) => <button key={i} type="button" disabled={dis} onClick={() => { setMenuOpen(false); fn(); }} className="w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"><Icon name={ic} size={19} className="text-aqua-700" />{l}</button>)}
+          ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true],
+        ].map(([ic, l, fn, dis, danger], i) => <button key={i} type="button" disabled={dis} onClick={() => { setMenuOpen(false); fn(); }} className={danger ? 'w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line text-red-700 font-semibold hover:bg-red-50' : "w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"}><Icon name={ic} size={19} className={danger ? 'text-red-600' : 'text-aqua-700'} />{l}</button>)}
         <p className="px-4 py-3 text-[11px] text-slate-500">{savedAt instanceof Date ? `Tersimpan otomatis di perangkat ini ${savedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
       </div></div>}
     {coordTab && <CoordDialog tab={coordTab} setTab={setCoordTab} onClose={() => setCoordTab(null)} project={project} setProject={setProject} field={field} setSelection={setSelection} toast={setToast} />}
     {dialog && <ProjectDialog project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
     <input ref={camRef} id="photo-cam" type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFiles} />
     <input ref={galRef} id="photo-gal" type="file" accept="image/*" multiple className="hidden" onChange={onPhotoFiles} />
+    {logoutAsk && <div className="fixed inset-0 z-[2300] bg-black/40 flex items-center justify-center p-4" onClick={() => setLogoutAsk(false)}>
+      <div className="bg-white rounded-lg w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        <h2 className="font-semibold flex items-center gap-2"><Icon name="LogOut" size={17} className="text-red-600" />Keluar dari akun?</h2>
+        <p className="text-[13px] text-slate-600">Anda masuk sebagai <b>{user.name || user.email}</b> ({user.email}). Pekerjaan tersimpan di perangkat ini{store ? ' dan disinkronkan ke cloud saat online' : ''}; setelah keluar, masuk lagi untuk melanjutkan.{rec ? ' Perekaman jejak GPS yang sedang berjalan akan dihentikan.' : ''}</p>
+        <div className="flex justify-end gap-2"><Btn variant="outline" onClick={() => setLogoutAsk(false)}>Batal</Btn><Btn variant="danger" icon="LogOut" onClick={() => { setLogoutAsk(false); logout(); }}>Keluar</Btn></div>
+      </div></div>}
     {openPh && <PhotoDialog ph={openPh} project={project} setProject={(fn) => setProject(fn, { system: true })} onClose={() => setOpenPh(null)} />}
     {pickOfficer && <OfficerPicker project={project} setProject={setProject} officerId={officerId} onCancel={() => setPickOfficer(null)}
       onPick={(m) => { setOfficerId(m.id); officerRef.current = m; const fn = pickOfficer.then; setPickOfficer(null); setToast(`Petugas aktif: ${m.name}`); fn && fn(); }} />}

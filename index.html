@@ -22805,6 +22805,7 @@ function App({
     });
   };
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutAsk, setLogoutAsk] = useState(false);
   const [deviceDlg, setDeviceDlg] = useState(false);
   const [pendingLoad, setPendingLoad] = useState(null);
   const [installEvt, setInstallEvt] = useState(null);
@@ -24208,7 +24209,29 @@ function App({
     height: 30,
     gap: 10,
     className: "flex-wrap"
-  }), React.createElement("button", {
+  }), React.createElement("div", {
+    className: "flex items-center gap-2.5 px-1 text-[12.5px]"
+  }, React.createElement(Icon, {
+    name: "CircleUserRound",
+    size: 19,
+    className: "text-slate-500"
+  }), React.createElement("span", {
+    className: "flex-1 min-w-0"
+  }, React.createElement("span", {
+    className: "block font-semibold truncate"
+  }, user.name || user.email, user.admin ? ' · admin' : ''), React.createElement("span", {
+    className: "block text-slate-500 truncate"
+  }, user.email)), React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setMenuOpen(false);
+      setLogoutAsk(true);
+    },
+    className: "shrink-0 inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-[12.5px] font-semibold text-red-700"
+  }, React.createElement(Icon, {
+    name: "LogOut",
+    size: 14
+  }), "Keluar")), React.createElement("button", {
     type: "button",
     onClick: () => {
       setMenuOpen(false);
@@ -24229,7 +24252,7 @@ function App({
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')]].map(([ic, l, fn, dis], i) => React.createElement("button", {
+  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
     key: i,
     type: "button",
     disabled: dis,
@@ -24237,11 +24260,11 @@ function App({
       setMenuOpen(false);
       fn();
     },
-    className: "w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"
+    className: danger ? 'w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line text-red-700 font-semibold hover:bg-red-50' : "w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"
   }, React.createElement(Icon, {
     name: ic,
     size: 19,
-    className: "text-aqua-700"
+    className: danger ? 'text-red-600' : 'text-aqua-700'
   }), l)), React.createElement("p", {
     className: "px-4 py-3 text-[11px] text-slate-500"
   }, savedAt instanceof Date ? `Tersimpan otomatis di perangkat ini ${savedAt.toLocaleTimeString('id-ID', {
@@ -24280,7 +24303,33 @@ function App({
     multiple: true,
     className: "hidden",
     onChange: onPhotoFiles
-  }), openPh && React.createElement(PhotoDialog, {
+  }), logoutAsk && React.createElement("div", {
+    className: "fixed inset-0 z-[2300] bg-black/40 flex items-center justify-center p-4",
+    onClick: () => setLogoutAsk(false)
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-sm p-5 space-y-3",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "LogOut",
+    size: 17,
+    className: "text-red-600"
+  }), "Keluar dari akun?"), React.createElement("p", {
+    className: "text-[13px] text-slate-600"
+  }, "Anda masuk sebagai ", React.createElement("b", null, user.name || user.email), " (", user.email, "). Pekerjaan tersimpan di perangkat ini", store ? ' dan disinkronkan ke cloud saat online' : '', "; setelah keluar, masuk lagi untuk melanjutkan.", rec ? ' Perekaman jejak GPS yang sedang berjalan akan dihentikan.' : ''), React.createElement("div", {
+    className: "flex justify-end gap-2"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => setLogoutAsk(false)
+  }, "Batal"), React.createElement(Btn, {
+    variant: "danger",
+    icon: "LogOut",
+    onClick: () => {
+      setLogoutAsk(false);
+      logout();
+    }
+  }, "Keluar")))), openPh && React.createElement(PhotoDialog, {
     ph: openPh,
     project: project,
     setProject: fn => setProject(fn, {
