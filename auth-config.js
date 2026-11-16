@@ -36,5 +36,5 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
   // Email admin yang boleh menyetujui pendaftar. Samakan dengan daftar di firestore.rules.
-  adminEmails: ['denekijulianto@gmail.com'],
+  adminEmails: ['denekijulianto@gmail.com', 'eki_julianto@pmi.or.id'],
 };
