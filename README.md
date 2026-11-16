@@ -16,6 +16,15 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - **Status & review**: Sedang dikerjakan → Menunggu pemeriksaan → Sudah diperiksa (**Staf LPASL**) → Disetujui (**Kepala LPASL**), dengan opsi kembalikan untuk revisi. Pemeriksaan & persetujuan dilakukan akun admin; akun ber-peran "Staf LPASL" hanya dapat memeriksa. Nama pemeriksa & penyetuju masuk otomatis ke laporan dan kop gambar DED. Mengubah isi proyek yang sudah diperiksa/disetujui mengembalikan statusnya ke "Sedang dikerjakan".
 - Penyimpanan cloud memerlukan aturan terbaru di `firestore.rules` (tempel ulang ke Firestore → Rules → Publish).
 
+## Mengedit BoQ & RAB
+Di tab **BoQ & RAB**, tekan **Edit item RAB** untuk:
+- mengubah uraian, volume dan satuan item (ikon ↺ mengembalikan nilai otomatis);
+- menghapus item (item otomatis disembunyikan dan bisa ditampilkan kembali; item tambahan dihapus permanen);
+- menambah item baru di bagian mana pun, menambah bagian pekerjaan baru, dan mengganti judul bagian;
+- **Kembalikan semua item ke otomatis** untuk membuang semua perubahan.
+
+Perubahan ikut tersimpan di berkas proyek, muncul di laporan cetak, dan mengembalikan status proyek yang sudah diperiksa/disetujui ke *draf*.
+
 ## Akun & login
 Aplikasi meminta **Daftar / Masuk** sebelum dipakai. Data proyek dipisah per akun, dan akun yang masuk otomatis tercatat sebagai petugas.
 

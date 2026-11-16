@@ -1270,6 +1270,7 @@ function normalizeProject(p) {
     prices: {
       ...(p.prices || {})
     },
+    rabEdits: p.rabEdits && typeof p.rabEdits === 'object' ? p.rabEdits : {},
     ded: {
       ...DEFAULT_DED,
       ...(p.ded || {})
@@ -2148,65 +2149,92 @@ function computeBoQ(project, hyd) {
 }
 function buildRAB(project, boq) {
   const P = project.prices || {};
-  const it = (key, desc, vol, unit, def) => {
-    const v = round2(vol);
+  const E = project.rabEdits || {};
+  const H = E.hidden || {},
+    DS = E.desc || {},
+    VO = E.vol || {},
+    UN = E.unit || {},
+    TT = E.titles || {};
+  const mk = sid => (key, desc, vol, unit, def) => {
+    const ek = sid + '::' + key;
+    const autoVol = round2(vol);
+    const v = VO[ek] !== undefined && VO[ek] !== '' ? round2(+VO[ek]) : autoVol;
     const price = P[key] !== undefined ? +P[key] : def;
     return {
       key,
-      desc,
+      ek,
+      desc: DS[ek] ?? desc,
+      autoDesc: desc,
       vol: v,
-      unit,
+      autoVol,
+      unit: UN[ek] ?? unit,
+      autoUnit: unit,
       price,
       def,
-      amount: v * price
+      amount: v * price,
+      edDesc: DS[ek] !== undefined,
+      edVol: VO[ek] !== undefined && VO[ek] !== '',
+      edUnit: UN[ek] !== undefined,
+      hidden: !!H[ek]
     };
   };
   const L = boq.totalLength;
-  const sections = [{
-    code: 'I',
-    title: 'PEKERJAAN PERSIAPAN',
-    items: [it('mob', 'Mobilisasi dan demobilisasi peralatan & tenaga kerja', 1, 'ls', 7500000), it('survey', 'Pengukuran, uitzet trase dan pemasangan bowplank', L, "m'", 3500), it('board', 'Papan nama proyek', 1, 'bh', 750000), it('k3', 'Penerapan SMKK (Sistem Manajemen Keselamatan Konstruksi)', 1, 'ls', 3500000)]
-  }, {
-    code: 'II',
-    title: 'PEKERJAAN TANAH',
-    items: [it('dig', 'Galian tanah biasa untuk jalur pipa', boq.earth.galian, 'm³', 95000), it('sand', 'Urugan pasir alas dan penutup pipa, dipadatkan', boq.earth.pasir, 'm³', 285000), it('backfill', 'Urugan tanah kembali, dipadatkan per lapis 20 cm', boq.earth.kembali, 'm³', 48000)]
-  }, {
-    code: 'III',
-    title: 'PENGADAAN & PEMASANGAN PIPA',
-    items: boq.pipeGroups.map(g => it(`pipe|${g.material}|${g.diameter}`, `${pipeName(g.material)} Ø${g.diameter} mm (termasuk waste ${project.settings.wastePct}%)`, g.lengthTotal, "m'", defPipePrice(g.material, g.diameter)))
-  }, {
-    code: 'IV',
-    title: 'AKSESORIS & FITTING JARINGAN',
-    items: boq.fittings.map(f => ({
-      ...it(f.key, f.desc, f.qty, f.unit, f.def),
-      nodes: f.nodes
-    }))
-  }, {
-    code: 'V',
-    title: 'PENGUJIAN & PENYELESAIAN',
-    items: [it('test', 'Uji tekanan hidrostatis jaringan pipa', L, "m'", 4000), it('flush', 'Flushing dan desinfeksi jaringan pipa', L, "m'", 2500), it('asbuilt', 'Dokumentasi dan gambar purna laksana (as built drawing)', 1, 'ls', 2500000)]
-  }];
-  boq.structures.forEach((x, i) => sections.push({
-    code: roman(6 + i),
-    structId: x.st.id,
-    title: `BANGUNAN ${x.st.label}: ${STRUCT_TYPES[x.st.type].label.toUpperCase()}`,
-    items: x.items.map(([key, desc, vol, unit, def]) => it(key, desc, vol, unit, def))
-  }));
-  let sc = 6 + boq.structures.length;
-  boq.pumps.forEach(x => sections.push({
-    code: roman(sc++),
-    pumpId: x.node.id,
-    title: `SISTEM POMPA SUMUR BOR ${x.node.label}`,
-    items: x.items.map(([key, desc, vol, unit, def]) => it(key, desc, vol, unit, def))
-  }));
-  boq.treat.forEach(x => sections.push({
-    code: roman(sc++),
-    treatId: x.t.id,
-    title: `${x.t.scale === 'household' ? 'FILTER AIR RUMAH TANGGA' : 'INSTALASI PENGOLAHAN AIR'} ${x.t.label}`,
-    items: x.items.map(([key, desc, vol, unit, def]) => it(key, desc, vol, unit, def))
-  }));
-  sections.forEach(s => s.subtotal = s.items.reduce((a, i) => a + i.amount, 0));
-  const total = sections.reduce((a, s) => a + s.subtotal, 0);
+  const sec = (sid, title, rows, extra = {}) => {
+    const it = mk(sid);
+    return {
+      sid,
+      autoTitle: title,
+      title: TT[sid] ?? title,
+      items: rows.map(r => ({
+        ...it(r[0], r[1], r[2], r[3], r[4]),
+        ...(r[5] || {})
+      })),
+      ...extra
+    };
+  };
+  const sections = [sec('prep', 'PEKERJAAN PERSIAPAN', [['mob', 'Mobilisasi dan demobilisasi peralatan & tenaga kerja', 1, 'ls', 7500000], ['survey', 'Pengukuran, uitzet trase dan pemasangan bowplank', L, "m'", 3500], ['board', 'Papan nama proyek', 1, 'bh', 750000], ['k3', 'Penerapan SMKK (Sistem Manajemen Keselamatan Konstruksi)', 1, 'ls', 3500000]]), sec('earth', 'PEKERJAAN TANAH', [['dig', 'Galian tanah biasa untuk jalur pipa', boq.earth.galian, 'm³', 95000], ['sand', 'Urugan pasir alas dan penutup pipa, dipadatkan', boq.earth.pasir, 'm³', 285000], ['backfill', 'Urugan tanah kembali, dipadatkan per lapis 20 cm', boq.earth.kembali, 'm³', 48000]]), sec('pipe', 'PENGADAAN & PEMASANGAN PIPA', boq.pipeGroups.map(g => [`pipe|${g.material}|${g.diameter}`, `${pipeName(g.material)} Ø${g.diameter} mm (termasuk waste ${project.settings.wastePct}%)`, g.lengthTotal, "m'", defPipePrice(g.material, g.diameter)])), sec('fit', 'AKSESORIS & FITTING JARINGAN', boq.fittings.map(f => [f.key, f.desc, f.qty, f.unit, f.def, {
+    nodes: f.nodes
+  }])), sec('test', 'PENGUJIAN & PENYELESAIAN', [['test', 'Uji tekanan hidrostatis jaringan pipa', L, "m'", 4000], ['flush', 'Flushing dan desinfeksi jaringan pipa', L, "m'", 2500], ['asbuilt', 'Dokumentasi dan gambar purna laksana (as built drawing)', 1, 'ls', 2500000]]), ...boq.structures.map(x => sec('st:' + x.st.id, `BANGUNAN ${x.st.label}: ${STRUCT_TYPES[x.st.type].label.toUpperCase()}`, x.items, {
+    structId: x.st.id
+  })), ...boq.pumps.map(x => sec('pb:' + x.node.id, `SISTEM POMPA SUMUR BOR ${x.node.label}`, x.items, {
+    pumpId: x.node.id
+  })), ...boq.treat.map(x => sec('tr:' + x.t.id, `${x.t.scale === 'household' ? 'FILTER AIR RUMAH TANGGA' : 'INSTALASI PENGOLAHAN AIR'} ${x.t.label}`, x.items, {
+    treatId: x.t.id
+  })), ...(E.sections || []).map(cs => ({
+    sid: 'cs:' + cs.id,
+    csId: cs.id,
+    autoTitle: cs.title,
+    title: cs.title || 'PEKERJAAN TAMBAHAN',
+    items: [],
+    custom: true
+  }))];
+  (E.items || []).forEach(ci => {
+    const sc = sections.find(x => x.sid === ci.sec) || sections.find(x => x.custom) || sections[0];
+    const key = 'cu|' + ci.id;
+    const v = round2(+ci.vol || 0);
+    const price = P[key] !== undefined ? +P[key] : 0;
+    sc.items.push({
+      key,
+      ek: sc.sid + '::' + key,
+      desc: ci.desc || '',
+      autoDesc: ci.desc,
+      vol: v,
+      autoVol: v,
+      unit: ci.unit || '',
+      price,
+      def: 0,
+      amount: v * price,
+      custom: true,
+      cid: ci.id
+    });
+  });
+  sections.forEach((x, i) => {
+    x.code = roman(i + 1);
+    x.hiddenItems = x.items.filter(it => it.hidden);
+    x.items = x.items.filter(it => !it.hidden);
+    x.subtotal = x.items.reduce((a, it) => a + it.amount, 0);
+  });
+  const total = sections.reduce((a, x) => a + x.subtotal, 0);
   const ppn = total * (+project.settings.ppnPct || 0) / 100;
   const grand = total + ppn;
   const rounded = Math.floor(grand / 1000) * 1000;
@@ -7620,15 +7648,108 @@ function BoqWorkspace({
     className: "r"
   }, fmt(rab.sections.find(s => s.structId === x.st.id)?.subtotal, 0)))))), React.createElement("div", {
     className: "px-4 py-2 text-[12px] text-slate-500"
-  }, "Dimensi, perpipaan dan penulangan diatur di Workspace 4 (DED). Harga satuan beton, besi, bekisting dan plester berlaku sama untuk semua bangunan.")), React.createElement(Card, {
+  }, "Dimensi, perpipaan dan penulangan diatur di Workspace 4 (DED). Harga satuan beton, besi, bekisting dan plester berlaku sama untuk semua bangunan.")), React.createElement(RabTable, {
+    project: project,
+    setProject: setProject,
+    rab: rab,
+    setPrice: setPrice,
+    nEdited: nEdited
+  })));
+}
+function RabTable({
+  project,
+  setProject,
+  rab,
+  setPrice,
+  nEdited
+}) {
+  const s = project.settings;
+  const E = project.rabEdits || {};
+  const [edit, setEdit] = useState(false);
+  const [showHidden, setShowHidden] = useState({});
+  const [confirmReset, setConfirmReset] = useState(false);
+  const setE = fn => setProject(p => ({
+    ...p,
+    rabEdits: fn({
+      hidden: {},
+      desc: {},
+      vol: {},
+      unit: {},
+      items: [],
+      sections: [],
+      titles: {},
+      ...(p.rabEdits || {})
+    })
+  }));
+  const setMap = (m, k, v) => setE(e => {
+    const x = {
+      ...e[m]
+    };
+    if (v === undefined) delete x[k];else x[k] = v;
+    return {
+      ...e,
+      [m]: x
+    };
+  });
+  const updCustom = (cid, patch) => setE(e => ({
+    ...e,
+    items: e.items.map(c => c.id === cid ? {
+      ...c,
+      ...patch
+    } : c)
+  }));
+  const addItem = sid => setE(e => ({
+    ...e,
+    items: [...e.items, {
+      id: uid('ri'),
+      sec: sid,
+      desc: 'Item pekerjaan baru',
+      vol: 1,
+      unit: 'ls'
+    }]
+  }));
+  const removeItem = it => it.custom ? setE(e => ({
+    ...e,
+    items: e.items.filter(c => c.id !== it.cid)
+  })) : setMap('hidden', it.ek, true);
+  const addSection = () => setE(e => ({
+    ...e,
+    sections: [...e.sections, {
+      id: uid('rs'),
+      title: 'PEKERJAAN TAMBAHAN'
+    }]
+  }));
+  const removeSection = sec => setE(e => ({
+    ...e,
+    sections: e.sections.filter(x => x.id !== sec.csId),
+    items: e.items.filter(c => c.sec !== sec.sid)
+  }));
+  const nEd = Object.keys(E.hidden || {}).length + Object.keys(E.desc || {}).length + Object.keys(E.vol || {}).length + Object.keys(E.unit || {}).length + (E.items || []).length + (E.sections || []).length + Object.keys(E.titles || {}).length;
+  const Reset = ({
+    on,
+    onClick,
+    title
+  }) => on ? React.createElement("button", {
+    type: "button",
+    title: title,
+    onClick: onClick,
+    className: "text-amber-700 hover:text-aqua-700 shrink-0",
+    "aria-label": title
+  }, React.createElement(Icon, {
+    name: "RotateCcw",
+    size: 13
+  })) : null;
+  return React.createElement(Card, {
     title: "Rencana Anggaran Biaya (RAB)",
     icon: "Calculator",
     bodyClass: "overflow-x-auto",
     right: React.createElement("div", {
-      className: "flex items-center gap-2"
+      className: "flex flex-wrap items-center justify-end gap-2"
     }, nEdited > 0 && React.createElement("span", {
       className: "text-[12px] text-amber-700"
-    }, nEdited, " harga diubah"), React.createElement(Btn, {
+    }, nEdited, " harga diubah"), nEd > 0 && React.createElement("span", {
+      className: "text-[12px] text-amber-700"
+    }, nEd, " perubahan item"), React.createElement(Btn, {
       icon: "RotateCcw",
       variant: "outline",
       disabled: !nEdited,
@@ -7636,8 +7757,39 @@ function BoqWorkspace({
         ...p,
         prices: {}
       }))
-    }, "Kembalikan harga bawaan"))
-  }, React.createElement("table", {
+    }, "Harga bawaan"), React.createElement(Btn, {
+      icon: "PencilRuler",
+      variant: edit ? 'primary' : 'outline',
+      onClick: () => setEdit(v => !v)
+    }, edit ? 'Selesai mengedit' : 'Edit item RAB'))
+  }, edit && React.createElement("div", {
+    className: "px-4 py-2.5 bg-aqua-50 border-b border-line text-[12.5px] text-aqua-900 flex flex-wrap items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "Info",
+    size: 15
+  }), React.createElement("span", {
+    className: "flex-1 min-w-[240px]"
+  }, "Mode edit: ubah uraian, volume, dan satuan langsung di tabel; ", React.createElement("b", null, "Tambah item"), " di tiap bagian; ikon tempat sampah menghapus item. Ikon ", React.createElement(Icon, {
+    name: "RotateCcw",
+    size: 12,
+    className: "inline"
+  }), " mengembalikan nilai otomatis. Volume yang diubah tidak lagi ikut berubah saat desain berubah."), nEd > 0 && (confirmReset ? React.createElement(React.Fragment, null, React.createElement(Btn, {
+    variant: "danger",
+    onClick: () => {
+      setProject(p => ({
+        ...p,
+        rabEdits: {}
+      }));
+      setConfirmReset(false);
+    }
+  }, "Ya, kembalikan semua"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => setConfirmReset(false)
+  }, "Batal")) : React.createElement(Btn, {
+    variant: "outline",
+    icon: "RotateCcw",
+    onClick: () => setConfirmReset(true)
+  }, "Kembalikan semua item ke otomatis"))), React.createElement("table", {
     className: "tp-table"
   }, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", {
     className: "w-10"
@@ -7647,8 +7799,10 @@ function BoqWorkspace({
     className: "r w-44"
   }, "Harga satuan (Rp)"), React.createElement("th", {
     className: "r"
-  }, "Jumlah harga (Rp)"))), React.createElement("tbody", null, rab.sections.map(sec => React.createElement(Fragment, {
-    key: sec.code
+  }, "Jumlah harga (Rp)"), edit && React.createElement("th", {
+    className: "w-10"
+  }))), React.createElement("tbody", null, rab.sections.map(sec => React.createElement(Fragment, {
+    key: sec.sid
   }, React.createElement("tr", {
     className: "bg-ground"
   }, React.createElement("td", {
@@ -7656,48 +7810,161 @@ function BoqWorkspace({
   }, sec.code), React.createElement("td", {
     className: "font-semibold",
     colSpan: 4
-  }, sec.title), React.createElement("td", {
+  }, edit ? React.createElement("div", {
+    className: "flex items-center gap-1.5"
+  }, React.createElement("input", {
+    id: 'rab-t-' + sec.sid,
+    className: "tp-field font-semibold !py-1",
+    value: sec.title,
+    onChange: e => sec.custom ? setE(x => ({
+      ...x,
+      sections: x.sections.map(c => c.id === sec.csId ? {
+        ...c,
+        title: e.target.value
+      } : c)
+    })) : setMap('titles', sec.sid, e.target.value)
+  }), !sec.custom && React.createElement(Reset, {
+    on: sec.title !== sec.autoTitle,
+    title: "Kembalikan judul otomatis",
+    onClick: () => setMap('titles', sec.sid, undefined)
+  })) : sec.title), React.createElement("td", {
     className: "r font-semibold"
-  }, fmt(sec.subtotal, 0))), sec.items.map((it, i) => React.createElement("tr", {
-    key: it.key
+  }, fmt(sec.subtotal, 0)), edit && React.createElement("td", null, sec.custom && React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Trash2",
+    title: "Hapus bagian ini beserta itemnya",
+    onClick: () => removeSection(sec)
+  }))), sec.items.map((it, i) => React.createElement("tr", {
+    key: it.ek
   }, React.createElement("td", {
-    className: "text-slate-500"
+    className: "text-slate-500 align-top pt-2"
   }, i + 1), React.createElement("td", {
     className: "whitespace-normal min-w-[280px]"
-  }, it.desc), React.createElement("td", {
+  }, edit ? React.createElement("div", {
+    className: "flex items-start gap-1.5"
+  }, React.createElement("textarea", {
+    id: 'rab-d-' + it.ek,
+    rows: it.desc.length > 70 ? 2 : 1,
+    className: "tp-field !py-1 resize-y",
+    value: it.desc,
+    onChange: e => it.custom ? updCustom(it.cid, {
+      desc: e.target.value
+    }) : setMap('desc', it.ek, e.target.value)
+  }), !it.custom && React.createElement(Reset, {
+    on: it.edDesc,
+    title: "Kembalikan uraian otomatis",
+    onClick: () => setMap('desc', it.ek, undefined)
+  })) : React.createElement(React.Fragment, null, it.desc, (it.edDesc || it.edVol || it.edUnit) && React.createElement("span", {
+    className: "pill s-low ml-1.5 !text-[10px]"
+  }, "diubah"), it.custom && React.createElement("span", {
+    className: "pill s-src ml-1.5 !text-[10px]"
+  }, "tambahan"))), React.createElement("td", {
     className: "r"
-  }, fmt(it.vol, 2)), React.createElement("td", null, it.unit), React.createElement("td", {
+  }, edit ? React.createElement("div", {
+    className: "flex items-center justify-end gap-1.5"
+  }, React.createElement("div", {
+    className: "w-24"
+  }, React.createElement(NumField, {
+    id: 'rab-v-' + it.ek,
+    value: it.vol,
+    step: "0.01",
+    min: "0",
+    onChange: v => it.custom ? updCustom(it.cid, {
+      vol: v
+    }) : setMap('vol', it.ek, v)
+  })), !it.custom && React.createElement(Reset, {
+    on: it.edVol,
+    title: `Kembalikan volume otomatis (${fmt(it.autoVol, 2)})`,
+    onClick: () => setMap('vol', it.ek, undefined)
+  })) : React.createElement("span", {
+    title: it.edVol ? `Volume otomatis: ${fmt(it.autoVol, 2)}` : undefined
+  }, fmt(it.vol, 2))), React.createElement("td", null, edit ? React.createElement("div", {
+    className: "flex items-center gap-1"
+  }, React.createElement("input", {
+    id: 'rab-u-' + it.ek,
+    className: "tp-field !py-1 !w-16",
+    value: it.unit,
+    onChange: e => it.custom ? updCustom(it.cid, {
+      unit: e.target.value
+    }) : setMap('unit', it.ek, e.target.value)
+  }), !it.custom && React.createElement(Reset, {
+    on: it.edUnit,
+    title: "Kembalikan satuan otomatis",
+    onClick: () => setMap('unit', it.ek, undefined)
+  })) : it.unit), React.createElement("td", {
     className: "r py-1"
   }, React.createElement(PriceField, {
-    id: 'price-' + sec.code + '-' + it.key,
+    id: 'price-' + sec.sid + '-' + it.key,
     value: it.price,
     edited: project.prices[it.key] !== undefined,
     onChange: v => setPrice(it.key, v)
   })), React.createElement("td", {
     className: "r"
-  }, fmt(it.amount, 0)))))), React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
+  }, fmt(it.amount, 0)), edit && React.createElement("td", null, React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Trash2",
+    title: it.custom ? 'Hapus item tambahan' : 'Hapus item dari RAB (bisa ditampilkan kembali)',
+    onClick: () => removeItem(it)
+  })))), edit && React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
+    colSpan: 6,
+    className: "py-1.5"
+  }, React.createElement("div", {
+    className: "flex flex-wrap items-center gap-3"
+  }, React.createElement("button", {
+    type: "button",
+    className: "inline-flex items-center gap-1 text-[12.5px] font-semibold text-aqua-700 hover:underline",
+    onClick: () => addItem(sec.sid)
+  }, React.createElement(Icon, {
+    name: "CirclePlus",
+    size: 14
+  }), "Tambah item di bagian ", sec.code), sec.hiddenItems.length > 0 && React.createElement("button", {
+    type: "button",
+    className: "text-[12.5px] text-slate-500 hover:underline",
+    onClick: () => setShowHidden(h => ({
+      ...h,
+      [sec.sid]: !h[sec.sid]
+    }))
+  }, sec.hiddenItems.length, " item dihapus ", showHidden[sec.sid] ? '▴' : '▾')), showHidden[sec.sid] && React.createElement("div", {
+    className: "mt-1.5 space-y-1"
+  }, sec.hiddenItems.map(h => React.createElement("div", {
+    key: h.ek,
+    className: "flex items-center gap-2 text-[12.5px] text-slate-500"
+  }, React.createElement("span", {
+    className: "line-through flex-1"
+  }, h.desc), React.createElement("button", {
+    type: "button",
+    className: "font-semibold text-aqua-700 hover:underline shrink-0",
+    onClick: () => setMap('hidden', h.ek, undefined)
+  }, "Tampilkan kembali")))))))), edit && React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
+    colSpan: 6,
+    className: "py-2"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "CirclePlus",
+    onClick: addSection
+  }, "Tambah bagian pekerjaan"))), React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
     colSpan: 4,
     className: "text-right font-semibold"
   }, "JUMLAH"), React.createElement("td", {
     className: "r font-semibold"
-  }, fmt(rab.total, 0))), React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
+  }, fmt(rab.total, 0)), edit && React.createElement("td", null)), React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
     colSpan: 4,
     className: "text-right"
   }, "PPN ", s.ppnPct, "%"), React.createElement("td", {
     className: "r"
-  }, fmt(rab.ppn, 0))), React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
+  }, fmt(rab.ppn, 0)), edit && React.createElement("td", null)), React.createElement("tr", null, React.createElement("td", null), React.createElement("td", {
     colSpan: 4,
     className: "text-right font-semibold"
   }, "TOTAL"), React.createElement("td", {
     className: "r font-semibold"
-  }, fmt(rab.grand, 0))), React.createElement("tr", {
+  }, fmt(rab.grand, 0)), edit && React.createElement("td", null)), React.createElement("tr", {
     className: "bg-aqua-50"
   }, React.createElement("td", null), React.createElement("td", {
     colSpan: 4,
     className: "text-right font-bold text-aqua-800"
   }, "DIBULATKAN"), React.createElement("td", {
     className: "r font-bold text-aqua-800 text-[14px]"
-  }, fmt(rab.rounded, 0))))), React.createElement("div", {
+  }, fmt(rab.rounded, 0)), edit && React.createElement("td", null)))), React.createElement("div", {
     className: "px-4 py-3 text-[13px] border-t border-line"
   }, React.createElement("span", {
     className: "text-slate-500"
@@ -7705,7 +7972,7 @@ function BoqWorkspace({
     className: "font-medium"
   }, terbilang(rab.rounded))), React.createElement("div", {
     className: "px-4 pb-3 text-[12px] text-slate-500"
-  }, "Harga bawaan adalah perkiraan awal untuk contoh. Ganti dengan Harga Satuan Pekerjaan (AHSP/SSH) daerah Anda: sel berwarna kuning menandai harga yang sudah diubah."))));
+  }, "Harga bawaan adalah perkiraan awal. Ganti dengan Harga Satuan Pekerjaan (AHSP/SSH) daerah Anda: sel kuning menandai harga yang sudah diubah. Item berlabel \"diubah\" memakai uraian/volume/satuan yang diedit manual."));
 }
 function CrossSectionMini({
   s,
