@@ -37,6 +37,21 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Sambungan rumah (SR) & meter air
+- Pilih tipe **Sambungan Rumah (meter air)**, lalu klik lokasi rumah di peta (alat Tambah titik). Titik SR juga bisa ditandai lewat GPS atau impor koordinat. Pipa dinas (bawaan PE Ø20) otomatis tersambung ke pipa distribusi terdekat lewat titik sadel (clamp saddle). Batas jarak sambung bawaan 150 m.
+- Kebutuhan air SR = jiwa × L/org/hari × faktor jam puncak. Tekanan di meter dicek terhadap batas minimum SR (bawaan 5 mka). Pengaturannya ada di tab Analisis Hidrolis → Kriteria desain.
+- Di inspektur SR bisa diisi nama pelanggan, jumlah jiwa, dan ukuran meter (½"/¾"/1"), serta tersedia tombol "Sambung ulang ke pipa terdekat".
+- RAB mendapat bagian **Pekerjaan Sambungan Rumah**: clamp saddle, paket meter air, box meter, kran halaman, dan pemasangan.
+- DED mendapat lembar **Sambungan rumah**: potongan tipikal SR bernomor dan daftar meter air beserta tekanannya.
+
+## Setting pompa filter
+Untuk filter tabung FRP, pompa umpan (sebelum filter) atau pompa booster (setelah tandon) bisa diatur:
+- jenis pompa (sentrifugal, multistage, jet, submersible, booster);
+- Q & H otomatis atau manual;
+- beda tinggi statis, efisiensi, dan jam operasi.
+
+Aplikasi menghitung daya dan motor standar, cara kontrol (pelampung WLC / pressure switch), serta memberi peringatan bila debit atau head tidak sesuai dengan filter.
+
 ## Reservoir bersekat, broncaptering V, hidran & skema instalasi filter
 - **Reservoir → Sistem penyekat**: pilih sekat pengendapan (ambang luapan + penguras ruang endap), sekat pengendapan + saringan pasir (ruang endap → saringan aliran turun → lubang bawah sekat → ruang air bersih), atau sekat berliku (bak kontak klorin).
 - **Pondasi panggung batu kali** (semua bak): isi tinggi pondasi > 0 agar bak berdiri di atas pasangan batu kali/batu pecah.
