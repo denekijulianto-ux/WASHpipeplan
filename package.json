@@ -1,0 +1,8 @@
+{
+  "name": "tirtaplan-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pemetaan GPS, analisis hidrolis, RAB, dan DED jaringan air bersih",
+  "scripts": { "build": "node build.js" },
+  "devDependencies": { "@babel/standalone": "7.24.7" }
+}
