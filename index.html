@@ -148,6 +148,137 @@ const {
   Fragment
 } = React;
 const STORAGE_KEY = 'tirtaplan-studio-v1';
+const OFFICER_KEY = 'tirtaplan-officer';
+const DEFAULT_ORG = 'WASH – Lembaga Pengembangan Air, Sanitasi dan Lingkungan · Bakti Star WASH · Palang Merah Indonesia';
+const OFFICER_ROLES = ['Surveyor / juru ukur', 'Koordinator lapangan', 'Relawan PMI', 'Drafter', 'Ahli teknik sipil / hidrolis', 'Pengawas', 'Lainnya'];
+const DEFAULT_LOGOS = [{
+  id: 'wash',
+  name: "WASH \u2013 Lembaga Pengembangan Air, Sanitasi dan Lingkungan",
+  w: 422,
+  h: 117,
+  src: 'data:image/png;base64,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'
+}, {
+  id: 'bsw',
+  name: "Bakti Star WASH \u2013 Center of Excellence WASH",
+  w: 137,
+  h: 137,
+  src: 'data:image/png;base64,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'
+}, {
+  id: 'pmi',
+  name: "Palang Merah Indonesia",
+  w: 304,
+  h: 123,
+  src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAATAAAAB7CAMAAADEzSzaAAAAkFBMVEX///////7//v/+///+/v/+/v7+/v39/v79/v37/v3+/f79/f79/f39/P39/fz8/f38/Pz8/Pv6/fz8+/v8+fn5+fn38/Px6+vt4eHf09Pjvr+yr67Ph4p/fHqxWVxTTkyeOTw6MzE0LSs0LCozLCrmIivnISrmISzmISrmISjlISnmICm5Jiw0KykzKykwKScummAkAAAr+0lEQVR42t2di3ravBKu21DjA7IkWz7iOGwMaZqkwP3f3f6+kSFAIEmT9t/7WXrW+puA7OCX0WhGmhl9+/bhdhNMJpPZLFBsURxNoyjSWps4CkKltI4SFQXBj2+fbYG/c7Bv+18u9QyCKAqO2x/+pcN9vv3DNp3GcaRmSey0zlReFGVRFfivtWmamzyPklhrFXwJmC2PmrFANg0u8lKmLKuqLPFtBZ/4S9/+ixZFSRJApvLYFlXdNHO2tmlqYMu0saCVJPHkC8CCoGqPWlOXVoWTV49IwbCl76On/9HT/3GbTChgQZCmrgKr29u7sd3eglpV2Dw3M63i4Cu8gqZfvLS+a0tzAZgM1Vp69pn6/1TCoL5+5HmWpgVw3d79vj9ud7fzpiq1ijSF8CvA2sXuqA19W14AojhUm8Vuu9v1OjlTRK8U2mtFFQT/mhj+QIiWZpmr29tbYQTJ8u3ujr9DzOrSZSb6/Ifhle1itdlsVmj4Z7MeFq2zB7W4v3WShCGArbebXe/k6YPgmPppgzheevmfgovj2SwMY5tWze2dl6h501RsosvkRUhZ6VLosSnUys0nZDgICWzYbLZLDLblcjts17u+turl0Wc/+G+SKJU0i4HA0uBoXg1wj1AQcYad8adIxi9/5VVTzOz7C779mM2U+jfE8tjMVByX1fz2gbha6nnnMmkOM0DrkbVVkasky5QOPjPooa4gYav1etGh9cthO6wXrQATBlaagqzj1wY9CSyRAZqkfEfB0InEGmFn/NfpOMusyo1K0yTB/6eZoU00m/Gu/w5YEhubG1fP74irKWxa4CPAuNBsJnNZQdH7fTevyzxXcR59Cdh2ge+haPs1fh46zpRBaFxV+1YaQxgEtiKwAHaN3b9bOaUcSFkR/9KUdc1pHCydCQNrS+nlMnm3VP8KWJqkLi/JBIMRUpSD1BTqfTaDmANYHNusnkO3gViRuzRXXwG23S0KY1zZDVuMyh5PG0ZR1ULm0LqurdwpMIjT+G4n71LEKrF5arzOl+d1phXlUvqxE/6FVrH/iNe3MMyta0YgzmawxDQ1lZj9epo5A9O1aCiAt3VmjMk+8UmOgTkTKdMut9vVFkrMGFV1PbQaG4wNmmd7YDpRU10fv0txihqxS+adf3nR1ZmKo7Cc975TKzYJhPcfAcvjMK1vHx7u5pXL8lmamvwFWDDNdQKrNXbV/O7pnqOSYzL4NLDNdqGhmwFsByXW19SeHYyI7Wo1CM4Og8nugU0hNx16boZhtV3t+K5VEa7d7Za9XDWsdssOAxmvLna4CHKLN3brXVfm/wjYDBpkTvmqHEYjhyEN7EMLVYKPA7kiMXSyELLos8C2G0oYdLMVCQOw0Jhmsd1u15g8l2tAWTTW7M0KfJqslXc5s263m3XfQD7b5Wo7DMsB8oTXeBcbBlWPSzYreZkgu/ILfsmbTVF4wKvMbZ5yej71fDGVU6GpnN0ghkWmzPT7p4Gtd1D60M/dsF5Dwiros24HEwPDDVMn2Axd5oFBwjKNjkuYbJxZe9gkq0WbWtUu1+vVZlj0GKuwUzaYbGdKvg3/2urfAovLhryqPM1yatmLbQb1n1fzh6fbxuX5p4FtCIwGXgsi2xUGkzNVvxsGmGRlCTttu90BGHQYkAiwCpzQD7MeZHKzWXYjsM0Gugu32W1XBKaKbrdZbZe9vAZB+1fAuJRS3VKd59bkuVVXgBml4U7W6AmynwcGM2w72mF40rXISyW6usuca/otB2KmwhGYTkp5F/1gGBIEgCWBBwbEhcMVW4gdVF2/g7At2rIouzWE998AExaauqkpCwWDAubMFQmb6cykRQtZbL8GbC2WPpT4ag3BcRydtChaMytFNuAQHYCls1De7WrM1vQvAQxmBYFtIZ25tYCzArBA1QsBBtchm3M++YfAKGDzMss1TYZrwKCbsyyH4n+4vy2zTwPjRIhRh+EIIVj2jaHNXvlWt91y8MD2QzKhFSZmaNW0/YABu+wsgdHDIjBFc25LYA3nyF1fqtBwnP5tYN+l3QTBNEpaDMiqdDqK4ziaXgEW2zzWYq9BGmGITSbfv/8hsDAQHQW1jiYGUw17Ex6Ozcq6aTvR4JhFuagzKv2UE7Qd35VrR2Be/0HYuvVuKxJG6eS8ammT/H2l/z0IACzBQDMVEMxpXoezRFzr1w2zZJKaeAYHysEAmRepij4HbMNn9sthGGfOxOIh1kILb2HGg/p35sVwDSL4bP7dYcAsOA5J2Ly0vsJpB1sCwBKNWQRWHCw3ETYB9jct/UnAJXx4kTpv7p5uYV3ra/OjBzYOzNyh+11tszicTD4DjLPkuOAKUcGdYenXMNlhlw5LYgGmghIGJQdZS4K84bvAvKS5sAcGxQVgsQDbHoDhium4mEZg6Y+/BAuPOpEGYNNi/hsarLSn+xNXgM1gjFHjZZmstPzBPsWLhO0WpSvLLHPi/6kQhj6mAMgdZI5PCj0UTfbAppG8uxq4QIuRBrMCn20PLI/2wADRLwj9A2BcLQym0hKtNEYkVf6xuufKFNtrYInOy/n9022RzY7VHW71J8AyrmNBxEWBqbjpd+ISNRV+2hyAUV5UiLkR08Sy75pyutgNqwOw7SmwoB19g6nS7ajDZn8HWCjAuLYUJZmFaQUt7vCDOrYhrg1JGGMcwlVmIh3hRnAK+J8oCv5gSGq6E+qw2TbneFzDwoAdtuNDHwEzWbeE/7mYZ84mNOWp9IO9DoOny1lydTRLFvDs6Kb+bWBhzBZm1j9/7vQbOixJUwwdr8PivJJ5MlS8nv/3wCYfBQZnMcMX4O8XgFxGY2K7bOAFjYYrprcRWABDCwbIFjaqzZW3w0Zg6wMwjFfaYV5Oa9r8y78iYRN+wBvZJA21485g4TKNEXZ/W1jHDVsSieLIr/iy+dV+pdIsM7PRES9LAGuddnnBRkf6yBx5G1izoNmwyKb8hYhvtArwfNTptYmcjCUAyzlL0khQVnc7GA49J1SapsMIbH0EjHsDSpUynOEuVTLECSyafMlEDWeYwjHCM9l2bDhRcbmSZoLDZCkbHIEqyuJiswIsStOsEPeIt2jGWxTOpqmO1EwHb2w3y66RrFaMiyHjiw7AVuthXpWYLT0wuwdmDYDhJ3g8eHcprpFVCYBR/YtZMXApo4X9K076MLrwX/clp1MTxiY2hd92lI1H/sOV1Lm1mjtC0CuF38B91ZpCxtBUW01L7HZ++9Lm3ATgfrn2E8d1pwIz2W4rOiwYl4/FM1vKfkjX0n4gJkzZzUJ+gk3bCZy+nYOm2PeOwDZ0w9Fv2q021GHaWiqxtdgmA9fWvgxM56BV1q3fBNq3h/v7p4cWZitMUXg/qj7s4J6220okEM6A0/P7s8aNy7qwcJ3iKLxGzAOTrY0sUcFoVOJfwoFccTlsyfWIXV/RMoCQ0EnK/Ozn3+VqV+e1+o5KPxNgNFwzrSipa2HqrdwvAtOY38qam7QPR9uO3HV8uG+L3KbcaYsVpoCnp19PrxrmBRjlADbL8vnv+7NbPN3f3rZ1UZr8uox5YNz5AAZ72MDFTWlpQbHjIRcLv9DD9bBhgNRBbqseIxYTAEyLhfiftnTtks5VV+pEY0gO0GE0v2quZA9csh59yS+tuCrrqvlh25ExE9xxaSUooHU59FvigT0+Pz3/9O3Xr1/47/NPvARDgsDCcFbmcwkgmFN9NY2PK5DbtlWeC9arwJoxACB5oYoHtY1fs18suk7eb/JoHyoAwWnHd/vWv1vSSPWL9ipN5DUqfRXbpuslBKH5KjBYoDep38W4E41DQxvOo9915P5KrrRWVHH13dPz86/nUa5A7BfwPf0EMGcILFKlbeZ+5zLPMoqtbFzeyl5vXeaGBp04E5eCUbgS1rU6uTmOpFC29ltGbdVIh9qE1Vx60gBxzfiulXfnpQr9fRqo/2S8Ao4KVELFqawuvwosMHoKXrcYOdwXyrRzWTKGa3GDFM+ecKUiVnEOYE/3e14eGBqBWXGeptDtzsWhPtht3GRNZeMSd29K/Ga4ljG5LGOvYkVkFzdQDG4aFy9PIgf83+C76ijs62WKDQ43GeN9nJk5hnBgxLrkx+fsCYw2U8q+4m1D08vASk8OdjYdYBreUGEC7PkXgT1KOwN2tMw/PSxr4EpYbk7CDH7fNiXUIW82+WhYzZE3GlwDFpy/E5zcUD6FX7ft26qi/cGZ81N2GD4FbOmsIi/u0jprYJknybFZH8nUluyBiYT9OrQ9sHQWXAQWwuJVUZxz5/zhXohdA/b2QuYHglmuxzdBCrvdVpxOKML1arOGcxB/DlgQZKVswjbQXFlsuAl0AgzujQAzqQCD0n8f2NHPNk0AO884qdw/8K/ozwB7K67rwlB+dT2XK4adrEz6idO5z6yH8XMo2dbGcIQlZvTo97x2GEP1AWDq9SaJ7MzNLFRbOf4d/TkJ+zww+WAZ7V407lguueGbpJ8BxlvV8hxlkecGE5tYB8FlYPYysOe3gNHDRNNZVhQt/1LlFIX25vuffdAv+X3fFOfgXsxbMS1oaH8GmMZYKebyvTvA0j4m7uKSRDi7LGEwK57PhuSlpvUUbqpsjuObiaHlvn/7DxuZlU3becOlLrlb8CkDP9ZFi4doC/iLWlYNrwILvwSM4pdmlXw5JQZlFE6+/bctkBl/un/IT3pEmL24pFpkxqg3n/YvAJulOpcV7CrFzPvfAxNNePOJyP7jMACZIW+bDJP99F8DC2Y2L7hJAr2vgx//L3jBZP725vzxrguZVrcPELAy5aqpUkr9Q2BTZWwpGrOKdfJfB9iLEzsZDZRP/3GtW+6iZXkKR/EDwJovAJtC68PBFBGL9aVA2JubG9lERucfP/DL4bn8G59pvEmAy28mkxOX4dPASllRhZut1eydIRkpAnu6h9l1BOzXrxHY1SiCY2CYlP0+nDHB6xGT0OsOjtyqg4uTJJ9QPHLLG9yFpngwGXUX9djNp+VUwwa7g4DpZDZ7B5iJR2CPl4GNId/HEfKvAwpMnGjZJcjMmdJ/uWTKgD2Yz/BAp+8lar1vZCYEdrTA9sWWNfz0TryV4KPAnj8C7OLoDlWkZFupcpeAeW9f9m99m4qpkygt97r5jJq3Ogo/hfsKMI7I3KQGVsW5OxSeRRriWf2QvALslNBFYDOdqzzDmGxcFr0G5sbYckaKw2MPw32weV3C8Us+MySrMVg9/EvACm4i5mkaqzP/kUuUxqijZozN39RhJ7337UxMdR5mGJO/58XxKuH+6epubHO6tJHRbd/7aPOGiujPgUVqLuHotYn+ErCKoSOly+P0bExyFdH5Nm6k4Yey9MCeT4H9IrDjrmN/NH2CDGMsTTJX3/2+LWSUvVrTX/pIJ24MJYHJ+u3SRz5xjRl6e6+u5UrOe/KPf+X792+cD/fbnPIa7uAvzyLZ6Pw++aq1XMNqraHD8lNg06RqLrb5Hcfj8/MRr6efD49Pt5e749ZHEdeQ0ijl6hv+aJVdBDasJPRwURvMQabsdwN3xGTrmtotSI4mlNArgSgiOeXn1v0wkYeZTo3uuaUGYEy5YbTbVyWt+T/87Do5C/aNdHN7ud1zbeIUGAyxp7vLveeVOwoxwCgLoQodtP5tpaNgcr75zWw2JrLtFq1hKlAjkfbcLmoljhaDPhHFKvlEYci5T9KP+IqWlSlZa1FRHM+818jggoFBwcb4uST5GrHm99MlYCqTvbKnp6fzPUYB9vPxBNgDkN1faowUO76zAFMEBlNGnUeQCbCV5B5IaK9VcwkQFxGRCc9KvjlZAafYDAovJqOT4nxelmSwkS1uEEx63gAjGhpYMT+W9vVXgRUAdrZimKTzeyirp/sHNPnPvv18fnw6k7Cn58fHx58/x51fueKwhVvnZnYa0x+qtBiBnRETYOv1apBwABLotoMQ9MA45lTGoA9nDFPRvHQpGFm2rJhvw5nJFJIxnslawkSAbXB5xGgRWE+zvwCMw+YMWARzQzZsn9FOdmyffz5zn+1Y5/98enx8utAeMFLPgDH6ie4rgWl1GdhyKZu1qUSKr7YSe+iBaVXVfu+ndhS20QypDHPFa59cxx5zxoVUNC5lSFLCSrmwqb6ckCXBTC67COz51+Pj80t7HMcfJslfx7MkVZh0eHh4Pm2PHJJnwKYjsIrz5+shudmsl/2w2lHr2LrfQf9gWDLAiw4A9yfHdPCKdkbhlwNlKbV1wJUdejDCLssi0WG4vO39Hm6tp18zYWu63idjkqIO03r+m1tpHHunYgNY/uWXIUmqftvtcS+OI0oAY4DY8X6KVtpV/Jai02xFCRGVtKFlt9wOA54/4hywZKzNWoCBxmLNnIT1eufTwSv0H5Zdt2BggM4y3fSMtNgy2JoZ41EU9Yydk+AAvMyMEe2Tmr9mh1kTvQDjvkUK4xL26c+fx2T+tHHyrNPwGJgxaSZxw7eFiU6M731iw2a7nC+2w64rjGHYzgL4OM0FP2DWguRqWMpWRt+qOKwWsDmWPQNTlp2FfPUM5Oe+EI0RxmCoHpg2y8V6GNYYm1sK4pf8JOrfNrcqPhD7p8CglePUiaWfzi4Cg4S1sL6YWcoglG3PsC5GxAUZBGm9YmwwemHglnlUMcJpYKjKmnFhjnbcRnoM241EhWlR+ujD5BKJ6JTw5s8PSTd/El8yj/YP9k+BJWmeWgJrChNfBzYws9RVPbW/pPJRpTHmEiLSNW2/pKnWGAJj/NIggSo6KSW4c9E2DSnvll0iwBjvxDi6gXTxRQRf2YOyXK0onc5jNfv3wJjxnPrVikxfB8ZAciCqAW7omKO2IjDOCJt1V+ZMfSEOqypoLMa/0l1s9JSEMZih/Gv2HTrldO/3uzFl8kY7yYn+ig7L69sHTPFZHKt/PyRhCcAHc1zjLfTZGrUA8yHkLUcWENGMXc5bPySDhJGbuyVM0JKz5wroLIERR1NKinAlE2SbWZlfIU3GUcLW68Vc4zXJzhJgX9BhOZfY52VmjdHRYZbcA3smsOePQaMdcQVYON5XpTbLjay4Yg4Mvr0CJlUFli3jMaFsMBhpECwlbjyUUFeYG1VZ1b3kN8D+4qy6W9RKqj1NS0YztZUrK8m29MB2crlO0wOwL+0aZba5+31bO5PvgXnn2wMT++GjwH6KTfEKmHkBFqTWln5Nn3kSZ56klzAC41gEMBLqa4aQQ8JC/Co+kyRT7tYjMCHnfLb7VKfGACcztZioNfSpSNhGEhsCAtuuPbAvRGqmfqMwn6YqfA3s8fGj4+9pDOU8RngCTKBpl1fwUuF6Bz9+XAaGIVl21PYlU5L7ihLGIVlKdt/gywdIuH6tCGy760fzfWqNq1lpQXKPIFh7YOs9MMaDfhFY5vy+pF+kDs+Andjt7wJ71VeAzcIXizixGQNS7toiC98AhtG3xECDHhoH5ggMbzL32DeWmZFZctePZcuiqPRZb7vtcsmur4Dh6q8Ci9PMpx1T78fRK2A/X9q7Ouyl62tg4+qrldyt28pk8fnO99GQzFqYVksG7UPHj8AUgeGFo3JZlSj9zUHCItuK4Qqji6baBQnbfh1YFDjnYyuy/IjYi4SdQ3hDh70Cdu+BMceK6wgqSQxLNdw2WXoNGE3QFlYBa3wsYVM1ahySlkOSdSleCrI5VflEhxFYQLOChivcSyqxdZ96w9UDk/H75SGZRKHx0Ttlnps4Yh0nVvzJPLDjVYiToXcqW09Pj/L+oa8P6KSEafkayCvXiYx/Ru9o8yq0YoJZgHm2BFbCRl0vmN9X2XGWtKLSWLRiJhGvEtU6Ahu30LSE+cNpqmjzEo46Vvp7YOpLwG6CMLL7+LDMxFyYNAZuGYD9en6twxh0/ngOjITOFyrQnuh8a2PwPShj05wliGRAwnWdBq9W1wMC42pFq1XHBGX8r8vMKGG51KeQVQyVSdQSTDMAW78Au5GkJNaoYG0GRmUKsM0LsHGW/Gq0mS18ZGCVx9y0SJKZZiYyIfw8b57G2WrFT3b0qxUvvbhTAmAglagcw905BgY/+AjEC4WVghHYatlOOQ43LIYyPwCLaIcNMFwjU451GdTZkEyYCci6AQaG6woeQK8PwLjh1v8tYCp2EuPKwknOGlaGiS0XEM+aLCbSLHt6PrY2HqG+znNDnrnuSrOiyWPccDbjIgXrjz1wQpaKaJcq7Uk2GyRs2nBGY9UYE+6BJXM6irDvM1ZjgKqbWzXOkiOwlDIIYCYvpdQdgHlfcvAS1v8NO2yMOx+jqOvS2dyYmckzkbBL0vX0/Ov5ZAbwy2EUqefTrmK4mji3mgXIXD338mWzS3ESvmikLO9IVQ5KGNOwolGHRarxENoarvVaSvCcAQsIDBZvXWO2lL6pWPrrF2CrvwCMUdTaiHa5mzdV4TB+TM6EoYsbG9DnP0+N/0eSub/cOCQd7mh9nL4YfJm+Go5PnwjA8A12A73nXuXhCEypslvDEoOj3TOTbehLdwZM0rq3LMPTs/bOdttb70ueAVNfBpbq3IgeYyXDqsB8mev2Stra/c+fZzvfcNEfn+6vJLnVFm5qVtTNPnEizfNoch2YON+Stix1dJSZEdhWdH0rFvx6Oez8zlmelyeGa1jTGYCeW265hEgXQIBtV6dD8uvAwlBPrZTs+30nZVnzTJeSIVqf78y2d88Ph9iKMXeG0+G1jdzSZblkYDKjbV47paMofAOYbNqmUotjkERaCa/nT2GUzXuWF9gyjXTRlXmIiQ/vrftx4QPuJpAy23bZY1qgdwVgwzDeiLvCwzCuVvyNgMa8avfZbJWDG4uhmR83/saw84ennwd3yP9zz1CB/FWLY4a46EOSXFv5mo/BVVVaSyRFg4er5Kca82kjP7UWtknZ9oeiuBXdB9+r075mwUQq2cnb7RyvL/ra2c7f0nJIS+cvrlYcfV6dpny2B1pKOb4R6jLuJke+aW4yOAH24ivuNyYltoJJRNr3lVClWGIa04Z1cu+kBmdur0d7S+5BVcMiddxpFNuU9VhKX1uHVR/x0I3PYqu4Mm+tZWzOS14WJnkJZ2nLvJQ7lZgX0KEqy9Km1pu7pyleXwFGZz+tRffTUuL+smZ4VhSNkdr47RTYqPR9Johj+MhY72K6j+1mDBBj8+9v8WWz/LJ6K+cbf5Gb2BJUmYCV9dE/KmIwmY8HSGAC48PZmHEV7MBVA7PP3mX51hlvEU0SFiwNZpKQJ45sqsJMC+a/FVsHJybLxwJg1uemRccN+NQe2IXUmXxfcOGl+TCgzJcfc3FmM4mJux4wKeK3X9pQPstcgih88Vb/Kp+fGwLenz+SF+ktwA5RKT/4Wji7EBX5l4DRwMez5TaVsH35pCMFfKdmnzpzBszrsGNg/kK/SOFXdOZ5anMfE3YV2EvMLlFY4x/Pl8QQbGMRXL93mow1bo+yIl+ojItKHmLw/YY3ufl0Bf4rX29iIAwPeDRXUGH7WNqXFuCruwRMwqoZRZ2ctxGYz82p0sykHwV2w43dkZdEQTNinPI3ltYIfHgdvRwVHEKs4ZZL10kgKayTMSA/mX6fwmeWC9n/b0VvRrPYSakwWGF59Adx+s+v0v9OIvNyfg/c/TRZ9F8nf/zTPAkdxr4wkTOz6O8BS3ITxz5wOtPB/xawzJcKc/pSBPrngcGRkOB2p/+3gMVpIfsTZaZn2d+TsCg3OpfyMi5N/qeAhU4eqzAEpv6eDoPLMBYVc/H/kA77FoSFFLIq8jROLwKLzoHJuvUB2JXUGQCDBe6Lir1XKMJPYJPJmxM/U5G+yRw4+cLxEO+kQ8hk+nYiRRA7CRZzV9Oz4vPkLL/Q/3MEdiWVJISNHWdStu1dpe8joT8AjC4FLCv1j4DhY1if+PQmsMKHI14tBvwCbLTDnmWD6PltYEEAp0SJ8Lr4x9vf69SnBoxHeVzuBWDf4LM6JgJ8ysl52wyT7AveHBjeBSZRIu8BYxD1uNMha6tP7wJLZuGMcWjzIn0H2HiuUaKuOch7W96iJ48YuEDsXbM0eG886mbOKNnqHasRwKiZnVXvAnv+dbRu/QLs8oVTHu7AwOn794GNxYpSdX1FgdHn4ViOSApE/jGwN4ck/7LrGH63aN/RuB7YXKuP6LDnF1gfAaZSCRIqzHvAFuudP61IXYoO3/tNk2A61j2/sPLwVgW8Q4ernW4SLpzt1uv1e8C+T3MvYU4n0WyWXARmDkr/ZDNJfEkTX86yl8o9IzD1Vi0O2cgdZLOHwH6MOe1srPS8dyLxysRMZVto16WJGjOS96VADs71972Q0qvkO6PKoBB9+xF8f/mE348K+9Bhzjqe7LBoTeDzefdz9+RkVgawsr1/gA5zcsra5ToKitWduGH5eGh7YHl8ueIFqx9G2luub82SPlRACvXpm2C/DuELVHJOVEFyM8pwGB2AnSRo+kvGaf6losQEjl4q1UvG9Q2uk73UUgqmar8s4lfPsm69HDAktSyJ6OMKRNOjb3g6zpLWZvpasY89sENEwChhjwLMXK5LYJXGtCPut755H5gUTE4Cf2BR4GT5z3AxkWWW8a+ZzWahHYElytfI5TGBU8lRjAJZeYyMPUAIZXVvD2vGkiPMwMFr02gMkmFq19Rn3+D5u8V+WdsvScqFzFUK0mNgiViXNZdFVRS+Bex0V21f0g8u0EVgTAGS9YomzoKPAdNWSV3UMrAs11mX5bgmCAUjJxW5PbBQHlk7qeqJ1+NQosq1r6qqnL9c75M3tZajjvBSZuRUTD5ssr+aAdY88mRMSmUUKyGOl1TuNI1kqgpvXeYmuZrP/EbRSGv0laoqicnLmvkAcfQxYJDIklZDW5et37lo3PjI1VzOG2jkULJdNyMwa2vfjQkiGT+FPbm862qxlayawmLwN5zXpYmmOoP0FUdXQxSdzaSSaFvFaRJafXykkp4ea/3I5/sXWTxT8TWb6mpZUpfy7LMLui+KMFeIiVfl6UeBGR/f27VybMpuyZ0ka7jHwXmUYdMjsB+AWDSM4F9vd+uBRxhx40bqQy7muHy9Y5wnS/oBRdX27IlbLPq2zBQkOQFUCS32V0PIWOnU103EZy/rTu6x5ofoKn0iYbIyOocyiqPrRmiawQou0kMzrHNVMKh4dlyU+rhIkTK888O8yN8wK06UPj7nYrfGR+zxdNuNVC5n8fOKaSHMD1z2UtEVQxIcmn6545bjloekdLX2EdMrHmw0rFdSlrQTXVgywn+1XvsA2LaU89vafuA5K0J8KedIYZbcMtyfio5HKm22gyTVbXGb43kd3+teiZmrNZ6CKAYkneU2RX+MnTzXTEIMrxZxyHUsNeMfmvQtYJM9MDkkwFUAth0WrCI6SOA4I6WVBEdvffKM6DDuBlXdvswrUz4W8wyTvETkDQtmxvHgxVVfUTk1/XorQYzoOSy5a6nCumfxb0kU8WesBAQ2rCRsigYyqzDTSN5IoMsxsEiNS8mpdfFblYvCMNSpNZmOjS7U9VMvxt6FZTUUhoXlb3hnp8DKiodbrSFJfS+RTxwg1kkA2OBTY7YjMEyYAocRFRKPUUJtCzDpictZerlWyXj50hdXpmXKmVSUoWRG+MLMEDHXScoJgWX+rKRuzCNZtycfOdKaR6AULk+Td0o9GaezDGKWO9gg0/e6wiRmfR/7ltI/A8YxxQQi1tBfSxwnRk/VryUjpq7nixFYoPzxBIs2y0oJNgcbhSG5lQLxvHzAResGwCSic9dDy9UMxFt2nCh9iFTripLB/+u+Kl+AYRAvRoqOFdKHXXeyawRtU9/dc0XM6jh+s+5HnENRlIz0yd5ByxXX1Ifmx3n8QWBBKVkIuwVHDT/qemg9BghbXzkd9Ty4aNcF33x05rZ3mdV4eAZhq1AR2JqXK76Ini1LujJGe+iyzKW9HNHGHN5ORmIN88KXzcUlbj8kGbHHNKZ5znQdxu6dALsBMCkGX/Fsujh6c0zmCnYuj5rUafJOZTrJ/fh9W+TKJTd/AGy32vYFjJxWqpS3UpSaChgK3NhOqlITGNng4WlRSY49bQ0jaHEj54ucAxgsYYZl75ZcC+GXIKGeBDbgi+H5SWOUwREwqQLINCaYGpKOfgosmAY6bsSysObqiTyw0aI4TFWaN7e3tYsgYTMeR3P5cCgWAbBSx48qP51OPgpMcjxWvYaZLgFiA4PGeB4Ry5lb4xgOhc8fTLzYLTvM06wuz2GTzlhafwDFRGdRJ/Npq1KSx0TIks+NhH/2pcivHEvTtU0lB5/AqnvRYbDdoHl4su1o33TnK415IWHhJUNvsuhCvaepVjONwZWn1fzhATZIlrEMzWx2hldizY3hseBSw3NeOZOp+E+ASUSc4WkCzPATYP7kClbmpbQQmNTgJ8UMZqCMuV3v0lDEbt0rG4YQJpgYjbKM6NzKWSycNChXVaIy7+/zZTIzuGKyB5bOWI+5anxyCVTAmQ6T6AQfUc1zN212aaqM9AxfW56TLMNW8CXJkW2pil4By2zMmUFCK5r8vROaL0jYurfw0Vp8Vg+MYgU2UyMGBjP9/ECDWdDRnx4PznVpIEqfwAIfxzkCW/HIEd+21JD0e7rFhgdX7gZJCedR7GJWrMUOUz7NnFFnq1c6zEciwKGEjQliaZxf2AqJ4S+orHRVy7iosTgn1egsvGCypjb3Ry22hRRJ+ASwybcWz/kCbL2cA9jkBBhPZwhSAhsEmDoFRuXTUF0xu2tMVpL66DW9Bzk0SQzTgWedwjw+AMNHlnfXzGCldL8GRitgfxApHva1ZuIJbMYw9g4GiA9WdzyQOT0vfMEy5LhFXkshUoyS8DPAFM+yPgFGCVM8boVns3VJqsYheQQsS16AhRMBtoWEeWBico2tgsIyVsL0JN9r4AGonFhHYLHh6aiSitN3/g++XpTkIZE8VrPBBJW8LmmVzDI53fX2N1hJeH9bYY7I45NiWmGY8PjyPPdHN0Ng7X757g+BRWfAtjIkQ+XPp3kFbC3AAs4EMOP6RIANL8BodVT7VuYRiKWJlpPMKKirgQeLHyQsznhKLM3apmpfA/MSpjM5ulVEJzf72KJgH/qkTJ56CpgaGMf0ICW/GVsoMXRjoBMjecLMFP7o5trp+MPA1teBtX5C1ADmNVOX3Cg5D3agDhOxg62hkwMwNQKTISnnIy1buHTKl/2YBiqVKN6qBLPFGNH/AgwGBks+LOZlZP1Jjd3rxfCbXIva+X07rxkYCb2nZr5IC0sAmax8CSDX49nMTVXAB2ddEp4fBYME/iZ+KSqJZb+FCMbT4N2DjQ6rFYsRGHNfoigYgckRYTSkOpacHYGlCe0wJhhBHUWizmhWcEiut/shSbOikY0TAmP5xUiM1G46xY0kgtaZUNOElZPYCWzLJB1b0svA5FAa+bI2r4ak7KWqOK98kPicp8UYFthngKtz0GqHAPK6zJg85OFJfD9MbfbEyyymWbCnTKQVw4mTD5Xj86sVi/QAjJNtKzN6y8IxCx9pX5pSKsTs8MiZ95d6GlFio9LSDw/AVCDAtk3oDZAV7F64JwABqWQsbc/zmrvSRJEYyDIQOzkyCsDk1FM6DMb5E4QuAPvxI025cHTrz7sQEsbSfssoXP5QGgaQY7xm2jpSeZBjZViM34dP26KQnhL4XzHs/4OBTv60omNgk2APLAjoS65olje1PDuARZEcosKkrapgRhZ9STjNBLZZ7YGBThMmimH88B6oShacEzt8fkuba9ljsq8gYXTyQ5PJabpewuTwKH9o0mazugQsSeLYpq6Uo+FJYs7VWZ4fWntaD/5gB5eaOI1tMR69wmNTxo5iGI+h5nP2pOHxsTrKp8BklgxlSAowqfxBKeAaxIa5SB3ed7KWuO7nshCIhy9SAQYvqeeeIVQ9xhWAyeVcSmtbrkEMcnaPpXG2ZRZmR99n4DHZlsBkcEKHsf5ML+9uLkvYDTQ3zfyco+1uf97OXA6HuhsPKapg6GP4xbEU4E9rofPgz5qZz/fHzPhzZmC9wm34YFElf3r3Hhi0NnyVaSszPgeaFq3Owh675ZLapTNRyPVDguI534LBzgQYM3K1SBgGJ4AFN9ZvZqLnIGdHSYkoFpTyZ4BiEuShvPD7KHUcnImTY++2+yOV4H5e0L064RPGM6crqKs7fyrU79/7I50wGnnyYwQT3uQMZcqMLpo9o/vf6Cqd73iSEVyCDBoMrrz+wAkVPsF0uwe2ewUsqmRFSzwZ6dkxEcDNF8vVbgPjnYuDXNCazUbXCENOgG3Wbfjjh2WmCJ0nJppCbDQt04rL27gVXxwWfZ2Z2I06zCiD8b5mlhhXb7n+cQnYjIXzDURdG1vxIK3b/b6HHFZUFbBRp/i+Qhj3UWR0FMN2k7mA/e5HmWRP3AHWWRhOGbH+EWAvoQLOr+ljSHILclxhD7zhLWcYzf2af8hd9XLuTzbi610t+4f+2KMOwMYzjhq5nJki+55tqQxPA8Mt+ZovR9PAsY8lVAAdAMy8HJrkP9DVz/8D9zdxpG3G6Y57MLBWisxcrtlLp9zwDLxxR6QqijyeHVUb/EjAw+FcozkTg3xlMJewaJgcUuQkzDxtff6LP9eoGe1qf+4Rd5MyHzs5Xi4nCHuj3vmY7kNPLt77JBrb7F9rS9nAtP6Yglq2qcYjlRrt7/NO0pZmrpDmwDPW8VSn2OhLcSK0dzn0uAyLbnGmp3F87Al9AJj3Ptn8hlqaHiLxU8Uyh6zdFzjuIcp5C/qlSqySg5gx5fDICQnxx/TolKzUwbFkOUntt9Gt1X6nUr3kOCidVX6zU0sFZu61p/iDiS+76PiekzM0Ic1vfn4aq1wXEw4M3Nc6GXkFp2EfAixMZuitdaQpmzD6j8+w+BgwXxfSBn7L/qViz1hxmRvgNlX4GkPmPu0fT0k+FEGHspu2DzGwIxWrfWKLJNuMLx7X5LXG7jfAx93yRDbZD3+aCURjBs5bnz+RDBX5aJyeZ0xKSfabQ+fApjrhYZ0xr5nZOJx819mfBbv5gBAZEuqlXrf8E/LT2xAaZ38YaDCK0QEm4+TH3JN9WECwz1aSNC7ZyA2sP9jqJjgOqIKPMBYDU0dxGnvcQRwe1T3+v6iKLHruPVmRAAAAAElFTkSuQmCC'
+}];
+const orgLogos = meta => meta?.orgLogo ? [{
+  id: 'custom',
+  name: meta.orgName || 'Logo organisasi',
+  src: meta.orgLogo,
+  w: meta.orgLogoW || 400,
+  h: meta.orgLogoH || 120
+}] : DEFAULT_LOGOS;
+const stampTxt = st => st ? `${st.name}${st.role ? ' (' + st.role + ')' : ''} · ${new Date(st.at).toLocaleString('id-ID', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}` : '';
+function stampProject(prev, next, who) {
+  if (!who || !prev || prev === next) return next;
+  const now = Date.now();
+  const mk = () => ({
+    id: who.id,
+    name: who.name,
+    role: who.role,
+    at: now
+  });
+  let changed = false;
+  const run = key => {
+    const A = prev[key] || [],
+      B = next[key];
+    if (!B || A === B) return B;
+    const idx = new Map(A.map(x => [x.id, x]));
+    return B.map(x => {
+      const o = idx.get(x.id);
+      if (!o) {
+        if (x.by) return x;
+        changed = true;
+        return {
+          ...x,
+          by: mk()
+        };
+      }
+      if (o !== x && key !== 'tracks') {
+        changed = true;
+        return {
+          ...x,
+          by: x.by || o.by,
+          ed: mk()
+        };
+      }
+      return x;
+    });
+  };
+  const out = {
+    ...next,
+    nodes: run('nodes'),
+    pipes: run('pipes'),
+    structures: run('structures'),
+    tracks: run('tracks')
+  };
+  return changed ? out : next;
+}
+function OrgLogos({
+  meta,
+  height = 28,
+  gap = 10,
+  className = ''
+}) {
+  return React.createElement("div", {
+    className: 'flex items-center ' + className,
+    style: {
+      gap
+    }
+  }, orgLogos(meta).map(l => React.createElement("img", {
+    key: l.id,
+    src: l.src,
+    alt: l.name,
+    title: l.name,
+    style: {
+      height,
+      width: 'auto'
+    }
+  })));
+}
+function SvgLogos({
+  meta,
+  x,
+  y,
+  w,
+  h
+}) {
+  const ls = orgLogos(meta);
+  const gap = 2.5;
+  const tot = ls.reduce((a, l) => a + l.w / l.h * h, 0) + gap * (ls.length - 1);
+  const k = Math.min(1, w / tot);
+  let cx = x + (w - tot * k) / 2;
+  return React.createElement("g", null, ls.map(l => {
+    const iw = l.w / l.h * h * k,
+      ih = h * k;
+    const el = React.createElement("image", {
+      key: l.id,
+      href: l.src,
+      x: cx,
+      y: y + (h - ih) / 2,
+      width: iw,
+      height: ih,
+      preserveAspectRatio: "xMidYMid meet"
+    });
+    cx += iw + gap * k;
+    return el;
+  }));
+}
 const NODE_TYPES = {
   reservoir: {
     label: 'Reservoir / Sumber',
@@ -818,7 +949,7 @@ function buildGpx(project) {
     '&': '&amp;',
     '"': '&quot;'
   })[c]);
-  const w = project.nodes.map(n => `  <wpt lat="${n.lat}" lon="${n.lng}"><ele>${(+n.elev).toFixed(2)}</ele><name>${esc(n.label)}</name><desc>${esc(NODE_TYPES[n.type].label)}</desc><type>${n.type}</type></wpt>`);
+  const w = project.nodes.map(n => `  <wpt lat="${n.lat}" lon="${n.lng}"><ele>${(+n.elev).toFixed(2)}</ele><name>${esc(n.label)}</name><desc>${esc(NODE_TYPES[n.type].label)}${n.by ? ' · dicatat ' + esc(n.by.name) : ''}</desc><type>${n.type}</type></wpt>`);
   (project.structures || []).forEach(st => {
     const nd = st.nodeId && project.nodes.find(n => n.id === st.nodeId);
     const lat = nd ? nd.lat : st.lat,
@@ -933,6 +1064,9 @@ function createExampleProject() {
       drawnBy: 'Drafter',
       checkedBy: 'Ahli Teknik Sipil',
       approvedBy: 'Kepala Desa',
+      surveyedBy: 'Tim Survei Lapangan',
+      orgName: DEFAULT_ORG,
+      orgLogo: '',
       drawingCode: 'AB-SKM',
       date: todayStr()
     },
@@ -975,6 +1109,7 @@ function createExampleProject() {
     }],
     structures: exampleStructures(),
     tracks: [],
+    team: [],
     settings: {
       ...DEFAULT_SETTINGS
     },
@@ -999,6 +1134,7 @@ function createEmptyProject() {
     pipes: [],
     structures: [],
     tracks: [],
+    team: [],
     prices: {},
     ded: {
       ...DEFAULT_DED
@@ -1026,6 +1162,7 @@ function normalizeProject(p) {
       type: NODE_TYPES[n.type] ? n.type : 'junction'
     })),
     tracks: Array.isArray(p.tracks) ? p.tracks.filter(t => Array.isArray(t.points)) : [],
+    team: Array.isArray(p.team) ? p.team.filter(t => t && t.id && t.name) : [],
     pipes: p.pipes.map(x => ({
       material: 'PVC',
       diameter: 90,
@@ -1089,13 +1226,15 @@ function mergeProject(base, incoming) {
   const pipes = merge(base.pipes, pipesIn, 'pipes', () => 'P');
   const structures = merge(base.structures || [], inc.structures || [], 'structures', x => STRUCT_TYPES[x.type].short + '-');
   const tracks = merge(base.tracks || [], inc.tracks || [], 'tracks', null);
+  const team = merge(base.team || [], inc.team || [], 'team', null);
   return {
     project: {
       ...base,
       nodes,
       pipes,
       structures,
-      tracks
+      tracks,
+      team
     },
     stats
   };
@@ -3405,7 +3544,9 @@ function StructMapInspector({
     className: "text-slate-500"
   }, "Kapasitas"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, fmt(g.L * g.B * g.Hw, 2), " m\xB3")), React.createElement(Btn, {
+  }, fmt(g.L * g.B * g.Hw, 2), " m\xB3")), React.createElement(StampInfo, {
+    item: st
+  }), React.createElement(Btn, {
     icon: "DraftingCompass",
     variant: "outline",
     onClick: openDed
@@ -3508,7 +3649,21 @@ function GpsPanel({
     icon: "Route",
     className: "justify-center !border-red-300 !text-red-700",
     onClick: startRec
-  }, "Rekam jejak")), gps.error && React.createElement("div", {
+  }, "Rekam jejak")), React.createElement("button", {
+    type: "button",
+    onClick: field.pickOfficer,
+    className: "w-full flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 text-left hover:border-aqua-400"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 15,
+    className: "text-aqua-700"
+  }), React.createElement("span", {
+    className: "flex-1 min-w-0 truncate"
+  }, field.officer ? React.createElement(React.Fragment, null, "Petugas: ", React.createElement("b", null, field.officer.name), field.officer.role ? ` · ${field.officer.role}` : '') : React.createElement("span", {
+    className: "text-amber-700 font-semibold"
+  }, "Pilih petugas sebelum survei")), React.createElement("span", {
+    className: "text-aqua-700 font-semibold shrink-0"
+  }, "Ganti")), gps.error && React.createElement("div", {
     className: "rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1.5"
   }, gps.error), pos && React.createElement("div", {
     className: "grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono num text-[11.5px]"
@@ -4479,7 +4634,9 @@ function NodeInspector({
     className: "text-slate-500"
   }, "Jarak dari sumber"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, res.dist !== null ? fmt(res.dist, 1) + ' m' : '–')), pipes.length > 0 && React.createElement("div", {
+  }, res.dist !== null ? fmt(res.dist, 1) + ' m' : '–')), React.createElement(StampInfo, {
+    item: node
+  }), pipes.length > 0 && React.createElement("div", {
     className: "text-[12px]"
   }, React.createElement("div", {
     className: "text-slate-500 mb-1"
@@ -4577,7 +4734,9 @@ function PipeInspector({
     className: "text-slate-500"
   }, "Gradien hidrolis"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, fmt(res.hfkm, 2), " m/km")), React.createElement(Btn, {
+  }, fmt(res.hfkm, 2), " m/km")), React.createElement(StampInfo, {
+    item: pipe
+  }), React.createElement(Btn, {
     icon: "Scissors",
     variant: "outline",
     onClick: onSplit
@@ -5646,60 +5805,59 @@ function TitleBlock({
     y2: FRAME.y1,
     stroke: "#000",
     strokeWidth: 0.5
-  }), React.createElement("g", null, React.createElement("circle", {
-    cx: x + 9,
-    cy: 19,
-    r: 6,
-    fill: "none",
+  }), React.createElement(SvgLogos, {
+    meta: meta,
+    x: x + 2,
+    y: 9.5,
+    w: w - 4,
+    h: 10
+  }), React.createElement("line", {
+    x1: x,
+    x2: FRAME.x1,
+    y1: 21,
+    y2: 21,
     stroke: "#000",
-    strokeWidth: 0.35
-  }), React.createElement("path", {
-    d: `M${x + 9} 14.6 q3.3 4.4 0 8.4 q-3.3 -4 0 -8.4 Z`,
-    fill: "#0b6e74"
-  }), ml(wrapText(meta.owner, 26).slice(0, 3).map(s => s.toUpperCase()), 16.5, 2.3, 700, 'start').map((t, i) => React.cloneElement(t, {
-    x: x + 17
-  })), ml([meta.fiscal || ''], 26.5, 1.9, 400, 'start').map(t => React.cloneElement(t, {
-    x: x + 17
-  }))), L(31), lab(31, 'PEKERJAAN'), ml(nameLines, 38.5, 2.4, 700), L(56), lab(56, 'LOKASI'), ml(wrapText(meta.location, 38).slice(0, 2), 62.5, 2.1), L(70), lab(70, 'JUDUL GAMBAR'), ml(wrapText(title, 24).slice(0, 2), 78.5, 3.3, 700), L(89), lab(89, 'KETERANGAN'), React.createElement("g", null, legend && legend(x, 94, w)), L(200), lab(200, 'KONSULTAN PERENCANA'), ml([meta.consultant], 208.5, 2.3, 600), L(213), [['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedBy], ['DISETUJUI', meta.approvedBy]].map(([k, v], i) => {
-    const y = 213 + i * 16;
+    strokeWidth: 0.25
+  }), ml(wrapText('PEMILIK: ' + (meta.owner || '-'), 40).slice(0, 2).map(s => s.toUpperCase()), 24.3, 1.95, 700), ml([meta.fiscal || ''], 29.6, 1.7), L(31), lab(31, 'PEKERJAAN'), ml(nameLines, 38.5, 2.4, 700), L(56), lab(56, 'LOKASI'), ml(wrapText(meta.location, 38).slice(0, 2), 62.5, 2.1), L(70), lab(70, 'JUDUL GAMBAR'), ml(wrapText(title, 24).slice(0, 2), 78.5, 3.3, 700), L(89), lab(89, 'KETERANGAN'), React.createElement("g", null, legend && legend(x, 94, w)), L(200), lab(200, 'PELAKSANA / PERENCANA'), ml(wrapText(meta.orgName || meta.consultant || '-', 46).slice(0, 2), 206.6, 1.75, 600), L(213), [['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedBy], ['DISETUJUI', meta.approvedBy]].map(([k, v], i) => {
+    const y = 213 + i * 12;
     return React.createElement("g", {
       key: k
     }, React.createElement("line", {
       x1: x + 22,
       x2: x + 22,
       y1: y,
-      y2: y + 16,
+      y2: y + 12,
       stroke: "#000",
       strokeWidth: 0.25
     }), React.createElement("text", {
       x: x + 2,
-      y: y + 5,
+      y: y + 4.5,
       fontSize: 1.9,
       fontWeight: 600
     }, k), React.createElement("text", {
       x: x + 23.5,
-      y: y + 14,
-      fontSize: 2,
+      y: y + 10.6,
+      fontSize: 1.9,
       fontWeight: 600
-    }, v), React.createElement("text", {
+    }, String(v || '').slice(0, 34)), React.createElement("text", {
       x: FRAME.x1 - 2,
-      y: y + 4,
-      fontSize: 1.6,
+      y: y + 3.6,
+      fontSize: 1.5,
       fill: "#666",
       textAnchor: "end"
     }, "paraf / ttd"), React.createElement("line", {
       x1: x + 23.5,
       x2: FRAME.x1 - 2,
-      y1: y + 10.5,
-      y2: y + 10.5,
+      y1: y + 7.4,
+      y2: y + 7.4,
       stroke: "#999",
       strokeWidth: 0.15,
       strokeDasharray: "0.8 0.6"
-    }), i < 2 && React.createElement("line", {
+    }), i < 3 && React.createElement("line", {
       x1: x,
       x2: FRAME.x1,
-      y1: y + 16,
-      y2: y + 16,
+      y1: y + 12,
+      y2: y + 12,
       stroke: "#000",
       strokeWidth: 0.25
     }));
@@ -8278,7 +8436,12 @@ function PrintRoot({
       paddingBottom: '6pt',
       marginBottom: '10pt'
     }
-  }, React.createElement("div", {
+  }, React.createElement(OrgLogos, {
+    meta: project.meta,
+    height: 44,
+    gap: 18,
+    className: "mb-3"
+  }), React.createElement("div", {
     style: {
       fontSize: '9pt',
       letterSpacing: '.08em'
@@ -8288,13 +8451,21 @@ function PrintRoot({
       fontSize: '9pt',
       marginTop: '3pt'
     }
-  }, project.meta.owner, " \xB7 ", project.meta.fiscal, " \xB7 ", project.meta.date)), React.createElement("h2", null, "1. Ringkasan"), React.createElement("table", null, React.createElement("tbody", null, [['Jumlah node / segmen pipa', `${project.nodes.length} node / ${project.pipes.length} segmen`], ['Total panjang pipa', `${fmt(boq.totalLength, 2)} m (+${s.wastePct}% waste = ${fmt(boq.totalLength * boq.waste, 2)} m)`], ['Total kebutuhan air', `${fmt(hyd.totalDemand, 2)} L/dtk (${fmt(hyd.totalDemand * 86.4, 1)} m³/hari)`], ['Tekanan minimum', hyd.minP ? `${fmt(hyd.nodes[hyd.minP.id].pressure, 2)} mka di ${hyd.minP.label}` : '-'], ['Kecepatan maksimum', hyd.maxV ? `${fmt(hyd.pipes[hyd.maxV.id].v, 2)} m/s di ${hyd.maxV.label}` : '-'], ['Jumlah peringatan', `${hyd.warnings.length}`], ['Total RAB (dibulatkan)', `${rp(rab.rounded)}`], ['Terbilang', terbilang(rab.rounded)]].map(([a, b]) => React.createElement("tr", {
+  }, project.meta.owner, " \xB7 ", project.meta.fiscal, " \xB7 ", project.meta.date), React.createElement("div", {
+    style: {
+      fontSize: '9pt',
+      marginTop: '2pt'
+    }
+  }, "Pelaksana: ", React.createElement("b", null, project.meta.orgName || project.meta.consultant))), React.createElement("h2", null, "1. Ringkasan"), React.createElement("table", null, React.createElement("tbody", null, [['Jumlah node / segmen pipa', `${project.nodes.length} node / ${project.pipes.length} segmen`], ['Total panjang pipa', `${fmt(boq.totalLength, 2)} m (+${s.wastePct}% waste = ${fmt(boq.totalLength * boq.waste, 2)} m)`], ['Total kebutuhan air', `${fmt(hyd.totalDemand, 2)} L/dtk (${fmt(hyd.totalDemand * 86.4, 1)} m³/hari)`], ['Tekanan minimum', hyd.minP ? `${fmt(hyd.nodes[hyd.minP.id].pressure, 2)} mka di ${hyd.minP.label}` : '-'], ['Kecepatan maksimum', hyd.maxV ? `${fmt(hyd.pipes[hyd.maxV.id].v, 2)} m/s di ${hyd.maxV.label}` : '-'], ['Jumlah peringatan', `${hyd.warnings.length}`], ['Total RAB (dibulatkan)', `${rp(rab.rounded)}`], ['Terbilang', terbilang(rab.rounded)]].map(([a, b]) => React.createElement("tr", {
     key: a
   }, React.createElement("td", {
     style: {
       width: '38%'
     }
-  }, a), React.createElement("td", null, React.createElement("b", null, b)))))), React.createElement("h3", null, "Kriteria desain"), React.createElement("table", null, React.createElement("tbody", null, React.createElement("tr", null, React.createElement("td", null, "Rumus kehilangan tekan"), React.createElement("td", null, "Hazen-Williams: hf = 10,67\xB7L\xB7Q^1,852 / (C^1,852\xB7D^4,87); C HDPE 130, PVC 140, GIP 110")), React.createElement("tr", null, React.createElement("td", null, "Kecepatan aliran"), React.createElement("td", null, s.vMin, " \u2013 ", s.vMax, " m/s")), React.createElement("tr", null, React.createElement("td", null, "Sisa tekanan"), React.createElement("td", null, "minimal ", s.pMin, " mka, maksimal ", s.pMax, " mka")), React.createElement("tr", null, React.createElement("td", null, "Dimensi galian"), React.createElement("td", null, "W ", fmt(s.trenchWidth, 2), " m \xD7 H ", fmt(s.trenchDepth, 2), " m; pasir alas ", fmt(s.sandBed, 2), " m; pasir di atas pipa ", fmt(s.sandCover, 2), " m")))), React.createElement("h2", null, "2. Data Jaringan"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Node"), React.createElement("th", null, "Tipe"), React.createElement("th", null, "Lintang"), React.createElement("th", null, "Bujur"), React.createElement("th", null, "Elevasi (mdpl)"), React.createElement("th", null, "Kebutuhan (L/dtk)"))), React.createElement("tbody", null, project.nodes.map(n => React.createElement("tr", {
+  }, a), React.createElement("td", null, React.createElement("b", null, b)))))), React.createElement("h3", null, "Kriteria desain"), React.createElement("table", null, React.createElement("tbody", null, React.createElement("tr", null, React.createElement("td", null, "Rumus kehilangan tekan"), React.createElement("td", null, "Hazen-Williams: hf = 10,67\xB7L\xB7Q^1,852 / (C^1,852\xB7D^4,87); C HDPE 130, PVC 140, GIP 110")), React.createElement("tr", null, React.createElement("td", null, "Kecepatan aliran"), React.createElement("td", null, s.vMin, " \u2013 ", s.vMax, " m/s")), React.createElement("tr", null, React.createElement("td", null, "Sisa tekanan"), React.createElement("td", null, "minimal ", s.pMin, " mka, maksimal ", s.pMax, " mka")), React.createElement("tr", null, React.createElement("td", null, "Dimensi galian"), React.createElement("td", null, "W ", fmt(s.trenchWidth, 2), " m \xD7 H ", fmt(s.trenchDepth, 2), " m; pasir alas ", fmt(s.sandBed, 2), " m; pasir di atas pipa ", fmt(s.sandCover, 2), " m")))), React.createElement(TeamReport, {
+    project: project,
+    hyd: hyd
+  }), React.createElement("h2", null, "2. Data Jaringan"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Node"), React.createElement("th", null, "Tipe"), React.createElement("th", null, "Lintang"), React.createElement("th", null, "Bujur"), React.createElement("th", null, "Elevasi (mdpl)"), React.createElement("th", null, "Kebutuhan (L/dtk)"), React.createElement("th", null, "Dicatat oleh"))), React.createElement("tbody", null, project.nodes.map(n => React.createElement("tr", {
     key: n.id
   }, React.createElement("td", null, n.label), React.createElement("td", null, NODE_TYPES[n.type].label), React.createElement("td", {
     className: "r"
@@ -8302,9 +8473,9 @@ function PrintRoot({
     className: "r"
   }, n.lng.toFixed(6)), React.createElement("td", {
     className: "r"
-  }, fmt(n.elev, 2)), React.createElement("td", {
+  }, fmt(n.elev, 2), " (", n.elevSrc || 'manual', ")"), React.createElement("td", {
     className: "r"
-  }, n.type === 'reservoir' ? `MA +${fmt(n.waterLevel, 2)} m` : fmt(n.demand, 2)))))), React.createElement("h2", null, "3. Hasil Analisis Hidrolis"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Pipa"), React.createElement("th", null, "Dari \u2192 Ke"), React.createElement("th", null, "Jenis"), React.createElement("th", null, "\xD8 (mm)"), React.createElement("th", null, "L (m)"), React.createElement("th", null, "C"), React.createElement("th", null, "Q (L/dtk)"), React.createElement("th", null, "v (m/s)"), React.createElement("th", null, "hf (m)"), React.createElement("th", null, "Status"))), React.createElement("tbody", null, project.pipes.map(p => {
+  }, n.type === 'reservoir' ? `MA +${fmt(n.waterLevel, 2)} m` : fmt(n.demand, 2)), React.createElement("td", null, n.by ? n.by.name : '-'))))), React.createElement("h2", null, "3. Hasil Analisis Hidrolis"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Pipa"), React.createElement("th", null, "Dari \u2192 Ke"), React.createElement("th", null, "Jenis"), React.createElement("th", null, "\xD8 (mm)"), React.createElement("th", null, "L (m)"), React.createElement("th", null, "C"), React.createElement("th", null, "Q (L/dtk)"), React.createElement("th", null, "v (m/s)"), React.createElement("th", null, "hf (m)"), React.createElement("th", null, "Status"))), React.createElement("tbody", null, project.pipes.map(p => {
     const r = hyd.pipes[p.id];
     return React.createElement("tr", {
       key: p.id
@@ -8454,10 +8625,256 @@ function PrintRoot({
     }
   }), React.createElement("b", null, React.createElement("u", null, b))))))), sheets);
 }
+function StampInfo({
+  item
+}) {
+  if (!item || !item.by && !item.ed) return React.createElement("p", {
+    className: "text-[11px] text-slate-400"
+  }, "Belum ada catatan petugas untuk data ini.");
+  return React.createElement("div", {
+    className: "text-[11.5px] text-slate-600 rounded-md border border-line px-3 py-2 space-y-0.5"
+  }, item.by && React.createElement("div", {
+    className: "flex gap-1.5"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 13,
+    className: "mt-0.5 text-aqua-700 shrink-0"
+  }), React.createElement("span", null, "Dicatat: ", React.createElement("b", null, stampTxt(item.by)))), item.ed && React.createElement("div", {
+    className: "flex gap-1.5"
+  }, React.createElement(Icon, {
+    name: "PencilRuler",
+    size: 13,
+    className: "mt-0.5 text-slate-400 shrink-0"
+  }), React.createElement("span", null, "Diubah terakhir: ", stampTxt(item.ed))));
+}
+function teamStats(project, hyd) {
+  const rows = new Map();
+  const get = by => {
+    const k = by ? by.id : '_';
+    if (!rows.has(k)) rows.set(k, {
+      name: by ? by.name : 'Tanpa identitas petugas',
+      role: by?.role || '',
+      nodes: 0,
+      structs: 0,
+      pipes: 0,
+      pipeLen: 0,
+      tracks: 0,
+      trackLen: 0,
+      edits: 0
+    });
+    return rows.get(k);
+  };
+  (project.team || []).forEach(t => get({
+    id: t.id,
+    name: t.name,
+    role: t.role
+  }));
+  project.nodes.forEach(n => {
+    get(n.by).nodes++;
+    if (n.ed) get(n.ed).edits++;
+  });
+  (project.structures || []).forEach(x => {
+    get(x.by).structs++;
+    if (x.ed) get(x.ed).edits++;
+  });
+  project.pipes.forEach(x => {
+    const r = get(x.by);
+    r.pipes++;
+    r.pipeLen += hyd.pipes[x.id]?.length || 0;
+    if (x.ed) get(x.ed).edits++;
+  });
+  (project.tracks || []).forEach(t => {
+    const r = get(t.by);
+    r.tracks++;
+    r.trackLen += trackLength(t.points);
+  });
+  return [...rows.values()].filter(r => r.nodes + r.structs + r.pipes + r.tracks + r.edits > 0 || r.name !== 'Tanpa identitas petugas');
+}
+function TeamReport({
+  project,
+  hyd
+}) {
+  const team = project.team || [];
+  const st = teamStats(project, hyd);
+  return React.createElement(React.Fragment, null, React.createElement("h3", null, "Tim pelaksana"), team.length ? React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Nama"), React.createElement("th", null, "Peran"), React.createElement("th", null, "Instansi"), React.createElement("th", null, "No. HP"), React.createElement("th", null, "No. identitas"))), React.createElement("tbody", null, team.map(t => React.createElement("tr", {
+    key: t.id
+  }, React.createElement("td", null, t.name), React.createElement("td", null, t.role), React.createElement("td", null, t.org), React.createElement("td", null, t.phone), React.createElement("td", null, t.idno))))) : React.createElement("p", null, "Belum ada data tim petugas."), React.createElement("h3", null, "Rekap pekerjaan lapangan per petugas"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Petugas"), React.createElement("th", null, "Node dicatat"), React.createElement("th", null, "Bangunan"), React.createElement("th", null, "Pipa (segmen / m)"), React.createElement("th", null, "Jejak GPS (n / m)"), React.createElement("th", null, "Perubahan"))), React.createElement("tbody", null, st.map((r, i) => React.createElement("tr", {
+    key: i
+  }, React.createElement("td", null, r.name, r.role ? ` (${r.role})` : ''), React.createElement("td", {
+    className: "r"
+  }, r.nodes), React.createElement("td", {
+    className: "r"
+  }, r.structs), React.createElement("td", {
+    className: "r"
+  }, r.pipes, " / ", fmt(r.pipeLen, 0)), React.createElement("td", {
+    className: "r"
+  }, r.tracks, " / ", fmt(r.trackLen, 0)), React.createElement("td", {
+    className: "r"
+  }, r.edits))))));
+}
+function MemberFields({
+  m,
+  onChange,
+  idp
+}) {
+  const f = (k, v) => onChange({
+    ...m,
+    [k]: v
+  });
+  return React.createElement("div", {
+    className: "grid grid-cols-1 sm:grid-cols-2 gap-2"
+  }, React.createElement(Field, {
+    label: "Nama petugas"
+  }, React.createElement("input", {
+    id: idp + '-name',
+    className: "tp-field",
+    value: m.name || '',
+    onChange: e => f('name', e.target.value),
+    placeholder: "Nama lengkap"
+  })), React.createElement(Field, {
+    label: "Peran"
+  }, React.createElement("select", {
+    id: idp + '-role',
+    className: "tp-field",
+    value: m.role || OFFICER_ROLES[0],
+    onChange: e => f('role', e.target.value)
+  }, OFFICER_ROLES.map(r => React.createElement("option", {
+    key: r
+  }, r)))), React.createElement(Field, {
+    label: "Instansi / unit"
+  }, React.createElement("input", {
+    id: idp + '-org',
+    className: "tp-field",
+    value: m.org || '',
+    onChange: e => f('org', e.target.value),
+    placeholder: "mis. PMI Kab. Bandung Barat"
+  })), React.createElement(Field, {
+    label: "No. HP"
+  }, React.createElement("input", {
+    id: idp + '-phone',
+    className: "tp-field",
+    inputMode: "tel",
+    value: m.phone || '',
+    onChange: e => f('phone', e.target.value)
+  })), React.createElement("div", {
+    className: "sm:col-span-2"
+  }, React.createElement(Field, {
+    label: "No. identitas (NIP / KTA / ID relawan), opsional"
+  }, React.createElement("input", {
+    id: idp + '-idno',
+    className: "tp-field",
+    value: m.idno || '',
+    onChange: e => f('idno', e.target.value)
+  }))));
+}
+function OfficerPicker({
+  project,
+  setProject,
+  officerId,
+  onPick,
+  onCancel
+}) {
+  const team = project.team || [];
+  const [sel, setSel] = useState(officerId && team.some(t => t.id === officerId) ? officerId : team[0]?.id || '');
+  const [adding, setAdding] = useState(!team.length);
+  const [nm, setNm] = useState({
+    name: '',
+    role: OFFICER_ROLES[0],
+    org: '',
+    phone: '',
+    idno: ''
+  });
+  const addAndPick = () => {
+    if (!nm.name.trim()) return;
+    const m = {
+      ...nm,
+      name: nm.name.trim(),
+      id: uid('u')
+    };
+    setProject(p => ({
+      ...p,
+      team: [...(p.team || []), m]
+    }), {
+      noStamp: true
+    });
+    onPick(m);
+  };
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2150] bg-black/40 flex items-end sm:items-center justify-center sm:p-4",
+    onClick: onCancel
+  }, React.createElement("div", {
+    className: "bg-white rounded-t-2xl sm:rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center justify-between px-5 py-3 border-b border-line"
+  }, React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 17,
+    className: "text-aqua-600"
+  }), "Siapa yang bertugas di perangkat ini?"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onCancel,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "p-5 space-y-3 text-[13px]"
+  }, React.createElement("p", {
+    className: "text-slate-600"
+  }, "Setiap titik, pipa, bangunan, dan jejak GPS akan dicatat atas nama petugas ini, lengkap dengan tanggal dan jam."), team.length > 0 && React.createElement("div", {
+    className: "space-y-1.5"
+  }, team.map(t => React.createElement("label", {
+    key: t.id,
+    className: `flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer ${sel === t.id && !adding ? 'border-aqua-500 bg-aqua-50' : 'border-line'}`
+  }, React.createElement("input", {
+    type: "radio",
+    name: "officer",
+    checked: sel === t.id && !adding,
+    onChange: () => {
+      setSel(t.id);
+      setAdding(false);
+    }
+  }), React.createElement("span", {
+    className: "min-w-0"
+  }, React.createElement("span", {
+    className: "block font-semibold truncate"
+  }, t.name), React.createElement("span", {
+    className: "block text-[12px] text-slate-500 truncate"
+  }, [t.role, t.org, t.phone].filter(Boolean).join(' · '))))), React.createElement("button", {
+    type: "button",
+    className: `w-full flex items-center gap-2 rounded-md border border-dashed px-3 py-2.5 ${adding ? 'border-aqua-500 bg-aqua-50' : 'border-line'}`,
+    onClick: () => setAdding(true)
+  }, React.createElement(Icon, {
+    name: "CirclePlus",
+    size: 16,
+    className: "text-aqua-700"
+  }), "Petugas baru")), adding && React.createElement(MemberFields, {
+    m: nm,
+    onChange: setNm,
+    idp: "new-officer"
+  }), React.createElement("div", {
+    className: "flex justify-end gap-2 pt-1"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    onClick: onCancel
+  }, "Batal"), adding ? React.createElement(Btn, {
+    variant: "primary",
+    icon: "CircleCheck",
+    disabled: !nm.name.trim(),
+    onClick: addAndPick
+  }, "Simpan & pakai") : React.createElement(Btn, {
+    variant: "primary",
+    icon: "CircleCheck",
+    disabled: !sel,
+    onClick: () => onPick(team.find(t => t.id === sel))
+  }, "Pakai petugas ini")))));
+}
 function ProjectDialog({
   project,
   setProject,
-  onClose
+  onClose,
+  officerId,
+  setOfficerId
 }) {
   const setMeta = (k, v) => setProject(p => ({
     ...p,
@@ -8465,12 +8882,58 @@ function ProjectDialog({
       ...p.meta,
       [k]: v
     }
-  }));
+  }), {
+    noStamp: true
+  });
+  const setTeam = fn => setProject(p => ({
+    ...p,
+    team: fn(p.team || [])
+  }), {
+    noStamp: true
+  });
+  const [tab, setTab] = useState('org');
+  const [logoErr, setLogoErr] = useState('');
+  const team = project.team || [];
+  const onLogo = e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!/^image\//.test(f.type)) {
+      setLogoErr('Pilih berkas gambar (PNG atau JPG).');
+      return;
+    }
+    if (f.size > 1.5e6) {
+      setLogoErr('Ukuran logo maksimal 1,5 MB.');
+      return;
+    }
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        setProject(p => ({
+          ...p,
+          meta: {
+            ...p.meta,
+            orgLogo: r.result,
+            orgLogoW: img.naturalWidth,
+            orgLogoH: img.naturalHeight
+          }
+        }), {
+          noStamp: true
+        });
+        setLogoErr('');
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(f);
+  };
+  const surveyors = team.filter(t => /survey|juru|relawan|koordinator/i.test(t.role || '')).map(t => t.name);
+  const tabs = [['org', 'Organisasi', 'Building2'], ['proj', 'Proyek', 'FileText'], ['team', `Tim petugas (${team.length})`, 'UserRound']];
   return React.createElement("div", {
     className: "fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4",
     onClick: onClose
   }, React.createElement("div", {
-    className: "bg-white rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto",
+    className: "bg-white rounded-lg w-full max-w-2xl max-h-[92vh] flex flex-col",
     onClick: e => e.stopPropagation()
   }, React.createElement("div", {
     className: "flex items-center justify-between px-5 py-3 border-b border-line"
@@ -8480,13 +8943,77 @@ function ProjectDialog({
     name: "Building2",
     size: 17,
     className: "text-aqua-600"
-  }), "Data proyek"), React.createElement(Btn, {
+  }), "Data proyek & pelaksana"), React.createElement(Btn, {
     icon: "X",
     onClick: onClose,
     title: "Tutup"
   })), React.createElement("div", {
-    className: "p-5 grid grid-cols-1 sm:grid-cols-2 gap-3"
-  }, [['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['consultant', 'Konsultan perencana', 1], ['drawingCode', 'Kode gambar', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Diperiksa oleh', 1], ['approvedBy', 'Disetujui oleh', 1], ['date', 'Tanggal', 1]].map(([k, l, span]) => React.createElement("div", {
+    className: "flex border-b border-line text-[13px] overflow-x-auto"
+  }, tabs.map(([k, l, ic]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setTab(k),
+    className: `flex items-center gap-1.5 px-4 py-2.5 whitespace-nowrap font-medium ${tab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`
+  }, React.createElement(Icon, {
+    name: ic,
+    size: 14
+  }), l))), React.createElement("div", {
+    className: "p-5 overflow-y-auto space-y-4 text-[13px]"
+  }, tab === 'org' && React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "rounded-lg border border-line p-4 flex flex-col items-center gap-3"
+  }, React.createElement(OrgLogos, {
+    meta: project.meta,
+    height: 54,
+    gap: 20,
+    className: "flex-wrap justify-center"
+  }), React.createElement("div", {
+    className: "flex flex-wrap gap-2 justify-center"
+  }, React.createElement("label", {
+    className: "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium border border-line bg-white text-slate-700 hover:border-aqua-400 cursor-pointer"
+  }, React.createElement(Icon, {
+    name: "Upload",
+    size: 15
+  }), "Ganti logo", React.createElement("input", {
+    id: "org-logo",
+    type: "file",
+    accept: "image/png,image/jpeg,image/webp,image/svg+xml",
+    className: "hidden",
+    onChange: onLogo
+  })), project.meta.orgLogo && React.createElement(Btn, {
+    variant: "outline",
+    icon: "RotateCcw",
+    onClick: () => setProject(p => ({
+      ...p,
+      meta: {
+        ...p.meta,
+        orgLogo: '',
+        orgLogoW: 0,
+        orgLogoH: 0
+      }
+    }), {
+      noStamp: true
+    })
+  }, "Kembalikan logo bawaan")), logoErr && React.createElement("p", {
+    className: "text-red-600 text-[12px]"
+  }, logoErr), React.createElement("p", {
+    className: "text-[12px] text-slate-500 text-center"
+  }, "Logo tampil di aplikasi, kop setiap lembar gambar DED, dan sampul laporan. Untuk beberapa logo sekaligus, unggah satu gambar gabungan berlatar putih.")), React.createElement(Field, {
+    label: "Nama organisasi pelaksana"
+  }, React.createElement("textarea", {
+    id: "dlg-orgName",
+    className: "tp-field h-16",
+    value: project.meta.orgName || '',
+    onChange: e => setMeta('orgName', e.target.value)
+  })), React.createElement(Field, {
+    label: "Konsultan / tim perencana (opsional)"
+  }, React.createElement("input", {
+    id: "dlg-consultant",
+    className: "tp-field",
+    value: project.meta.consultant || '',
+    onChange: e => setMeta('consultant', e.target.value)
+  }))), tab === 'proj' && React.createElement("div", {
+    className: "grid grid-cols-1 sm:grid-cols-2 gap-3"
+  }, [['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Diperiksa oleh', 1], ['approvedBy', 'Disetujui oleh', 1]].map(([k, l, span]) => React.createElement("div", {
     key: k,
     className: span === 2 ? 'sm:col-span-2' : ''
   }, React.createElement(Field, {
@@ -8496,8 +9023,56 @@ function ProjectDialog({
     className: "tp-field",
     value: project.meta[k] || '',
     onChange: e => setMeta(k, e.target.value)
-  }))))), React.createElement("div", {
-    className: "px-5 pb-4 flex justify-end"
+  })), k === 'surveyedBy' && surveyors.length > 0 && React.createElement("button", {
+    type: "button",
+    className: "text-[12px] font-semibold text-aqua-700 hover:underline mt-1",
+    onClick: () => setMeta('surveyedBy', surveyors.join(', '))
+  }, "Isi dari tim: ", surveyors.join(', '))))), tab === 'team' && React.createElement(React.Fragment, null, React.createElement("p", {
+    className: "text-slate-600"
+  }, "Daftar petugas yang terlibat. Di setiap HP atau laptop, pilih siapa yang sedang bertugas; data yang dicatat dari perangkat itu akan diberi nama petugas tersebut."), React.createElement(Field, {
+    label: "Petugas di perangkat ini"
+  }, React.createElement("select", {
+    id: "dlg-officer",
+    className: "tp-field",
+    value: officerId || '',
+    onChange: e => setOfficerId(e.target.value)
+  }, React.createElement("option", {
+    value: ""
+  }, "Belum dipilih"), team.map(t => React.createElement("option", {
+    key: t.id,
+    value: t.id
+  }, t.name, t.role ? ' · ' + t.role : '')))), team.map((m, i) => React.createElement("div", {
+    key: m.id,
+    className: "rounded-lg border border-line p-3 space-y-2"
+  }, React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, React.createElement("span", {
+    className: "font-semibold"
+  }, "Petugas ", i + 1, m.id === officerId ? ' · aktif di perangkat ini' : ''), React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Trash2",
+    title: "Hapus dari tim",
+    onClick: () => {
+      setTeam(t => t.filter(x => x.id !== m.id));
+      if (m.id === officerId) setOfficerId('');
+    }
+  })), React.createElement(MemberFields, {
+    m: m,
+    idp: 'tm-' + i,
+    onChange: v => setTeam(t => t.map(x => x.id === m.id ? v : x))
+  }))), React.createElement(Btn, {
+    variant: "outline",
+    icon: "CirclePlus",
+    onClick: () => setTeam(t => [...t, {
+      id: uid('u'),
+      name: 'Petugas baru',
+      role: OFFICER_ROLES[0],
+      org: '',
+      phone: '',
+      idno: ''
+    }])
+  }, "Tambah petugas"))), React.createElement("div", {
+    className: "px-5 py-3 border-t border-line flex justify-end"
   }, React.createElement(Btn, {
     variant: "primary",
     onClick: onClose
@@ -9153,9 +9728,11 @@ function App() {
   const [project, setProjectRaw] = useState(loadInitialProject);
   const history = useRef([]);
   const [histLen, setHistLen] = useState(0);
-  const setProject = useCallback(upd => {
+  const officerRef = useRef(null);
+  const setProject = useCallback((upd, opts = {}) => {
     setProjectRaw(prev => {
-      const next = typeof upd === 'function' ? upd(prev) : upd;
+      let next = typeof upd === 'function' ? upd(prev) : upd;
+      if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current);
       if (next !== prev) {
         history.current.push(prev);
         if (history.current.length > 60) history.current.shift();
@@ -9207,6 +9784,27 @@ function App() {
   });
   const [elevRetry, setElevRetry] = useState(0);
   const mobile = useMedia('(max-width: 1023px)');
+  const [officerId, setOfficerIdS] = useState(() => {
+    try {
+      return localStorage.getItem(OFFICER_KEY) || '';
+    } catch (e) {
+      return '';
+    }
+  });
+  const setOfficerId = useCallback(id => {
+    setOfficerIdS(id || '');
+    try {
+      localStorage.setItem(OFFICER_KEY, id || '');
+    } catch (e) {}
+  }, []);
+  const officer = (project.team || []).find(t => t.id === officerId) || null;
+  officerRef.current = officer;
+  const [pickOfficer, setPickOfficer] = useState(null);
+  const requireOfficer = fn => {
+    if (officerRef.current) fn();else setPickOfficer({
+      then: fn
+    });
+  };
   const [menuOpen, setMenuOpen] = useState(false);
   const [deviceDlg, setDeviceDlg] = useState(false);
   const [pendingLoad, setPendingLoad] = useState(null);
@@ -9260,11 +9858,18 @@ function App() {
     if (!isSt && (connect || opt.chain)) setActiveNode(id);
     return id;
   }, []);
-  const startRec = () => {
+  const startRec = () => requireOfficer(startRecNow);
+  const startRecNow = () => {
     if (!gps.watching) gps.start();
     const t = {
       id: uid('t'),
-      name: 'Jejak ' + new Date().toLocaleString('id-ID', {
+      by: officerRef.current ? {
+        id: officerRef.current.id,
+        name: officerRef.current.name,
+        role: officerRef.current.role,
+        at: Date.now()
+      } : undefined,
+      name: (officerRef.current ? officerRef.current.name + ' · ' : '') + 'Jejak ' + new Date().toLocaleString('id-ID', {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
@@ -9294,7 +9899,8 @@ function App() {
     } catch (e) {}
     wakeRef.current = null;
   };
-  const markHere = kind => {
+  const markHere = kind => requireOfficer(() => markHereNow(kind));
+  const markHereNow = kind => {
     const pos = gps.pos;
     if (!pos) {
       setToast('Menunggu posisi GPS…');
@@ -9512,6 +10118,10 @@ function App() {
     setToast('Perangkat ini tidak mendukung menu Bagikan; berkas diunduh.');
   };
   const field = {
+    officer,
+    pickOfficer: () => setPickOfficer({
+      then: () => {}
+    }),
     mobile,
     elevStatus,
     prefs,
@@ -9720,8 +10330,28 @@ function App() {
     className: "block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[560px] hover:underline text-left",
     title: "Ubah data proyek"
   }, project.meta.name))), React.createElement("div", {
+    className: "hidden xl:flex bg-white rounded-md px-2.5 py-1"
+  }, React.createElement(OrgLogos, {
+    meta: project.meta,
+    height: 26,
+    gap: 12
+  })), React.createElement("div", {
     className: "flex-1"
-  }), React.createElement("div", {
+  }), React.createElement("button", {
+    type: "button",
+    onClick: () => setPickOfficer({
+      then: null
+    }),
+    className: "flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10",
+    title: "Ganti petugas di perangkat ini"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 15
+  }), officer ? React.createElement("span", {
+    className: "max-w-[160px] truncate"
+  }, officer.name) : React.createElement("span", {
+    className: "text-amber-300"
+  }, "Pilih petugas")), React.createElement("div", {
     className: "flex flex-wrap items-center gap-1"
   }, React.createElement(Btn, {
     variant: "dark",
@@ -9731,7 +10361,9 @@ function App() {
       yes: () => {
         stopRec();
         setActiveNode(null);
-        setProject(createEmptyProject());
+        setProject(createEmptyProject(), {
+          noStamp: true
+        });
         setSelection(null);
         setTab('map');
       }
@@ -9744,7 +10376,9 @@ function App() {
       yes: () => {
         stopRec();
         setActiveNode(null);
-        setProject(createExampleProject());
+        setProject(createExampleProject(), {
+          noStamp: true
+        });
         setSelection(null);
       }
     })
@@ -9853,6 +10487,11 @@ function App() {
     name: "Calculator",
     size: 13
   }), "RAB ", rp(rab.rounded)), React.createElement("span", {
+    className: "flex items-center gap-1.5"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 13
+  }), officer ? officer.name : 'Petugas belum dipilih'), React.createElement("span", {
     className: "flex-1"
   }), project.settings.elevSource !== 'off' && elevStatus.state !== 'idle' && React.createElement("span", {
     className: "flex items-center gap-1.5"
@@ -9904,7 +10543,9 @@ function App() {
     className: "w-full text-left rounded-md border border-line hover:border-aqua-400 p-3",
     onClick: () => {
       const r = mergeProject(project, pendingLoad.data);
-      setProject(r.project);
+      setProject(r.project, {
+        noStamp: true
+      });
       setPendingLoad(null);
       setToast(`Digabung: +${r.stats.nodes.added} node, +${r.stats.pipes.added} pipa, +${r.stats.structures.added} bangunan, +${r.stats.tracks.added} jejak; ${r.stats.nodes.updated + r.stats.structures.updated} diperbarui`);
     }
@@ -9918,7 +10559,9 @@ function App() {
     onClick: () => {
       stopRec();
       setActiveNode(null);
-      setProject(normalizeProject(pendingLoad.data));
+      setProject(normalizeProject(pendingLoad.data), {
+        noStamp: true
+      });
       setSelection(null);
       setToast(`Proyek "${pendingLoad.name}" dimuat`);
       setPendingLoad(null);
@@ -9957,12 +10600,42 @@ function App() {
   }, React.createElement(Icon, {
     name: "X",
     size: 20
-  }))), [['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Muat proyek contoh', () => setConfirm({
+  }))), React.createElement("div", {
+    className: "px-4 py-3 border-b border-line space-y-2.5"
+  }, React.createElement(OrgLogos, {
+    meta: project.meta,
+    height: 30,
+    gap: 10,
+    className: "flex-wrap"
+  }), React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setMenuOpen(false);
+      setPickOfficer({
+        then: null
+      });
+    },
+    className: "w-full flex items-center gap-2.5 rounded-md bg-ground px-3 py-2.5 text-left"
+  }, React.createElement(Icon, {
+    name: "UserRound",
+    size: 19,
+    className: "text-aqua-700"
+  }), React.createElement("span", {
+    className: "flex-1 min-w-0"
+  }, React.createElement("span", {
+    className: "block text-[11px] text-slate-500"
+  }, "Petugas di perangkat ini"), React.createElement("span", {
+    className: "block text-[14px] font-semibold truncate"
+  }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
+    className: "text-[12px] font-semibold text-aqua-700"
+  }, "Ganti"))), [['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Muat proyek contoh', () => setConfirm({
     text: 'Muat ulang Proyek Contoh desa? Proyek saat ini akan diganti.',
     yes: () => {
       stopRec();
       setActiveNode(null);
-      setProject(createExampleProject());
+      setProject(createExampleProject(), {
+        noStamp: true
+      });
       setSelection(null);
     }
   })], ['FilePlus2', 'Proyek baru (kosong)', () => setConfirm({
@@ -9970,7 +10643,9 @@ function App() {
     yes: () => {
       stopRec();
       setActiveNode(null);
-      setProject(createEmptyProject());
+      setProject(createEmptyProject(), {
+        noStamp: true
+      });
       setSelection(null);
       setTab('map');
     }
@@ -10004,7 +10679,22 @@ function App() {
   }), dialog && React.createElement(ProjectDialog, {
     project: project,
     setProject: setProject,
-    onClose: () => setDialog(false)
+    onClose: () => setDialog(false),
+    officerId: officerId,
+    setOfficerId: setOfficerId
+  }), pickOfficer && React.createElement(OfficerPicker, {
+    project: project,
+    setProject: setProject,
+    officerId: officerId,
+    onCancel: () => setPickOfficer(null),
+    onPick: m => {
+      setOfficerId(m.id);
+      officerRef.current = m;
+      const fn = pickOfficer.then;
+      setPickOfficer(null);
+      setToast(`Petugas aktif: ${m.name}`);
+      fn && fn();
+    }
   }), confirm && React.createElement(ConfirmDialog, {
     text: confirm.text,
     onNo: () => setConfirm(null),
