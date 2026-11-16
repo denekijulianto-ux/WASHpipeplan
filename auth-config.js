@@ -1,15 +1,8 @@
-// Konfigurasi login daring TirtaPlan Studio (Firebase Authentication + Firestore).
+// Konfigurasi login daring aplikasi WASH PMI - Water for life (Firebase Authentication + Firestore).
 //
-// Selama "firebase" bernilai null, aplikasi memakai MODE LOKAL: akun hanya tersimpan
-// di perangkat masing-masing. Untuk membatasi akses semua orang, isi konfigurasi di bawah
-// (lihat langkah di README.md, bagian "Login daring"), lalu simpan/commit berkas ini.
-
-  // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
+// PENTING: berkas ini dibaca langsung oleh browser. Jangan menambahkan baris "import ...",
+// "initializeApp(...)" atau "getAnalytics(...)" dari contoh Firebase; cukup isi nilai di bawah.
+// Pisahkan beberapa email admin dengan KOMA. Daftar admin harus sama dengan firestore.rules.
 window.TIRTAPLAN_AUTH = {
   firebase: {
     apiKey: "AIzaSyCndGEZn1bQY1etP9HuGpMjdweKdwY-t_I",
@@ -19,11 +12,5 @@ window.TIRTAPLAN_AUTH = {
     messagingSenderId: "1234567890",
     appId: "1:1234567890:web:abc123"
   },
-  adminEmails: ["denekijulianto@gmail.com". "eki_julianto@pmi.or.id"],
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
+  adminEmails: ["denekijulianto@gmail.com", "eki_julianto@pmi.or.id"],
 };
