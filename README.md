@@ -37,6 +37,30 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Jenis filtrasi & media (tab Olah Air)
+Di setiap desain IPA terpusat, bagian **Jenis filtrasi & spesifikasi media** menyediakan tiga jenis filtrasi:
+- **Bak beton terpisah:** unit-unit IPA standar.
+- **Menyatu di bak penampung / reservoir:** satu bak bersekat dengan urutan ruang penenang/pengendap → saringan kerikil/pasir → karbon aktif (aliran naik) → ruang air bersih. Bak bisa dibuat baru, atau ruang filternya ditempelkan ke reservoir yang sudah ada. Pada pilihan kedua, RAB hanya menghitung ruang filter.
+- **Tabung FRP bertekanan:** ukuran tabung (844 s.d. 4872), jumlah, laju filtrasi dan katup multiport dipilih otomatis. Tabung bisa dipasang menyatu di platform menara air (beban ikut dicek) atau terpisah di samping menara.
+
+Spesifikasi media yang bisa dipilih:
+- ukuran mesh pasir silika (8–16 s.d. 40–70 mesh);
+- bilangan iodin dan ukuran butir karbon aktif;
+- filter cartridge (1–50 µm);
+- membran MF/UF/NF, lengkap dengan ukuran pori, MWCO, fluks dan recovery.
+
+Pilihan ini memengaruhi perkiraan kualitas air olahan, gambar DED dan RAB.
+
+## Konstruksi tambahan (tab DED)
+Setiap bangunan, termasuk menara air, bisa diberi konstruksi tambahan:
+- bak katup (gate valve) atau bak meter air pada pipa inlet/outlet/penguras;
+- saluran drainase;
+- pagar pengaman;
+- lantai rabat;
+- item lain dengan isian bebas.
+
+Volume dan harganya masuk ke RAB bangunan tersebut. Gambar detailnya ada di lembar "Konstruksi tambahan".
+
 ## Mengedit BoQ & RAB
 Di tab **BoQ & RAB**, tekan **Edit item RAB** untuk:
 - mengubah uraian, volume dan satuan item (ikon ↺ mengembalikan nilai otomatis);
