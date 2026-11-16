@@ -1,5 +1,5 @@
 // Service worker TirtaPlan Studio: aplikasi tetap terbuka tanpa sinyal di lapangan.
-const APP = 'tirtaplan-app-v15';
+const APP = 'tirtaplan-app-v16';
 const TILES = 'tirtaplan-tiles-v1';
 const MAX_TILES = 3000;
 const SHELL = ['./', './index.html', './auth-config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
@@ -34,7 +34,7 @@ async function trimTiles(c) { const keys = await c.keys(); if (keys.length > MAX
 self.addEventListener('fetch', (e) => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.hostname === 'api.open-meteo.com' || /googleapis\.com|firebaseio\.com|identitytoolkit/.test(url.hostname)) return; // layanan daring: selalu dari jaringan
+  if (url.hostname === 'api.open-meteo.com' || url.hostname === 'nominatim.openstreetmap.org' || /googleapis\.com|firebaseio\.com|identitytoolkit/.test(url.hostname)) return; // layanan daring: selalu dari jaringan
   if (url.pathname.endsWith('/auth-config.js')) { e.respondWith(fetch(req).then(r => { const cp = r.clone(); caches.open(APP).then(c => c.put(req.url, cp)); return r; }).catch(() => caches.match(req.url))); return; } // elevasi: selalu dari jaringan (aplikasi punya cadangan sendiri)
   if (isTile(url)) {
     e.respondWith((async () => {

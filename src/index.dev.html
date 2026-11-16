@@ -89,6 +89,8 @@
   #app-shell { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
   .tp-struct { width: 100%; height: 100%; padding: 0 4px; border-radius: 3px; background: #3730a3; color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); font: 700 9px/16px "IBM Plex Mono", monospace; text-align: center; box-sizing: border-box; white-space: nowrap; }
   .tp-struct.sel { box-shadow: 0 0 0 3px rgba(255,255,255,.95), 0 0 0 6px #f97316; }
+  .tp-site { font: 700 22px/1 sans-serif; color: #dc2626; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+  .tp-photo { width: 100%; height: 100%; border-radius: 50%; background: #7c3aed; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; box-sizing: border-box; cursor: pointer; }
   .tp-vtx { width: 100%; height: 100%; border-radius: 50%; background: #fff; border: 3px solid #f97316; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: move; }
   .tp-vtx.bad { border-color: #dc2626; background: #fee2e2; }
   .tp-vadd { width: 100%; height: 100%; border-radius: 50%; background: rgba(255,255,255,.75); border: 1.5px dashed #f97316; color: #c2410c; font: 700 12px/1 sans-serif; display: flex; align-items: center; justify-content: center; box-sizing: border-box; cursor: copy; }
@@ -652,6 +654,7 @@ function normalizeProject(p) {
     cloud: p.cloud && p.cloud.id ? { status: 'draft', reviews: [], ...p.cloud } : null,
     nodes: p.nodes.map(n => ({ demand: 0, waterLevel: 0, elev: 0, elevAuto: false, elevSrc: 'manual', ...n, lat: +n.lat, lng: +n.lng, type: NODE_TYPES[n.type] ? n.type : 'junction' })),
     tracks: Array.isArray(p.tracks) ? p.tracks.filter(t => Array.isArray(t.points)) : [],
+    photos: Array.isArray(p.photos) ? p.photos.filter(x => x && x.id) : [],
     team: Array.isArray(p.team) ? p.team.filter(t => t && t.id && t.name) : [],
     treatments: Array.isArray(p.treatments) ? p.treatments.map(t => ({ ...TREAT_DEFAULTS, ...t, filt: { ...FILT_DEFAULTS, ...(t.scale === 'household' ? { sandMesh: '30-50' } : {}), ...(t.filt || {}) }, q: { ...(WQ_SOURCES[t.source] || WQ_SOURCES.spring).q, ...(t.q || {}) } })) : (p.nodes.some(n => n.id === 'n_r1') ? exampleTreatments() : []),
     pipes: p.pipes.map(x => { const q = { material: 'PVC', diameter: 90, ...x }; if (Array.isArray(q.path)) q.path = q.path.filter(v => Array.isArray(v) && isFinite(+v[0]) && isFinite(+v[1])).map(v => [+v[0], +v[1]]); else delete q.path; return q; }),
@@ -680,7 +683,8 @@ function mergeProject(base, incoming) {
   const tracks = merge(base.tracks || [], inc.tracks || [], 'tracks', null);
   const team = merge(base.team || [], inc.team || [], 'team', null);
   const treatments = merge(base.treatments || [], inc.treatments || [], 'treatments', null);
-  return { project: { ...base, nodes, pipes, structures, tracks, team, treatments }, stats };
+  const photos = merge(base.photos || [], inc.photos || [], 'photos', null);
+  return { project: { ...base, nodes, pipes, structures, tracks, team, treatments, photos }, stats };
 }
 const projectKey = (user) => user ? STORAGE_KEY + ':' + user.uid : STORAGE_KEY;
 function loadInitialProject(key = STORAGE_KEY) {
@@ -2044,21 +2048,27 @@ function LeafletMap(props) {
       if (p.tool === 'draw' && a) rubberRef.current.setLatLngs([[a.lat, a.lng], ...(p.pending || []), e.latlng]); else rubberRef.current.setLatLngs([]);
       p.onCursor && p.onCursor(e.latlng);
     });
-    map.on('moveend', () => { LAST_VIEW = { c: map.getCenter(), z: map.getZoom() }; });
+    map.on('moveend', () => { LAST_VIEW = { c: map.getCenter(), z: map.getZoom(), key: propsRef.current.projKey }; });
     mapRef.current = map;
-    if (LAST_VIEW) map.setView(LAST_VIEW.c, LAST_VIEW.z);
+    if (LAST_VIEW && LAST_VIEW.key === props.projKey) map.setView(LAST_VIEW.c, LAST_VIEW.z);
     else fit(map, project.nodes);
     setTimeout(() => map.invalidateSize(), 50);
     const ro = new ResizeObserver(() => map.invalidateSize()); ro.observe(divRef.current);
     return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []);
 
+  // Tampilan peta: jaringan proyek → koordinat lokasi pekerjaan → posisi GPS perangkat → bawaan
   function fit(map, nodes) {
+    const site = propsRef.current.site;
     if (nodes.length >= 2) map.fitBounds(L.latLngBounds(nodes.map(n => [n.lat, n.lng])).pad(0.25));
     else if (nodes.length === 1) map.setView([nodes[0].lat, nodes[0].lng], 17);
-    else map.setView([-6.8420, 107.5010], 15);
+    else if (site) map.setView([site.lat, site.lng], 16);
+    else { map.setView([-2.5, 118], 5); if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { if (mapRef.current && !propsRef.current.project.nodes.length && !propsRef.current.site) mapRef.current.setView([p.coords.latitude, p.coords.longitude], 15); }, () => {}, { timeout: 8000 }); }
   }
   useEffect(() => { if (fitSignal && mapRef.current) fit(mapRef.current, project.nodes); }, [fitSignal]);
+  const firstKey = useRef(props.projKey);
+  useEffect(() => { if (mapRef.current && props.projKey !== firstKey.current) { firstKey.current = props.projKey; fit(mapRef.current, project.nodes); } }, [props.projKey]);
+  useEffect(() => { if (mapRef.current && props.site && !project.nodes.length) mapRef.current.setView([props.site.lat, props.site.lng], Math.max(mapRef.current.getZoom(), 16)); }, [props.site?.lat, props.site?.lng]);
   useEffect(() => { if (props.focus && mapRef.current) mapRef.current.setView([props.focus.lat, props.focus.lng], Math.max(mapRef.current.getZoom(), 17)); }, [props.focus]);
   useEffect(() => {
     const g = trackRef.current; if (!g) return; g.clearLayers();
@@ -2125,6 +2135,12 @@ function LeafletMap(props) {
       }
     });
     (props.pending || []).forEach(q => L.circleMarker(q, { radius: 4, color: '#fff', weight: 2, fillColor: '#f97316', fillOpacity: 1, interactive: false }).addTo(group));
+    if (props.site) L.marker([props.site.lat, props.site.lng], { interactive: false, zIndexOffset: -200, icon: L.divIcon({ className: 'tp-node-wrap', iconSize: [26, 30], iconAnchor: [4, 28], html: '<div class="tp-site">⚑</div>' }) })
+      .bindTooltip('Lokasi pekerjaan', { permanent: !project.nodes.length, direction: 'right', offset: [16, -14], className: 'tp-label' }).addTo(group);
+    if (props.showPhotos !== false) (props.photos || []).forEach(ph => { if (ph.lat == null) return;
+      const m = L.marker([ph.lat, ph.lng], { bubblingMouseEvents: false, zIndexOffset: 300, icon: L.divIcon({ className: 'tp-node-wrap', iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="tp-photo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>' }) }).addTo(group);
+      m.on('click', () => propsRef.current.onPhotoClick && propsRef.current.onPhotoClick(ph));
+      m.bindTooltip(`<div style="width:120px"><img src="${ph.thumb}" style="width:120px;border-radius:3px"/><div style="font-size:11px;white-space:normal">${String(ph.caption || PHOTO_CATS[ph.cat] || '').replace(/[<>&]/g, '')}</div></div>`, { direction: 'top', offset: [0, -10] }); });
     (project.structures || []).forEach(st => {
       if (st.nodeId || st.lat == null || st.lng == null) return;
       const sel = selection?.kind === 'struct' && selection.id === st.id;
@@ -2148,7 +2164,7 @@ function LeafletMap(props) {
       if (showLabels) m.bindTooltip(`${n.label}${r.pressure !== null && !isSrc(n) ? ' · ' + fmt(r.pressure, 1) + ' mka' : n.type === 'borehole' && hyd.pumps[n.id] ? ` · ${fmt(hyd.pumps[n.id].Q, 1)} L/dt · ${fmt(hyd.pumps[n.id].Hd, 0)} m` : ''}`, { permanent: true, direction: 'right', offset: [12, 0], className: 'tp-label' });
       else m.bindTooltip(`${n.label} · ${NODE_TYPES[n.type].label}`, { direction: 'top', offset: [0, -12] });
     });
-  }, [project.nodes, project.pipes, project.structures, hyd, selection, activeNode, tool, colorMode, showLabels, props.pending]);
+  }, [project.nodes, project.pipes, project.structures, hyd, selection, activeNode, tool, colorMode, showLabels, props.pending, props.photos, props.site, props.showPhotos]);
 
   return <div ref={divRef} className="absolute inset-0" />;
 }
@@ -2274,7 +2290,7 @@ function StructLocFields({ st, setProject }) {
     {st.lat == null && <p className="text-[11px] text-slate-500">Isi koordinat, tandai lewat GPS, atau letakkan di peta (Workspace 1 → Bangunan) agar elevasi terisi otomatis.</p>}
   </div>;
 }
-function StructMapInspector({ st, project, setProject, onDelete, openDed }) {
+function StructMapInspector({ st, project, setProject, onDelete, openDed, field }) {
   const upd = patch => setProject(p => ({ ...p, structures: p.structures.map(x => x.id === st.id ? { ...x, ...patch } : x) }));
   const g = structGeom(st, project);
   return <div className="space-y-3">
@@ -2292,6 +2308,7 @@ function StructMapInspector({ st, project, setProject, onDelete, openDed }) {
       <span className="text-slate-500">Muka air (MAT)</span><span className="text-right font-mono num">{elevTxt(g.floor + g.Hw)}</span>
       <span className="text-slate-500">Kapasitas</span><span className="text-right font-mono num">{fmt(g.cap ?? g.L * g.B * g.Hw, 2)} m³</span>
     </div>
+    {field && <PhotoStrip project={project} refObj={{ kind: 'struct', id: st.id }} field={field} />}
     <StampInfo item={st} />
     <Btn icon="DraftingCompass" variant="outline" onClick={openDed}>Buka gambar DED bangunan</Btn>
   </div>;
@@ -2338,6 +2355,7 @@ function GpsPanel({ project, setProject, field, onOpenImport, embedded }) {
           <button type="button" className="font-semibold text-aqua-700 hover:underline shrink-0" onClick={() => setActiveNode(null)}>Akhiri jalur</button></div>
           : <span className="text-slate-600">Tandai titik awal (mis. Reservoir) di posisi Anda untuk mulai membuat pipa sepanjang jejak.</span>}
       </div>
+      <Btn variant="outline" icon="Camera" className="w-full justify-center !border-violet-300 !text-violet-800" onClick={() => field.takePhoto({ camera: true })}>Ambil foto asesmen di posisi saya</Btn>
       <div>
         <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Tandai di posisi saya</div>
         <div className="grid grid-cols-4 gap-1">
@@ -2513,15 +2531,21 @@ function MapWorkspace({ project, setProject, hyd, selection, setSelection, field
   </div>;
   const inspectorJsx = <>
     {!selNode && !selPipe && !selStruct && <div className="text-[13px] text-slate-500 flex gap-2"><Icon name="Info" size={16} className="shrink-0 mt-0.5 text-aqua-600" />{mobile ? 'Ketuk node, pipa, atau bangunan di peta (alat Pilih) untuk mengedit parameternya.' : 'Pilih node, pipa, atau bangunan di peta (atau di daftar bawah) untuk mengedit parameternya.'}</div>}
-    {selNode && <NodeInspector node={selNode} res={hyd.nodes[selNode.id]} project={project} setProject={setProject} hyd={hyd} upd={patch => updNode(selNode.id, patch)} onDelete={() => deleteNode(selNode.id)} setSelection={setSelection} />}
+    {selNode && <NodeInspector field={field} node={selNode} res={hyd.nodes[selNode.id]} project={project} setProject={setProject} hyd={hyd} upd={patch => updNode(selNode.id, patch)} onDelete={() => deleteNode(selNode.id)} setSelection={setSelection} />}
     {selPipe && <PipeInspector pipe={selPipe} res={hyd.pipes[selPipe.id]} nmap={nmap} bendAngle={project.settings.bendAngle} upd={patch => updPipe(selPipe.id, patch)} onDelete={() => deletePipe(selPipe.id)} onSplit={() => splitPipe(selPipe.id)} />}
-    {selStruct && <StructMapInspector key={selStruct.id} st={selStruct} project={project} setProject={setProject} onDelete={() => deleteStruct(selStruct.id)} openDed={() => field.openDed(selStruct.id)} />}
+    {selStruct && <StructMapInspector field={field} key={selStruct.id} st={selStruct} project={project} setProject={setProject} onDelete={() => deleteStruct(selStruct.id)} openDed={() => field.openDed(selStruct.id)} />}
   </>;
   const pickRow = (sel) => { setSelection(sel); if (mobile) setSheet('edit'); };
   const listTabsJsx = <div className="flex border-b border-line text-[12px] font-semibold">
-    {[['nodes', `Node (${project.nodes.length})`], ['pipes', `Pipa (${project.pipes.length})`], ['structs', `Bangunan (${structs.length})`]].map(([k, l]) => <button key={k} type="button" onClick={() => setListTab(k)} className={`flex-1 py-2 ${listTab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}
+    {[['nodes', `Node (${project.nodes.length})`], ['pipes', `Pipa (${project.pipes.length})`], ['structs', `Bangunan (${structs.length})`], ['photos', `Foto (${(project.photos || []).length})`]].map(([k, l]) => <button key={k} type="button" onClick={() => setListTab(k)} className={`flex-1 py-2 ${listTab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}
   </div>;
   const listJsx = <>
+    {listTab === 'photos' && <div className="p-2 space-y-2">
+      <div className="flex gap-1.5"><Btn variant="primary" icon="Camera" onClick={() => field.takePhoto({ camera: true })}>Ambil foto</Btn><Btn variant="outline" icon="Image" onClick={() => field.takePhoto({ camera: false })}>Dari galeri</Btn></div>
+      {!(project.photos || []).length ? <p className="text-[12px] text-slate-500 px-1">Belum ada foto. Foto sumber air, bak, dan fasilitas existing saat asesmen; koordinat GPS ikut tersimpan.</p>
+        : <div className="grid grid-cols-3 gap-1.5">{(project.photos || []).map(ph => <button key={ph.id} type="button" onClick={() => { field.openPhoto(ph); if (ph.lat != null) field.setFocus({ lat: ph.lat, lng: ph.lng, t: Date.now() }); }} className="text-left rounded overflow-hidden border border-line hover:ring-2 hover:ring-aqua-400">
+          <PhotoImg ph={ph} className="w-full h-20 object-cover" /><div className="px-1 py-0.5 text-[10.5px] leading-tight truncate">{ph.caption || PHOTO_CATS[ph.cat]}</div></button>)}</div>}
+    </div>}
     {listTab === 'nodes' && <table className="tp-table"><thead><tr><th>Node</th><th>Tipe</th><th className="r">Elev</th><th>Sumber</th><th className="r">P</th></tr></thead><tbody>
       {project.nodes.map(n => <tr key={n.id} className={'clickable ' + (selection?.id === n.id ? 'active' : '')} onClick={() => pickRow({ kind: 'node', id: n.id })}>
         <td className="font-semibold">{n.label}</td><td>{NODE_TYPES[n.type].short}</td><td className="r">{fmt(n.elev, 1)}</td><td><ElevBadge src={n.elevSrc} /></td>
@@ -2539,7 +2563,8 @@ function MapWorkspace({ project, setProject, hyd, selection, setSelection, field
   </>;
   const mapJsx = <MapComp project={project} hyd={hyd} selection={selection} activeNode={activeNode} tool={tool} colorMode={colorMode} showLabels={showLabels} fitSignal={fitSignal} bendAngle={project.settings.bendAngle}
     tracks={project.tracks} gpsPos={field.gps.pos} follow={field.follow && field.gps.watching} focus={field.focus} mobile={mobile}
-    pending={pending} onPipeVertex={onPipeVertex} onMapClick={onMapClick} onNodeClick={id => { onNodeClick(id); if (mobile && tool === 'select') setSheet('edit'); }} onPipeClick={id => { onPipeClick(id); if (mobile && tool === 'select') setSheet('edit'); }}
+    pending={pending} onPipeVertex={onPipeVertex} projKey={project.cloud?.id || 'local'} site={project.meta.lat != null && project.meta.lng != null ? { lat: +project.meta.lat, lng: +project.meta.lng } : null}
+    photos={project.photos} onPhotoClick={field.openPhoto} onMapClick={onMapClick} onNodeClick={id => { onNodeClick(id); if (mobile && tool === 'select') setSheet('edit'); }} onPipeClick={id => { onPipeClick(id); if (mobile && tool === 'select') setSheet('edit'); }}
     onNodeDrag={onNodeDrag} onStructClick={id => { onStructClick(id); if (mobile && tool === 'select') setSheet('edit'); }} onStructDrag={onStructDrag} onCursor={mobile ? undefined : setCursor} />;
 
   if (mobile) {
@@ -2644,7 +2669,7 @@ function SrFields({ node, project, setProject, upd }) {
     <Btn icon="Cable" variant="outline" onClick={reconnect}>Sambung ulang ke pipa terdekat</Btn>
   </div>;
 }
-function NodeInspector({ node, res, project, setProject, hyd, upd, onDelete, setSelection }) {
+function NodeInspector({ node, res, project, setProject, hyd, upd, onDelete, setSelection, field }) {
   const pipes = project.pipes.filter(p => p.from === node.id || p.to === node.id);
   return <div className="space-y-3">
     <div className="flex items-center justify-between">
@@ -2663,6 +2688,7 @@ function NodeInspector({ node, res, project, setProject, hyd, upd, onDelete, set
       <div className="col-span-2"><Field label="Koordinat (desimal, DMS, atau UTM)"><CoordField id="node-coord" lat={node.lat} lng={node.lng} onChange={ll => upd({ lat: +ll.lat.toFixed(7), lng: +ll.lng.toFixed(7) })} /></Field></div>
     </div>
     {node.type === 'sr' && setProject && <SrFields node={node} project={project} setProject={setProject} upd={upd} />}
+    {field && <PhotoStrip project={project} refObj={{ kind: 'node', id: node.id }} field={field} />}
     {!node.elevAuto && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline" onClick={() => upd({ elevAuto: true, elevKey: null })}>Ambil elevasi otomatis dari DEM</button>}
     {node.elevAuto && node.elevSrc === 'est' && <p className="text-[11px] text-amber-700">Elevasi sementara diperkirakan dari node sekitar; menunggu data DEM.</p>}
     <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
@@ -5027,6 +5053,81 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
 }
 
 /* =====================================================================
+   FOTO ASESMEN: miniatur di proyek, foto penuh di IndexedDB perangkat (+ cloud bila login daring)
+   ===================================================================== */
+const PHOTO_CATS = { source: 'Sumber air', intake: 'Bangunan penangkap / intake', tank: 'Bak / reservoir existing', pipe: 'Jaringan pipa existing', facility: 'Fasilitas air (hidran, kran umum, MCK)', quality: 'Kondisi / kualitas air', site: 'Lokasi, akses & lahan', other: 'Lainnya' };
+const PHOTO_CACHE = new Map(); let PHOTO_CLOUD = null; // store cloud diatur oleh App
+const photoDB = (() => { let pr = null;
+  const open = () => pr || (pr = new Promise((res, rej) => { const r = indexedDB.open('tirtaplan-photos', 1); r.onupgradeneeded = () => r.result.createObjectStore('photos'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+  const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('photos', mode); const rq = fn(t.objectStore('photos')); t.oncomplete = () => res(rq ? rq.result : undefined); t.onerror = () => rej(t.error); }); };
+  return { get: (id) => run('readonly', s => s.get(id)).catch(() => null), put: (id, v) => run('readwrite', s => s.put(v, id)), del: (id) => run('readwrite', s => s.delete(id)).catch(() => {}) }; })();
+async function loadPhoto(id) {
+  if (PHOTO_CACHE.has(id)) return PHOTO_CACHE.get(id);
+  let v = await photoDB.get(id);
+  if (!v && PHOTO_CLOUD && navigator.onLine) { try { v = await PHOTO_CLOUD.getPhoto(id); if (v) await photoDB.put(id, v).catch(() => {}); } catch (e) {} }
+  if (v) PHOTO_CACHE.set(id, v); return v || null;
+}
+function resizeImage(file, max, q) {
+  return new Promise((res, rej) => { const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)); const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+      const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url); res({ data: c.toDataURL('image/jpeg', q), w, h }); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Berkas bukan gambar yang bisa dibaca.')); }; img.src = url; });
+}
+const refOf = (project, ref) => { if (!ref) return null; if (ref.kind === 'node') { const n = project.nodes.find(x => x.id === ref.id); return n ? { label: n.label, type: NODE_TYPES[n.type].label, lat: n.lat, lng: n.lng } : null; }
+  const st = (project.structures || []).find(x => x.id === ref.id); if (!st) return null; const nd = st.nodeId && project.nodes.find(n => n.id === st.nodeId);
+  return { label: st.label, type: STRUCT_TYPES[st.type].label, lat: nd ? nd.lat : st.lat, lng: nd ? nd.lng : st.lng }; };
+const guessPhotoCat = (project, ref) => { if (!ref) return 'source'; if (ref.kind === 'node') { const t = project.nodes.find(x => x.id === ref.id)?.type; return t === 'reservoir' ? 'tank' : t === 'borehole' ? 'source' : t === 'hydrant' || t === 'sr' ? 'facility' : 'pipe'; }
+  const t = (project.structures || []).find(x => x.id === ref.id)?.type; return t === 'broncaptering' || t === 'bc_v' ? 'source' : t === 'hidran' ? 'facility' : 'tank'; };
+function usePhoto(id) { const [u, setU] = useState(() => PHOTO_CACHE.get(id) || null); useEffect(() => { let on = true; if (!u) loadPhoto(id).then(v => { if (on) setU(v); }); return () => { on = false; }; }, [id]); return u; }
+function PhotoImg({ ph, className, full }) { const u = usePhoto(ph.id); const src = full ? (u || ph.thumb) : ph.thumb || u; return src ? <img src={src} alt={ph.caption || 'foto'} className={className} /> : <div className={className + ' bg-slate-200'} />; }
+function PhotoDialog({ ph, project, setProject, onClose }) {
+  const u = usePhoto(ph.id); const [del, setDel] = useState(false);
+  const upd = (patch) => setProject(p => ({ ...p, photos: (p.photos || []).map(x => x.id === ph.id ? { ...x, ...patch } : x) }));
+  const cur = (project.photos || []).find(x => x.id === ph.id) || ph; const r = refOf(project, cur.ref);
+  const targets = [...project.nodes.map(n => ['node:' + n.id, `${n.label} · ${NODE_TYPES[n.type].label}`]), ...(project.structures || []).map(s => ['struct:' + s.id, `${s.label} · ${STRUCT_TYPES[s.type].label}`])];
+  return <div className="fixed inset-0 z-[2200] bg-black/70 flex items-center justify-center p-3" onClick={onClose}>
+    <div className="bg-white rounded-lg w-full max-w-3xl max-h-[94vh] flex flex-col md:flex-row overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="md:flex-1 bg-black flex items-center justify-center min-h-[220px]">{u || cur.thumb ? <img src={u || cur.thumb} alt="" className="max-h-[55vh] md:max-h-[90vh] w-auto object-contain" /> : <span className="text-white text-sm">Memuat foto…</span>}</div>
+      <div className="md:w-72 p-4 space-y-2.5 overflow-y-auto text-[13px]">
+        <div className="flex items-center justify-between"><span className="font-semibold flex items-center gap-1.5"><Icon name="Camera" size={16} className="text-aqua-700" />Foto asesmen</span><Btn icon="X" onClick={onClose} /></div>
+        <Field label="Kategori"><select id="ph-cat" className="tp-field" value={cur.cat} onChange={e => upd({ cat: e.target.value })}>{Object.entries(PHOTO_CATS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+        <Field label="Keterangan"><textarea id="ph-caption" className="tp-field h-20" value={cur.caption || ''} placeholder="mis. Mata air Cibodas, debit ± 2 L/dtk, kondisi bak rusak" onChange={e => upd({ caption: e.target.value })} /></Field>
+        <Field label="Terkait dengan"><select id="ph-ref" className="tp-field" value={cur.ref ? `${cur.ref.kind}:${cur.ref.id}` : ''} onChange={e => { const [k, id] = e.target.value.split(':'); upd({ ref: id ? { kind: k, id } : null }); }}>
+          <option value="">Tidak terkait titik tertentu</option>{targets.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+        <div className="rounded-md bg-ground px-3 py-2 text-[12px] space-y-0.5">
+          <div>{cur.lat != null ? <>Lokasi: <span className="font-mono">{(+cur.lat).toFixed(6)}, {(+cur.lng).toFixed(6)}</span>{cur.acc ? ` (±${Math.round(cur.acc)} m)` : ''} · {cur.locSrc === 'gps' ? 'GPS' : cur.locSrc === 'ref' ? 'titik terkait' : 'peta'}</> : 'Tanpa koordinat'}</div>
+          <div>Diambil {new Date(cur.at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}{cur.by ? ` · ${cur.by.name}` : ''}</div>
+          {r && <div>Titik: {r.label} ({r.type})</div>}
+          <div>{cur.w}×{cur.h} px</div>
+        </div>
+        {r && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline" onClick={() => upd({ lat: r.lat, lng: r.lng, locSrc: 'ref', acc: null })}>Pakai koordinat {r.label}</button>}
+        <div className="flex gap-2 pt-1">{u && <a className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium border border-line hover:border-aqua-400" href={u} download={`foto_${(cur.caption || cur.id).replace(/[^\w\- ]+/g, '').slice(0, 30)}.jpg`}><Icon name="Download" size={15} />Unduh</a>}
+          {del ? <Btn variant="danger" icon="Trash2" onClick={() => { setProject(p => ({ ...p, photos: (p.photos || []).filter(x => x.id !== ph.id) })); photoDB.del(ph.id); PHOTO_CACHE.delete(ph.id); onClose(); }}>Ya, hapus</Btn>
+            : <Btn variant="danger" icon="Trash2" onClick={() => setDel(true)}>Hapus</Btn>}</div>
+      </div>
+    </div>
+  </div>;
+}
+function PhotoStrip({ project, refObj, field }) {
+  const list = (project.photos || []).filter(p => refObj ? p.ref && p.ref.kind === refObj.kind && p.ref.id === refObj.id : true);
+  return <div className="space-y-1.5">
+    <div className="flex items-center justify-between"><span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Foto asesmen ({list.length})</span>
+      <div className="flex gap-1"><Btn variant="outline" icon="Camera" onClick={() => field.takePhoto({ ref: refObj, camera: true })}>Ambil foto</Btn><Btn variant="ghost" icon="Image" title="Pilih dari galeri" onClick={() => field.takePhoto({ ref: refObj, camera: false })} /></div></div>
+    {list.length > 0 && <div className="flex gap-1.5 overflow-x-auto pb-1">{list.map(ph => <button key={ph.id} type="button" onClick={() => field.openPhoto(ph)} className="shrink-0 rounded overflow-hidden border border-line hover:ring-2 hover:ring-aqua-400" title={ph.caption || PHOTO_CATS[ph.cat]}>
+      <PhotoImg ph={ph} className="w-20 h-16 object-cover" /></button>)}</div>}
+  </div>;
+}
+function PhotoReport({ project }) {
+  const list = project.photos || []; if (!list.length) return null;
+  return <><h3>Dokumentasi foto asesmen ({list.length})</h3>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4mm' }}>{list.map((ph, i) => { const r = refOf(project, ph.ref);
+      return <div key={ph.id} style={{ breakInside: 'avoid', border: '0.3mm solid #999', padding: '2mm' }}>
+        <PhotoImg ph={ph} full className="w-full h-[60mm] object-cover" />
+        <div style={{ fontSize: '8.5pt', marginTop: '1.5mm' }}><b>Foto {i + 1}. {PHOTO_CATS[ph.cat] || ''}</b>{r ? ` · ${r.label}` : ''}<br />{ph.caption || '-'}<br />
+          <span style={{ color: '#555' }}>{ph.lat != null ? `${(+ph.lat).toFixed(6)}, ${(+ph.lng).toFixed(6)} · ` : ''}{new Date(ph.at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}{ph.by ? ` · ${ph.by.name}` : ''}</span></div></div>; })}</div></>;
+}
+
+/* =====================================================================
    14. LAPORAN CETAK
    ===================================================================== */
 function PrintRoot({ mode, project, hyd, boq, rab }) {
@@ -5062,6 +5163,7 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
       <tr><td>Kecepatan aliran</td><td>{s.vMin} – {s.vMax} m/s</td></tr><tr><td>Sisa tekanan</td><td>minimal {s.pMin} mka, maksimal {s.pMax} mka</td></tr>
       <tr><td>Dimensi galian</td><td>W {fmt(s.trenchWidth, 2)} m × H {fmt(s.trenchDepth, 2)} m; pasir alas {fmt(s.sandBed, 2)} m; pasir di atas pipa {fmt(s.sandCover, 2)} m</td></tr></tbody></table>
     <TeamReport project={project} hyd={hyd} />
+    <PhotoReport project={project} />
     <h2>2. Data Jaringan</h2>
     <table><thead><tr><th>Node</th><th>Tipe</th><th>Lintang</th><th>Bujur</th><th>Elevasi (mdpl)</th><th>Kebutuhan (L/dtk)</th><th>Dicatat oleh</th></tr></thead>
       <tbody>{project.nodes.map(n => <tr key={n.id}><td>{n.label}</td><td>{NODE_TYPES[n.type].label}</td><td className="r">{n.lat.toFixed(6)}</td><td className="r">{n.lng.toFixed(6)}</td><td className="r">{fmt(n.elev, 2)} ({n.elevSrc || 'manual'})</td><td className="r">{n.type === 'reservoir' ? `MA +${fmt(n.waterLevel, 2)} m` : fmt(n.demand, 2)}</td><td>{n.by ? n.by.name : '-'}</td></tr>)}</tbody></table>
@@ -5167,10 +5269,31 @@ function OfficerPicker({ project, setProject, officerId, onPick, onCancel }) {
   </div>;
 }
 
-function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId }) {
+function SiteField({ project, setMeta, gps }) {
+  const m = project.meta; const [q, setQ] = useState(m.location || ''); const [busy, setBusy] = useState(''); const [msg, setMsg] = useState('');
+  const set = (ll, src) => { setMeta('lat', +(+ll.lat).toFixed(7)); setMeta('lng', +(+ll.lng).toFixed(7)); setMeta('siteSrc', src); setMsg(''); };
+  const useGps = () => { if (gps?.pos) { set(gps.pos, 'gps'); return; } if (!navigator.geolocation) { setMsg('Perangkat tidak mendukung GPS.'); return; } setBusy('gps');
+    navigator.geolocation.getCurrentPosition(p => { setBusy(''); set({ lat: p.coords.latitude, lng: p.coords.longitude }, 'gps'); }, (e) => { setBusy(''); setMsg('Lokasi GPS tidak didapat: ' + (e.message || 'izin ditolak')); }, { enableHighAccuracy: true, timeout: 15000 }); };
+  const search = async () => { if (!q.trim()) return; setBusy('cari'); setMsg('');
+    try { const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=' + encodeURIComponent(q.trim())); const j = await r.json();
+      if (j[0]) { set({ lat: +j[0].lat, lng: +j[0].lon }, 'cari'); setMsg('Ditemukan: ' + j[0].display_name); } else setMsg('Lokasi tidak ditemukan; coba nama desa + kecamatan + kabupaten.'); }
+    catch (e) { setMsg('Pencarian butuh internet.'); } setBusy(''); };
+  return <div className="sm:col-span-2 rounded-lg border border-aqua-200 bg-aqua-50 p-3 space-y-2">
+    <div className="font-semibold flex items-center gap-1.5"><Icon name="MapPin" size={15} className="text-aqua-700" />Koordinat lokasi pekerjaan</div>
+    <p className="text-[12px] text-slate-600">Saat berkas pekerjaan ini dibuka, peta langsung menuju titik ini (selama belum ada jaringan; setelahnya peta menyesuaikan jaringan).</p>
+    <CoordField id="dlg-site" lat={m.lat} lng={m.lng} onChange={ll => set(ll, 'manual')} placeholder="mis. -6.84212, 107.50123 atau 48M 776900 9243000" />
+    <div className="flex flex-wrap gap-1.5">
+      <Btn variant="outline" icon="Crosshair" onClick={useGps} disabled={busy === 'gps'}>{busy === 'gps' ? 'Mencari GPS…' : 'Pakai lokasi GPS saya'}</Btn>
+      <div className="flex gap-1.5 flex-1 min-w-[220px]"><input id="dlg-site-q" className="tp-field" value={q} onChange={e => setQ(e.target.value)} placeholder="Cari nama desa / lokasi" onKeyDown={e => { if (e.key === 'Enter') search(); }} /><Btn variant="outline" icon="Search" onClick={search} disabled={busy === 'cari'}>Cari</Btn></div>
+    </div>
+    {m.lat != null && <div className="text-[12px] font-mono">{(+m.lat).toFixed(6)}, {(+m.lng).toFixed(6)} · UTM {utmTxt(+m.lat, +m.lng)}</div>}
+    {msg && <div className="text-[12px] text-slate-600">{msg}</div>}
+  </div>;
+}
+function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId, initialTab, gps }) {
   const setMeta = (k, v) => setProject(p => ({ ...p, meta: { ...p.meta, [k]: v } }), { noStamp: true });
   const setTeam = (fn) => setProject(p => ({ ...p, team: fn(p.team || []) }), { noStamp: true, system: true });
-  const [tab, setTab] = useState('org');
+  const [tab, setTab] = useState(initialTab || 'org');
   const [logoErr, setLogoErr] = useState('');
   const team = project.team || [];
   const onLogo = (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -5198,6 +5321,7 @@ function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId }
           <Field label="Konsultan / tim perencana (opsional)"><input id="dlg-consultant" className="tp-field" value={project.meta.consultant || ''} onChange={e => setMeta('consultant', e.target.value)} /></Field>
         </>}
         {tab === 'proj' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SiteField project={project} setMeta={setMeta} gps={gps} />
           {[['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Jabatan pemeriksa', 1], ['approvedBy', 'Jabatan penyetuju', 1]].map(([k, l, span]) =>
             <div key={k} className={span === 2 ? 'sm:col-span-2' : ''}><Field label={l}><input id={'dlg-' + k} className="tp-field" value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>
               {k === 'surveyedBy' && surveyors.length > 0 && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline mt-1" onClick={() => setMeta('surveyedBy', surveyors.join(', '))}>Isi dari tim: {surveyors.join(', ')}</button>}</div>)}
@@ -5687,6 +5811,8 @@ function makeCloudStore(api) {
       } catch (e) { if (e.conflict) throw e; throw wrap(e); }
     },
     async remove(id) { try { await db.collection('projectData').doc(id).delete(); await db.collection('projects').doc(id).delete(); } catch (e) { throw wrap(e); } },
+    async putPhoto(id, rec) { try { await db.collection('photos').doc(id).set({ ...rec, at: FS.FieldValue.serverTimestamp() }); } catch (e) { throw wrap(e); } },
+    async getPhoto(id) { const s = await db.collection('photos').doc(id).get(); return s.exists ? s.data().data : null; },
   };
 }
 function SyncBadge({ sync, compact }) {
@@ -5967,7 +6093,40 @@ function App({ user, api }) {
     downloadText(name, text, isGpx ? 'application/gpx+xml' : 'application/json');
     setToast('Perangkat ini tidak mendukung menu Bagikan; berkas diunduh.');
   };
-  const field = { officer, pickOfficer: () => setPickOfficer({ then: () => {} }), mobile, elevStatus, prefs, setPrefs, activeNode, setActiveNode, createPoint, pending, setPending, takePending, gps, rec, startRec, stopRec, markHere, follow, setFollow, focus, setFocus, openCoord: setCoordTab, openDed };
+  // ---- Foto asesmen ----
+  const camRef = useRef(null), galRef = useRef(null), photoCtx = useRef(null); const [openPh, setOpenPh] = useState(null);
+  useEffect(() => { PHOTO_CLOUD = store; }, [store]);
+  const PENDK = 'tirtaplan-photo-pending';
+  const uploadPhoto = async (id, data, projectId) => { if (!store || !navigator.onLine) throw new Error('offline'); await store.putPhoto(id, { projectId, ownerUid: user.uid, data }); };
+  const retryPhotos = useCallback(async () => { if (!store || !navigator.onLine) return; let pend = []; try { pend = JSON.parse(localStorage.getItem(PENDK) || '[]'); } catch (e) {}
+    const left = []; for (const it of pend) { try { const v = await photoDB.get(it.id); if (v) await uploadPhoto(it.id, v, it.projectId); } catch (e) { left.push(it); } }
+    try { localStorage.setItem(PENDK, JSON.stringify(left)); } catch (e) {} }, [store]);
+  useEffect(() => { retryPhotos(); window.addEventListener('online', retryPhotos); return () => window.removeEventListener('online', retryPhotos); }, [retryPhotos]);
+  const takePhoto = ({ ref = null, camera = true } = {}) => {
+    photoCtx.current = { ref, camera, pos: gps.pos && gps.pos.acc <= (project.settings.gpsMaxAcc || 20) ? gps.pos : null };
+    if (camera && navigator.geolocation && !photoCtx.current.pos) navigator.geolocation.getCurrentPosition(p => { if (photoCtx.current) photoCtx.current.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; }, () => {}, { enableHighAccuracy: true, timeout: 15000 });
+    (camera ? camRef : galRef).current.click();
+  };
+  const onPhotoFiles = async (e) => {
+    const files = [...(e.target.files || [])]; e.target.value = ''; if (!files.length) return; const ctx = photoCtx.current || {}; const made = [];
+    for (const f of files) {
+      try {
+        const full = await resizeImage(f, 1600, 0.72), th = await resizeImage(f, 200, 0.6); const id = uid('ph'); const pid = projectRef.current.cloud?.id;
+        const r = refOf(projectRef.current, ctx.ref); const pos = ctx.camera && ctx.pos ? ctx.pos : r ? { lat: r.lat, lng: r.lng } : ctx.pos;
+        await photoDB.put(id, full.data); PHOTO_CACHE.set(id, full.data);
+        const o = officerRef.current;
+        made.push({ id, at: Date.now(), cat: guessPhotoCat(projectRef.current, ctx.ref), caption: '', ref: ctx.ref || null, thumb: th.data, w: full.w, h: full.h,
+          lat: pos ? +(+pos.lat).toFixed(7) : null, lng: pos ? +(+pos.lng).toFixed(7) : null, acc: pos && pos.acc ? Math.round(pos.acc) : null, locSrc: ctx.camera && ctx.pos ? 'gps' : r ? 'ref' : pos ? 'gps' : null,
+          by: o ? { id: o.id, name: o.name, role: o.role } : { name: user.name || user.email } });
+        uploadPhoto(id, full.data, pid).catch(() => { try { const pend = JSON.parse(localStorage.getItem(PENDK) || '[]'); pend.push({ id, projectId: pid }); localStorage.setItem(PENDK, JSON.stringify(pend)); } catch (x) {} });
+      } catch (err) { setToast(err.message || 'Foto gagal diproses'); }
+    }
+    if (!made.length) return;
+    setProject(p => ({ ...p, photos: [...(p.photos || []), ...made] }), { system: true });
+    setToast(made.length > 1 ? `${made.length} foto ditambahkan` : `Foto disimpan${made[0].lat == null ? ' (tanpa koordinat: aktifkan GPS atau kaitkan ke titik)' : ''}`);
+    if (made.length === 1) setOpenPh(made[0]);
+  };
+  const field = { takePhoto, openPhoto: setOpenPh, officer, pickOfficer: () => setPickOfficer({ then: () => {} }), mobile, elevStatus, prefs, setPrefs, activeNode, setActiveNode, createPoint, pending, setPending, takePending, gps, rec, startRec, stopRec, markHere, follow, setFollow, focus, setFocus, openCoord: setCoordTab, openDed };
 
   const hyd = useMemo(() => computeHydraulics(project), [project]);
   const boq = useMemo(() => computeBoQ(project, hyd), [project, hyd]);
@@ -6037,7 +6196,7 @@ function App({ user, api }) {
   };
   const openProject = async (it) => { saveCurrentLocal(); const p = await fetchProject(it); switchTo(p); setLibOpen(false); setToast(`Membuka "${p.meta.name}"`); };
   const newProject = (base, label) => { saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
-    if (label) q.meta = { ...q.meta, name: label }; localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
+    if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
   const duplicateProject = async (it) => { const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
   const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
   const reviewAct = (to, note) => setProject(p => { const c = p.cloud; const meta = { ...p.meta };
@@ -6063,8 +6222,9 @@ function App({ user, api }) {
     return () => clearTimeout(t);
   }, [printMode]);
 
-  const saveFile = () => {
-    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+  const saveFile = async () => {
+    const photoData = {}; for (const ph of project.photos || []) { const v = await loadPhoto(ph.id); if (v) photoData[ph.id] = v; }
+    const blob = new Blob([JSON.stringify(Object.keys(photoData).length ? { ...project, photoData } : project, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = (project.meta.name || 'proyek').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) + '.json';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
@@ -6072,7 +6232,9 @@ function App({ user, api }) {
   };
   const loadFile = (e) => {
     const f = e.target.files[0]; if (!f) return; const r = new FileReader();
-    r.onload = () => { try { const data = JSON.parse(r.result); if (!Array.isArray(data.nodes)) throw new Error(); setPendingLoad({ data, name: f.name }); } catch (err) { setToast('Berkas tidak valid: pastikan ini berkas .json dari TirtaPlan'); } };
+    r.onload = () => { try { const data = JSON.parse(r.result); if (!Array.isArray(data.nodes)) throw new Error();
+      if (data.photoData && typeof data.photoData === 'object') Object.entries(data.photoData).forEach(([id, v]) => { if (typeof v === 'string' && v.startsWith('data:image')) { photoDB.put(id, v).catch(() => {}); PHOTO_CACHE.set(id, v); } });
+      setPendingLoad({ data, name: f.name }); } catch (err) { setToast('Berkas tidak valid: pastikan ini berkas .json dari TirtaPlan'); } };
     r.readAsText(f); e.target.value = '';
   };
 
@@ -6221,7 +6383,10 @@ function App({ user, api }) {
         <p className="px-4 py-3 text-[11px] text-slate-500">{savedAt instanceof Date ? `Tersimpan otomatis di perangkat ini ${savedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
       </div></div>}
     {coordTab && <CoordDialog tab={coordTab} setTab={setCoordTab} onClose={() => setCoordTab(null)} project={project} setProject={setProject} field={field} setSelection={setSelection} toast={setToast} />}
-    {dialog && <ProjectDialog project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} />}
+    {dialog && <ProjectDialog project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
+    <input ref={camRef} id="photo-cam" type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFiles} />
+    <input ref={galRef} id="photo-gal" type="file" accept="image/*" multiple className="hidden" onChange={onPhotoFiles} />
+    {openPh && <PhotoDialog ph={openPh} project={project} setProject={(fn) => setProject(fn, { system: true })} onClose={() => setOpenPh(null)} />}
     {pickOfficer && <OfficerPicker project={project} setProject={setProject} officerId={officerId} onCancel={() => setPickOfficer(null)}
       onPick={(m) => { setOfficerId(m.id); officerRef.current = m; const fn = pickOfficer.then; setPickOfficer(null); setToast(`Petugas aktif: ${m.name}`); fn && fn(); }} />}
     {confirm && <ConfirmDialog text={confirm.text} onNo={() => setConfirm(null)} onYes={() => { confirm.yes(); setConfirm(null); }} />}

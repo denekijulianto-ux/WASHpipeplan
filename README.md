@@ -37,6 +37,13 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Lokasi pekerjaan & foto asesmen
+- **Lokasi pekerjaan**: saat membuat proyek baru, dialog Data proyek langsung meminta koordinat lokasi pekerjaan. Koordinat bisa diambil dari GPS, diketik (desimal / DMS / UTM), atau dicari dari nama desa. Saat berkas dibuka, peta langsung menuju lokasi itu. Setelah jaringan digambar, peta menyesuaikan jaringan, dan tiap proyek mengingat tampilan petanya sendiri.
+- **Foto asesmen**: tombol **Ambil foto** ada di inspektur node/bangunan, panel GPS, dan tab daftar **Foto**. Foto bisa diambil dengan kamera HP atau dipilih dari galeri. Koordinat GPS, waktu, dan nama petugas ikut tersimpan. Foto bisa diberi kategori (sumber air, bak/reservoir existing, fasilitas, dll.), keterangan, dan dikaitkan ke titik tertentu.
+- Foto tampil sebagai penanda ungu di peta dan ikut dicetak di laporan (bagian *Dokumentasi foto asesmen*).
+- Penyimpanan foto: miniatur disimpan di berkas proyek, sedangkan foto penuh (maks. 1600 px) disimpan di perangkat. **Simpan .json** ikut menyertakan foto penuh.
+- Bila login daring aktif, foto diunggah ke koleksi Firestore `photos`. Untuk itu, aturan `firestore.rules` terbaru perlu ditempel ulang di Firebase Console.
+
 ## Sambungan rumah (SR) & meter air
 - Pilih tipe **Sambungan Rumah (meter air)**, lalu klik lokasi rumah di peta (alat Tambah titik). Titik SR juga bisa ditandai lewat GPS atau impor koordinat. Pipa dinas (bawaan PE Ø20) otomatis tersambung ke pipa distribusi terdekat lewat titik sadel (clamp saddle). Batas jarak sambung bawaan 150 m.
 - Kebutuhan air SR = jiwa × L/org/hari × faktor jam puncak. Tekanan di meter dicek terhadap batas minimum SR (bawaan 5 mka). Pengaturannya ada di tab Analisis Hidrolis → Kriteria desain.

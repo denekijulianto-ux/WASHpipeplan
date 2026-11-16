@@ -89,6 +89,8 @@
   #app-shell { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
   .tp-struct { width: 100%; height: 100%; padding: 0 4px; border-radius: 3px; background: #3730a3; color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); font: 700 9px/16px "IBM Plex Mono", monospace; text-align: center; box-sizing: border-box; white-space: nowrap; }
   .tp-struct.sel { box-shadow: 0 0 0 3px rgba(255,255,255,.95), 0 0 0 6px #f97316; }
+  .tp-site { font: 700 22px/1 sans-serif; color: #dc2626; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+  .tp-photo { width: 100%; height: 100%; border-radius: 50%; background: #7c3aed; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; box-sizing: border-box; cursor: pointer; }
   .tp-vtx { width: 100%; height: 100%; border-radius: 50%; background: #fff; border: 3px solid #f97316; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: move; }
   .tp-vtx.bad { border-color: #dc2626; background: #fee2e2; }
   .tp-vadd { width: 100%; height: 100%; border-radius: 50%; background: rgba(255,255,255,.75); border: 1.5px dashed #f97316; color: #c2410c; font: 700 12px/1 sans-serif; display: flex; align-items: center; justify-content: center; box-sizing: border-box; cursor: copy; }
@@ -1603,6 +1605,7 @@ function normalizeProject(p) {
       type: NODE_TYPES[n.type] ? n.type : 'junction'
     })),
     tracks: Array.isArray(p.tracks) ? p.tracks.filter(t => Array.isArray(t.points)) : [],
+    photos: Array.isArray(p.photos) ? p.photos.filter(x => x && x.id) : [],
     team: Array.isArray(p.team) ? p.team.filter(t => t && t.id && t.name) : [],
     treatments: Array.isArray(p.treatments) ? p.treatments.map(t => ({
       ...TREAT_DEFAULTS,
@@ -1690,6 +1693,7 @@ function mergeProject(base, incoming) {
   const tracks = merge(base.tracks || [], inc.tracks || [], 'tracks', null);
   const team = merge(base.team || [], inc.team || [], 'team', null);
   const treatments = merge(base.treatments || [], inc.treatments || [], 'treatments', null);
+  const photos = merge(base.photos || [], inc.photos || [], 'photos', null);
   return {
     project: {
       ...base,
@@ -1698,7 +1702,8 @@ function mergeProject(base, incoming) {
       structures,
       tracks,
       team,
-      treatments
+      treatments,
+      photos
     },
     stats
   };
@@ -6371,11 +6376,12 @@ function LeafletMap(props) {
     map.on('moveend', () => {
       LAST_VIEW = {
         c: map.getCenter(),
-        z: map.getZoom()
+        z: map.getZoom(),
+        key: propsRef.current.projKey
       };
     });
     mapRef.current = map;
-    if (LAST_VIEW) map.setView(LAST_VIEW.c, LAST_VIEW.z);else fit(map, project.nodes);
+    if (LAST_VIEW && LAST_VIEW.key === props.projKey) map.setView(LAST_VIEW.c, LAST_VIEW.z);else fit(map, project.nodes);
     setTimeout(() => map.invalidateSize(), 50);
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(divRef.current);
@@ -6386,11 +6392,29 @@ function LeafletMap(props) {
     };
   }, []);
   function fit(map, nodes) {
-    if (nodes.length >= 2) map.fitBounds(L.latLngBounds(nodes.map(n => [n.lat, n.lng])).pad(0.25));else if (nodes.length === 1) map.setView([nodes[0].lat, nodes[0].lng], 17);else map.setView([-6.8420, 107.5010], 15);
+    const site = propsRef.current.site;
+    if (nodes.length >= 2) map.fitBounds(L.latLngBounds(nodes.map(n => [n.lat, n.lng])).pad(0.25));else if (nodes.length === 1) map.setView([nodes[0].lat, nodes[0].lng], 17);else if (site) map.setView([site.lat, site.lng], 16);else {
+      map.setView([-2.5, 118], 5);
+      if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => {
+        if (mapRef.current && !propsRef.current.project.nodes.length && !propsRef.current.site) mapRef.current.setView([p.coords.latitude, p.coords.longitude], 15);
+      }, () => {}, {
+        timeout: 8000
+      });
+    }
   }
   useEffect(() => {
     if (fitSignal && mapRef.current) fit(mapRef.current, project.nodes);
   }, [fitSignal]);
+  const firstKey = useRef(props.projKey);
+  useEffect(() => {
+    if (mapRef.current && props.projKey !== firstKey.current) {
+      firstKey.current = props.projKey;
+      fit(mapRef.current, project.nodes);
+    }
+  }, [props.projKey]);
+  useEffect(() => {
+    if (mapRef.current && props.site && !project.nodes.length) mapRef.current.setView([props.site.lat, props.site.lng], Math.max(mapRef.current.getZoom(), 16));
+  }, [props.site?.lat, props.site?.lng]);
   useEffect(() => {
     if (props.focus && mapRef.current) mapRef.current.setView([props.focus.lat, props.focus.lng], Math.max(mapRef.current.getZoom(), 17));
   }, [props.focus]);
@@ -6573,6 +6597,39 @@ function LeafletMap(props) {
       fillOpacity: 1,
       interactive: false
     }).addTo(group));
+    if (props.site) L.marker([props.site.lat, props.site.lng], {
+      interactive: false,
+      zIndexOffset: -200,
+      icon: L.divIcon({
+        className: 'tp-node-wrap',
+        iconSize: [26, 30],
+        iconAnchor: [4, 28],
+        html: '<div class="tp-site">⚑</div>'
+      })
+    }).bindTooltip('Lokasi pekerjaan', {
+      permanent: !project.nodes.length,
+      direction: 'right',
+      offset: [16, -14],
+      className: 'tp-label'
+    }).addTo(group);
+    if (props.showPhotos !== false) (props.photos || []).forEach(ph => {
+      if (ph.lat == null) return;
+      const m = L.marker([ph.lat, ph.lng], {
+        bubblingMouseEvents: false,
+        zIndexOffset: 300,
+        icon: L.divIcon({
+          className: 'tp-node-wrap',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+          html: '<div class="tp-photo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>'
+        })
+      }).addTo(group);
+      m.on('click', () => propsRef.current.onPhotoClick && propsRef.current.onPhotoClick(ph));
+      m.bindTooltip(`<div style="width:120px"><img src="${ph.thumb}" style="width:120px;border-radius:3px"/><div style="font-size:11px;white-space:normal">${String(ph.caption || PHOTO_CATS[ph.cat] || '').replace(/[<>&]/g, '')}</div></div>`, {
+        direction: 'top',
+        offset: [0, -10]
+      });
+    });
     (project.structures || []).forEach(st => {
       if (st.nodeId || st.lat == null || st.lng == null) return;
       const sel = selection?.kind === 'struct' && selection.id === st.id;
@@ -6643,7 +6700,7 @@ function LeafletMap(props) {
         offset: [0, -12]
       });
     });
-  }, [project.nodes, project.pipes, project.structures, hyd, selection, activeNode, tool, colorMode, showLabels, props.pending]);
+  }, [project.nodes, project.pipes, project.structures, hyd, selection, activeNode, tool, colorMode, showLabels, props.pending, props.photos, props.site, props.showPhotos]);
   return React.createElement("div", {
     ref: divRef,
     className: "absolute inset-0"
@@ -7165,7 +7222,8 @@ function StructMapInspector({
   project,
   setProject,
   onDelete,
-  openDed
+  openDed,
+  field
 }) {
   const upd = patch => setProject(p => ({
     ...p,
@@ -7233,7 +7291,14 @@ function StructMapInspector({
     className: "text-slate-500"
   }, "Kapasitas"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, fmt(g.cap ?? g.L * g.B * g.Hw, 2), " m\xB3")), React.createElement(StampInfo, {
+  }, fmt(g.cap ?? g.L * g.B * g.Hw, 2), " m\xB3")), field && React.createElement(PhotoStrip, {
+    project: project,
+    refObj: {
+      kind: 'struct',
+      id: st.id
+    },
+    field: field
+  }), React.createElement(StampInfo, {
     item: st
   }), React.createElement(Btn, {
     icon: "DraftingCompass",
@@ -7376,7 +7441,14 @@ function GpsPanel({
     onClick: () => setActiveNode(null)
   }, "Akhiri jalur")) : React.createElement("span", {
     className: "text-slate-600"
-  }, "Tandai titik awal (mis. Reservoir) di posisi Anda untuk mulai membuat pipa sepanjang jejak.")), React.createElement("div", null, React.createElement("div", {
+  }, "Tandai titik awal (mis. Reservoir) di posisi Anda untuk mulai membuat pipa sepanjang jejak.")), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Camera",
+    className: "w-full justify-center !border-violet-300 !text-violet-800",
+    onClick: () => field.takePhoto({
+      camera: true
+    })
+  }, "Ambil foto asesmen di posisi saya"), React.createElement("div", null, React.createElement("div", {
     className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5"
   }, "Tandai di posisi saya"), React.createElement("div", {
     className: "grid grid-cols-4 gap-1"
@@ -7973,6 +8045,7 @@ function MapWorkspace({
     size: 16,
     className: "shrink-0 mt-0.5 text-aqua-600"
   }), mobile ? 'Ketuk node, pipa, atau bangunan di peta (alat Pilih) untuk mengedit parameternya.' : 'Pilih node, pipa, atau bangunan di peta (atau di daftar bawah) untuk mengedit parameternya.'), selNode && React.createElement(NodeInspector, {
+    field: field,
     node: selNode,
     res: hyd.nodes[selNode.id],
     project: project,
@@ -7990,6 +8063,7 @@ function MapWorkspace({
     onDelete: () => deletePipe(selPipe.id),
     onSplit: () => splitPipe(selPipe.id)
   }), selStruct && React.createElement(StructMapInspector, {
+    field: field,
     key: selStruct.id,
     st: selStruct,
     project: project,
@@ -8003,13 +8077,50 @@ function MapWorkspace({
   };
   const listTabsJsx = React.createElement("div", {
     className: "flex border-b border-line text-[12px] font-semibold"
-  }, [['nodes', `Node (${project.nodes.length})`], ['pipes', `Pipa (${project.pipes.length})`], ['structs', `Bangunan (${structs.length})`]].map(([k, l]) => React.createElement("button", {
+  }, [['nodes', `Node (${project.nodes.length})`], ['pipes', `Pipa (${project.pipes.length})`], ['structs', `Bangunan (${structs.length})`], ['photos', `Foto (${(project.photos || []).length})`]].map(([k, l]) => React.createElement("button", {
     key: k,
     type: "button",
     onClick: () => setListTab(k),
     className: `flex-1 py-2 ${listTab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`
   }, l)));
-  const listJsx = React.createElement(React.Fragment, null, listTab === 'nodes' && React.createElement("table", {
+  const listJsx = React.createElement(React.Fragment, null, listTab === 'photos' && React.createElement("div", {
+    className: "p-2 space-y-2"
+  }, React.createElement("div", {
+    className: "flex gap-1.5"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    icon: "Camera",
+    onClick: () => field.takePhoto({
+      camera: true
+    })
+  }, "Ambil foto"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Image",
+    onClick: () => field.takePhoto({
+      camera: false
+    })
+  }, "Dari galeri")), !(project.photos || []).length ? React.createElement("p", {
+    className: "text-[12px] text-slate-500 px-1"
+  }, "Belum ada foto. Foto sumber air, bak, dan fasilitas existing saat asesmen; koordinat GPS ikut tersimpan.") : React.createElement("div", {
+    className: "grid grid-cols-3 gap-1.5"
+  }, (project.photos || []).map(ph => React.createElement("button", {
+    key: ph.id,
+    type: "button",
+    onClick: () => {
+      field.openPhoto(ph);
+      if (ph.lat != null) field.setFocus({
+        lat: ph.lat,
+        lng: ph.lng,
+        t: Date.now()
+      });
+    },
+    className: "text-left rounded overflow-hidden border border-line hover:ring-2 hover:ring-aqua-400"
+  }, React.createElement(PhotoImg, {
+    ph: ph,
+    className: "w-full h-20 object-cover"
+  }), React.createElement("div", {
+    className: "px-1 py-0.5 text-[10.5px] leading-tight truncate"
+  }, ph.caption || PHOTO_CATS[ph.cat]))))), listTab === 'nodes' && React.createElement("table", {
     className: "tp-table"
   }, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Node"), React.createElement("th", null, "Tipe"), React.createElement("th", {
     className: "r"
@@ -8099,6 +8210,13 @@ function MapWorkspace({
     mobile: mobile,
     pending: pending,
     onPipeVertex: onPipeVertex,
+    projKey: project.cloud?.id || 'local',
+    site: project.meta.lat != null && project.meta.lng != null ? {
+      lat: +project.meta.lat,
+      lng: +project.meta.lng
+    } : null,
+    photos: project.photos,
+    onPhotoClick: field.openPhoto,
     onMapClick: onMapClick,
     onNodeClick: id => {
       onNodeClick(id);
@@ -8420,7 +8538,8 @@ function NodeInspector({
   hyd,
   upd,
   onDelete,
-  setSelection
+  setSelection,
+  field
 }) {
   const pipes = project.pipes.filter(p => p.from === node.id || p.to === node.id);
   return React.createElement("div", {
@@ -8523,6 +8642,13 @@ function NodeInspector({
     project: project,
     setProject: setProject,
     upd: upd
+  }), field && React.createElement(PhotoStrip, {
+    project: project,
+    refObj: {
+      kind: 'node',
+      id: node.id
+    },
+    field: field
   }), !node.elevAuto && React.createElement("button", {
     type: "button",
     className: "text-[12px] font-semibold text-aqua-700 hover:underline",
@@ -19206,6 +19332,348 @@ function DedWorkspace({
     diameter: ded.csDiameter
   }), ex && ex.render(4 + exIdx, total))));
 }
+const PHOTO_CATS = {
+  source: 'Sumber air',
+  intake: 'Bangunan penangkap / intake',
+  tank: 'Bak / reservoir existing',
+  pipe: 'Jaringan pipa existing',
+  facility: 'Fasilitas air (hidran, kran umum, MCK)',
+  quality: 'Kondisi / kualitas air',
+  site: 'Lokasi, akses & lahan',
+  other: 'Lainnya'
+};
+const PHOTO_CACHE = new Map();
+let PHOTO_CLOUD = null;
+const photoDB = (() => {
+  let pr = null;
+  const open = () => pr || (pr = new Promise((res, rej) => {
+    const r = indexedDB.open('tirtaplan-photos', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const run = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('photos', mode);
+      const rq = fn(t.objectStore('photos'));
+      t.oncomplete = () => res(rq ? rq.result : undefined);
+      t.onerror = () => rej(t.error);
+    });
+  };
+  return {
+    get: id => run('readonly', s => s.get(id)).catch(() => null),
+    put: (id, v) => run('readwrite', s => s.put(v, id)),
+    del: id => run('readwrite', s => s.delete(id)).catch(() => {})
+  };
+})();
+async function loadPhoto(id) {
+  if (PHOTO_CACHE.has(id)) return PHOTO_CACHE.get(id);
+  let v = await photoDB.get(id);
+  if (!v && PHOTO_CLOUD && navigator.onLine) {
+    try {
+      v = await PHOTO_CLOUD.getPhoto(id);
+      if (v) await photoDB.put(id, v).catch(() => {});
+    } catch (e) {}
+  }
+  if (v) PHOTO_CACHE.set(id, v);
+  return v || null;
+}
+function resizeImage(file, max, q) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * k),
+        h = Math.round(img.naturalHeight * k);
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      res({
+        data: c.toDataURL('image/jpeg', q),
+        w,
+        h
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      rej(new Error('Berkas bukan gambar yang bisa dibaca.'));
+    };
+    img.src = url;
+  });
+}
+const refOf = (project, ref) => {
+  if (!ref) return null;
+  if (ref.kind === 'node') {
+    const n = project.nodes.find(x => x.id === ref.id);
+    return n ? {
+      label: n.label,
+      type: NODE_TYPES[n.type].label,
+      lat: n.lat,
+      lng: n.lng
+    } : null;
+  }
+  const st = (project.structures || []).find(x => x.id === ref.id);
+  if (!st) return null;
+  const nd = st.nodeId && project.nodes.find(n => n.id === st.nodeId);
+  return {
+    label: st.label,
+    type: STRUCT_TYPES[st.type].label,
+    lat: nd ? nd.lat : st.lat,
+    lng: nd ? nd.lng : st.lng
+  };
+};
+const guessPhotoCat = (project, ref) => {
+  if (!ref) return 'source';
+  if (ref.kind === 'node') {
+    const t = project.nodes.find(x => x.id === ref.id)?.type;
+    return t === 'reservoir' ? 'tank' : t === 'borehole' ? 'source' : t === 'hydrant' || t === 'sr' ? 'facility' : 'pipe';
+  }
+  const t = (project.structures || []).find(x => x.id === ref.id)?.type;
+  return t === 'broncaptering' || t === 'bc_v' ? 'source' : t === 'hidran' ? 'facility' : 'tank';
+};
+function usePhoto(id) {
+  const [u, setU] = useState(() => PHOTO_CACHE.get(id) || null);
+  useEffect(() => {
+    let on = true;
+    if (!u) loadPhoto(id).then(v => {
+      if (on) setU(v);
+    });
+    return () => {
+      on = false;
+    };
+  }, [id]);
+  return u;
+}
+function PhotoImg({
+  ph,
+  className,
+  full
+}) {
+  const u = usePhoto(ph.id);
+  const src = full ? u || ph.thumb : ph.thumb || u;
+  return src ? React.createElement("img", {
+    src: src,
+    alt: ph.caption || 'foto',
+    className: className
+  }) : React.createElement("div", {
+    className: className + ' bg-slate-200'
+  });
+}
+function PhotoDialog({
+  ph,
+  project,
+  setProject,
+  onClose
+}) {
+  const u = usePhoto(ph.id);
+  const [del, setDel] = useState(false);
+  const upd = patch => setProject(p => ({
+    ...p,
+    photos: (p.photos || []).map(x => x.id === ph.id ? {
+      ...x,
+      ...patch
+    } : x)
+  }));
+  const cur = (project.photos || []).find(x => x.id === ph.id) || ph;
+  const r = refOf(project, cur.ref);
+  const targets = [...project.nodes.map(n => ['node:' + n.id, `${n.label} · ${NODE_TYPES[n.type].label}`]), ...(project.structures || []).map(s => ['struct:' + s.id, `${s.label} · ${STRUCT_TYPES[s.type].label}`])];
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2200] bg-black/70 flex items-center justify-center p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-3xl max-h-[94vh] flex flex-col md:flex-row overflow-hidden",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "md:flex-1 bg-black flex items-center justify-center min-h-[220px]"
+  }, u || cur.thumb ? React.createElement("img", {
+    src: u || cur.thumb,
+    alt: "",
+    className: "max-h-[55vh] md:max-h-[90vh] w-auto object-contain"
+  }) : React.createElement("span", {
+    className: "text-white text-sm"
+  }, "Memuat foto\u2026")), React.createElement("div", {
+    className: "md:w-72 p-4 space-y-2.5 overflow-y-auto text-[13px]"
+  }, React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, React.createElement("span", {
+    className: "font-semibold flex items-center gap-1.5"
+  }, React.createElement(Icon, {
+    name: "Camera",
+    size: 16,
+    className: "text-aqua-700"
+  }), "Foto asesmen"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose
+  })), React.createElement(Field, {
+    label: "Kategori"
+  }, React.createElement("select", {
+    id: "ph-cat",
+    className: "tp-field",
+    value: cur.cat,
+    onChange: e => upd({
+      cat: e.target.value
+    })
+  }, Object.entries(PHOTO_CATS).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l)))), React.createElement(Field, {
+    label: "Keterangan"
+  }, React.createElement("textarea", {
+    id: "ph-caption",
+    className: "tp-field h-20",
+    value: cur.caption || '',
+    placeholder: "mis. Mata air Cibodas, debit \xB1 2 L/dtk, kondisi bak rusak",
+    onChange: e => upd({
+      caption: e.target.value
+    })
+  })), React.createElement(Field, {
+    label: "Terkait dengan"
+  }, React.createElement("select", {
+    id: "ph-ref",
+    className: "tp-field",
+    value: cur.ref ? `${cur.ref.kind}:${cur.ref.id}` : '',
+    onChange: e => {
+      const [k, id] = e.target.value.split(':');
+      upd({
+        ref: id ? {
+          kind: k,
+          id
+        } : null
+      });
+    }
+  }, React.createElement("option", {
+    value: ""
+  }, "Tidak terkait titik tertentu"), targets.map(([v, l]) => React.createElement("option", {
+    key: v,
+    value: v
+  }, l)))), React.createElement("div", {
+    className: "rounded-md bg-ground px-3 py-2 text-[12px] space-y-0.5"
+  }, React.createElement("div", null, cur.lat != null ? React.createElement(React.Fragment, null, "Lokasi: ", React.createElement("span", {
+    className: "font-mono"
+  }, (+cur.lat).toFixed(6), ", ", (+cur.lng).toFixed(6)), cur.acc ? ` (±${Math.round(cur.acc)} m)` : '', " \xB7 ", cur.locSrc === 'gps' ? 'GPS' : cur.locSrc === 'ref' ? 'titik terkait' : 'peta') : 'Tanpa koordinat'), React.createElement("div", null, "Diambil ", new Date(cur.at).toLocaleString('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }), cur.by ? ` · ${cur.by.name}` : ''), r && React.createElement("div", null, "Titik: ", r.label, " (", r.type, ")"), React.createElement("div", null, cur.w, "\xD7", cur.h, " px")), r && React.createElement("button", {
+    type: "button",
+    className: "text-[12px] font-semibold text-aqua-700 hover:underline",
+    onClick: () => upd({
+      lat: r.lat,
+      lng: r.lng,
+      locSrc: 'ref',
+      acc: null
+    })
+  }, "Pakai koordinat ", r.label), React.createElement("div", {
+    className: "flex gap-2 pt-1"
+  }, u && React.createElement("a", {
+    className: "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium border border-line hover:border-aqua-400",
+    href: u,
+    download: `foto_${(cur.caption || cur.id).replace(/[^\w\- ]+/g, '').slice(0, 30)}.jpg`
+  }, React.createElement(Icon, {
+    name: "Download",
+    size: 15
+  }), "Unduh"), del ? React.createElement(Btn, {
+    variant: "danger",
+    icon: "Trash2",
+    onClick: () => {
+      setProject(p => ({
+        ...p,
+        photos: (p.photos || []).filter(x => x.id !== ph.id)
+      }));
+      photoDB.del(ph.id);
+      PHOTO_CACHE.delete(ph.id);
+      onClose();
+    }
+  }, "Ya, hapus") : React.createElement(Btn, {
+    variant: "danger",
+    icon: "Trash2",
+    onClick: () => setDel(true)
+  }, "Hapus")))));
+}
+function PhotoStrip({
+  project,
+  refObj,
+  field
+}) {
+  const list = (project.photos || []).filter(p => refObj ? p.ref && p.ref.kind === refObj.kind && p.ref.id === refObj.id : true);
+  return React.createElement("div", {
+    className: "space-y-1.5"
+  }, React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, React.createElement("span", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Foto asesmen (", list.length, ")"), React.createElement("div", {
+    className: "flex gap-1"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "Camera",
+    onClick: () => field.takePhoto({
+      ref: refObj,
+      camera: true
+    })
+  }, "Ambil foto"), React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Image",
+    title: "Pilih dari galeri",
+    onClick: () => field.takePhoto({
+      ref: refObj,
+      camera: false
+    })
+  }))), list.length > 0 && React.createElement("div", {
+    className: "flex gap-1.5 overflow-x-auto pb-1"
+  }, list.map(ph => React.createElement("button", {
+    key: ph.id,
+    type: "button",
+    onClick: () => field.openPhoto(ph),
+    className: "shrink-0 rounded overflow-hidden border border-line hover:ring-2 hover:ring-aqua-400",
+    title: ph.caption || PHOTO_CATS[ph.cat]
+  }, React.createElement(PhotoImg, {
+    ph: ph,
+    className: "w-20 h-16 object-cover"
+  })))));
+}
+function PhotoReport({
+  project
+}) {
+  const list = project.photos || [];
+  if (!list.length) return null;
+  return React.createElement(React.Fragment, null, React.createElement("h3", null, "Dokumentasi foto asesmen (", list.length, ")"), React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '4mm'
+    }
+  }, list.map((ph, i) => {
+    const r = refOf(project, ph.ref);
+    return React.createElement("div", {
+      key: ph.id,
+      style: {
+        breakInside: 'avoid',
+        border: '0.3mm solid #999',
+        padding: '2mm'
+      }
+    }, React.createElement(PhotoImg, {
+      ph: ph,
+      full: true,
+      className: "w-full h-[60mm] object-cover"
+    }), React.createElement("div", {
+      style: {
+        fontSize: '8.5pt',
+        marginTop: '1.5mm'
+      }
+    }, React.createElement("b", null, "Foto ", i + 1, ". ", PHOTO_CATS[ph.cat] || ''), r ? ` · ${r.label}` : '', React.createElement("br", null), ph.caption || '-', React.createElement("br", null), React.createElement("span", {
+      style: {
+        color: '#555'
+      }
+    }, ph.lat != null ? `${(+ph.lat).toFixed(6)}, ${(+ph.lng).toFixed(6)} · ` : '', new Date(ph.at).toLocaleString('id-ID', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }), ph.by ? ` · ${ph.by.name}` : '')));
+  })));
+}
 function PrintRoot({
   mode,
   project,
@@ -19289,6 +19757,8 @@ function PrintRoot({
   }, a), React.createElement("td", null, React.createElement("b", null, b)))))), React.createElement("h3", null, "Kriteria desain"), React.createElement("table", null, React.createElement("tbody", null, React.createElement("tr", null, React.createElement("td", null, "Rumus kehilangan tekan"), React.createElement("td", null, "Hazen-Williams: hf = 10,67\xB7L\xB7Q^1,852 / (C^1,852\xB7D^4,87); C HDPE 130, PVC 140, GIP 110")), React.createElement("tr", null, React.createElement("td", null, "Kecepatan aliran"), React.createElement("td", null, s.vMin, " \u2013 ", s.vMax, " m/s")), React.createElement("tr", null, React.createElement("td", null, "Sisa tekanan"), React.createElement("td", null, "minimal ", s.pMin, " mka, maksimal ", s.pMax, " mka")), React.createElement("tr", null, React.createElement("td", null, "Dimensi galian"), React.createElement("td", null, "W ", fmt(s.trenchWidth, 2), " m \xD7 H ", fmt(s.trenchDepth, 2), " m; pasir alas ", fmt(s.sandBed, 2), " m; pasir di atas pipa ", fmt(s.sandCover, 2), " m")))), React.createElement(TeamReport, {
     project: project,
     hyd: hyd
+  }), React.createElement(PhotoReport, {
+    project: project
   }), React.createElement("h2", null, "2. Data Jaringan"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Node"), React.createElement("th", null, "Tipe"), React.createElement("th", null, "Lintang"), React.createElement("th", null, "Bujur"), React.createElement("th", null, "Elevasi (mdpl)"), React.createElement("th", null, "Kebutuhan (L/dtk)"), React.createElement("th", null, "Dicatat oleh"))), React.createElement("tbody", null, project.nodes.map(n => React.createElement("tr", {
     key: n.id
   }, React.createElement("td", null, n.label), React.createElement("td", null, NODE_TYPES[n.type].label), React.createElement("td", {
@@ -19735,12 +20205,117 @@ function OfficerPicker({
     onClick: () => onPick(team.find(t => t.id === sel))
   }, "Pakai petugas ini")))));
 }
+function SiteField({
+  project,
+  setMeta,
+  gps
+}) {
+  const m = project.meta;
+  const [q, setQ] = useState(m.location || '');
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState('');
+  const set = (ll, src) => {
+    setMeta('lat', +(+ll.lat).toFixed(7));
+    setMeta('lng', +(+ll.lng).toFixed(7));
+    setMeta('siteSrc', src);
+    setMsg('');
+  };
+  const useGps = () => {
+    if (gps?.pos) {
+      set(gps.pos, 'gps');
+      return;
+    }
+    if (!navigator.geolocation) {
+      setMsg('Perangkat tidak mendukung GPS.');
+      return;
+    }
+    setBusy('gps');
+    navigator.geolocation.getCurrentPosition(p => {
+      setBusy('');
+      set({
+        lat: p.coords.latitude,
+        lng: p.coords.longitude
+      }, 'gps');
+    }, e => {
+      setBusy('');
+      setMsg('Lokasi GPS tidak didapat: ' + (e.message || 'izin ditolak'));
+    }, {
+      enableHighAccuracy: true,
+      timeout: 15000
+    });
+  };
+  const search = async () => {
+    if (!q.trim()) return;
+    setBusy('cari');
+    setMsg('');
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=' + encodeURIComponent(q.trim()));
+      const j = await r.json();
+      if (j[0]) {
+        set({
+          lat: +j[0].lat,
+          lng: +j[0].lon
+        }, 'cari');
+        setMsg('Ditemukan: ' + j[0].display_name);
+      } else setMsg('Lokasi tidak ditemukan; coba nama desa + kecamatan + kabupaten.');
+    } catch (e) {
+      setMsg('Pencarian butuh internet.');
+    }
+    setBusy('');
+  };
+  return React.createElement("div", {
+    className: "sm:col-span-2 rounded-lg border border-aqua-200 bg-aqua-50 p-3 space-y-2"
+  }, React.createElement("div", {
+    className: "font-semibold flex items-center gap-1.5"
+  }, React.createElement(Icon, {
+    name: "MapPin",
+    size: 15,
+    className: "text-aqua-700"
+  }), "Koordinat lokasi pekerjaan"), React.createElement("p", {
+    className: "text-[12px] text-slate-600"
+  }, "Saat berkas pekerjaan ini dibuka, peta langsung menuju titik ini (selama belum ada jaringan; setelahnya peta menyesuaikan jaringan)."), React.createElement(CoordField, {
+    id: "dlg-site",
+    lat: m.lat,
+    lng: m.lng,
+    onChange: ll => set(ll, 'manual'),
+    placeholder: "mis. -6.84212, 107.50123 atau 48M 776900 9243000"
+  }), React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "Crosshair",
+    onClick: useGps,
+    disabled: busy === 'gps'
+  }, busy === 'gps' ? 'Mencari GPS…' : 'Pakai lokasi GPS saya'), React.createElement("div", {
+    className: "flex gap-1.5 flex-1 min-w-[220px]"
+  }, React.createElement("input", {
+    id: "dlg-site-q",
+    className: "tp-field",
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "Cari nama desa / lokasi",
+    onKeyDown: e => {
+      if (e.key === 'Enter') search();
+    }
+  }), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Search",
+    onClick: search,
+    disabled: busy === 'cari'
+  }, "Cari"))), m.lat != null && React.createElement("div", {
+    className: "text-[12px] font-mono"
+  }, (+m.lat).toFixed(6), ", ", (+m.lng).toFixed(6), " \xB7 UTM ", utmTxt(+m.lat, +m.lng)), msg && React.createElement("div", {
+    className: "text-[12px] text-slate-600"
+  }, msg));
+}
 function ProjectDialog({
   project,
   setProject,
   onClose,
   officerId,
-  setOfficerId
+  setOfficerId,
+  initialTab,
+  gps
 }) {
   const setMeta = (k, v) => setProject(p => ({
     ...p,
@@ -19758,7 +20333,7 @@ function ProjectDialog({
     noStamp: true,
     system: true
   });
-  const [tab, setTab] = useState('org');
+  const [tab, setTab] = useState(initialTab || 'org');
   const [logoErr, setLogoErr] = useState('');
   const team = project.team || [];
   const onLogo = e => {
@@ -19880,7 +20455,11 @@ function ProjectDialog({
     onChange: e => setMeta('consultant', e.target.value)
   }))), tab === 'proj' && React.createElement("div", {
     className: "grid grid-cols-1 sm:grid-cols-2 gap-3"
-  }, [['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Jabatan pemeriksa', 1], ['approvedBy', 'Jabatan penyetuju', 1]].map(([k, l, span]) => React.createElement("div", {
+  }, React.createElement(SiteField, {
+    project: project,
+    setMeta: setMeta,
+    gps: gps
+  }), [['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Jabatan pemeriksa', 1], ['approvedBy', 'Jabatan penyetuju', 1]].map(([k, l, span]) => React.createElement("div", {
     key: k,
     className: span === 2 ? 'sm:col-span-2' : ''
   }, React.createElement(Field, {
@@ -21645,6 +22224,20 @@ function makeCloudStore(api) {
       } catch (e) {
         throw wrap(e);
       }
+    },
+    async putPhoto(id, rec) {
+      try {
+        await db.collection('photos').doc(id).set({
+          ...rec,
+          at: FS.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        throw wrap(e);
+      }
+    },
+    async getPhoto(id) {
+      const s = await db.collection('photos').doc(id).get();
+      return s.exists ? s.data().data : null;
     }
   };
 }
@@ -22564,7 +23157,135 @@ function App({
     downloadText(name, text, isGpx ? 'application/gpx+xml' : 'application/json');
     setToast('Perangkat ini tidak mendukung menu Bagikan; berkas diunduh.');
   };
+  const camRef = useRef(null),
+    galRef = useRef(null),
+    photoCtx = useRef(null);
+  const [openPh, setOpenPh] = useState(null);
+  useEffect(() => {
+    PHOTO_CLOUD = store;
+  }, [store]);
+  const PENDK = 'tirtaplan-photo-pending';
+  const uploadPhoto = async (id, data, projectId) => {
+    if (!store || !navigator.onLine) throw new Error('offline');
+    await store.putPhoto(id, {
+      projectId,
+      ownerUid: user.uid,
+      data
+    });
+  };
+  const retryPhotos = useCallback(async () => {
+    if (!store || !navigator.onLine) return;
+    let pend = [];
+    try {
+      pend = JSON.parse(localStorage.getItem(PENDK) || '[]');
+    } catch (e) {}
+    const left = [];
+    for (const it of pend) {
+      try {
+        const v = await photoDB.get(it.id);
+        if (v) await uploadPhoto(it.id, v, it.projectId);
+      } catch (e) {
+        left.push(it);
+      }
+    }
+    try {
+      localStorage.setItem(PENDK, JSON.stringify(left));
+    } catch (e) {}
+  }, [store]);
+  useEffect(() => {
+    retryPhotos();
+    window.addEventListener('online', retryPhotos);
+    return () => window.removeEventListener('online', retryPhotos);
+  }, [retryPhotos]);
+  const takePhoto = ({
+    ref = null,
+    camera = true
+  } = {}) => {
+    photoCtx.current = {
+      ref,
+      camera,
+      pos: gps.pos && gps.pos.acc <= (project.settings.gpsMaxAcc || 20) ? gps.pos : null
+    };
+    if (camera && navigator.geolocation && !photoCtx.current.pos) navigator.geolocation.getCurrentPosition(p => {
+      if (photoCtx.current) photoCtx.current.pos = {
+        lat: p.coords.latitude,
+        lng: p.coords.longitude,
+        acc: p.coords.accuracy
+      };
+    }, () => {}, {
+      enableHighAccuracy: true,
+      timeout: 15000
+    });
+    (camera ? camRef : galRef).current.click();
+  };
+  const onPhotoFiles = async e => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!files.length) return;
+    const ctx = photoCtx.current || {};
+    const made = [];
+    for (const f of files) {
+      try {
+        const full = await resizeImage(f, 1600, 0.72),
+          th = await resizeImage(f, 200, 0.6);
+        const id = uid('ph');
+        const pid = projectRef.current.cloud?.id;
+        const r = refOf(projectRef.current, ctx.ref);
+        const pos = ctx.camera && ctx.pos ? ctx.pos : r ? {
+          lat: r.lat,
+          lng: r.lng
+        } : ctx.pos;
+        await photoDB.put(id, full.data);
+        PHOTO_CACHE.set(id, full.data);
+        const o = officerRef.current;
+        made.push({
+          id,
+          at: Date.now(),
+          cat: guessPhotoCat(projectRef.current, ctx.ref),
+          caption: '',
+          ref: ctx.ref || null,
+          thumb: th.data,
+          w: full.w,
+          h: full.h,
+          lat: pos ? +(+pos.lat).toFixed(7) : null,
+          lng: pos ? +(+pos.lng).toFixed(7) : null,
+          acc: pos && pos.acc ? Math.round(pos.acc) : null,
+          locSrc: ctx.camera && ctx.pos ? 'gps' : r ? 'ref' : pos ? 'gps' : null,
+          by: o ? {
+            id: o.id,
+            name: o.name,
+            role: o.role
+          } : {
+            name: user.name || user.email
+          }
+        });
+        uploadPhoto(id, full.data, pid).catch(() => {
+          try {
+            const pend = JSON.parse(localStorage.getItem(PENDK) || '[]');
+            pend.push({
+              id,
+              projectId: pid
+            });
+            localStorage.setItem(PENDK, JSON.stringify(pend));
+          } catch (x) {}
+        });
+      } catch (err) {
+        setToast(err.message || 'Foto gagal diproses');
+      }
+    }
+    if (!made.length) return;
+    setProject(p => ({
+      ...p,
+      photos: [...(p.photos || []), ...made]
+    }), {
+      system: true
+    });
+    setToast(made.length > 1 ? `${made.length} foto ditambahkan` : `Foto disimpan${made[0].lat == null ? ' (tanpa koordinat: aktifkan GPS atau kaitkan ke titik)' : ''}`);
+    if (made.length === 1) setOpenPh(made[0]);
+  };
   const field = {
+    takePhoto,
+    openPhoto: setOpenPh,
     officer,
     pickOfficer: () => setPickOfficer({
       then: () => {}
@@ -22839,6 +23560,7 @@ function App({
       ...q.meta,
       name: label
     };
+    if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50);
     localLib.put(user.uid, q);
     localLib.setSync(q.cloud.id, {
       rev: null,
@@ -22941,8 +23663,16 @@ function App({
     const t = setTimeout(() => window.print(), 400);
     return () => clearTimeout(t);
   }, [printMode]);
-  const saveFile = () => {
-    const blob = new Blob([JSON.stringify(project, null, 2)], {
+  const saveFile = async () => {
+    const photoData = {};
+    for (const ph of project.photos || []) {
+      const v = await loadPhoto(ph.id);
+      if (v) photoData[ph.id] = v;
+    }
+    const blob = new Blob([JSON.stringify(Object.keys(photoData).length ? {
+      ...project,
+      photoData
+    } : project, null, 2)], {
       type: 'application/json'
     });
     const a = document.createElement('a');
@@ -22962,6 +23692,12 @@ function App({
       try {
         const data = JSON.parse(r.result);
         if (!Array.isArray(data.nodes)) throw new Error();
+        if (data.photoData && typeof data.photoData === 'object') Object.entries(data.photoData).forEach(([id, v]) => {
+          if (typeof v === 'string' && v.startsWith('data:image')) {
+            photoDB.put(id, v).catch(() => {});
+            PHOTO_CACHE.set(id, v);
+          }
+        });
         setPendingLoad({
           data,
           name: f.name
@@ -23525,7 +24261,32 @@ function App({
     setProject: setProject,
     onClose: () => setDialog(false),
     officerId: officerId,
-    setOfficerId: setOfficerId
+    setOfficerId: setOfficerId,
+    initialTab: typeof dialog === 'string' ? dialog : undefined,
+    gps: gps
+  }), React.createElement("input", {
+    ref: camRef,
+    id: "photo-cam",
+    type: "file",
+    accept: "image/*",
+    capture: "environment",
+    className: "hidden",
+    onChange: onPhotoFiles
+  }), React.createElement("input", {
+    ref: galRef,
+    id: "photo-gal",
+    type: "file",
+    accept: "image/*",
+    multiple: true,
+    className: "hidden",
+    onChange: onPhotoFiles
+  }), openPh && React.createElement(PhotoDialog, {
+    ph: openPh,
+    project: project,
+    setProject: fn => setProject(fn, {
+      system: true
+    }),
+    onClose: () => setOpenPh(null)
   }), pickOfficer && React.createElement(OfficerPicker, {
     project: project,
     setProject: setProject,

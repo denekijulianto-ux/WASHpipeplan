@@ -30,6 +30,12 @@ service cloud.firestore {
         && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']));
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
+    // Foto asesmen (satu dokumen per foto, JPEG terkompresi < 1 MB)
+    match /photos/{id} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+    }
     // Isi lengkap proyek (terkompresi)
     match /projectData/{pid} {
       allow read: if approved();
