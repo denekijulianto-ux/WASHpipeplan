@@ -3702,7 +3702,11 @@ function fbErr(e) {
   const m = { 'auth/email-already-in-use': 'Email ini sudah terdaftar. Silakan masuk.', 'auth/invalid-email': 'Format email tidak valid.', 'auth/weak-password': 'Kata sandi terlalu lemah (minimal 8 karakter).',
     'auth/wrong-password': 'Email atau kata sandi salah.', 'auth/user-not-found': 'Email atau kata sandi salah.', 'auth/invalid-credential': 'Email atau kata sandi salah.', 'auth/invalid-login-credentials': 'Email atau kata sandi salah.',
     'auth/network-request-failed': 'Tidak ada koneksi internet. Masuk pertama kali di perangkat ini memerlukan internet.', 'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.',
-    'auth/unauthorized-domain': 'Domain ini belum diizinkan di Firebase (Authentication → Settings → Authorized domains).', 'permission-denied': 'Akses ditolak oleh aturan keamanan database (periksa firestore.rules).' };
+    'auth/unauthorized-domain': 'Domain ini belum diizinkan di Firebase (Authentication → Settings → Authorized domains).',
+    'auth/configuration-not-found': 'Login belum disiapkan di Firebase: aktifkan Authentication → Sign-in method → Email/Password, dan pastikan isi auth-config.js disalin utuh dari Project settings → Your apps → Config.',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'apiKey di auth-config.js tidak valid. Salin ulang dari Project settings → Your apps → Config.',
+    'auth/invalid-api-key': 'apiKey di auth-config.js tidak valid. Salin ulang dari Project settings → Your apps → Config.',
+    'auth/operation-not-allowed': 'Login email/kata sandi belum diaktifkan di Firebase (Authentication → Sign-in method → Email/Password).', 'permission-denied': 'Akses ditolak oleh aturan keamanan database (periksa firestore.rules).' };
   return m[e?.code] || e?.message || String(e);
 }
 async function makeFirebaseAuth() {
