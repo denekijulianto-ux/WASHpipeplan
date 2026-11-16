@@ -2330,6 +2330,16 @@ function computeBoQ(project, hyd) {
         minHt: towerMinHt(g, project, hyd)
       };
     }
+    if (st.type === 'bc_v') {
+      const g = bcvGeom(st, project);
+      const q = bcvQty(g);
+      return {
+        st,
+        g,
+        q,
+        items: [...bcvItems(st, g, q), ...extraItems(st, g)]
+      };
+    }
     const g = structGeom(st, project);
     const tk = treat.find(x => x.d.tank && x.d.tank.link && x.d.tank.link.id === st.id);
     const q = structQty(g, hyd.totalDemand);
@@ -2468,6 +2478,11 @@ const STRUCT_TYPES = {
     short: 'BC',
     sheet: 'BRONCAPTERING'
   },
+  bc_v: {
+    label: 'Broncaptering Bentuk V (Sayap + Bak Pengumpul)',
+    short: 'BCV',
+    sheet: 'BRONCAPTERING V'
+  },
   bak_pembagi: {
     label: 'Bak Pembagi Debit',
     short: 'BP',
@@ -2491,6 +2506,7 @@ const STRUCT_TYPES = {
 };
 const STRUCT_DEFAULTS = {
   common: {
+    podium: 0,
     elev: 100,
     embed: 0.5,
     tlk: 0.05,
@@ -2501,6 +2517,12 @@ const STRUCT_DEFAULTS = {
     rebarRoof: 'D10-200'
   },
   reservoir: {
+    baffle: 'none',
+    sedFrac: 0.4,
+    filtFrac: 0.3,
+    nBaffle: 4,
+    sandMesh: '30-50',
+    podium: 0,
     L: 5,
     B: 4,
     Hw: 2.5,
@@ -2566,6 +2588,30 @@ const STRUCT_DEFAULTS = {
     embed: 0.5,
     steelRatio: 100
   },
+  bc_v: {
+    Wb: 7.0,
+    Wf: 3.0,
+    Dc: 3.5,
+    tw: 0.3,
+    gravel: 0.6,
+    clay: 0.3,
+    cover: 0.3,
+    Lb: 2.0,
+    Bb: 1.6,
+    Hb: 1.6,
+    drop: 0.4,
+    vAng: 90,
+    Qs: 2,
+    vents: 2,
+    ditch: true,
+    ditchOff: 1.5,
+    dOut: 63,
+    dOf: 63,
+    dDr: 63,
+    mh: 0.6,
+    steelRatio: 100,
+    embed: 0
+  },
   tower: {
     system: 'steel_pe',
     tankSize: 2000,
@@ -2601,6 +2647,8 @@ const STRUCT_DEFAULTS = {
     embed: 0
   },
   hidran: {
+    tapD: 15,
+    podium: 0,
     L: 1.5,
     B: 1.0,
     Hw: 0.9,
@@ -2616,6 +2664,18 @@ const STRUCT_DEFAULTS = {
     mh: 0.5,
     steelRatio: 95
   }
+};
+const TAP_SIZES = {
+  15: '½"',
+  20: '¾"',
+  25: '1"',
+  32: '1¼"'
+};
+const BAFFLES = {
+  none: 'Tanpa sekat',
+  sed: 'Sekat pengendapan (ambang luapan)',
+  sedfilt: 'Sekat pengendapan + saringan pasir',
+  berliku: 'Sekat berliku (bak kontak klorin)'
 };
 function newStructure(type, list, extra = {}) {
   return {
@@ -2680,6 +2740,7 @@ const roman = n => {
 };
 function structGeom(st, project) {
   if (st.type === 'tower') return towerGeom(st, project);
+  if (st.type === 'bc_v') return bcvGeom(st, project);
   const p = {
     ...STRUCT_DEFAULTS.common,
     ...STRUCT_DEFAULTS[st.type],
@@ -2741,6 +2802,9 @@ function structGeom(st, project) {
       valve: true
     });
   };
+  let media = [],
+    mh2X = null,
+    sludge = null;
   if (st.type === 'reservoir') {
     pipes.push({
       kind: 'in',
@@ -2753,6 +2817,83 @@ function structGeom(st, project) {
     std();
     vent = true;
     ladder = Hin > 1.2;
+    const bf = p.baffle || 'none';
+    const t = 0.15;
+    if (bf === 'sed' || bf === 'sedfilt') {
+      const xs = clamp(L * (+p.sedFrac || 0.4), 0.6, L - 1.0);
+      sludge = {
+        x0: 0,
+        x1: xs,
+        h: 0.3
+      };
+      parts.push({
+        axis: 'x',
+        at: xs,
+        t,
+        h: Math.max(0.3, Hw - 0.1),
+        kind: 'weir',
+        label: 'Ambang luapan'
+      });
+      pipes.push({
+        kind: 'dr',
+        wall: 'K',
+        pos: xs / 2,
+        z: D(p.dDr) / 2,
+        d: +p.dDr,
+        label: 'Penguras ruang endap',
+        valve: true
+      });
+      if (bf === 'sedfilt') {
+        const xf = clamp(xs + t + L * (+p.filtFrac || 0.3), xs + t + 0.6, L - 0.6);
+        parts.push({
+          axis: 'x',
+          at: xf,
+          t,
+          h: Hin,
+          z0: 0.2,
+          kind: 'under',
+          label: 'Sekat (lubang bawah)'
+        });
+        media.push({
+          x0: xs + t,
+          x1: xf,
+          layers: [['Saluran bawah (pipa berlubang)', 0.15, 'drain'], ['Kerikil 5–25 mm', 0.3, 'gravel'], [`Pasir silika ${SAND_MESH[p.sandMesh]?.label || ''}`, 0.6, 'sand']]
+        });
+        pipes.push({
+          kind: 'dr',
+          wall: 'K',
+          pos: (xs + t + xf) / 2,
+          z: D(p.dDr) / 2,
+          d: +p.dDr,
+          label: 'Penguras ruang filter',
+          valve: true
+        });
+        mh2X = (xs + t + xf) / 2;
+      }
+      mhX = clamp(xs / 2, mh / 2 + 0.05, xs - mh / 2 - 0.05);
+      cutX = mhX;
+    } else if (bf === 'berliku') {
+      const n = clamp(Math.round(+p.nBaffle || 4), 2, 8);
+      for (let i = 1; i <= n; i++) {
+        const at = L * i / (n + 1);
+        parts.push(i % 2 ? {
+          axis: 'x',
+          at,
+          t: 0.1,
+          h: Hin,
+          z0: 0.3,
+          kind: 'under',
+          label: 'Sekat (lubang bawah)'
+        } : {
+          axis: 'x',
+          at,
+          t: 0.1,
+          h: Math.max(0.3, Hw - 0.15),
+          kind: 'weir',
+          label: 'Sekat (luapan atas)'
+        });
+      }
+    }
   } else if (st.type === 'broncaptering') {
     const gv = clamp(+p.gravel || 0.8, 0.2, L * 0.6);
     filter = {
@@ -2849,13 +2990,14 @@ function structGeom(st, project) {
     });
     float = true;
     const n = clamp(Math.round(+p.taps || 4), 1, 8);
+    const td = TAP_SIZES[+p.tapD] ? +p.tapD : 15;
     for (let i = 0; i < n; i++) pipes.push({
       kind: 'tap',
       wall: 'F',
       pos: L * (i + 0.5) / n,
       z: 0.1,
-      d: 15,
-      label: 'Kran ½"'
+      d: td,
+      label: 'Kran ' + TAP_SIZES[td]
     });
     pipes.push({
       kind: 'of',
@@ -2877,15 +3019,21 @@ function structGeom(st, project) {
     cutX = L * (Math.floor(n / 2) + 0.5) / n;
   }
   let floor, ground;
+  const podium = Math.max(0, +p.podium || 0);
+  const emb = podium > 0 ? -podium : embed;
   if (node && st.type === 'reservoir') {
     floor = +node.elev || 0;
-    ground = floor - tb + embed;
+    ground = floor - tb + emb;
   } else {
     ground = node ? +node.elev || 0 : +p.elev || 0;
-    floor = ground - embed + tb;
+    floor = ground - emb + tb;
   }
   return {
     p,
+    podium,
+    media,
+    mh2X,
+    sludge,
     type: st.type,
     label: st.label,
     extras: st.extras || [],
@@ -2942,21 +3090,27 @@ function structQty(g, totalDemand) {
   const baseA = (Lo + 2 * ov) * (Bo + 2 * ov);
   const base = baseA * tb;
   const walls = 2 * (L + tw + (B + tw)) * tw * Hin;
-  const partV = parts.reduce((a, pt) => a + pt.t * pt.h * partLen(pt) * (pt.kind === 'perforated' ? 0.85 : 1), 0);
+  const partV = parts.reduce((a, pt) => a + pt.t * (pt.h - (pt.z0 || 0)) * partLen(pt) * (pt.kind === 'perforated' ? 0.85 : 1), 0);
   const roof = (Lo * Bo - mh * mh) * tr;
   const concrete = base + walls + partV + roof;
   const lk = (Lo + 2 * ov + 0.1) * (Bo + 2 * ov + 0.1) * tlk;
   const steel = concrete * (+p.steelRatio || 110);
   const partFaces = parts.reduce((a, pt) => a + 2 * pt.h * partLen(pt), 0);
   const formwork = 2 * (Lo + Bo) * (Hin + tr) + 2 * (L + B) * Hin + L * B + 2 * (Lo + 2 * ov + Bo + 2 * ov) * tb + partFaces;
+  const pod = g.podium || 0;
   const ex = 0.3,
-    depth = Math.max(0.2, embed + tlk);
-  const galian = (Lo + 2 * ov + 2 * ex) * (Bo + 2 * ov + 2 * ex) * depth;
-  const below = lk + baseA * Math.min(embed, tb) + Lo * Bo * Math.max(0, Math.min(embed, g.Htot) - tb);
+    depth = pod > 0 ? 0.5 : Math.max(0.2, embed + tlk);
+  const galian = (Lo + 2 * ov + 2 * ex + (pod > 0 ? 1.0 : 0)) * (Bo + 2 * ov + 2 * ex + (pod > 0 ? 1.0 : 0)) * depth;
+  const stone = pod > 0 ? (Lo + 2 * ov + 1.0) * (Bo + 2 * ov + 1.0) * (pod + 0.5) : 0;
+  const below = pod > 0 ? galian : lk + baseA * Math.min(embed, tb) + Lo * Bo * Math.max(0, Math.min(embed, g.Htot) - tb);
   const urugan = Math.max(0, galian - below);
   const plIn = 2 * (L + B) * Hin + L * B + partFaces;
-  const plOut = 2 * (Lo + Bo) * Math.max(0, g.Htot - embed) + Lo * Bo;
-  const cap = L * B * Hw;
+  const plOut = 2 * (Lo + Bo) * Math.max(0, g.Htot - (pod > 0 ? 0 : embed)) + Lo * Bo;
+  const mediaV = {};
+  (g.media || []).forEach(m => m.layers.forEach(([n, h, kind]) => {
+    mediaV[kind] = (mediaV[kind] || 0) + (m.x1 - m.x0) * B * h;
+  }));
+  const cap = L * B * Hw - (g.media || []).reduce((a, m) => a + (m.x1 - m.x0) * B * m.layers.reduce((s, l) => s + l[1], 0) * 0.6, 0);
   const filterV = g.filter ? g.filter.x1 * B * g.filter.h : 0;
   const need = g.type === 'reservoir' ? (+p.needPct || 15) / 100 * totalDemand * 86.4 / (+p.peakFactor || 1.5) : null;
   return {
@@ -2974,7 +3128,9 @@ function structQty(g, totalDemand) {
     plOut,
     cap,
     filterV,
-    need
+    need,
+    stone,
+    mediaV
   };
 }
 function structItems(st, g, q) {
@@ -2982,6 +3138,12 @@ function structItems(st, g, q) {
   const pipePrice = g.pipes.reduce((a, pp) => pp.kind === 'tap' ? a : a + 90000 + 160000 * (pp.d / 110) + (pp.valve ? FITTING_DEF.gv.price(pp.d) : 0), 250000);
   const items = [['st|dig', 'Galian tanah pondasi bangunan', q.galian, 'm³', 95000], ['st|lk', `Lantai kerja beton K-100 t = ${fmt(g.tlk * 100, 0)} cm`, q.lk, 'm³', 1150000], ['st|beton', 'Beton bertulang K-250 (pelat dasar, dinding, sekat, pelat atap)', q.concrete, 'm³', 1650000], ['st|besi', `Pembesian BJTS 420B (± ${fmt(+p.steelRatio, 0)} kg/m³ beton)`, q.steel, 'kg', 17500], ['st|bek', 'Bekisting multiplek 12 mm + rangka kayu', q.formwork, 'm²', 245000], ['st|plin', 'Plesteran 1:2 + acian kedap air, bagian dalam', q.plIn, 'm²', 115000], ['st|plout', 'Plesteran 1:4 + acian, bagian luar', q.plOut, 'm²', 85000], ['st|fill', 'Urugan tanah kembali dipadatkan', q.urugan, 'm³', 48000]];
   if (g.filter) items.push(['st|gravel', 'Filter kerikil Ø2–5 cm, pasir kasar & ijuk', q.filterV, 'm³', 450000]);
+  if (q.stone) items.push(['st|stone', `Pondasi panggung pasangan batu kali/batu pecah 1:4 (tinggi ${fmt(g.podium, 2)} m + 0,5 m tertanam)`, q.stone, 'm³', 950000]);
+  if (q.mediaV.sand) items.push([`st|sand|${p.sandMesh}`, `Pasir silika ${SAND_MESH[p.sandMesh]?.label || ''} ruang saringan (dicuci)`, q.mediaV.sand, 'm³', 900000]);
+  if (q.mediaV.gravel) items.push(['st|fgravel', 'Kerikil gradasi 5–25 mm ruang saringan (dicuci)', q.mediaV.gravel, 'm³', 450000]);
+  if (q.mediaV.drain) items.push(['st|ud', 'Saluran bawah: pipa PVC berlubang Ø2" + manifold + fitting', (g.media || []).reduce((a, m) => a + (m.x1 - m.x0) * g.B * 2.5, 0), "m'", 85000]);
+  if (g.parts.length && st.type === 'reservoir') items.push(['st|sekat', `Sekat beton bertulang ${g.parts.length} buah (${BAFFLES[p.baffle] || ''}) – termasuk dalam volume beton; pekerjaan bekisting & waterstop`, g.parts.length, 'bh', 650000]);
+  if (g.mh2X != null) items.push(['st|mh2', 'Tutup manhole ruang saringan plat besi + gembok', 1, 'unit', 1250000]);
   items.push(['st|mh', `Tutup manhole ${fmt(g.mh * 100, 0)}×${fmt(g.mh * 100, 0)} cm plat besi 4 mm + engsel & gembok`, 1, 'unit', 1250000]);
   if (g.ladder) items.push(['st|ladder', 'Tangga monyet besi Ø19 mm galvanis', 1, 'unit', 1750000]);
   if (g.vent) items.push(['st|vent', 'Pipa ventilasi GIP Ø2" leher angsa + kawat kasa', 1, 'unit', 350000]);
@@ -2992,7 +3154,10 @@ function structItems(st, g, q) {
     items.push([`st|float|${d}`, `Katup pelampung (float valve) Ø${d} mm`, 1, 'unit', r500(450000 + 900000 * Math.pow(d / 110, 1.3))]);
   }
   const taps = g.pipes.filter(x => x.kind === 'tap').length;
-  if (taps) items.push(['st|tap', 'Kran air ½" kuningan + pipa GIP & fitting', taps, 'bh', 95000]);
+  if (taps) {
+    const td = g.pipes.find(x => x.kind === 'tap').d;
+    items.push([`st|tap|${td}`, `Kran air ${TAP_SIZES[td]} kuningan + pipa GIP & fitting`, taps, 'bh', r500(95000 * Math.pow(td / 15, 1.6))]);
+  }
   items.push([`st|pipe|${st.id}`, 'Perpipaan, katup & fitting dalam bangunan (inlet, outlet, peluap, penguras)', 1, 'ls', r500(pipePrice)]);
   items.push(['st|leak', 'Uji kebocoran bak (diisi penuh 24 jam)', 1, 'ls', 750000]);
   return items;
@@ -3483,6 +3648,153 @@ function towerItems(st, g, q) {
   items.push([`tw|valve|${st.id}`, `Katup & fitting: float valve inlet, gate valve outlet & penguras${g.rcTank ? '' : `, manifold ${g.n} tandon (ball valve + union)`}`, 1, 'ls', r500(valves)]);
   items.push(['tw|fill', 'Urugan tanah kembali dipadatkan', q.urugan, 'm³', 48000]);
   items.push(['tw|test', g.rcTank ? 'Uji kebocoran bak (diisi penuh 24 jam)' : 'Uji pengisian penuh & kebocoran sambungan tandon', 1, 'ls', g.rcTank ? 750000 : 450000]);
+  return items;
+}
+function bcvGeom(st, project) {
+  const p = {
+    ...STRUCT_DEFAULTS.common,
+    ...STRUCT_DEFAULTS.bc_v,
+    ...(st.params || {})
+  };
+  const node = st.nodeId ? project.nodes.find(n => n.id === st.nodeId) : null;
+  const elev = node ? +node.elev || 0 : +p.elev || 0;
+  const Wb = Math.max(1.5, +p.Wb || 0),
+    Wf = clamp(+p.Wf || 0, 0.8, Wb),
+    Dc = Math.max(1, +p.Dc || 0),
+    tw = Math.max(0.25, +p.tw || 0),
+    tf = 0.25;
+  const gravel = Math.max(0.2, +p.gravel || 0),
+    clay = Math.max(0, +p.clay || 0),
+    cover = Math.max(0, +p.cover || 0),
+    ijuk = 0.05;
+  const zc = gravel + ijuk + clay + cover;
+  const Lb = Math.max(0.8, +p.Lb || 0),
+    Bb = Math.max(0.8, +p.Bb || 0),
+    Hb = Math.max(0.8, +p.Hb || 0),
+    tb = 0.15,
+    drop = Math.max(0.1, +p.drop || 0);
+  const ang = clamp(+p.vAng || 90, 30, 120);
+  const Qs = Math.max(0, +p.Qs || 0);
+  const Hn = Qs > 0 ? Math.pow(Qs / 1000 / (1.38 * Math.tan(ang * Math.PI / 360)), 0.4) : 0;
+  const notch = Math.max(0.15, Math.ceil((Hn + 0.08) * 20) / 20);
+  const Hw = Hb - 0.35;
+  const mh = clamp(+p.mh || 0.6, 0.4, Math.min(Lb, Bb) - 0.1);
+  const lw = Math.hypot((Wb - Wf) / 2, Dc);
+  const yB0 = Dc + tf,
+    yB1 = yB0 + Bb + tb;
+  const vents = clamp(Math.round(+p.vents || 0), 0, 6);
+  const pipes = [{
+    kind: 'out',
+    d: +p.dOut
+  }, {
+    kind: 'of',
+    d: +p.dOf
+  }, {
+    kind: 'dr',
+    d: +p.dDr
+  }];
+  return {
+    p,
+    type: 'bc_v',
+    label: st.label,
+    extras: st.extras || [],
+    node,
+    elev,
+    Wb,
+    Wf,
+    Dc,
+    tw,
+    tf,
+    gravel,
+    clay,
+    cover,
+    ijuk,
+    zc,
+    Lb,
+    Bb,
+    Hb,
+    tb,
+    drop,
+    ang,
+    Qs,
+    Hn,
+    notch,
+    Hw,
+    mh,
+    lw,
+    yB0,
+    yB1,
+    vents,
+    pipes,
+    ground: elev + zc,
+    floor: elev - drop,
+    L: Lb,
+    B: Bb,
+    Hin: Hb,
+    Lo: Wb + 2 * tw,
+    Bo: yB1 + 0.5,
+    ov: 0,
+    cap: Lb * Bb * Hw
+  };
+}
+function bcvQty(g) {
+  const {
+    Wb,
+    Wf,
+    Dc,
+    tw,
+    tf,
+    gravel,
+    clay,
+    cover,
+    zc,
+    Lb,
+    Bb,
+    Hb,
+    tb,
+    drop,
+    lw,
+    mh,
+    p
+  } = g;
+  const A = (Wb + Wf) / 2 * Dc;
+  const hWall = zc + 0.1 + 0.4;
+  const wing = 2 * lw * (tw + 0.1) * hWall;
+  const front = (Wf + 2 * tw) * tf * (zc + 0.1 + drop + tb);
+  const boxWalls = (2 * Bb + Lb + 2 * tb) * tb * Hb;
+  const boxFloor = (Lb + 2 * tb) * (Bb + tb + tf) * tb;
+  const boxRoof = (Lb + 2 * tb) * (Bb + tb) * tb - mh * mh * tb;
+  const concrete = front + boxWalls + boxFloor + boxRoof;
+  const steel = concrete * (+p.steelRatio || 100);
+  const formwork = 2 * (Wf + 2 * tw) * (zc + drop + tb) + 2 * (2 * Bb + Lb) * Hb + (Lb + 2 * tb) * (Bb + tb) * 2;
+  const galian = A * (zc + 0.2) + 2 * lw * (tw + 0.5) * 0.5 + (Lb + 2 * tb + 0.6) * (Bb + 2 * tb + 0.6) * (drop + tb + 0.4);
+  const ditch = g.p.ditch ? Wb + 2 * (+p.ditchOff || 1.5) + 2 : 0;
+  return {
+    A,
+    wing,
+    front,
+    concrete,
+    steel,
+    formwork,
+    galian,
+    gravelV: A * gravel,
+    ijukA: A * 1.1,
+    clayV: A * clay,
+    coverV: A * cover,
+    ditch,
+    plIn: 2 * (Lb + Bb) * Hb + Lb * Bb,
+    plOut: 2 * lw * hWall,
+    cap: g.cap,
+    need: null
+  };
+}
+function bcvItems(st, g, q) {
+  const p = g.p;
+  const items = [['bv|dig', 'Galian tanah area tangkapan, dinding sayap & bak pengumpul', q.galian, 'm³', 95000], ['bv|wing', `Dinding sayap pasangan batu kali 1:4 (2 × ${fmt(g.lw, 2)} m)`, q.wing, 'm³', 950000], ['bv|plwing', 'Plesteran 1:3 + acian dinding sayap sisi dalam/atas', q.plOut, 'm²', 85000], ['bv|beton', 'Beton bertulang K-250 dinding depan (V-notch) & bak pengumpul', q.concrete, 'm³', 1650000], ['bv|besi', `Pembesian BJTS 420B (± ${fmt(+p.steelRatio || 100, 0)} kg/m³)`, q.steel, 'kg', 17500], ['bv|bek', 'Bekisting multiplek 12 mm + rangka kayu', q.formwork, 'm²', 245000], ['bv|plin', 'Plesteran 1:2 + acian kedap air bak pengumpul', q.plIn, 'm²', 115000], ['bv|gravel', 'Kerikil filter Ø25–50 mm (dicuci) di atas mata air', q.gravelV, 'm³', 450000], ['bv|ijuk', 'Ijuk / geotekstil non-woven pemisah', q.ijukA, 'm²', 45000], ['bv|clay', 'Lapisan lempung dipadatkan (penutup kedap)', q.clayV, 'm³', 180000], ['bv|cover', 'Tanah urug penutup + tanam rumput', q.coverV, 'm³', 65000], [`bv|vn|${g.ang}`, `Pelat V-notch ${g.ang}° plat stainless/galvanis 5 mm + dynabolt (alat ukur debit)`, 1, 'unit', 850000], ['bv|mh', `Tutup manhole ${fmt(g.mh * 100, 0)}×${fmt(g.mh * 100, 0)} cm plat bordes 5 mm + rangka L50.50 + gembok`, 1, 'unit', 1350000]];
+  if (g.vents) items.push(['bv|vent', 'Pipa ventilasi GIP Ø1½" leher angsa + kawat kasa', g.vents, 'unit', 350000]);
+  if (q.ditch) items.push(['bv|ditch', 'Saluran terbuka pasangan batu kali 30×30 cm (pengalih air permukaan)', q.ditch, "m'", 285000]);
+  items.push([`bv|pipe|${st.id}`, `Perpipaan bak pengumpul: outlet Ø${p.dOut} + saringan & gate valve, peluap Ø${p.dOf}, penguras Ø${p.dDr} + gate valve`, 1, 'ls', r500(600000 + FITTING_DEF.gv.price(+p.dOut) + FITTING_DEF.gv.price(+p.dDr) + 160000 * (+p.dOut + +p.dOf + +p.dDr) / 110)]);
+  items.push(['bv|test', 'Uji kebocoran bak & pengukuran debit V-notch', 1, 'ls', 500000]);
   return items;
 }
 const EXTRA_TYPES = {
@@ -4044,6 +4356,7 @@ const FILT_MODES = {
   }
 };
 const FILT_DEFAULTS = {
+  valve: 'mpv',
   mode: 'basin',
   sandMesh: '16-30',
   iodine: 1000,
@@ -4125,7 +4438,7 @@ function designFrp(units, Qh, ctx, cfg) {
       };
     });
     const gravel = n * A * 0.15;
-    const [valve, vp] = frpValve(v.D);
+    const [valve, vp] = cfg.valve === 'manual5' ? [`Manifold 5 katup manual (ball valve) + pipa by-pass ${v.D <= 0.41 ? '1"' : v.D <= 0.62 ? '1½"' : v.D <= 0.92 ? '2"' : '3"'}`, r500(450000 + 2600000 * Math.pow(v.D / 0.6, 1.3))] : frpValve(v.D);
     return {
       u,
       ...s,
@@ -8464,7 +8777,11 @@ function FiltConfig({
     label: "Integrasi dengan menara air"
   }, sel('ftower', cfg.towerId, v => setF({
     towerId: v
-  }), [['', 'Berdiri sendiri (rumah filter)'], ...towers.map(x => [x.id, `Menara ${x.label}`])])), cfg.towerId && React.createElement(Field, {
+  }), [['', 'Berdiri sendiri (rumah filter)'], ...towers.map(x => [x.id, `Menara ${x.label}`])])), React.createElement(Field, {
+    label: "Jenis katup tabung"
+  }, sel('fvalve', cfg.valve, v => setF({
+    valve: v
+  }), [['mpv', 'Multiport valve (MPV)'], ['manual5', 'Manifold 5 katup manual']])), cfg.towerId && React.createElement(Field, {
     label: "Posisi tabung filter",
     hint: towers.find(x => x.id === cfg.towerId)?.params?.system === 'rc_tank' ? 'Menara full beton: tabung ditempatkan di samping menara.' : ''
   }, sel('fpos', cfg.towerPos, v => setF({
@@ -10095,6 +10412,20 @@ function SvgDefs() {
     fill: "none",
     stroke: "#555",
     strokeWidth: "0.15"
+  })), React.createElement("pattern", {
+    id: "pat-stone",
+    width: "9",
+    height: "7",
+    patternUnits: "userSpaceOnUse"
+  }, React.createElement("rect", {
+    width: "9",
+    height: "7",
+    fill: "#f4f2ec"
+  }), React.createElement("path", {
+    d: "M0.6 1 L3 0.4 L4.2 2.2 L2.8 3.6 L0.8 3 Z M5 0.8 L8.2 1.2 L8.4 3.4 L6 3.8 L4.8 2.4 Z M1.4 4.4 L4 4.2 L4.6 6.4 L1.8 6.6 Z M5.6 4.6 L8.4 4.4 L8 6.6 L5.4 6.4 Z",
+    fill: "none",
+    stroke: "#333",
+    strokeWidth: "0.2"
   })), React.createElement("marker", {
     id: "arr",
     viewBox: "0 0 10 10",
@@ -11383,6 +11714,33 @@ function StructPlan({
     width: g.filter.x1 * k,
     height: B * k,
     fill: "url(#pat-gravel)"
+  }), (g.media || []).map((m, i) => React.createElement("g", {
+    key: 'm' + i
+  }, React.createElement("rect", {
+    x: X(m.x0),
+    y: Y(0),
+    width: (m.x1 - m.x0) * k,
+    height: B * k,
+    fill: "url(#pat-sand)"
+  }), React.createElement(HaloText, {
+    x: X((m.x0 + m.x1) / 2),
+    y: Y(B * 0.82),
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, "Ruang saringan"))), g.sludge && React.createElement(HaloText, {
+    x: X(g.sludge.x1 / 2),
+    y: Y(B * 0.82),
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, "Ruang pengendap"), g.mh2X != null && React.createElement("rect", {
+    x: X(g.mh2X - g.mh / 2),
+    y: Y(g.mhY - g.mh / 2),
+    width: g.mh * k,
+    height: g.mh * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.3,
+    strokeDasharray: "1.2 0.6"
   }), g.parts.map((pt, i) => pt.axis === 'x' ? React.createElement("g", {
     key: i
   }, React.createElement("rect", {
@@ -11402,13 +11760,13 @@ function StructPlan({
     width: pt.t * k + 0.2,
     height: 0.7,
     fill: "#fff"
-  })), pt.kind === 'weir' && React.createElement(HaloText, {
+  })), (pt.kind === 'weir' || pt.kind === 'under') && React.createElement(HaloText, {
     x: X(pt.at + pt.t / 2) + 0.6,
-    y: Y(B * 0.75),
-    fontSize: 1.6,
+    y: Y(B * 0.5),
+    fontSize: 1.5,
     textAnchor: "middle",
-    transform: `rotate(-90 ${X(pt.at + pt.t / 2) + 0.6} ${Y(B * 0.75)})`
-  }, "Ambang pembagi")) : React.createElement("rect", {
+    transform: `rotate(-90 ${X(pt.at + pt.t / 2) + 0.6} ${Y(B * 0.5)})`
+  }, pt.label || 'Ambang pembagi')) : React.createElement("rect", {
     key: i,
     x: X(pt.from),
     y: Y(pt.at - pt.t / 2),
@@ -11520,7 +11878,7 @@ function StructPlan({
       y: ly,
       fontSize: 1.8,
       textAnchor: anchor
-    }, tap ? `${tapCount} × Kran ½" (jarak ${fmt(L / tapCount, 2)} m)` : `${pp.label} Ø${pp.d}${(g.extras || []).some(e => (e.type === 'valve_box' || e.type === 'meter_box') && (e.pipe || 'out') === pp.kind) ? ' → bak ' + (g.extras.find(e => (e.type === 'valve_box' || e.type === 'meter_box') && (e.pipe || 'out') === pp.kind).type === 'meter_box' ? 'meter' : 'katup') : ''}`));
+    }, tap ? `${tapCount} × Kran ${TAP_SIZES[pp.d] || '½"'} (jarak ${fmt(L / tapCount, 2)} m)` : `${pp.label} Ø${pp.d}${(g.extras || []).some(e => (e.type === 'valve_box' || e.type === 'meter_box') && (e.pipe || 'out') === pp.kind) ? ' → bak ' + (g.extras.find(e => (e.type === 'valve_box' || e.type === 'meter_box') && (e.pipe || 'out') === pp.kind).type === 'meter_box' ? 'meter' : 'katup') : ''}`));
   }), g.float && (() => {
     const pin = g.pipes.find(x => x.kind === 'in');
     return pin ? React.createElement("circle", {
@@ -11721,10 +12079,11 @@ function StructSection({
     p
   } = g;
   const H = g.Hin;
+  const pod = g.podium || 0;
   const zTop = H + tr,
-    zBot = -tb - tlk,
-    zg = g.embed - tb,
-    soilW = 0.8;
+    zBot = -tb - tlk - (pod ? pod + 0.5 : 0),
+    zg = pod ? -tb - pod : g.embed - tb,
+    soilW = 0.8 + (pod ? 0.5 : 0);
   const top = Math.max(zTop + 0.9, zg + 0.3),
     bot = zBot - 0.3;
   const availH = h - 12 - 12;
@@ -11753,7 +12112,19 @@ function StructSection({
     y2: Z(zg),
     stroke: "#5b4421",
     strokeWidth: 0.55
-  }), React.createElement("rect", {
+  }), pod > 0 && React.createElement("g", null, React.createElement("rect", {
+    x: U(-tw - ov - 0.5),
+    y: Z(-tb - tlk),
+    width: (span + 2 * tw + 2 * ov + 1.0) * k,
+    height: (pod + 0.5 - tlk) * k,
+    fill: "url(#pat-stone)",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement(HaloText, {
+    x: U(span + tw + ov + 0.5) + 1,
+    y: Z(-tb - pod / 2),
+    fontSize: 1.6
+  }, "Pondasi batu kali / batu pecah")), React.createElement("rect", {
     x: U(-tw - ov - 0.05),
     y: Z(-tb),
     width: (span + 2 * tw + 2 * ov + 0.1) * k,
@@ -11803,20 +12174,72 @@ function StructSection({
     y: Z(g.filter.h / 2),
     fontSize: 1.7,
     textAnchor: "middle"
-  }, "Filter kerikil"), g.parts.map((pt, i) => {
+  }, "Filter kerikil"), A && g.sludge && React.createElement("g", null, React.createElement("rect", {
+    x: U(g.sludge.x0),
+    y: Z(g.sludge.h),
+    width: (g.sludge.x1 - g.sludge.x0) * k,
+    height: g.sludge.h * k,
+    fill: "#cdbf9f",
+    opacity: 0.85
+  }), React.createElement(HaloText, {
+    x: U(g.sludge.x1 / 2),
+    y: Z(g.sludge.h / 2) + 0.6,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Zona lumpur")), A && (g.media || []).map((m, i) => {
+    let z = 0;
+    return React.createElement("g", {
+      key: 'md' + i
+    }, m.layers.map(([nm, h, kind], j) => {
+      const r = React.createElement("g", {
+        key: j
+      }, React.createElement("rect", {
+        x: U(m.x0),
+        y: Z(z + h),
+        width: (m.x1 - m.x0) * k,
+        height: h * k,
+        fill: layerFill(kind),
+        stroke: "#000",
+        strokeWidth: 0.15
+      }), kind === 'drain' && Array.from({
+        length: Math.max(2, Math.floor((m.x1 - m.x0) / 0.4))
+      }).map((_, q, a) => React.createElement("circle", {
+        key: q,
+        cx: U(m.x0 + (m.x1 - m.x0) * (q + 0.5) / a.length),
+        cy: Z(z + h / 2),
+        r: Math.max(0.35, h * k * 0.3),
+        fill: "#fff",
+        stroke: "#0b4fa8",
+        strokeWidth: 0.2
+      })), kind !== 'drain' && h * k >= 2.2 && React.createElement(HaloText, {
+        x: U((m.x0 + m.x1) / 2),
+        y: Z(z + h / 2) + 0.6,
+        fontSize: 1.4,
+        textAnchor: "middle"
+      }, String(nm).replace(/ \(.*\)/, ''), " ", fmt(h, 2)));
+      z += h;
+      return r;
+    }));
+  }), g.parts.map((pt, i) => {
     const cut = A ? pt.axis === 'x' : pt.axis === 'y' && g.cutX >= pt.from && g.cutX <= pt.to;
     if (cut) {
       const u0 = A ? pt.at : pt.at - pt.t / 2;
+      const z0 = pt.z0 || 0;
       return React.createElement("g", {
         key: i
       }, React.createElement("rect", {
         x: U(u0),
         y: Z(pt.h),
         width: pt.t * k,
-        height: pt.h * k,
+        height: (pt.h - z0) * k,
         fill: "url(#pat-concrete)",
         stroke: "#000",
         strokeWidth: 0.3
+      }), pt.kind === 'under' && React.createElement("path", {
+        d: `M${U(u0 - 0.25)} ${Z(z0 / 2)} L${U(u0 + pt.t + 0.25)} ${Z(z0 / 2)}`,
+        stroke: "#0b4fa8",
+        strokeWidth: 0.4,
+        markerEnd: "url(#arr)"
       }), pt.kind === 'perforated' && Array.from({
         length: Math.floor(pt.h / 0.2)
       }).map((_, j) => React.createElement("circle", {
@@ -11845,7 +12268,7 @@ function StructSection({
       x: U(u0),
       y: Z(pt.h),
       width: (u1 - u0) * k,
-      height: pt.h * k,
+      height: (pt.h - (pt.z0 || 0)) * k,
       fill: "none",
       stroke: "#000",
       strokeWidth: 0.2,
@@ -12255,7 +12678,7 @@ const STRUCT_NOTES = {
 function structLegend(g) {
   return (x, y) => React.createElement("g", {
     fontSize: 2
-  }, [['url(#pat-concrete)', 'Beton bertulang K-250'], ['#d4d4d4', 'Lantai kerja K-100'], ['url(#pat-soil)', 'Tanah asli'], ['#d6ebf8', 'Air'], ...(g.filter ? [['url(#pat-gravel)', 'Kerikil filter / saringan']] : [])].map(([f, l], i) => React.createElement("g", {
+  }, [['url(#pat-concrete)', 'Beton bertulang K-250'], ['#d4d4d4', 'Lantai kerja K-100'], ['url(#pat-soil)', 'Tanah asli'], ['#d6ebf8', 'Air'], ...(g.filter || (g.media || []).length ? [['url(#pat-gravel)', 'Kerikil filter / saringan']] : []), ...(g.podium ? [['url(#pat-stone)', 'Pasangan batu kali']] : [])].map(([f, l], i) => React.createElement("g", {
     key: i
   }, React.createElement("rect", {
     x: x + 3,
@@ -12269,7 +12692,7 @@ function structLegend(g) {
     x: x + 16,
     y: y + 3 + i * 6
   }, l))), React.createElement("g", {
-    transform: `translate(0,${(g.filter ? 5 : 4) * 6 + 3})`,
+    transform: `translate(0,${(4 + (g.filter || (g.media || []).length ? 1 : 0) + (g.podium ? 1 : 0)) * 6 + 3})`,
     fontSize: 1.75,
     fill: "#222"
   }, ['CATATAN:', "1. Mutu beton K-250 (fc' 20,75 MPa), selimut 4 cm.", '2. Baja tulangan BJTS 420B; sambungan lewatan 40D.', '3. Dinding dalam diplester 1:2 + acian kedap air.', '4. Uji kebocoran: bak diisi penuh 24 jam sebelum', '    serah terima.', '5. Satuan dalam meter kecuali dinyatakan lain.', ...(STRUCT_NOTES[g.type] || [])].map((t, i) => React.createElement("text", {
@@ -12292,7 +12715,7 @@ function SheetStructure({
     q
   } = s;
   const fits = k => {
-    const hh = (g.Htot + g.tlk + 1.2) * k + 24;
+    const hh = (g.Htot + g.tlk + 1.2 + (g.podium ? g.podium + 0.5 : 0)) * k + 24;
     return (g.Lo + 2 * g.ov + 2 * STUB) * k + 34 <= 150 && (g.Bo + 2 * g.ov + 2 * STUB) * k + 30 <= 134 && (g.Lo + 2 * g.ov + 1.6) * k + 20 <= 154 && hh <= 134 && (g.Bo + 2 * g.ov + 1.6) * k + 20 <= 148;
   };
   const S = STRUCT_SCALES.find(v => fits(1000 / v)) || 200;
@@ -14342,6 +14765,918 @@ function SheetTreatFilter({
     rows: d.units.filter(x => d.sz[x]).map(x => [UNIT_INFO[x].short, String(d.sz[x].n || 1), `${fmt(d.sz[x].L, 2)} × ${fmt(d.sz[x].W, 2)} × ${fmt(d.sz[x].H, 2)}`])
   }));
 }
+function BcvPlan({
+  g,
+  ox,
+  oy,
+  w,
+  h,
+  k,
+  S
+}) {
+  const {
+    Wb,
+    Wf,
+    Dc,
+    tw,
+    tf,
+    Lb,
+    Bb,
+    tb,
+    yB0,
+    yB1,
+    p
+  } = g;
+  const dOff = p.ditch ? +p.ditchOff || 1.5 : 0;
+  const y0 = -dOff - 0.6,
+    y1 = yB1 + 1.3;
+  const cx = ox + w / 2,
+    cy = oy + 8 + (h - 22 - (y1 - y0) * k) / 2;
+  const X = x => cx + x * k,
+    Y = y => cy + (y - y0) * k;
+  const pts = a => a.map(([x, y]) => `${X(x)},${Y(y)}`).join(' ');
+  const len = g.lw,
+    nx = Dc / len,
+    ny = (Wb - Wf) / 2 / len;
+  const wingL = [[-Wb / 2, 0], [-Wf / 2, Dc], [-Wf / 2 - nx * tw, Dc + ny * tw], [-Wb / 2 - nx * tw, ny * tw]];
+  const wingR = wingL.map(([x, y]) => [-x, y]);
+  const vx = Array.from({
+    length: g.vents
+  }, (_, i) => -Wf / 2 + Wf * (i + 0.5) / g.vents);
+  return React.createElement("g", null, p.ditch && React.createElement("g", null, React.createElement("rect", {
+    x: X(-Wb / 2 - 1),
+    y: Y(-dOff - 0.3),
+    width: (Wb + 2) * k,
+    height: 0.3 * k,
+    fill: "#d6ebf8",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(-dOff - 0.3) - 1,
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, "SALURAN TERBUKA (pengalih air hujan)")), React.createElement("polygon", {
+    points: pts([[-Wb / 2, 0], [Wb / 2, 0], [Wf / 2, Dc], [-Wf / 2, Dc]]),
+    fill: "url(#pat-gravel)",
+    stroke: "#000",
+    strokeWidth: 0.25,
+    strokeDasharray: "1.5 0.8"
+  }), React.createElement("polygon", {
+    points: pts(wingL),
+    fill: "url(#pat-stone)",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), React.createElement("polygon", {
+    points: pts(wingR),
+    fill: "url(#pat-stone)",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), [0.25, 0.5, 0.75].map(f => React.createElement("g", {
+    key: f
+  }, React.createElement("circle", {
+    cx: X((f - 0.5) * Wb * 0.8),
+    cy: Y(0.35),
+    r: 0.9,
+    fill: "#0b4fa8"
+  }), React.createElement("line", {
+    x1: X((f - 0.5) * Wb * 0.8),
+    x2: X((f - 0.5) * Wb * 0.6),
+    y1: Y(0.35),
+    y2: Y(0.35 + Dc * 0.25),
+    stroke: "#0b4fa8",
+    strokeWidth: 0.25,
+    markerEnd: "url(#arr)"
+  }))), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(0.35) - 1.5,
+    fontSize: 1.6,
+    textAnchor: "middle",
+    fill: "#0b4fa8"
+  }, "Mata air"), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(Dc * 0.55),
+    fontSize: 2,
+    textAnchor: "middle",
+    fontWeight: 700
+  }, "AREA TANGKAPAN"), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(Dc * 0.55) + 2.6,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "kerikil \xD825\u201350 + ijuk + lempung + tanah urug"), vx.map((x, i) => React.createElement("g", {
+    key: i
+  }, React.createElement("circle", {
+    cx: X(x),
+    cy: Y(Dc * 0.3),
+    r: 0.9,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }))), g.vents > 0 && React.createElement(HaloText, {
+    x: X(vx[0]) + 1.5,
+    y: Y(Dc * 0.3) + 0.6,
+    fontSize: 1.4
+  }, "Pipa vent. \xD81\xBD\""), React.createElement("rect", {
+    x: X(-Wf / 2 - tw),
+    y: Y(Dc),
+    width: (Wf + 2 * tw) * k,
+    height: tf * k,
+    fill: "url(#pat-concrete)",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), React.createElement("path", {
+    d: `M${X(-0.12)} ${Y(Dc) - 0.3} L${X(0)} ${Y(Dc + tf) + 0.3} L${X(0.12)} ${Y(Dc) - 0.3}`,
+    fill: "none",
+    stroke: "#0b4fa8",
+    strokeWidth: 0.35
+  }), React.createElement(HaloText, {
+    x: X(Wf / 2 + tw) + 1,
+    y: Y(Dc + tf / 2) + 0.6,
+    fontSize: 1.5
+  }, "Dinding depan + V-notch ", g.ang, "\xB0"), React.createElement("rect", {
+    x: X(-Lb / 2 - tb),
+    y: Y(yB0),
+    width: (Lb + 2 * tb) * k,
+    height: (Bb + tb) * k,
+    fill: "url(#pat-concrete)",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), React.createElement("rect", {
+    x: X(-Lb / 2),
+    y: Y(yB0),
+    width: Lb * k,
+    height: Bb * k,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), React.createElement("rect", {
+    x: X(-g.mh / 2),
+    y: Y(yB0 + Bb / 2 - g.mh / 2),
+    width: g.mh * k,
+    height: g.mh * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.3,
+    strokeDasharray: "1.2 0.6"
+  }), React.createElement(HaloText, {
+    x: X(0),
+    y: Y(yB0 + Bb / 2) + 0.6,
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, "MANHOLE"), React.createElement(HaloText, {
+    x: X(Lb / 2 + tb) + 1,
+    y: Y(yB0 + Bb * 0.3),
+    fontSize: 1.7,
+    fontWeight: 700
+  }, "BAK PENGUMPUL"), [[-Lb * 0.2, 'Pipa distribusi Ø' + p.dOut, true], [Lb * 0.22, 'Penguras Ø' + p.dDr, true]].map(([x, l, v], i) => React.createElement("g", {
+    key: i
+  }, React.createElement("line", {
+    x1: X(x),
+    x2: X(x),
+    y1: Y(yB1 - tb - 0.1),
+    y2: Y(yB1 + 1.1),
+    stroke: "#0b4fa8",
+    strokeWidth: Math.max(0.5, +p.dOut / 1000 * k)
+  }), v && React.createElement(DedSymbol, {
+    type: "gate_valve",
+    x: X(x),
+    y: Y(yB1 + 0.45),
+    angle: 90,
+    s: 0.8
+  }), React.createElement(HaloText, {
+    x: X(x) + (i ? 1.2 : -1.2),
+    y: Y(yB1 + 1.1),
+    fontSize: 1.5,
+    textAnchor: i ? 'start' : 'end'
+  }, l))), React.createElement("path", {
+    d: `M${X(Lb / 2 - 0.1)} ${Y(yB0 + 0.3)} L${X(Lb / 2 + tb + 0.7)} ${Y(yB0 + 0.3)} L${X(Lb / 2 + tb + 0.7)} ${Y(yB1 + 1.0)}`,
+    fill: "none",
+    stroke: "#0b4fa8",
+    strokeWidth: 0.5,
+    strokeDasharray: "1.4 0.7"
+  }), React.createElement(HaloText, {
+    x: X(Lb / 2 + tb + 0.7) + 1,
+    y: Y(yB1 + 0.9),
+    fontSize: 1.5
+  }, "Peluap \xD8", p.dOf), React.createElement("line", {
+    x1: X(0),
+    x2: X(0),
+    y1: Y(y0) - 2,
+    y2: Y(y1) + 1,
+    stroke: "#000",
+    strokeWidth: 0.2,
+    strokeDasharray: "4 1 0.6 1"
+  }), [Y(y0) - 2, Y(y1) + 1].map((yy, i) => React.createElement("g", {
+    key: i
+  }, React.createElement("circle", {
+    cx: X(0) - 4,
+    cy: yy,
+    r: 2,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), React.createElement("text", {
+    x: X(0) - 4,
+    y: yy + 0.8,
+    fontSize: 2.2,
+    textAnchor: "middle",
+    fontWeight: 700
+  }, "1"))), React.createElement(DimLine, {
+    x1: X(-Wb / 2),
+    y1: Y(0),
+    x2: X(Wb / 2),
+    y2: Y(0),
+    off: p.ditch ? -(dOff + 0.6) * k - 3 : -4,
+    size: 1.7,
+    text: fmt(Wb, 2)
+  }), React.createElement(DimLine, {
+    x1: X(-Wf / 2),
+    y1: Y(Dc),
+    x2: X(Wf / 2),
+    y2: Y(Dc),
+    off: -2.2,
+    size: 1.6,
+    text: fmt(Wf, 2)
+  }), React.createElement(DimLine, {
+    x1: X(-Wb / 2 - tw),
+    y1: Y(0),
+    x2: X(-Wb / 2 - tw),
+    y2: Y(Dc),
+    off: -4,
+    vertical: true,
+    size: 1.7,
+    text: fmt(Dc, 2)
+  }), React.createElement(DimLine, {
+    x1: X(-Lb / 2),
+    y1: Y(yB1),
+    x2: X(Lb / 2),
+    y2: Y(yB1),
+    off: 2.5 + 1.3 * k,
+    size: 1.6,
+    text: fmt(Lb, 2)
+  }), React.createElement(DimLine, {
+    x1: X(-Lb / 2 - tb),
+    y1: Y(yB0),
+    x2: X(-Lb / 2 - tb),
+    y2: Y(yB0 + Bb),
+    off: -3,
+    vertical: true,
+    size: 1.5,
+    text: fmt(Bb, 2)
+  }), React.createElement(HaloText, {
+    x: X(-Wb / 4 - tw) - 2,
+    y: Y(Dc / 2),
+    fontSize: 1.5,
+    textAnchor: "end"
+  }, "Dinding sayap batu kali t=", fmt(tw, 2)), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 6,
+    title: "DENAH BRONCAPTERING",
+    S: S
+  }));
+}
+function BcvSection({
+  g,
+  ox,
+  oy,
+  w,
+  h,
+  k,
+  S
+}) {
+  const {
+    Dc,
+    tf,
+    gravel,
+    ijuk,
+    clay,
+    cover,
+    zc,
+    Bb,
+    Hb,
+    tb,
+    drop,
+    yB0,
+    yB1,
+    notch,
+    p
+  } = g;
+  const dOff = p.ditch ? +p.ditchOff || 1.5 : 0;
+  const s0 = -dOff - 2.2,
+    s1 = yB1 + 2.4,
+    zT = zc + 1.0,
+    zB = -drop - tb - 0.6;
+  const U = s => ox + 12 + (s - s0) * k,
+    Z = z => oy + 6 + (zT - z) * k + Math.max(0, (h - 22 - (zT - zB) * k) / 2);
+  const R = (a, z1, b, z2, pr) => React.createElement("rect", _extends({
+    x: U(Math.min(a, b)),
+    y: Z(Math.max(z1, z2)),
+    width: Math.abs(b - a) * k,
+    height: Math.abs(z2 - z1) * k
+  }, pr));
+  const conc = {
+    fill: 'url(#pat-concrete)',
+    stroke: '#000',
+    strokeWidth: 0.35
+  };
+  const ground = [[s0, zc + 0.9], [-dOff - 0.4, zc + 0.35], ...(p.ditch ? [[-dOff - 0.3, zc + 0.3], [-dOff - 0.3, zc - 0.05], [-dOff, zc - 0.05], [-dOff, zc + 0.25]] : []), [0, zc], [Dc + tf, zc], [yB1, -drop + Hb * 0.55], [s1, -drop - 0.2]];
+  const gp = ground.map(([s, z]) => `${U(s)},${Z(z)}`).join(' ');
+  let z = 0;
+  const layers = [['Kerikil Ø25–50 mm', gravel, 'url(#pat-gravel)'], ['Ijuk / geotekstil', ijuk, '#8b6b3a'], ['Lempung dipadatkan', clay, '#c9a77a'], ['Tanah urug + rumput', cover, 'url(#pat-soil)']];
+  const zBoxTop = -drop + Hb + tb;
+  return React.createElement("g", null, React.createElement("polygon", {
+    points: `${gp} ${U(s1)},${Z(zB)} ${U(s0)},${Z(zB)}`,
+    fill: "url(#pat-soil)",
+    opacity: 0.6
+  }), React.createElement("polyline", {
+    points: gp,
+    fill: "none",
+    stroke: "#5b4421",
+    strokeWidth: 0.5
+  }), R(0, 0, Dc, -0.12, {
+    fill: '#9a8a6a'
+  }), layers.map(([nm, hh, f], i) => {
+    const r = React.createElement("g", {
+      key: i
+    }, R(0, z, Dc, z + hh, {
+      fill: f,
+      stroke: '#000',
+      strokeWidth: 0.15
+    }), React.createElement("line", {
+      x1: U(Dc * 0.55),
+      x2: U(Dc * 0.55) - 10,
+      y1: Z(z + hh / 2),
+      y2: Z(z + hh / 2) - 4 - i * 3,
+      stroke: "#000",
+      strokeWidth: 0.12
+    }), React.createElement(HaloText, {
+      x: U(Dc * 0.55) - 10.5,
+      y: Z(z + hh / 2) - 4 - i * 3,
+      fontSize: 1.45,
+      textAnchor: "end"
+    }, nm, " ", fmt(hh, 2)));
+    z += hh;
+    return r;
+  }), [0.2, 0.5, 0.8].map(f => React.createElement("g", {
+    key: f
+  }, React.createElement("path", {
+    d: `M${U(Dc * f)} ${Z(-0.1)} l0 ${-2}`,
+    stroke: "#0b4fa8",
+    strokeWidth: 0.3,
+    markerEnd: "url(#arr)"
+  }))), React.createElement(HaloText, {
+    x: U(Dc * 0.2),
+    y: Z(-0.12) + 2.6,
+    fontSize: 1.5,
+    fill: "#0b4fa8"
+  }, "Mata air (sumber)"), g.vents > 0 && React.createElement("g", null, React.createElement("path", {
+    d: `M${U(Dc * 0.4)} ${Z(gravel * 0.5)} L${U(Dc * 0.4)} ${Z(zc + 0.45)} a ${0.08 * k} ${0.08 * k} 0 0 1 ${0.16 * k} 0 l0 ${0.08 * k}`,
+    fill: "none",
+    stroke: "#0b4fa8",
+    strokeWidth: 0.5
+  }), React.createElement(HaloText, {
+    x: U(Dc * 0.4) + 3,
+    y: Z(zc + 0.5),
+    fontSize: 1.45
+  }, "Pipa ventilasi \xD81\xBD\"")), R(Dc, -drop - tb, Dc + tf, zc + 0.1, conc), R(Dc - 0.01, 0.12, Dc + tf + 0.01, 0.12 + notch, {
+    fill: '#fff',
+    stroke: '#0b4fa8',
+    strokeWidth: 0.3
+  }), React.createElement(HaloText, {
+    x: U(Dc + tf / 2),
+    y: Z(zc + 0.1) - 1.2,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "V-notch ", g.ang, "\xB0"), React.createElement("path", {
+    d: `M${U(Dc - 0.15)} ${Z(0.12 + notch * 0.5)} L${U(Dc + tf + 0.3)} ${Z(0.12 + notch * 0.5)} q ${0.2 * k} 0 ${0.25 * k} ${2}`,
+    fill: "none",
+    stroke: "#0b4fa8",
+    strokeWidth: 0.4,
+    markerEnd: "url(#arr)"
+  }), R(Dc + tf, -drop - tb, yB1, zBoxTop, conc), R(yB0, -drop, yB0 + Bb, -drop + Hb, {
+    fill: '#fff',
+    stroke: '#000',
+    strokeWidth: 0.3
+  }), R(yB0, -drop, yB0 + Bb, -drop + g.Hw, {
+    fill: '#d6ebf8'
+  }), React.createElement("line", {
+    x1: U(yB0),
+    x2: U(yB0 + Bb),
+    y1: Z(-drop + g.Hw),
+    y2: Z(-drop + g.Hw),
+    stroke: "#0b4fa8",
+    strokeWidth: 0.3,
+    strokeDasharray: "1.4 0.7"
+  }), R(yB0 + Bb / 2 - g.mh / 2, -drop + Hb, yB0 + Bb / 2 + g.mh / 2, zBoxTop + 0.01, {
+    fill: '#fff'
+  }), R(yB0 + Bb / 2 - g.mh / 2 - 0.08, zBoxTop, yB0 + Bb / 2 + g.mh / 2 + 0.08, zBoxTop + 0.04, {
+    fill: '#000'
+  }), React.createElement(HaloText, {
+    x: U(yB0 + Bb / 2),
+    y: Z(zBoxTop) - 1.8,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "Manhole"), React.createElement("g", {
+    fill: "none",
+    stroke: "#0b4fa8"
+  }, React.createElement("path", {
+    d: `M${U(yB0 + 0.3)} ${Z(-drop + 0.15)} L${U(s1 - 0.3)} ${Z(-drop + 0.15)}`,
+    strokeWidth: Math.max(0.5, +p.dOut / 1000 * k)
+  }), React.createElement("path", {
+    d: `M${U(yB0 + Bb - 0.3)} ${Z(-drop + g.Hw + 0.05)} L${U(yB1 + 0.4)} ${Z(-drop + g.Hw + 0.05)} L${U(yB1 + 0.4)} ${Z(-drop - 0.1)}`,
+    strokeWidth: 0.45,
+    strokeDasharray: "1.4 0.7"
+  })), R(yB0 + 0.1, -drop + 0.08, yB0 + 0.3, -drop + 0.22, {
+    fill: 'url(#pat-gravel)',
+    stroke: '#000',
+    strokeWidth: 0.15
+  }), React.createElement(DedSymbol, {
+    type: "gate_valve",
+    x: U(yB1 + 0.9),
+    y: Z(-drop + 0.15),
+    s: 0.9
+  }), React.createElement(HaloText, {
+    x: U(s1 - 0.3),
+    y: Z(-drop + 0.15) - 1.2,
+    fontSize: 1.5,
+    textAnchor: "end"
+  }, "Pipa distribusi \xD8", p.dOut), React.createElement(HaloText, {
+    x: U(yB1 + 0.4) + 1,
+    y: Z(-drop + g.Hw),
+    fontSize: 1.45
+  }, "Peluap \xD8", p.dOf), React.createElement(HaloText, {
+    x: U(yB0 + Bb / 2),
+    y: Z(-drop + g.Hw / 2),
+    fontSize: 1.7,
+    textAnchor: "middle",
+    fontWeight: 700
+  }, "BAK PENGUMPUL"), p.ditch && React.createElement(HaloText, {
+    x: U(-dOff - 0.15),
+    y: Z(zc + 0.4) - 1,
+    fontSize: 1.45,
+    textAnchor: "middle"
+  }, "Saluran terbuka"), React.createElement(ElevMark, {
+    x: U(s1) - 14,
+    y: Z(0),
+    text: `Mata air ${elevTxt(g.elev)}`,
+    color: "#0b4fa8"
+  }), React.createElement(ElevMark, {
+    x: U(s1) - 14,
+    y: Z(-drop),
+    text: `Lantai bak ${elevTxt(g.floor)}`,
+    below: true
+  }), React.createElement(ElevMark, {
+    x: U(s1) - 14,
+    y: Z(-drop + g.Hw),
+    text: `MAT ${elevTxt(g.floor + g.Hw)}`,
+    color: "#0b4fa8"
+  }), React.createElement(DimLine, {
+    x1: U(0),
+    y1: Z(zB),
+    x2: U(Dc),
+    y2: Z(zB),
+    off: 3,
+    size: 1.6,
+    text: fmt(Dc, 2)
+  }), React.createElement(DimLine, {
+    x1: U(yB0),
+    y1: Z(zB),
+    x2: U(yB0 + Bb),
+    y2: Z(zB),
+    off: 3,
+    size: 1.6,
+    text: fmt(Bb, 2)
+  }), React.createElement(DimLine, {
+    x1: U(s0) + 2,
+    y1: Z(zc),
+    x2: U(s0) + 2,
+    y2: Z(0),
+    off: 0,
+    vertical: true,
+    size: 1.5,
+    text: fmt(zc, 2)
+  }), React.createElement(DimLine, {
+    x1: U(yB0 + Bb),
+    y1: Z(-drop + Hb),
+    x2: U(yB0 + Bb),
+    y2: Z(-drop),
+    off: -2,
+    vertical: true,
+    size: 1.5,
+    text: fmt(Hb, 2)
+  }), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 6,
+    title: "POTONGAN 1 \u2013 1",
+    S: S
+  }));
+}
+function BcvVnotch({
+  g,
+  ox,
+  oy,
+  w,
+  h
+}) {
+  const n = g.notch,
+    t2 = Math.tan(g.ang * Math.PI / 360);
+  const Wp = Math.max(0.4, 2 * n * t2 + 0.2),
+    Hp = n + 0.25;
+  const S = [5, 10, 15, 20, 25].find(v => Wp * 1000 / v <= w - 24 && Hp * 1000 / v <= h - 40) || 25;
+  const k = 1000 / S;
+  const x0 = ox + (w - Wp * k) / 2,
+    y0 = oy + 14;
+  const cx = x0 + Wp * k / 2;
+  return React.createElement("g", null, React.createElement("path", {
+    d: `M${x0} ${y0} L${cx - n * t2 * k} ${y0} L${cx} ${y0 + n * k} L${cx + n * t2 * k} ${y0} L${x0 + Wp * k} ${y0} L${x0 + Wp * k} ${y0 + Hp * k} L${x0} ${y0 + Hp * k} Z`,
+    fill: "#dfe5ea",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), [[0.05, 0.08], [0.95, 0.08], [0.05, 0.85], [0.95, 0.85], [0.5, 0.85]].map(([a, b], i) => React.createElement("circle", {
+    key: i,
+    cx: x0 + Wp * k * a,
+    cy: y0 + Hp * k * b,
+    r: 0.7,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.25
+  })), React.createElement("path", {
+    d: `M${cx} ${y0 + n * k - 3} A3 3 0 0 0 ${cx - 2.1} ${y0 + n * k - 2.1}`,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("text", {
+    x: cx,
+    y: y0 + n * k - 4,
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, g.ang, "\xB0"), g.Hn > 0 && React.createElement("line", {
+    x1: cx - n * t2 * k,
+    x2: cx + n * t2 * k,
+    y1: y0 + (n - g.Hn) * k,
+    y2: y0 + (n - g.Hn) * k,
+    stroke: "#0b4fa8",
+    strokeWidth: 0.3,
+    strokeDasharray: "1 0.5"
+  }), React.createElement(DimLine, {
+    x1: x0,
+    y1: y0,
+    x2: x0 + Wp * k,
+    y2: y0,
+    off: -4,
+    size: 1.5,
+    text: fmt(Wp * 1000, 0)
+  }), React.createElement(DimLine, {
+    x1: x0 + Wp * k,
+    y1: y0,
+    x2: x0 + Wp * k,
+    y2: y0 + n * k,
+    off: 4,
+    vertical: true,
+    size: 1.5,
+    text: fmt(n * 1000, 0)
+  }), React.createElement("text", {
+    x: ox + 4,
+    y: y0 + Hp * k + 6,
+    fontSize: 1.55
+  }, "Plat SS/galvanis 5 mm, dynabolt M12"), React.createElement("text", {
+    x: ox + 4,
+    y: y0 + Hp * k + 9,
+    fontSize: 1.55
+  }, "Q = ", fmt(1.38 * t2, 2), " \xB7 H^2,5 (m\xB3/dtk)"), g.Hn > 0 && React.createElement("text", {
+    x: ox + 4,
+    y: y0 + Hp * k + 12,
+    fontSize: 1.55
+  }, "Q ", fmt(g.Qs, 2), " L/dtk \u2192 H = ", fmt(g.Hn * 100, 1), " cm"), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 6,
+    title: "DETAIL V-NOTCH",
+    S: S
+  }));
+}
+function BcvManhole({
+  g,
+  ox,
+  oy,
+  w,
+  h
+}) {
+  const m = g.mh,
+    F = m + 0.2;
+  const S = [5, 10, 15, 20, 25].find(v => F * 1000 / v <= w - 22 && F * 1000 / v <= h - 50) || 25;
+  const k = 1000 / S;
+  const x0 = ox + (w - F * k) / 2,
+    y0 = oy + 14;
+  return React.createElement("g", null, React.createElement("rect", {
+    x: x0,
+    y: y0,
+    width: F * k,
+    height: F * k,
+    fill: "none",
+    stroke: "#000",
+    strokeWidth: 0.5
+  }), React.createElement("rect", {
+    x: x0 + 0.1 * k,
+    y: y0 + 0.1 * k,
+    width: m * k,
+    height: m * k,
+    fill: "url(#pat-sand)",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), React.createElement("line", {
+    x1: x0 + F * k / 2 - 2,
+    x2: x0 + F * k / 2 + 2,
+    y1: y0 + F * k / 2,
+    y2: y0 + F * k / 2,
+    stroke: "#000",
+    strokeWidth: 0.6
+  }), React.createElement(DimLine, {
+    x1: x0,
+    y1: y0,
+    x2: x0 + F * k,
+    y2: y0,
+    off: -4,
+    size: 1.5,
+    text: fmt(F * 1000, 0)
+  }), React.createElement(DimLine, {
+    x1: x0 + 0.1 * k,
+    y1: y0 + F * k,
+    x2: x0 + (0.1 + m) * k,
+    y2: y0 + F * k,
+    off: 4,
+    size: 1.5,
+    text: fmt(m * 1000, 0)
+  }), React.createElement("text", {
+    x: ox + 4,
+    y: y0 + F * k + 12,
+    fontSize: 1.55
+  }, "Rangka L50.50.5, plat bordes 5 mm,"), React.createElement("text", {
+    x: ox + 4,
+    y: y0 + F * k + 15,
+    fontSize: 1.55
+  }, "angkur M12, engsel + gembok, pegangan \xD812"), React.createElement(ViewTitle, {
+    x: ox + w / 2,
+    y: oy + h - 6,
+    title: "TUTUP MANHOLE",
+    S: S
+  }));
+}
+function SheetBroncapV({
+  project,
+  s,
+  sheetNo,
+  sheetTotal
+}) {
+  const {
+    st,
+    g,
+    q
+  } = s;
+  const p = g.p;
+  const dOff = p.ditch ? +p.ditchOff || 1.5 : 0;
+  const pw = g.Wb + 2 * g.tw + 2.6,
+    ph = g.yB1 + 1.3 + dOff + 0.6;
+  const SP = STRUCT_SCALES.find(v => pw * 1000 / v <= 128 && ph * 1000 / v <= 108) || 200;
+  const sw = g.yB1 + 2.4 + dOff + 2.2,
+    sh = g.zc + 1.0 + g.drop + g.tb + 0.6;
+  const SS = STRUCT_SCALES.find(v => sw * 1000 / v <= 134 && sh * 1000 / v <= 104) || 200;
+  const data = [['Lebar belakang / depan', `${fmt(g.Wb, 2)} / ${fmt(g.Wf, 2)} m`], ['Panjang area tangkapan', `${fmt(g.Dc, 2)} m (luas ${fmt(q.A, 2)} m²)`], ['Dinding sayap', `batu kali t = ${fmt(g.tw, 2)} m, 2 × ${fmt(g.lw, 2)} m`], ['Kerikil / ijuk / lempung / urug', `${fmt(g.gravel, 2)} / ${fmt(g.ijuk, 2)} / ${fmt(g.clay, 2)} / ${fmt(g.cover, 2)} m`], ['Bak pengumpul (dalam)', `${fmt(g.Lb, 2)} × ${fmt(g.Bb, 2)} × ${fmt(g.Hb, 2)} m`], ['Kapasitas bak', `${fmt(g.cap, 2)} m³`], ['V-notch', `${g.ang}°, tinggi takik ${fmt(g.notch * 100, 0)} cm`], ['Debit mata air (ukur)', g.Qs > 0 ? `${fmt(g.Qs, 2)} L/dtk → H ${fmt(g.Hn * 100, 1)} cm` : 'belum diisi'], ['Elevasi mata air / lantai bak', `${elevTxt(g.elev)} / ${elevTxt(g.floor)}`]];
+  const vol = [['Galian tanah', q.galian, 'm³'], ['Pasangan batu kali', q.wing, 'm³'], ['Beton K-250', q.concrete, 'm³'], ['Baja tulangan', q.steel, 'kg'], ['Kerikil filter', q.gravelV, 'm³'], ['Lempung', q.clayV, 'm³'], ...(q.ditch ? [['Saluran terbuka', q.ditch, "m'"]] : [])];
+  return React.createElement(Sheet, {
+    meta: project.meta,
+    title: `BRONCAPTERING ${st.label}`,
+    scaleText: SP === SS ? fmtScale(SP) : 'Tertera',
+    sheetNo: sheetNo,
+    sheetTotal: sheetTotal,
+    legend: noteLegend([['url(#pat-stone)', 'Pasangan batu kali 1:4'], ['url(#pat-concrete)', 'Beton bertulang K-250'], ['url(#pat-gravel)', 'Kerikil filter'], ['#c9a77a', 'Lempung dipadatkan'], ['#d6ebf8', 'Air']], ['1. Mata air tidak boleh tertutup beton; lantai', '    tangkapan = tanah/batu asli.', '2. Kerikil dicuci, ijuk/geotekstil mencegah', '    lumpur masuk ke kerikil.', '3. Saluran terbuka di hulu mengalihkan', '    limpasan hujan dari area tangkapan.', '4. Area tangkapan dipagar, bebas cemaran r 10 m.', '5. Satuan dalam meter kecuali dinyatakan lain.'])
+  }, React.createElement("line", {
+    x1: 172,
+    x2: 172,
+    y1: FRAME.y0,
+    y2: FRAME.y1,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("line", {
+    x1: FRAME.x0,
+    x2: FRAME.tbX,
+    y1: 148.5,
+    y2: 148.5,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("line", {
+    x1: 95,
+    x2: 95,
+    y1: 148.5,
+    y2: FRAME.y1,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement(BcvPlan, {
+    g: g,
+    ox: 18,
+    oy: 10,
+    w: 152,
+    h: 137,
+    k: 1000 / SP,
+    S: SP
+  }), React.createElement(BcvSection, {
+    g: g,
+    ox: 173,
+    oy: 10,
+    w: 158,
+    h: 137,
+    k: 1000 / SS,
+    S: SS
+  }), React.createElement(BcvVnotch, {
+    g: g,
+    ox: 18,
+    oy: 150,
+    w: 76,
+    h: 136
+  }), React.createElement(BcvManhole, {
+    g: g,
+    ox: 96,
+    oy: 150,
+    w: 75,
+    h: 136
+  }), React.createElement(SvgTable, {
+    x: 176,
+    y: 156,
+    w: 152,
+    title: "DATA TEKNIS",
+    fs: 1.55,
+    rh: 4,
+    cols: [0.42, 0.58],
+    head: ['Uraian', 'Nilai'],
+    rows: data
+  }), React.createElement(SvgTable, {
+    x: 176,
+    y: 156 + (data.length + 1) * 4 + 9,
+    w: 152,
+    title: "VOLUME PEKERJAAN",
+    fs: 1.55,
+    rh: 4,
+    cols: [0.56, 0.28, 0.16],
+    head: ['Uraian', 'Volume', 'Sat.'],
+    rows: vol.map(r => [r[0], fmt(r[1], r[2] === 'kg' ? 0 : 2), r[2]])
+  }));
+}
+function BcvEditor({
+  s,
+  project,
+  setProject,
+  onDelete,
+  onDuplicate
+}) {
+  const {
+    st,
+    g,
+    q
+  } = s;
+  const p = g.p;
+  const [confirmDel, setConfirmDel] = useState(false);
+  const upd = patch => setProject(pr => ({
+    ...pr,
+    structures: pr.structures.map(x => x.id === st.id ? {
+      ...x,
+      ...patch
+    } : x)
+  }));
+  const setP = (k, v) => setProject(pr => ({
+    ...pr,
+    structures: pr.structures.map(x => x.id === st.id ? {
+      ...x,
+      params: {
+        ...x.params,
+        [k]: v
+      }
+    } : x)
+  }));
+  const num = (k, label, step = 0.05, min = 0) => React.createElement(Field, {
+    key: k,
+    label: label
+  }, React.createElement(NumField, {
+    id: `st-${k}`,
+    value: p[k],
+    step: step,
+    min: min,
+    onChange: v => setP(k, Math.max(min, v))
+  }));
+  const dia = (k, label) => React.createElement(Field, {
+    key: k,
+    label: label
+  }, React.createElement("select", {
+    id: `st-${k}`,
+    className: "tp-field num",
+    value: p[k],
+    onChange: e => setP(k, +e.target.value)
+  }, [20, ...DIAMETERS].map(d => React.createElement("option", {
+    key: d,
+    value: d
+  }, "\xD8", d))));
+  const H = ({
+    children
+  }) => React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-aqua-700 pt-1"
+  }, children);
+  return React.createElement("div", {
+    className: "space-y-2.5"
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, STRUCT_TYPES.bc_v.label), React.createElement("input", {
+    id: "st-label",
+    className: "tp-field !text-[15px] font-semibold mt-1",
+    value: st.label,
+    onChange: e => upd({
+      label: e.target.value
+    })
+  })), React.createElement(Field, {
+    label: "Lokasi pada jaringan",
+    hint: g.node ? 'Elevasi node = elevasi mata air (lantai tangkapan).' : 'Isi elevasi mata air secara manual.'
+  }, React.createElement("select", {
+    id: "st-node",
+    className: "tp-field",
+    value: st.nodeId || '',
+    onChange: e => upd({
+      nodeId: e.target.value
+    })
+  }, React.createElement("option", {
+    value: ""
+  }, "Tidak terhubung ke node"), project.nodes.map(n => React.createElement("option", {
+    key: n.id,
+    value: n.id
+  }, n.label, " \xB7 ", NODE_TYPES[n.type].label)))), !g.node && React.createElement(StructLocFields, {
+    st: st,
+    setProject: setProject
+  }), React.createElement(H, null, "Area tangkapan bentuk V (m)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('Wb', 'Lebar belakang (sisi bukit)', 0.1, 1.5), num('Wf', 'Lebar depan', 0.1, 0.8), num('Dc', 'Panjang tangkapan', 0.1, 1), num('tw', 'Tebal dinding sayap', 0.05, 0.25), num('gravel', 'Tebal kerikil', 0.05, 0.2), num('clay', 'Tebal lempung', 0.05), num('cover', 'Tebal tanah urug', 0.05), num('vents', 'Pipa ventilasi (bh)', 1)), React.createElement(H, null, "Bak pengumpul (m)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('Lb', 'Panjang dalam', 0.05, 0.8), num('Bb', 'Lebar dalam', 0.05, 0.8), num('Hb', 'Tinggi dalam', 0.05, 0.8), num('drop', 'Lantai di bawah mata air', 0.05, 0.1), num('mh', 'Ukuran manhole', 0.05, 0.4)), React.createElement(H, null, "V-notch & saluran"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, React.createElement(Field, {
+    label: "Sudut V-notch"
+  }, React.createElement("select", {
+    id: "st-vAng",
+    className: "tp-field",
+    value: p.vAng,
+    onChange: e => setP('vAng', +e.target.value)
+  }, [60, 90, 120].map(a => React.createElement("option", {
+    key: a,
+    value: a
+  }, a, "\xB0")))), num('Qs', 'Debit mata air terukur (L/dtk)', 0.1), React.createElement("label", {
+    className: "flex items-center gap-2 text-[12.5px] col-span-2"
+  }, React.createElement("input", {
+    id: "st-ditch",
+    type: "checkbox",
+    checked: !!p.ditch,
+    onChange: e => setP('ditch', e.target.checked)
+  }), "Saluran terbuka pengalih air hujan di hulu"), p.ditch && num('ditchOff', 'Jarak saluran dari tangkapan', 0.25, 0.5)), React.createElement(H, null, "Perpipaan (mm)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, dia('dOut', 'Ø distribusi'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras'), num('steelRatio', 'Rasio besi (kg/m³)', 5, 40)), React.createElement("div", {
+    className: "rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]"
+  }, React.createElement("span", {
+    className: "text-slate-500"
+  }, "Luas tangkapan"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(q.A, 2), " m\xB2"), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Kapasitas bak"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(g.cap, 2), " m\xB3"), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Tinggi air di V-notch"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, g.Qs > 0 ? fmt(g.Hn * 100, 1) + ' cm' : '–'), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Pasangan batu kali"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(q.wing, 2), " m\xB3"), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Beton K-250"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, fmt(q.concrete, 2), " m\xB3")), React.createElement(ExtrasEditor, {
+    st: st,
+    setProject: setProject
+  }), React.createElement("div", {
+    className: "flex gap-2"
+  }, React.createElement(Btn, {
+    icon: "FilePlus2",
+    variant: "outline",
+    onClick: onDuplicate
+  }, "Duplikat"), confirmDel ? React.createElement(React.Fragment, null, React.createElement(Btn, {
+    variant: "danger",
+    icon: "Trash2",
+    onClick: onDelete
+  }, "Ya, hapus"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => setConfirmDel(false)
+  }, "Batal")) : React.createElement(Btn, {
+    icon: "Trash2",
+    variant: "danger",
+    onClick: () => setConfirmDel(true)
+  }, "Hapus")));
+}
 function SheetFilterFrp({
   project,
   t,
@@ -14668,6 +16003,372 @@ function SheetFilterFrp({
     rh: 4.3,
     fs: 1.55,
     rows: spec.map(r => [r[0], String(r[1]).slice(0, 52)])
+  }));
+}
+const VALVE_OPS = {
+  manual5: {
+    head: ['Mode', 'K1 inlet atas', 'K2 outlet bawah', 'K3 cuci-balik masuk', 'K4 buang atas', 'K5 bilas buang'],
+    rows: [['Filter (operasi)', 'buka', 'buka', 'tutup', 'tutup', 'tutup'], ['Cuci balik 10–15 mnt', 'tutup', 'tutup', 'buka', 'buka', 'tutup'], ['Bilas 3–5 mnt', 'buka', 'tutup', 'tutup', 'tutup', 'buka'], ['Servis (bypass)', 'tutup', 'tutup', 'tutup', 'tutup', 'tutup']]
+  },
+  mpv: {
+    head: ['Posisi MPV', 'Aliran', 'Lama', 'Keterangan', '', ''],
+    rows: [['Filter', 'atas → bawah → keluar', 'operasi', 'posisi normal', '', ''], ['Backwash', 'bawah → atas → buang', '10–15 menit', 'bila ΔP > 0,5–0,7 bar', '', ''], ['Rinse', 'atas → bawah → buang', '3–5 menit', 'setelah backwash', '', ''], ['Closed / Recirculate', '–', '–', 'perawatan / bypass', '', '']]
+  }
+};
+function SheetFilterInstall({
+  project,
+  t,
+  d,
+  sheetNo,
+  sheetTotal
+}) {
+  const cfg = d.cfg;
+  const fr = d.frp;
+  const stages = fr ? fr.stages : [];
+  const manual = cfg.valve === 'manual5';
+  const tower = fr?.tower;
+  const top = tower && fr.pos === 'top' && tower.params?.system !== 'rc_tank';
+  const gy = 152;
+  const src = t.source === 'borehole' ? 'Sumur bor' : t.source === 'river' ? 'Intake sungai' : t.source === 'spring' ? 'Mata air / bak pengumpul' : WQ_SOURCES[t.source].label;
+  const towerX = 236,
+    legH = 72,
+    platY = gy - legH;
+  const tankW = 30,
+    tankH = 26;
+  const vs = stages.slice(0, 3);
+  const vW = 16,
+    vH = 52;
+  const vX = i => top ? towerX - 22 + i * (vW * 0.55 + 3) : 92 + i * 34;
+  const pipe = {
+    fill: 'none',
+    stroke: '#0b4fa8',
+    strokeWidth: 0.7,
+    strokeLinejoin: 'round'
+  };
+  const vessel = (x, yb, w, h, st, i) => React.createElement("g", {
+    key: i
+  }, React.createElement("rect", {
+    x: x,
+    y: yb - h,
+    width: w,
+    height: h,
+    rx: w / 2.5,
+    fill: "#e9f0e4",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), React.createElement("rect", {
+    x: x + 0.6,
+    y: yb - h * 0.62,
+    width: w - 1.2,
+    height: h * 0.5,
+    fill: st.u === 'gac' ? '#6b6b6b' : 'url(#pat-sand)',
+    opacity: st.u === 'gac' ? 0.6 : 1
+  }), React.createElement("rect", {
+    x: x + 0.6,
+    y: yb - h * 0.14,
+    width: w - 1.2,
+    height: h * 0.1,
+    fill: "url(#pat-gravel)"
+  }), React.createElement("rect", {
+    x: x - 1,
+    y: yb - 2,
+    width: w + 2,
+    height: 2,
+    fill: "#555"
+  }), manual ? React.createElement("g", null, [0.08, 0.3, 0.55, 0.75, 0.92].map((f, j) => React.createElement("g", {
+    key: j
+  }, React.createElement("line", {
+    x1: x + w,
+    x2: x + w + 5,
+    y1: yb - h * (1 - f),
+    y2: yb - h * (1 - f),
+    stroke: "#555",
+    strokeWidth: 0.6
+  }), React.createElement("rect", {
+    x: x + w + 2.2,
+    y: yb - h * (1 - f) - 1,
+    width: 2.6,
+    height: 2,
+    fill: "#dc2626",
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement("text", {
+    x: x + w + 6,
+    y: yb - h * (1 - f) + 0.7,
+    fontSize: 1.8,
+    fontWeight: 700
+  }, j + 1))), React.createElement("line", {
+    x1: x + w + 5,
+    x2: x + w + 5,
+    y1: yb - h * 0.92,
+    y2: yb - h * 0.08,
+    stroke: "#555",
+    strokeWidth: 0.6
+  })) : React.createElement("g", null, React.createElement("rect", {
+    x: x + w / 2 - 4,
+    y: yb - h - 4,
+    width: 8,
+    height: 4,
+    rx: 0.6,
+    fill: "#fff",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), React.createElement("text", {
+    x: x + w / 2,
+    y: yb - h - 5,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "MPV")), React.createElement("text", {
+    x: x + w / 2,
+    y: yb + 4,
+    fontSize: 1.7,
+    fontWeight: 700,
+    textAnchor: "middle"
+  }, st.n, " \xD7 FRP ", st.v.code), wrapText(st.name, 22).slice(0, 2).map((l, j) => React.createElement("text", {
+    key: j,
+    x: x + w / 2,
+    y: yb + 6.6 + j * 2.2,
+    fontSize: 1.45,
+    textAnchor: "middle"
+  }, l)));
+  const lastX = vs.length ? vX(vs.length - 1) + vW : 110;
+  const ops = VALVE_OPS[manual ? 'manual5' : 'mpv'];
+  return React.createElement(Sheet, {
+    meta: project.meta,
+    title: `SKEMA INSTALASI FILTER ${t.label}`,
+    scaleText: "Tanpa skala",
+    sheetNo: sheetNo,
+    sheetTotal: sheetTotal,
+    legend: noteLegend([['#e9f0e4', 'Tabung filter FRP'], ['url(#pat-sand)', 'Media pasir / greensand'], ['#6b6b6b', 'Karbon aktif'], ['#d6ebf8', 'Air bersih'], ['#dc2626', 'Katup (ball valve)']], ['1. Filter dipasang setelah pompa dan', '    sebelum tandon (menara).', '2. Pompa: Q ' + fmt(d.Qh, 1) + ' m³/jam, H ≥ ' + (fr?.head || 35) + ' m', '    (tekanan kerja filter 2–4 bar).', '3. Cuci balik saat ΔP > 0,5–0,7 bar.', '4. Pasang manometer sebelum/sesudah filter.', '5. Klorinasi di tandon sebelum distribusi.'])
+  }, React.createElement("text", {
+    x: 22,
+    y: 17,
+    fontSize: 3.2,
+    fontWeight: 700
+  }, "SKEMA INSTALASI FILTER AIR: SETELAH POMPA / SEBELUM TANDON \xB7 ", t.label), React.createElement("text", {
+    x: 22,
+    y: 21.5,
+    fontSize: 2.1,
+    fill: "#333"
+  }, src, " \u2192 pompa \u2192 ", vs.length ? vs.map(st => st.name.toLowerCase()).join(' → ') : 'tabung filter', d.sz.cart ? ' → cartridge' : '', d.sz.mem ? ' → membran' : '', " \u2192 ", tower ? `menara ${tower.label}` : 'menara tandon', " \u2192 distribusi"), React.createElement("line", {
+    x1: 20,
+    x2: 330,
+    y1: gy,
+    y2: gy,
+    stroke: "#5b4421",
+    strokeWidth: 0.6
+  }), React.createElement("rect", {
+    x: 20,
+    y: gy,
+    width: 310,
+    height: 5,
+    fill: "url(#pat-soil)",
+    opacity: 0.5
+  }), React.createElement("rect", {
+    x: 28,
+    y: gy - 4,
+    width: 6,
+    height: 4,
+    fill: "#ddd",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), React.createElement("line", {
+    x1: 31,
+    x2: 31,
+    y1: gy,
+    y2: gy + 4,
+    stroke: "#0b4fa8",
+    strokeWidth: 0.7
+  }), React.createElement("text", {
+    x: 31,
+    y: gy + 9,
+    fontSize: 1.8,
+    textAnchor: "middle",
+    fontWeight: 700
+  }, src.toUpperCase().slice(0, 22)), React.createElement("g", null, React.createElement("circle", {
+    cx: 54,
+    cy: gy - 7,
+    r: 5,
+    fill: "#2f8f83",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement("rect", {
+    x: 58,
+    y: gy - 12,
+    width: 9,
+    height: 10,
+    rx: 1,
+    fill: "#dc2626",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement("rect", {
+    x: 48,
+    y: gy - 2,
+    width: 21,
+    height: 2,
+    fill: "#555"
+  }), React.createElement("text", {
+    x: 57,
+    y: gy + 4.5,
+    fontSize: 1.8,
+    fontWeight: 700,
+    textAnchor: "middle"
+  }, "POMPA"), React.createElement("text", {
+    x: 57,
+    y: gy + 7,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, "H \u2265 ", fr?.head || 35, " m")), React.createElement("path", _extends({
+    d: `M31 ${gy - 4} L31 ${gy - 7} L49 ${gy - 7}`
+  }, pipe)), vs.map((st, i) => vessel(vX(i), top ? platY - 1 : gy, top ? vW * 0.55 : vW, top ? vH * 0.5 : vH, st, i)), !vs.length && React.createElement("text", {
+    x: 100,
+    y: gy - 30,
+    fontSize: 2,
+    fill: "#b91c1c"
+  }, "Rangkaian belum memiliki unit tabung (pasir/karbon/greensand)."), !top && vs.length > 0 && React.createElement("path", _extends({
+    d: `M59 ${gy - 15} L59 ${gy - 20} L${vX(0) - 2} ${gy - 20} L${vX(0) - 2} ${gy - vH + 4} L${vX(0) + vW / 2} ${gy - vH + 4}`
+  }, pipe, {
+    markerEnd: "url(#arr)"
+  })), !top && vs.slice(1).map((_, i) => React.createElement("path", _extends({
+    key: i,
+    d: `M${vX(i) + vW + 5} ${gy - vH * 0.25} L${vX(i + 1) - 2} ${gy - vH * 0.25} L${vX(i + 1) - 2} ${gy - vH + 4}`
+  }, pipe))), (d.sz.cart || d.sz.mem) && !top && React.createElement("g", null, React.createElement("rect", {
+    x: lastX + 10,
+    y: gy - 30,
+    width: 7,
+    height: 28,
+    rx: 1.5,
+    fill: "#eef1f4",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement("text", {
+    x: lastX + 13.5,
+    y: gy + 4,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, d.sz.mem ? 'Cartridge + ' + d.sz.mem.mem.type.toUpperCase() : `Cartridge ${d.sz.cart.cart.mic} µm`)), React.createElement("g", null, [towerX - 14, towerX + 14].map(x => React.createElement("line", {
+    key: x,
+    x1: x,
+    x2: x,
+    y1: platY,
+    y2: gy,
+    stroke: "#7a9aa8",
+    strokeWidth: 1.4
+  })), [0, 1, 2].map(i => {
+    const y1 = platY + i * legH / 3,
+      y2 = platY + (i + 1) * legH / 3;
+    return React.createElement("g", {
+      key: i,
+      stroke: "#7a9aa8",
+      strokeWidth: 0.6
+    }, React.createElement("line", {
+      x1: towerX - 14,
+      x2: towerX + 14,
+      y1: y1,
+      y2: y2
+    }), React.createElement("line", {
+      x1: towerX + 14,
+      x2: towerX - 14,
+      y1: y1,
+      y2: y2
+    }), React.createElement("line", {
+      x1: towerX - 14,
+      x2: towerX + 14,
+      y1: y2,
+      y2: y2
+    }));
+  }), React.createElement("rect", {
+    x: towerX - 19,
+    y: platY - 2,
+    width: 38,
+    height: 2.5,
+    fill: "#7a9aa8",
+    stroke: "#000",
+    strokeWidth: 0.3
+  }), [towerX - 14, towerX + 14].map(x => React.createElement("rect", {
+    key: x,
+    x: x - 3,
+    y: gy - 1,
+    width: 6,
+    height: 2.5,
+    fill: "#999",
+    stroke: "#000",
+    strokeWidth: 0.2
+  })), React.createElement("rect", {
+    x: towerX - tankW / 2 + (top ? 5 : 0),
+    y: platY - 2 - tankH,
+    width: tankW - (top ? 6 : 0),
+    height: tankH,
+    rx: 5,
+    fill: "#2563eb",
+    stroke: "#000",
+    strokeWidth: 0.4
+  }), React.createElement("text", {
+    x: towerX + (top ? 2 : 0),
+    y: platY - 2 - tankH / 2,
+    fontSize: 2.2,
+    fill: "#fff",
+    fontWeight: 700,
+    textAnchor: "middle"
+  }, "TANDON"), React.createElement("text", {
+    x: towerX,
+    y: gy + 4.5,
+    fontSize: 1.8,
+    fontWeight: 700,
+    textAnchor: "middle"
+  }, tower ? `MENARA ${tower.label}` : 'MENARA TANDON')), top ? React.createElement("path", _extends({
+    d: `M59 ${gy - 15} L59 ${gy - 20} L${towerX - 22} ${gy - 20} L${towerX - 22} ${platY - 4}`
+  }, pipe, {
+    markerEnd: "url(#arr)"
+  })) : React.createElement("path", _extends({
+    d: `M${d.sz.cart || d.sz.mem ? lastX + 17 : lastX + 5} ${gy - vH * 0.25} L${towerX - 24} ${gy - vH * 0.25} L${towerX - 24} ${platY - 2 - tankH - 4} L${towerX - 4} ${platY - 2 - tankH - 4} L${towerX - 4} ${platY - 2 - tankH}`
+  }, pipe, {
+    markerEnd: "url(#arr)"
+  })), React.createElement("path", _extends({
+    d: `M${towerX + tankW / 2} ${platY - 6} L${towerX + 24} ${platY - 6} L${towerX + 24} ${gy - 6} L${296} ${gy - 6}`
+  }, pipe, {
+    markerEnd: "url(#arr)"
+  })), React.createElement("g", null, React.createElement("polygon", {
+    points: `300,${gy} 300,${gy - 14} 310,${gy - 22} 320,${gy - 14} 320,${gy}`,
+    fill: "#f3e3c3",
+    stroke: "#000",
+    strokeWidth: 0.35
+  }), React.createElement("rect", {
+    x: 307,
+    y: gy - 8,
+    width: 5,
+    height: 8,
+    fill: "#8b5a2b"
+  }), React.createElement("text", {
+    x: 310,
+    y: gy + 4.5,
+    fontSize: 1.8,
+    fontWeight: 700,
+    textAnchor: "middle"
+  }, "DISTRIBUSI")), React.createElement("text", {
+    x: towerX + 26,
+    y: platY + 8,
+    fontSize: 1.6
+  }, "Klorinasi di tandon"), React.createElement(SvgTable, {
+    x: 20,
+    y: 182,
+    w: 190,
+    title: manual ? 'OPERASI MANIFOLD 5 KATUP (TIAP TABUNG)' : 'OPERASI MULTIPORT VALVE (MPV)',
+    head: manual ? ops.head : ops.head.slice(0, 4),
+    cols: manual ? [0.26, 0.148, 0.148, 0.148, 0.148, 0.148] : [0.22, 0.3, 0.18, 0.3],
+    rh: 4.6,
+    fs: 1.6,
+    rows: manual ? ops.rows : ops.rows.map(r => r.slice(0, 4))
+  }), React.createElement(SvgTable, {
+    x: 216,
+    y: 182,
+    w: 112,
+    title: "DATA INSTALASI",
+    head: ['Uraian', 'Nilai'],
+    cols: [0.45, 0.55],
+    rh: 4.6,
+    fs: 1.55,
+    rows: [['Debit filter', `${fmt(d.Qh, 2)} m³/jam`], ['Tabung', vs.map(st => `${st.n}×${st.v.code}`).join(' + ') || '–'], ['Katup', manual ? 'manifold 5 katup manual' : 'multiport valve'], ['Debit cuci balik', vs.length ? `${fmt(Math.max(...vs.map(st => st.bwQ)), 1)} m³/jam per tabung` : '–'], ['Penempatan', top ? 'di platform menara' : tower ? 'di samping menara' : 'rumah filter'], ['Media pasir', SAND_MESH[cfg.sandMesh].label]]
   }));
 }
 const layerFill = kind => ({
@@ -15692,6 +17393,11 @@ function extraSheets(project, hyd, boq) {
         s: x,
         sheetNo: no,
         sheetTotal: tot
+      }) : x.st.type === 'bc_v' ? React.createElement(SheetBroncapV, {
+        project: project,
+        s: x,
+        sheetNo: no,
+        sheetTotal: tot
       }) : React.createElement(SheetStructure, {
         project: project,
         s: x,
@@ -15783,6 +17489,20 @@ function extraSheets(project, hyd, boq) {
           sheetTotal: tot
         })
       });
+      if (x.d.cfg.mode === 'frp') out.push({
+        key: 'ts:' + x.t.id,
+        label: x.t.label,
+        sub: 'Skema instalasi filter',
+        icon: 'Workflow',
+        group: 'Sumber & pengolahan air',
+        render: (no, tot) => React.createElement(SheetFilterInstall, {
+          project: project,
+          t: x.t,
+          d: x.d,
+          sheetNo: no,
+          sheetTotal: tot
+        })
+      });
       if (fm === 'basin' && (x.d.sz.cart || x.d.sz.mem)) out.push({
         key: 'tm:' + x.t.id,
         label: x.t.label,
@@ -15803,7 +17523,7 @@ function extraSheets(project, hyd, boq) {
 }
 const sheetCount = project => 3 + (project.structures || []).reduce((a, s) => a + 1 + ((s.extras || []).length ? 1 : 0), 0) + project.nodes.filter(n => n.type === 'borehole').length + (project.treatments || []).reduce((a, t) => {
   const c = tfCfg(t);
-  return a + (t.scale === 'household' ? 1 : 2 + (c.mode === 'basin' && (c.cart !== 'none' || c.mem !== 'none') ? 1 : 0));
+  return a + (t.scale === 'household' ? 1 : 2 + (c.mode === 'basin' && (c.cart !== 'none' || c.mem !== 'none') ? 1 : 0) + (c.mode === 'frp' ? 1 : 0));
 }, 0);
 function TowerEditor({
   s,
@@ -16057,6 +17777,13 @@ function StructureEditor({
     onDelete: onDelete,
     onDuplicate: onDuplicate
   });
+  if (s.st.type === 'bc_v') return React.createElement(BcvEditor, {
+    s: s,
+    project: project,
+    setProject: setProject,
+    onDelete: onDelete,
+    onDuplicate: onDuplicate
+  });
   const {
     st,
     g,
@@ -16169,7 +17896,41 @@ function StructureEditor({
     }))
   }, "Samakan node ", node.label, " menjadi ", fmt(g.Hw, 2), " m")), React.createElement(H, null, "Dimensi (m)"), React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
-  }, num('L', 'Panjang dalam', 0.05, 0.4), num('B', 'Lebar dalam', 0.05, 0.4), num('Hw', 'Tinggi air', 0.05, 0.1), num('fb', 'Tinggi jagaan', 0.05), num('tw', 'Tebal dinding', 0.01, 0.08), num('tb', 'Tebal pelat dasar', 0.01, 0.08), num('tr', 'Tebal pelat atap', 0.01, 0.06), num('tlk', 'Tebal lantai kerja', 0.01), num('embed', 'Kedalaman tertanam', 0.05), num('mh', 'Ukuran manhole', 0.05, 0.3), st.type === 'bak_pembagi' && num('outlets', 'Jumlah outlet (2–5)', 1, 2), st.type === 'hidran' && num('taps', 'Jumlah kran (1–8)', 1, 1), st.type === 'broncaptering' && num('gravel', 'Panjang zona filter', 0.05, 0.2), st.type === 'reservoir' && num('needPct', 'Tampungan (% Q harian)', 1, 1), st.type === 'reservoir' && num('peakFactor', 'Faktor jam puncak', 0.05, 1)), React.createElement(H, null, "Perpipaan (mm)"), React.createElement("div", {
+  }, num('L', 'Panjang dalam', 0.05, 0.4), num('B', 'Lebar dalam', 0.05, 0.4), num('Hw', 'Tinggi air', 0.05, 0.1), num('fb', 'Tinggi jagaan', 0.05), num('tw', 'Tebal dinding', 0.01, 0.08), num('tb', 'Tebal pelat dasar', 0.01, 0.08), num('tr', 'Tebal pelat atap', 0.01, 0.06), num('tlk', 'Tebal lantai kerja', 0.01), num('embed', 'Kedalaman tertanam', 0.05), num('mh', 'Ukuran manhole', 0.05, 0.3), st.type === 'bak_pembagi' && num('outlets', 'Jumlah outlet (2–5)', 1, 2), st.type === 'hidran' && num('taps', 'Jumlah kran (1–8)', 1, 1), st.type === 'hidran' && React.createElement(Field, {
+    label: "Ukuran kran / outlet"
+  }, React.createElement("select", {
+    id: "st-tapD",
+    className: "tp-field num",
+    value: p.tapD || 15,
+    onChange: e => setP('tapD', +e.target.value)
+  }, Object.entries(TAP_SIZES).map(([d, l]) => React.createElement("option", {
+    key: d,
+    value: d
+  }, l, " (\xD8", d, " mm)")))), num('podium', 'Pondasi panggung batu kali (m, 0 = tertanam)', 0.1), st.type === 'broncaptering' && num('gravel', 'Panjang zona filter', 0.05, 0.2), st.type === 'reservoir' && num('needPct', 'Tampungan (% Q harian)', 1, 1), st.type === 'reservoir' && num('peakFactor', 'Faktor jam puncak', 0.05, 1)), st.type === 'reservoir' && React.createElement(React.Fragment, null, React.createElement(H, null, "Sistem penyekat (sedimentasi & filtrasi)"), React.createElement(Field, {
+    label: "Jenis sekat"
+  }, React.createElement("select", {
+    id: "st-baffle",
+    className: "tp-field",
+    value: p.baffle || 'none',
+    onChange: e => setP('baffle', e.target.value)
+  }, Object.entries(BAFFLES).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l)))), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, (p.baffle === 'sed' || p.baffle === 'sedfilt') && num('sedFrac', 'Panjang ruang endap (fraksi P)', 0.05, 0.1), p.baffle === 'sedfilt' && num('filtFrac', 'Panjang ruang saringan (fraksi P)', 0.05, 0.1), p.baffle === 'sedfilt' && React.createElement(Field, {
+    label: "Pasir silika"
+  }, React.createElement("select", {
+    id: "st-sandMesh",
+    className: "tp-field",
+    value: p.sandMesh || '30-50',
+    onChange: e => setP('sandMesh', e.target.value)
+  }, Object.entries(SAND_MESH).map(([k, x]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, x.label)))), p.baffle === 'berliku' && num('nBaffle', 'Jumlah sekat (2–8)', 1, 2)), p.baffle !== 'none' && React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, p.baffle === 'sed' ? 'Air masuk ke ruang endap, lumpur mengendap, air jernih melimpas di atas ambang ke ruang air bersih. Ruang endap punya penguras sendiri.' : p.baffle === 'sedfilt' ? 'Ruang endap → melimpas ke ruang saringan pasir (aliran turun) → lewat lubang bawah sekat ke ruang air bersih.' : 'Sekat berselang luapan atas & lubang bawah memperpanjang lintasan air (waktu kontak klorin).')), React.createElement(H, null, "Perpipaan (mm)"), React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
   }, ['reservoir', 'bak_pembagi', 'bpt', 'hidran'].includes(st.type) && dia('dIn', 'Ø inlet'), st.type !== 'hidran' && dia('dOut', 'Ø outlet'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras')), React.createElement(H, null, "Penulangan"), React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
