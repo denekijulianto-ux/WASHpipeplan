@@ -42,6 +42,8 @@ Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD 
 - **Pondasi panggung batu kali** (semua bak): isi tinggi pondasi > 0 agar bak berdiri di atas pasangan batu kali/batu pecah.
 - **Hidran umum**: ukuran kran/outlet ½" sampai 2½" (Ø15–Ø75 mm).
 - **Broncaptering bentuk V**: dinding sayap batu kali, area tangkapan kerikil–ijuk–lempung–tanah urug, dinding depan dengan V-notch (debit → tinggi air), bak pengumpul + manhole, pipa ventilasi, dan saluran terbuka pengalih air hujan. Lembar DED berisi denah, potongan 1–1, detail V-notch, dan tutup manhole.
+- **Posisi filter FRP**: sebelum bak/menara (setelah pompa) atau **setelah bak penampung/menara, sebelum distribusi**. Untuk posisi setelah bak, aplikasi mengecek tinggi tekan yang tersedia dibanding kehilangan tekan filter dan menambahkan **pompa booster** bila perlu (otomatis / pakai / tanpa pompa).
+- **Lebih dari satu tabung FRP**: pasir/greensand, karbon aktif, alumina dan resin masing-masing di tabung terpisah (atau pasir + karbon digabung dalam satu tabung multimedia), plus jumlah tabung paralel minimum per tahap.
 - **Skema instalasi filter** (mode tabung FRP): pompa → tabung filter → menara tandon → distribusi. Katup bisa berupa multiport valve atau manifold 5 katup manual, lengkap dengan tabel operasi filter / cuci balik / bilas.
 
 ## Jenis filtrasi & media (tab Olah Air)

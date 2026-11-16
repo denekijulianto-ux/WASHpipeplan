@@ -1203,13 +1203,15 @@ function towerGeom(st, project, ext) {
     tankH = tank.H; Hw = tank.H * 0.85; cap = n * tank.v / 1000;
   }
   // Tabung filter FRP dari desain pengolahan yang ditautkan ke menara: di atas platform (menyatu) atau di samping menara (terpisah)
-  const Wt = W; let vessels = [], vPos = null, extL = 0, vKN = 0;
+  const Wt = W; let vessels = [], vPos = null, extL = 0, extR = 0, vKN = 0, vSide = 'L';
   if (ext && ext.frp) {
-    vessels = ext.frp.stages.flatMap(s => Array.from({ length: s.n }, (_, i) => ({ D: s.v.D, H: s.v.H, code: s.v.code, name: s.name, u: s.u, i })));
     vPos = ext.frp.pos === 'top' && !rcTank ? 'top' : 'ground';
+    // di platform: semua tabung digambar; di tanah: satu tabung per tahap dengan label jumlah
+    vessels = vPos === 'top' ? ext.frp.stages.flatMap(s => Array.from({ length: s.n }, (_, i) => ({ D: s.v.D, H: s.v.H, code: s.v.code, name: s.name, u: s.u, i, n: 1 })))
+      : ext.frp.stages.map(s => ({ D: s.v.D, H: s.v.H, code: s.v.code, name: s.name, u: s.u, i: 0, n: s.n }));
     const vw = vessels.reduce((a, v) => a + v.D + 0.25, 0) + 0.25;
     if (vPos === 'top') { W += vw; Dp = Math.max(Dp, Math.max(...vessels.map(v => v.D)) + 2 * 0.35); vKN = vessels.reduce((a, v) => a + Math.PI * v.D * v.D / 4 * v.H * 16, 0); }
-    else extL = vw + 0.6;
+    else if (ext.frp.after) { vSide = 'R'; extR = vw + 1.5; } else extL = vw + 0.6;
   }
   const pc = STEEL_PROFILES[p.colProfile] || STEEL_PROFILES['H125.125'], pb = STEEL_PROFILES[p.braceProfile] || STEEL_PROFILES['L70.70.7'];
   const colB = steel ? pc.b : clamp(+p.col || 0.3, 0.2, 0.8);
@@ -1221,7 +1223,7 @@ function towerGeom(st, project, ext) {
   const ts = steel ? 0.15 : Math.max(0.1, +p.slab || 0.15);
   const outZ = rcTank ? 0.15 : 0.1;
   const floorEl = ground + Ht; const mat = floorEl + Hw; const lowEl = floorEl + outZ + 0.05;
-  return { p, sys, steel, rcTank, type: 'tower', label: st.label, node, ground, Ht, tank, n, cols, rows, gap, edge, W, Dp, Wt, vessels, vPos, extL, vKN, filtT: ext?.t || null, Sx, Sy, colB, pc, pb, ts, tlk, tankH, Hw, cap, nLev, levels, z0,
+  return { p, sys, steel, rcTank, type: 'tower', label: st.label, node, ground, Ht, tank, n, cols, rows, gap, edge, W, Dp, Wt, vessels, vPos, extL, extR, vSide, vKN, filtT: ext?.t || null, Sx, Sy, colB, pc, pb, ts, tlk, tankH, Hw, cap, nLev, levels, z0,
     footB, footT, footD, floorEl, mat, lowEl, outZ, ped: steel ? 0.45 : colB,
     L: W, B: Dp, Hin: Ht + tankH, floor: floorEl };
 }
@@ -1487,7 +1489,7 @@ const FILT_MODES = {
   reservoir: { label: 'Menyatu di bak penampung / reservoir (bak bersekat)', short: 'Reservoir bersekat' },
   frp: { label: 'Tabung filter bertekanan FRP (+ cartridge / membran)', short: 'Tabung FRP' },
 };
-const FILT_DEFAULTS = { valve: 'mpv', mode: 'basin', sandMesh: '16-30', iodine: 1000, carbonMesh: '8x30', cart: 'none', mem: 'none', towerId: '', towerPos: 'ground', structId: '', B: 0, Hw: 2.0, Vs: 0 };
+const FILT_DEFAULTS = { place: 'before', booster: 'auto', combine: false, nPar: 1, Havail: 0, valve: 'mpv', mode: 'basin', sandMesh: '16-30', iodine: 1000, carbonMesh: '8x30', cart: 'none', mem: 'none', towerId: '', towerPos: 'ground', structId: '', B: 0, Hw: 2.0, Vs: 0 };
 const tfCfg = (t) => ({ ...FILT_DEFAULTS, ...(t.filt || {}) });
 // Desain tabung FRP untuk unit yang ditempatkan di tabung bertekanan
 const FRP_STAGE = {
@@ -1498,14 +1500,20 @@ const FRP_STAGE = {
   ix: () => ({ name: 'Pelunak air (resin kation)', rate: 20, media: [['Resin penukar kation SAC', 0.75, 800, 55000, 'kg']], bw: 15, brine: true }),
 };
 function designFrp(units, Qh, ctx, cfg) {
-  const stages = units.filter(u => FRP_STAGE[u]).map(u => {
-    const s = FRP_STAGE[u](ctx, cfg); const Areq = Qh / s.rate; let v = null, n = 1;
-    for (const c of FRP_VESSELS) { const k = Math.ceil(Areq / (Math.PI * c.D * c.D / 4)); if (k <= 2) { v = c; n = k; break; } }
-    if (!v) { v = FRP_VESSELS[FRP_VESSELS.length - 1]; n = Math.ceil(Areq / (Math.PI * v.D * v.D / 4)); }
+  // tahap tabung: satu media per tabung (pasir, karbon, … terpisah) atau pasir + karbon digabung dalam satu tabung multimedia
+  const merge = cfg.combine && units.includes('rsf') && units.includes('gac');
+  const nPar = clamp(Math.round(+cfg.nPar || 1), 1, 6);
+  const stages = units.filter(u => FRP_STAGE[u] && !(merge && u === 'gac')).map(u => {
+    let s = FRP_STAGE[u](ctx, cfg);
+    if (merge && u === 'rsf') { const c = FRP_STAGE.gac(ctx, cfg); s = { ...s, name: 'Filter multimedia (pasir silika + karbon aktif)', rate: Math.min(s.rate, c.rate), media: [...s.media.map(m => [m[0], m[1] * 0.5, m[2], m[3], m[4]]), [c.media[0][0], 0.4, c.media[0][2], c.media[0][3], c.media[0][4]]], bw: c.bw }; }
+    const Areq = Qh / s.rate; let v = null, n = 1;
+    for (const c of FRP_VESSELS) { const k = Math.ceil(Areq / (Math.PI * c.D * c.D / 4)); if (k <= Math.max(2, nPar)) { v = c; n = Math.max(k, nPar); break; } }
+    if (!v) { v = FRP_VESSELS[FRP_VESSELS.length - 1]; n = Math.max(nPar, Math.ceil(Areq / (Math.PI * v.D * v.D / 4))); }
     const A = Math.PI * v.D * v.D / 4; const bed = v.H * 0.6; const rate = Qh / (n * A);
     const media = s.media.map(([name, f, dens, price, unit]) => { const V = n * A * bed * f; return { name, V, kg: V * dens, price, unit }; });
     const gravel = n * A * 0.15; const [valve, vp] = cfg.valve === 'manual5' ? [`Manifold 5 katup manual (ball valve) + pipa by-pass ${v.D <= 0.41 ? '1"' : v.D <= 0.62 ? '1½"' : v.D <= 0.92 ? '2"' : '3"'}`, r500(450000 + 2600000 * Math.pow(v.D / 0.6, 1.3))] : frpValve(v.D);
-    return { u, ...s, v, n, A, bed, rateAct: rate, media, gravel, valve, vp, ebct: u === 'gac' ? A * bed * 0.85 * n / Qh * 60 : null, bwQ: A * s.bw };
+    const gacF = u === 'gac' ? 0.85 : merge && u === 'rsf' ? 0.4 : 0;
+    return { u, ...s, v, n, A, bed, rateAct: rate, media, gravel, valve, vp, ebct: gacF ? A * bed * gacF * n / Qh * 60 : null, bwQ: A * s.bw };
   });
   return stages;
 }
@@ -1741,12 +1749,20 @@ function designTreatment(t, project, hyd) {
         if (st.brine) item('wt|brine', 'Tangki garam regenerasi 200 L + injector', 1, 'unit', 1800000);
       });
       const foot = stages.reduce((a, st) => a + st.n * (st.v.D + 0.4), 0) + 1.0; const deep = Math.max(...stages.map(st => st.v.D)) + 1.2;
-      const head = 35; const kw = Qh / 3600 * 9.81 * head / 0.55;
-      item('wt|frppump', `Pompa umpan filter bertekanan ${fmt(Qh, 1)} m³/jam, H ${head} m (± ${fmt(kw, 1)} kW) + panel`, 1, 'set', r500(4500000 + 1800000 * Math.pow(Qh, 0.7)));
+      // Kehilangan tekan rangkaian tabung (kondisi kotor) & kebutuhan pompa pendorong
+      const hlF = stages.length * 5 + (sz.cart ? 3 : 0) + (sz.mem ? (cfg.mem === 'nf' ? 50 : 15) : 0);
+      const towerS = cfg.towerId ? (project.structures || []).find(x => x.id === cfg.towerId && x.type === 'tower') : null;
+      const after = cfg.place === 'after'; let Havail = null, srcLabel = '';
+      if (after) { if (towerS) { const tg = towerGeom(towerS, project); Havail = tg.mat - tg.ground - 0.5; srcLabel = `menara ${towerS.label}`; }
+        else if (+cfg.Havail > 0) { Havail = +cfg.Havail; srcLabel = 'bak penampung'; }
+        else { const nn = t.nodeId && project.nodes.find(x => x.id === t.nodeId); Havail = nn && nn.type === 'reservoir' ? (+nn.waterLevel || 0) + 0.3 : 2; srcLabel = nn ? `bak ${nn.label}` : 'bak penampung'; } }
+      const needH = hlF + 5; const pumpOn = cfg.booster === 'yes' || (cfg.booster === 'auto' && (!after || Havail < needH));
+      const head = after ? Math.max(15, Math.ceil(hlF + 10)) : Math.max(25, Math.ceil(hlF + 15)); const kw = pumpOn ? Qh / 3600 * 9.81 * head / 0.55 : 0;
+      if (pumpOn) item(after ? 'wt|frpbooster' : 'wt|frppump', after ? `Pompa booster setelah ${srcLabel} untuk mendorong air melewati filter: ${fmt(Qh, 1)} m³/jam, H ${head} m (± ${fmt(kw, 2)} kW) + tangki tekan & pressure switch` : `Pompa umpan filter bertekanan ${fmt(Qh, 1)} m³/jam, H ${head} m (± ${fmt(kw, 2)} kW) + panel`, 1, 'set', r500((after ? 6500000 : 4500000) + 1800000 * Math.pow(Qh, 0.7)));
       item('wt|frppipe|' + t.id, 'Perpipaan manifold filter (PVC/PPR), manometer, sampling tap & fitting', 1, 'ls', r500(stages.reduce((a, st) => a + st.n * st.v.price, 0) * 0.2 + 2500000));
       if (!(cfg.towerId && cfg.towerPos === 'top')) item('wt|frppad', 'Lantai dudukan tabung filter beton K-175 t = 15 cm + atap pelindung', foot * deep, 'm²', 650000);
-      om.push([`Energi pompa umpan (${fmt(kw, 1)} kW × 16 jam)`, kw * 16 * 30, 'kWh/bulan', 1500]);
-      frp = { stages, foot, deep, head, kw, tower: cfg.towerId ? (project.structures || []).find(x => x.id === cfg.towerId && x.type === 'tower') : null, pos: cfg.towerPos };
+      if (pumpOn) om.push([`Energi pompa ${after ? 'booster' : 'umpan'} filter (${fmt(kw, 2)} kW × 16 jam)`, kw * 16 * 30, 'kWh/bulan', 1500]);
+      frp = { stages, foot, deep, head, kw, hlF, needH, Havail, after, pumpOn, srcLabel, merge: cfg.combine && units.includes('rsf') && units.includes('gac'), tower: towerS, pos: after ? 'ground' : cfg.towerPos };
     }
   }
   if (!H && cfg.mode === 'reservoir' && units.some(u => handled.has(u))) {
@@ -2737,10 +2753,24 @@ function FiltConfig({ t, d, project, upd }) {
         {sel('fstruct', cfg.structId, v => setF({ structId: v }), [['', 'Dibuat baru dalam satu bak bersekat'], ...rsvs.map(r => [r.id, `Menyatu dengan bangunan ${r.label}`])])}</Field></div>
       {!cfg.structId && <>{num('B', 'Lebar bak (m, 0 = otomatis)', 0.25)}{num('Hw', 'Tinggi air (m)', 0.1)}{num('Vs', 'Volume ruang air bersih (m³, 0 = otomatis)', 1)}</>}
     </div>}
+    {!H && cfg.mode === 'frp' && (() => { const cur = Array.isArray(t.units) ? t.units : d.units; const tog = (u) => upd({ units: cur.includes(u) ? cur.filter(x => x !== u) : [...cur, u] }); const f = d.frp;
+      return <div className="space-y-2">
+        <Field label="Posisi filter dalam sistem">{sel('fplace', cfg.place, v => setF({ place: v }), [['before', 'Setelah pompa, sebelum bak penampung / menara'], ['after', 'Setelah bak penampung / menara, sebelum distribusi']])}</Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Pompa pendorong filter" hint={f ? (f.after ? `Tinggi tekan tersedia ± ${fmt(f.Havail, 1)} m; filter butuh ± ${fmt(f.needH, 0)} m → ${f.pumpOn ? `pompa booster H ${f.head} m` : f.Havail >= f.needH ? 'cukup gravitasi' : 'tanpa pompa, tekanan kurang!'}` : (f.pumpOn ? `Pompa umpan H ${f.head} m` : 'memakai pompa sumber (pastikan head cukup)')) : ''}>
+            {sel('fbooster', cfg.booster, v => setF({ booster: v }), [['auto', 'Otomatis (cek tinggi tekan)'], ['yes', 'Pakai pompa tambahan'], ['no', 'Tanpa pompa tambahan']])}</Field>
+          {cfg.place === 'after' && !cfg.towerId && <Field label="Muka air bak di atas filter (m)" hint="0 = otomatis dari node reservoir"><NumField id={`wt-${t.id}-fHavail`} value={cfg.Havail} step={0.5} min={0} onChange={v => setF({ Havail: Math.max(0, v) })} /></Field>}
+          <Field label="Tabung paralel min. per tahap">{sel('fnpar', cfg.nPar, v => setF({ nPar: +v }), [1, 2, 3, 4].map(n => [n, `${n} tabung`]))}</Field>
+        </div>
+        <div><div className="text-[11.5px] text-slate-500 mb-1">Tahap tabung FRP (bisa lebih dari satu tabung, misalnya pasir dan karbon terpisah):</div>
+          <div className="flex flex-wrap gap-1.5">{[['rsf', 'Tabung pasir silika / greensand'], ['gac', 'Tabung karbon aktif'], ['aa', 'Tabung alumina (F/As)'], ['ix', 'Tabung pelunak (resin)']].map(([u, l]) =>
+            <button key={u} type="button" onClick={() => tog(u)} className={`rounded-md border px-2.5 py-1 text-[12px] font-semibold ${d.units.includes(u) ? 'bg-aqua-600 text-white border-aqua-600' : 'border-line text-slate-600'}`}>{l}</button>)}</div>
+          <label className="flex items-center gap-2 mt-1.5 text-[12px]"><input id={`wt-${t.id}-fcombine`} type="checkbox" checked={!!cfg.combine} onChange={e => setF({ combine: e.target.checked })} />Gabungkan pasir + karbon dalam 1 tabung multimedia</label></div>
+      </div>; })()}
     {!H && cfg.mode === 'frp' && <div className="grid grid-cols-2 gap-2">
       <Field label="Integrasi dengan menara air">{sel('ftower', cfg.towerId, v => setF({ towerId: v }), [['', 'Berdiri sendiri (rumah filter)'], ...towers.map(x => [x.id, `Menara ${x.label}`])])}</Field>
       <Field label="Jenis katup tabung">{sel('fvalve', cfg.valve, v => setF({ valve: v }), [['mpv', 'Multiport valve (MPV)'], ['manual5', 'Manifold 5 katup manual']])}</Field>
-      {cfg.towerId && <Field label="Posisi tabung filter" hint={(towers.find(x => x.id === cfg.towerId)?.params?.system === 'rc_tank') ? 'Menara full beton: tabung ditempatkan di samping menara.' : ''}>{sel('fpos', cfg.towerPos, v => setF({ towerPos: v }), [['top', 'Menyatu di platform menara'], ['ground', 'Terpisah, di samping menara']])}</Field>}
+      {cfg.towerId && cfg.place !== 'after' && <Field label="Posisi tabung filter" hint={(towers.find(x => x.id === cfg.towerId)?.params?.system === 'rc_tank') ? 'Menara full beton: tabung ditempatkan di samping menara.' : ''}>{sel('fpos', cfg.towerPos, v => setF({ towerPos: v }), [['top', 'Menyatu di platform menara'], ['ground', 'Terpisah, di samping menara']])}</Field>}
     </div>}
     <div className="grid grid-cols-2 gap-2">
       <Field label="Pasir silika (ukuran mesh)" hint={SAND_MESH[cfg.sandMesh].use}>{sel('fmesh', cfg.sandMesh, v => setF({ sandMesh: v }), Object.entries(SAND_MESH).map(([k, x]) => [k, x.label]))}</Field>
@@ -2752,7 +2782,7 @@ function FiltConfig({ t, d, project, upd }) {
     </div>
     {d.frp && <div className="overflow-x-auto"><table className="tp-table"><thead><tr><th>Tahap</th><th>Tabung</th><th className="r">Laju</th><th>Media</th></tr></thead><tbody>
       {d.frp.stages.map(st => <tr key={st.u}><td className="whitespace-normal">{st.name}</td><td>{st.n} × FRP {st.v.code}</td><td className="r">{fmt(st.rateAct, 1)} m/jam</td><td className="whitespace-normal text-[11.5px]">{st.media.map(x => `${x.name} ${fmt(x.kg, 0)} kg`).join(' + ')}{st.ebct ? ` · EBCT ${fmt(st.ebct, 1)} mnt` : ''}</td></tr>)}</tbody></table>
-      <p className="text-[11.5px] text-slate-500 mt-1">Pompa umpan {fmt(d.Qh, 1)} m³/jam, H {d.frp.head} m. {d.frp.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `Tabung dipasang di platform menara ${d.frp.tower.label}; beban tabung ikut dicek pada struktur menara.` : `Tabung dipasang di samping menara ${d.frp.tower.label}.`) : 'Tabung dipasang di rumah filter tersendiri.'}</p></div>}
+      <p className="text-[11.5px] text-slate-500 mt-1">{d.frp.after ? `Filter dipasang setelah ${d.frp.srcLabel}, sebelum distribusi. ` : 'Filter dipasang setelah pompa, sebelum bak/menara. '}{d.frp.pumpOn ? `Pompa ${d.frp.after ? 'booster' : 'umpan'} ${fmt(d.Qh, 1)} m³/jam, H ${d.frp.head} m. ` : 'Tanpa pompa tambahan. '}{d.frp.after && !d.frp.pumpOn && d.frp.Havail < d.frp.needH ? `⚠ Tinggi tekan ${fmt(d.frp.Havail, 1)} m kurang dari kebutuhan filter ± ${fmt(d.frp.needH, 0)} m; aliran akan berkurang. ` : ''}{d.frp.after ? '' : d.frp.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `Tabung dipasang di platform menara ${d.frp.tower.label}; beban tabung ikut dicek pada struktur menara.` : `Tabung dipasang di samping menara ${d.frp.tower.label}.`) : 'Tabung dipasang di rumah filter tersendiri.'}</p></div>}
     {d.tank && <div className="overflow-x-auto"><table className="tp-table"><thead><tr><th>Ruang</th><th className="r">P × L (m)</th><th>Keterangan</th></tr></thead><tbody>
       {d.tank.ch.map(c => <tr key={c.k}><td className="whitespace-normal">{c.name}</td><td className="r">{fmt(c.L, 2)} × {fmt(d.tank.B, 2)}</td><td className="whitespace-normal text-[11.5px]">{c.note}{c.layers.length ? ' · ' + c.layers.map(l => l[0]).join(', ') : ''}</td></tr>)}</tbody></table>
       <p className="text-[11.5px] text-slate-500 mt-1">Bak {fmt(d.tank.Ltot, 2)} × {fmt(d.tank.B, 2)} m, tinggi air {fmt(d.tank.Hw, 2)} m, {d.tank.ch.length - 1} sekat · beton {fmt(d.tank.concrete, 2)} m³{d.tank.link ? ` (hanya ruang filter; ruang air bersih = ${d.tank.link.label})` : ''}.</p></div>}
@@ -3638,16 +3668,16 @@ function SheetStructure({ project, s, sheetNo, sheetTotal }) {
 /* ---------- Gambar DED menara air ---------- */
 const tankXs = (g) => Array.from({ length: g.cols }, (_, j) => -g.W / 2 + ((g.Wt || g.W) - (g.cols * g.tank.D + (g.cols - 1) * g.gap)) / 2 + g.tank.D / 2 + j * (g.tank.D + g.gap));
 // posisi tabung filter: di platform (sebelah kanan tandon) atau di tanah (sebelah kiri menara)
-const vesselXs = (g) => { let x = g.vPos === 'top' ? -g.W / 2 + g.Wt + 0.25 : -g.W / 2 - 1.3 - g.extL + 0.6; return g.vessels.map(v => { const c = x + v.D / 2; x += v.D + 0.25; return c; }); };
+const vesselXs = (g) => { let x = g.vPos === 'top' ? -g.W / 2 + g.Wt + 0.25 : g.vSide === 'R' ? g.W / 2 + 1.9 : -g.W / 2 - 1.3 - g.extL + 0.6; return g.vessels.map(v => { const c = x + v.D / 2; x += v.D + 0.25; return c; }); };
 const tankYs = (g) => Array.from({ length: g.rows }, (_, j) => -g.Dp / 2 + (g.Dp - (g.rows * g.tank.D + (g.rows - 1) * g.gap)) / 2 + g.tank.D / 2 + j * (g.tank.D + g.gap));
 function TowerElevation({ g, ox, oy, w, h, k, S }) {
   const { W, Ht, tankH, footB, footT, footD, colB, Sx, ped, z0, p } = g;
   const zTop = Ht + tankH + (g.rcTank ? 0.5 : 0.35), zBot = -footD - g.tlk - 0.3;
-  const avail = h - 16; const cx = ox + w / 2 - 6 + (g.extL || 0) * k / 2;
+  const avail = h - 16; const cx = ox + w / 2 - 6 + ((g.extL || 0) - (g.extR || 0)) * k / 2;
   const U = u => cx + u * k, Z = z => oy + 4 + Math.max(0, (avail - (zTop - zBot) * k) / 2) + (zTop - z) * k;
   const R = (u1, z1, u2, z2, props) => <rect x={U(Math.min(u1, u2))} y={Z(Math.max(z1, z2))} width={Math.abs(u2 - u1) * k} height={Math.abs(z2 - z1) * k} {...props} />;
   const conc = { fill: 'url(#pat-concrete)', stroke: '#000', strokeWidth: 0.35 };
-  const colsU = [-Sx / 2, Sx / 2]; const soilW = W / 2 + 1.3; const soilL = soilW + (g.extL || 0);
+  const colsU = [-Sx / 2, Sx / 2]; const soilL = W / 2 + 1.3 + (g.extL || 0); const soilW = W / 2 + 1.3 + (g.extR || 0);
   const pw = d => Math.max(0.45, d / 1000 * k);
   const uIn = -W / 2 - 0.15, uOut = W / 2 + 0.15, uDr = W / 2 + 0.32, uLad = -W / 2 - 0.85;
   const tkTop = Ht + tankH; const xs = g.rcTank ? [0] : tankXs(g);
@@ -3671,9 +3701,9 @@ function TowerElevation({ g, ox, oy, w, h, k, S }) {
             {R(x - v.D / 2 + 0.01, z0v + 0.05, x + v.D / 2 - 0.01, z0v + 0.05 + v.H * 0.12, { fill: 'url(#pat-gravel)' })}
             {R(x - v.D / 2 + 0.01, z0v + 0.05 + v.H * 0.12, x + v.D / 2 - 0.01, z0v + v.H * 0.62, { fill: v.u === 'gac' ? '#3a3a3a' : v.u === 'ix' ? '#e8d27a' : 'url(#pat-sand)', opacity: v.u === 'gac' ? 0.55 : 1 })}
             {R(x - 0.09, z0v + v.H, x + 0.09, z0v + v.H + 0.14, { fill: '#fff', stroke: '#000', strokeWidth: 0.25 })}
-            <HaloText x={U(x)} y={Z(z0v + v.H * 0.8)} fontSize={Math.min(1.5, v.D * k / 5)} textAnchor="middle">{v.code}</HaloText></g>; })}
-        <path d={g.vPos === 'top' ? `M${U(xs2[0])} ${Z(Ht + g.vessels[0].H + 0.2)} L${U(xs2[xs2.length - 1])} ${Z(Ht + g.vessels[0].H + 0.2)}` : `M${U(ox2)} ${Z(0.5)} L${U(xs2[xs2.length - 1])} ${Z(0.5)} M${U(xs2[xs2.length - 1])} ${Z(0.5)} L${U(-W / 2 - 0.15 - 0.6)} ${Z(0.5)} L${U(-W / 2 - 0.15 - 0.6)} ${Z(-0.6)}`} fill="none" stroke="#0b4fa8" strokeWidth={0.5} />
-        <HaloText x={U((ox2 + ox3) / 2)} y={g.vPos === 'top' ? Z(Ht + 1.25) - 1 : Z(0) + 3} fontSize={1.6} textAnchor="middle" fontWeight={700}>{g.vPos === 'top' ? 'Tabung filter di platform' : 'Rumah filter (tabung FRP)'}</HaloText>
+            <HaloText x={U(x)} y={Z(z0v + v.H * 0.8)} fontSize={Math.min(1.5, v.D * k / 5)} textAnchor="middle">{v.n > 1 ? `${v.n}× ` : ''}{v.code}</HaloText></g>; })}
+        <path d={g.vPos === 'top' ? `M${U(xs2[0])} ${Z(Ht + g.vessels[0].H + 0.2)} L${U(xs2[xs2.length - 1])} ${Z(Ht + g.vessels[0].H + 0.2)}` : g.vSide === 'R' ? `M${U(W / 2 + 0.15)} ${Z(0.6)} L${U(ox2 + 0.15)} ${Z(0.6)} M${U(ox3 - 0.15)} ${Z(0.35)} L${U(ox3 + 0.7)} ${Z(0.35)}` : `M${U(ox2)} ${Z(0.5)} L${U(xs2[xs2.length - 1])} ${Z(0.5)} M${U(xs2[xs2.length - 1])} ${Z(0.5)} L${U(-W / 2 - 0.15 - 0.6)} ${Z(0.5)} L${U(-W / 2 - 0.15 - 0.6)} ${Z(-0.6)}`} fill="none" stroke="#0b4fa8" strokeWidth={0.5} />
+        <HaloText x={U((ox2 + ox3) / 2)} y={g.vPos === 'top' ? Z(Ht + 1.25) - 1 : Z(0) + 3} fontSize={1.6} textAnchor="middle" fontWeight={700}>{g.vPos === 'top' ? 'Tabung filter di platform' : g.vSide === 'R' ? 'Filter setelah menara → distribusi' : 'Rumah filter (tabung FRP)'}</HaloText>
       </g>; })()}
     {/* rangka */}
     {g.steel ? <g>
@@ -3856,7 +3886,7 @@ function TowerTables({ g, q, x, y, w }) {
     ['Cek kolom Pu / φPn', `${ok(c.rCol)}${fmt(c.Pu, 1)} / ${fmt(c.phiPn, 1)} kN`],
     ['Tegangan tanah σ / σijin', `${ok(c.rSoil)}${fmt(c.sigma, 0)} / ${fmt(c.soil, 0)} kN/m²`],
     ['Gaya angkat (tandon kosong)', c.uplift >= 0 ? '✓ tidak terjadi' : `✗ ${fmt(-c.uplift, 1)} kN/kolom`],
-    ...(g.vessels.length ? [['Filter terintegrasi', `${g.filtT?.label}: ${g.vessels.length} tabung FRP, ${g.vPos === 'top' ? 'di platform' : 'di samping'}`]] : []),
+    ...(g.vessels.length ? [['Filter terintegrasi', `${g.filtT?.label}: ${g.vessels.reduce((a, v) => a + v.n, 0)} tabung FRP, ${g.vPos === 'top' ? 'di platform' : g.vSide === 'R' ? 'setelah menara' : 'sebelum menara'}`]] : []),
   ];
   const vol = [['Galian tanah', q.galian, 'm³'], ['Beton K-250', q.concrete, 'm³'], ['Baja tulangan', q.rebar, 'kg'], ...(g.steel ? [['Baja profil', q.profile, 'kg'], ['Pelat bordes', q.plate, 'm²']] : []), ['Bekisting', q.formwork, 'm²'], ['Railing / tangga', q.rail + q.ladder, "m'"]];
   return <g>
@@ -3872,7 +3902,7 @@ const towerLegend = (g) => noteLegend(
 function SheetTower({ project, s, sheetNo, sheetTotal }) {
   const { st, g, q } = s;
   const zSpan = g.Ht + g.tankH + (g.rcTank ? 0.5 : 0.35) + g.footD + g.tlk + 0.3;
-  const SE = STRUCT_SCALES.find(v => zSpan * 1000 / v + 22 <= 262 && (g.W + 2.6 + (g.extL || 0)) * 1000 / v + 36 <= 150) || 200;
+  const SE = STRUCT_SCALES.find(v => zSpan * 1000 / v + 22 <= 262 && (g.W + 2.6 + (g.extL || 0) + (g.extR || 0)) * 1000 / v + 36 <= 150) || 200;
   const span = Math.max(g.W, g.Dp, g.Sx + g.footB, g.Sy + g.footB) + 1.4;
   const SP = STRUCT_SCALES.find(v => span * 1000 / v + 14 <= 76 && span * 1000 / v + 26 <= 135) || 200;
   const SF = STRUCT_SCALES.find(v => (g.footB + 0.9) * 1000 / v + 24 <= 74 && (g.footD + 1.4) * 1000 / v + 24 <= 134) || 100;
@@ -4279,7 +4309,8 @@ function SheetFilterFrp({ project, t, d, sheetNo, sheetTotal }) {
     ...(cart ? [['Cartridge', `PP spun ${cart.mic} µm, ganti bila ΔP > 1 bar`]] : []),
     ...(mem ? [['Membran', `${mem.label}, pori ${mem.pore}${mem.mwco !== '-' ? ', MWCO ' + mem.mwco : ''}`], ['Pencucian membran', mem.type === 'nf' ? 'CIP asam/basa tiap 1–3 bulan' : 'backwash 30–60 menit, CIP bulanan']] : []),
     ['Kerikil penyangga', '2–4 mm dan 4–8 mm, ± 15% tinggi tabung'],
-    ['Penempatan', d.frp?.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `menyatu di platform menara ${d.frp.tower.label}` : `di samping menara ${d.frp.tower.label}`) : 'rumah filter + lantai dudukan beton']];
+    ['Posisi', d.frp?.after ? `setelah ${d.frp.srcLabel}, sebelum distribusi` : 'setelah pompa, sebelum bak/menara'], ['Pompa pendorong', d.frp?.pumpOn ? `${d.frp.after ? 'booster' : 'umpan'} H ${d.frp.head} m` : 'tanpa (gravitasi / pompa sumber)'],
+    ['Penempatan', d.frp?.after ? 'lantai dudukan di samping bak/menara' : d.frp?.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `menyatu di platform menara ${d.frp.tower.label}` : `di samping menara ${d.frp.tower.label}`) : 'rumah filter + lantai dudukan beton']];
   return <Sheet meta={project.meta} title={`TABUNG FILTER ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-sand)', 'Pasir silika / greensand'], ['#6b6b6b', 'Karbon aktif'], ['url(#pat-gravel)', 'Kerikil penyangga'], ['#e8d27a', 'Resin / media khusus'], ['#d6ebf8', 'Air']],
       ['1. Tabung FRP tekanan kerja 150 psi (10 bar).', '2. Media dicuci (backwash) sebelum operasi.', '3. Cuci balik saat ΔP > 0,5–0,7 bar atau', '    terjadwal tiap 1–3 hari.', '4. Pasang manometer masuk & keluar tiap tahap.', '5. Sampling tap setelah tiap tahap.', '6. Desinfeksi klorin / UV setelah filtrasi.'])}>
@@ -4287,7 +4318,8 @@ function SheetFilterFrp({ project, t, d, sheetNo, sheetTotal }) {
     <text x={22} y={21.5} fontSize={2.1} fill="#333">Debit {fmt(d.Qls, 2)} L/dtk ({fmt(d.Qh, 1)} m³/jam) · {stages.length} tahap tabung{cart ? ' · cartridge' : ''}{mem ? ' · ' + mem.label : ''}</text>
     {/* pompa umpan */}
     <g><circle cx={24} cy={base - 8} r={4} fill="#fff" stroke="#000" strokeWidth={0.35} /><path d={`M21.5 ${base - 10} L27 ${base - 8} L21.5 ${base - 6}`} fill="none" stroke="#000" strokeWidth={0.3} />
-      <text x={24} y={base + 2} fontSize={1.6} textAnchor="middle">Pompa</text><text x={24} y={base + 4.2} fontSize={1.6} textAnchor="middle">H {d.frp?.head || 35} m</text></g>
+      <text x={24} y={base + 2} fontSize={1.6} textAnchor="middle">{d.frp?.after ? (d.frp.pumpOn ? 'Pompa booster' : 'Gravitasi') : d.frp?.pumpOn === false ? 'Pompa sumber' : 'Pompa'}</text><text x={24} y={base + 4.2} fontSize={1.6} textAnchor="middle">{d.frp?.pumpOn === false ? (d.frp.after ? `H ${fmt(d.frp.Havail, 1)} m` : '') : `H ${d.frp?.head || 35} m`}</text>
+      {d.frp?.after && <text x={24} y={base - 14} fontSize={1.6} textAnchor="middle">dari {d.frp.srcLabel}</text>}</g>
     <line x1={28} x2={pos.length ? pos[0] - eq[0].D * k / 2 : 300} y1={base - 8} y2={base - 8} stroke="#0b4fa8" strokeWidth={0.6} markerEnd="url(#arr)" />
     {eq.map((e, i) => { const cx = pos[i], w = e.D * k, h = e.H * k, top = base - h; const nx = i < eq.length - 1 ? pos[i + 1] - eq[i + 1].D * k / 2 : 330;
       const pipe = <path d={`M${cx} ${top - 4} L${cx + w / 2 + 6} ${top - 4} L${cx + w / 2 + 6} ${base - 8} L${nx - 0.5} ${base - 8}`} fill="none" stroke="#0b4fa8" strokeWidth={0.6} markerEnd="url(#arr)" />;
@@ -4315,7 +4347,7 @@ function SheetFilterFrp({ project, t, d, sheetNo, sheetTotal }) {
         <rect x={cx - w / 2} y={base - 4} width={w} height={4} fill="#cfd6dd" stroke="#000" strokeWidth={0.3} />{pipe}
         <text x={cx} y={base + 5} fontSize={1.8} fontWeight={700} textAnchor="middle">Skid {mem.type.toUpperCase()} · {mem.n} modul</text><text x={cx} y={base + 8} fontSize={1.6} textAnchor="middle">pori {mem.pore}{mem.mwco !== '-' ? ` · MWCO ${mem.mwco}` : ''}</text></g>;
     })}
-    <text x={330} y={base - 10} fontSize={1.7} textAnchor="end">{d.frp?.tower ? `→ menara ${d.frp.tower.label}` : t.location === 'reservoir' ? '→ distribusi' : '→ reservoir'}</text>
+    <text x={330} y={base - 10} fontSize={1.7} textAnchor="end">{d.frp?.after ? '→ distribusi' : d.frp?.tower ? `→ menara ${d.frp.tower.label}` : t.location === 'reservoir' ? '→ distribusi' : '→ reservoir'}</text>
     <line x1={20} x2={330} y1={base + 0.2} y2={base + 0.2} stroke="#000" strokeWidth={0.3} />
     <ViewTitle x={176} y={base + 24} title="TAMPAK RANGKAIAN TABUNG FILTER" S={S} />
     <SvgTable x={20} y={160} w={170} title="JADWAL TABUNG & PERALATAN" head={['Tahap', 'Tabung / unit', 'Laju', 'Katup / ket.']} cols={[0.34, 0.3, 0.14, 0.22]} rh={4.3} fs={1.6} rows={sched.map(r => r.map(c => String(c).slice(0, 40)))} />
@@ -4333,8 +4365,9 @@ function SheetFilterInstall({ project, t, d, sheetNo, sheetTotal }) {
   const cfg = d.cfg; const fr = d.frp; const stages = fr ? fr.stages : []; const manual = cfg.valve === 'manual5';
   const tower = fr?.tower; const top = tower && fr.pos === 'top' && tower.params?.system !== 'rc_tank';
   const gy = 152; const src = t.source === 'borehole' ? 'Sumur bor' : t.source === 'river' ? 'Intake sungai' : t.source === 'spring' ? 'Mata air / bak pengumpul' : WQ_SOURCES[t.source].label;
-  const towerX = 236, legH = 72, platY = gy - legH; const tankW = 30, tankH = 26;
-  const vs = stages.slice(0, 3); const vW = 16, vH = 52; const vX = (i) => top ? towerX - 22 + i * (vW * 0.55 + 3) : 92 + i * 34;
+  const after = !!fr?.after, boost = !!fr?.pumpOn;
+  const towerX = after ? 112 : 236, legH = 72, platY = gy - legH; const tankW = 30, tankH = 26;
+  const bx = 150; const vs = stages.slice(0, 3); const vW = 16, vH = 52; const vX = (i) => top ? towerX - 22 + i * (vW * 0.55 + 3) : (after ? (boost ? 168 : 156) : 92) + i * 34;
   const pipe = { fill: 'none', stroke: '#0b4fa8', strokeWidth: 0.7, strokeLinejoin: 'round' };
   const vessel = (x, yb, w, h, st, i) => <g key={i}>
     <rect x={x} y={yb - h} width={w} height={h} rx={w / 2.5} fill="#e9f0e4" stroke="#000" strokeWidth={0.4} />
@@ -4352,9 +4385,10 @@ function SheetFilterInstall({ project, t, d, sheetNo, sheetTotal }) {
   const ops = VALVE_OPS[manual ? 'manual5' : 'mpv'];
   return <Sheet meta={project.meta} title={`SKEMA INSTALASI FILTER ${t.label}`} scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['#e9f0e4', 'Tabung filter FRP'], ['url(#pat-sand)', 'Media pasir / greensand'], ['#6b6b6b', 'Karbon aktif'], ['#d6ebf8', 'Air bersih'], ['#dc2626', 'Katup (ball valve)']],
-      ['1. Filter dipasang setelah pompa dan', '    sebelum tandon (menara).', '2. Pompa: Q ' + fmt(d.Qh, 1) + ' m³/jam, H ≥ ' + (fr?.head || 35) + ' m', '    (tekanan kerja filter 2–4 bar).', '3. Cuci balik saat ΔP > 0,5–0,7 bar.', '4. Pasang manometer sebelum/sesudah filter.', '5. Klorinasi di tandon sebelum distribusi.'])}>
-    <text x={22} y={17} fontSize={3.2} fontWeight={700}>SKEMA INSTALASI FILTER AIR: SETELAH POMPA / SEBELUM TANDON · {t.label}</text>
-    <text x={22} y={21.5} fontSize={2.1} fill="#333">{src} → pompa → {vs.length ? vs.map(st => st.name.toLowerCase()).join(' → ') : 'tabung filter'}{d.sz.cart ? ' → cartridge' : ''}{d.sz.mem ? ' → membran' : ''} → {tower ? `menara ${tower.label}` : 'menara tandon'} → distribusi</text>
+      [...(after ? ['1. Filter dipasang setelah bak/menara,', '    sebelum distribusi' + (boost ? ' (pompa booster).' : ' (gravitasi).')] : ['1. Filter dipasang setelah pompa dan', '    sebelum tandon (menara).']), '2. Pompa: Q ' + fmt(d.Qh, 1) + ' m³/jam, H ≥ ' + (fr?.head || 35) + ' m', '    (tekanan kerja filter 2–4 bar).', '3. Cuci balik saat ΔP > 0,5–0,7 bar.', '4. Pasang manometer sebelum/sesudah filter.', after ? '5. Klorinasi setelah filter, sebelum distribusi.' : '5. Klorinasi di tandon sebelum distribusi.'])}>
+    <text x={22} y={17} fontSize={3.2} fontWeight={700}>SKEMA INSTALASI FILTER AIR: {after ? 'SETELAH TANDON / SEBELUM DISTRIBUSI' : 'SETELAH POMPA / SEBELUM TANDON'} · {t.label}</text>
+    <text x={22} y={21.5} fontSize={2.1} fill="#333">{(() => { const f = `${vs.length ? vs.map(st => st.name.toLowerCase()).join(' → ') : 'tabung filter'}${d.sz.cart ? ' → cartridge' : ''}${d.sz.mem ? ' → membran' : ''}`; const tw = tower ? `menara ${tower.label}` : 'menara tandon';
+      return after ? `${src} → pompa → ${tw} → ${boost ? 'pompa booster → ' : ''}${f} → distribusi` : `${src} → ${boost ? 'pompa' : 'pompa sumber'} → ${f} → ${tw} → distribusi`; })()}</text>
     <line x1={20} x2={330} y1={gy} y2={gy} stroke="#5b4421" strokeWidth={0.6} />
     <rect x={20} y={gy} width={310} height={5} fill="url(#pat-soil)" opacity={0.5} />
     {/* sumber */}
@@ -4367,7 +4401,11 @@ function SheetFilterInstall({ project, t, d, sheetNo, sheetTotal }) {
     {/* tabung filter */}
     {vs.map((st, i) => vessel(vX(i), top ? platY - 1 : gy, top ? vW * 0.55 : vW, top ? vH * 0.5 : vH, st, i))}
     {!vs.length && <text x={100} y={gy - 30} fontSize={2} fill="#b91c1c">Rangkaian belum memiliki unit tabung (pasir/karbon/greensand).</text>}
-    {!top && vs.length > 0 && <path d={`M59 ${gy - 15} L59 ${gy - 20} L${vX(0) - 2} ${gy - 20} L${vX(0) - 2} ${gy - vH + 4} L${vX(0) + vW / 2} ${gy - vH + 4}`} {...pipe} markerEnd="url(#arr)" />}
+    {after && boost && <g><circle cx={bx} cy={gy - 7} r={4.5} fill="#2f8f83" stroke="#000" strokeWidth={0.35} /><rect x={bx + 3.5} y={gy - 11} width={7} height={9} rx={1} fill="#dc2626" stroke="#000" strokeWidth={0.35} />
+      <rect x={bx - 5} y={gy - 2} width={17} height={2} fill="#555" /><text x={bx + 3} y={gy + 4.5} fontSize={1.7} fontWeight={700} textAnchor="middle">POMPA BOOSTER</text><text x={bx + 3} y={gy + 7} fontSize={1.5} textAnchor="middle">H {fr.head} m</text></g>}
+    {after && <path d={`M${towerX + tankW / 2} ${platY - 6} L${towerX + 22} ${platY - 6} L${towerX + 22} ${gy - 7} L${boost ? bx - 4.5 : vX(0) - 2} ${gy - 7}${boost ? '' : ` L${vX(0) - 2} ${gy - vH + 4} L${vX(0) + vW / 2} ${gy - vH + 4}`}`} {...pipe} markerEnd="url(#arr)" />}
+    {after && boost && vs.length > 0 && <path d={`M${bx + 7} ${gy - 11} L${bx + 7} ${gy - 20} L${vX(0) - 2} ${gy - 20} L${vX(0) - 2} ${gy - vH + 4} L${vX(0) + vW / 2} ${gy - vH + 4}`} {...pipe} markerEnd="url(#arr)" />}
+    {!top && !after && vs.length > 0 && <path d={`M59 ${gy - 15} L59 ${gy - 20} L${vX(0) - 2} ${gy - 20} L${vX(0) - 2} ${gy - vH + 4} L${vX(0) + vW / 2} ${gy - vH + 4}`} {...pipe} markerEnd="url(#arr)" />}
     {!top && vs.slice(1).map((_, i) => <path key={i} d={`M${vX(i) + vW + 5} ${gy - vH * 0.25} L${vX(i + 1) - 2} ${gy - vH * 0.25} L${vX(i + 1) - 2} ${gy - vH + 4}`} {...pipe} />)}
     {/* cartridge & membran */}
     {(d.sz.cart || d.sz.mem) && !top && <g><rect x={lastX + 10} y={gy - 30} width={7} height={28} rx={1.5} fill="#eef1f4" stroke="#000" strokeWidth={0.35} /><text x={lastX + 13.5} y={gy + 4} fontSize={1.5} textAnchor="middle">{d.sz.mem ? 'Cartridge + ' + d.sz.mem.mem.type.toUpperCase() : `Cartridge ${d.sz.cart.cart.mic} µm`}</text></g>}
@@ -4380,18 +4418,20 @@ function SheetFilterInstall({ project, t, d, sheetNo, sheetTotal }) {
       <text x={towerX + (top ? 2 : 0)} y={platY - 2 - tankH / 2} fontSize={2.2} fill="#fff" fontWeight={700} textAnchor="middle">TANDON</text>
       <text x={towerX} y={gy + 4.5} fontSize={1.8} fontWeight={700} textAnchor="middle">{tower ? `MENARA ${tower.label}` : 'MENARA TANDON'}</text></g>
     {/* pipa naik ke tandon */}
-    {top ? <path d={`M59 ${gy - 15} L59 ${gy - 20} L${towerX - 22} ${gy - 20} L${towerX - 22} ${platY - 4}`} {...pipe} markerEnd="url(#arr)" />
+    {after ? <path d={`M59 ${gy - 15} L59 ${gy - 20} L${towerX - 24} ${gy - 20} L${towerX - 24} ${platY - 2 - tankH - 4} L${towerX - 4} ${platY - 2 - tankH - 4} L${towerX - 4} ${platY - 2 - tankH}`} {...pipe} markerEnd="url(#arr)" />
+      : top ? <path d={`M59 ${gy - 15} L59 ${gy - 20} L${towerX - 22} ${gy - 20} L${towerX - 22} ${platY - 4}`} {...pipe} markerEnd="url(#arr)" />
       : <path d={`M${(d.sz.cart || d.sz.mem) ? lastX + 17 : lastX + 5} ${gy - vH * 0.25} L${towerX - 24} ${gy - vH * 0.25} L${towerX - 24} ${platY - 2 - tankH - 4} L${towerX - 4} ${platY - 2 - tankH - 4} L${towerX - 4} ${platY - 2 - tankH}`} {...pipe} markerEnd="url(#arr)" />}
     {/* distribusi */}
-    <path d={`M${towerX + tankW / 2} ${platY - 6} L${towerX + 24} ${platY - 6} L${towerX + 24} ${gy - 6} L${296} ${gy - 6}`} {...pipe} markerEnd="url(#arr)" />
+    {after ? <path d={`M${(d.sz.cart || d.sz.mem) ? lastX + 17 : lastX + 5} ${gy - vH * 0.25} L296 ${gy - vH * 0.25}`} {...pipe} markerEnd="url(#arr)" />
+      : <path d={`M${towerX + tankW / 2} ${platY - 6} L${towerX + 24} ${platY - 6} L${towerX + 24} ${gy - 6} L${296} ${gy - 6}`} {...pipe} markerEnd="url(#arr)" />}
     <g><polygon points={`300,${gy} 300,${gy - 14} 310,${gy - 22} 320,${gy - 14} 320,${gy}`} fill="#f3e3c3" stroke="#000" strokeWidth={0.35} /><rect x={307} y={gy - 8} width={5} height={8} fill="#8b5a2b" />
       <text x={310} y={gy + 4.5} fontSize={1.8} fontWeight={700} textAnchor="middle">DISTRIBUSI</text></g>
-    <text x={towerX + 26} y={platY + 8} fontSize={1.6}>Klorinasi di tandon</text>
+    <text x={after ? 270 : towerX + 26} y={after ? gy - vH * 0.25 - 2 : platY + 8} fontSize={1.6} textAnchor={after ? 'middle' : 'start'}>{after ? 'Klorinasi setelah filter' : 'Klorinasi di tandon'}</text>
     {/* tabel operasi katup */}
     <SvgTable x={20} y={182} w={190} title={manual ? 'OPERASI MANIFOLD 5 KATUP (TIAP TABUNG)' : 'OPERASI MULTIPORT VALVE (MPV)'} head={manual ? ops.head : ops.head.slice(0, 4)} cols={manual ? [0.26, 0.148, 0.148, 0.148, 0.148, 0.148] : [0.22, 0.3, 0.18, 0.3]} rh={4.6} fs={1.6}
       rows={manual ? ops.rows : ops.rows.map(r => r.slice(0, 4))} />
     <SvgTable x={216} y={182} w={112} title="DATA INSTALASI" head={['Uraian', 'Nilai']} cols={[0.45, 0.55]} rh={4.6} fs={1.55}
-      rows={[['Debit filter', `${fmt(d.Qh, 2)} m³/jam`], ['Tabung', vs.map(st => `${st.n}×${st.v.code}`).join(' + ') || '–'], ['Katup', manual ? 'manifold 5 katup manual' : 'multiport valve'], ['Debit cuci balik', vs.length ? `${fmt(Math.max(...vs.map(st => st.bwQ)), 1)} m³/jam per tabung` : '–'], ['Penempatan', top ? 'di platform menara' : tower ? 'di samping menara' : 'rumah filter'], ['Media pasir', SAND_MESH[cfg.sandMesh].label]]} />
+      rows={[['Debit filter', `${fmt(d.Qh, 2)} m³/jam`], ['Tabung', vs.map(st => `${st.n}×${st.v.code}`).join(' + ') || '–'], ['Katup', manual ? 'manifold 5 katup manual' : 'multiport valve'], ['Debit cuci balik', vs.length ? `${fmt(Math.max(...vs.map(st => st.bwQ)), 1)} m³/jam per tabung` : '–'], ['Penempatan', after ? 'setelah tandon, sebelum distribusi' : top ? 'di platform menara' : tower ? 'di samping menara' : 'rumah filter'], ['Pompa', boost ? `${after ? 'booster' : 'umpan'} H ${fr.head} m` : 'tanpa pompa tambahan'], ['Kehilangan tekan filter', fr ? `± ${fmt(fr.hlF, 0)} m (kotor)` : '–'], ['Media pasir', SAND_MESH[cfg.sandMesh].label]]} />
   </Sheet>;
 }
 /* ---------- Gambar DED: bak penampung bersekat dengan ruang filter ---------- */
