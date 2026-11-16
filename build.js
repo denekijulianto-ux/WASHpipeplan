@@ -9,6 +9,6 @@ const code = Babel.transform(m[1], { presets: ['react'], comments: false }).code
 html = html.replace(m[0], () => '<script>\n' + code + '\n</script>')
   .replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/babel-standalone\/[^"]+"><\/script>\n?/, '')
   .replace("if (!window.Babel) missing.push('Babel');", '')
-  .replace('<title>TirtaPlan Studio</title>', '<title>TirtaPlan Studio</title>\n<!-- Berkas hasil build: edit src/index.dev.html lalu jalankan "npm run build" -->');
+  .replace('<title>WASH PMI - Water for life</title>', '<title>WASH PMI - Water for life</title>\n<!-- Berkas hasil build: edit src/index.dev.html lalu jalankan "npm run build" -->');
 fs.writeFileSync(out, html);
 console.log('index.html dibuat (' + Math.round(html.length / 1024) + ' KB)');

@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TirtaPlan">
+<meta name="apple-mobile-web-app-title" content="WASH PMI">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <script>
   // PWA: manifest & service worker hanya saat disajikan lewat http(s) (bukan file://)
@@ -16,7 +16,7 @@
     if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
 </script>
-<title>TirtaPlan Studio</title>
+<title>WASH PMI - Water for life</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -122,7 +122,7 @@
 </head>
 <body>
 <div id="root"></div>
-<div id="boot">Memuat TirtaPlan Studio…</div>
+<div id="boot">Memuat WASH PMI - Water for life…</div>
 <script>
   // Pemeriksaan library: tampilkan pesan jelas bila CDN tidak dapat diakses.
   window.addEventListener('load', function () {
@@ -3759,7 +3759,7 @@ function AuthShell({ children }) {
       <div className="bg-white rounded-xl px-4 py-3 mb-4 flex justify-center"><OrgLogos meta={{}} height={38} gap={14} className="flex-wrap justify-center" /></div>
       <div className="flex items-center gap-2.5 mb-4 text-white">
         <div className="w-10 h-10 rounded-lg bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={22} /></div>
-        <div><div className="text-[18px] font-semibold leading-tight">TirtaPlan Studio</div><div className="text-[12.5px] text-aqua-100">Perencanaan & survei jaringan air bersih</div></div>
+        <div><div className="text-[18px] font-semibold leading-tight">WASH PMI - Water for life</div><div className="text-[12.5px] text-aqua-100">Perencanaan & survei jaringan air bersih</div></div>
       </div>
       <div className="bg-white rounded-xl shadow-xl">{children}</div>
       <p className="text-[11.5px] text-aqua-100/80 mt-3 text-center">{AUTH_MODE === 'firebase' ? 'Akun baru aktif setelah disetujui admin organisasi.' : 'Mode lokal: akun tersimpan di perangkat ini saja. Akun pertama menjadi admin perangkat.'}</p>
@@ -4062,7 +4062,7 @@ function App({ user, api }) {
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="w-8 h-8 rounded-md bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={18} /></div>
           <button type="button" onClick={() => setDialog(true)} className="min-w-0 flex-1 text-left">
-            <div className="text-[10px] tracking-[0.14em] uppercase text-aqua-200 font-semibold">TirtaPlan Studio</div>
+            <div className="text-[11px] tracking-[0.04em] text-aqua-200 font-semibold">WASH PMI - Water for life</div>
             <div className="text-[13px] font-semibold truncate">{project.meta.name}</div></button>
           {rec && <span className="flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 bg-red-500"><span className="tp-rec w-1.5 h-1.5 rounded-full bg-white" />REC</span>}
           <button type="button" disabled={!histLen} onClick={undo} className="p-2 rounded disabled:opacity-30" aria-label="Urungkan"><Icon name="Undo2" size={20} /></button>
@@ -4078,7 +4078,7 @@ function App({ user, api }) {
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-md bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={18} /></div>
             <div className="min-w-0">
-              <div className="text-[11px] tracking-[0.14em] uppercase text-aqua-200 font-semibold">TirtaPlan Studio</div>
+              <div className="text-[12px] tracking-[0.04em] text-aqua-200 font-semibold">WASH PMI - Water for life</div>
               <button type="button" onClick={() => setDialog(true)} className="block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[560px] hover:underline text-left" title="Ubah data proyek">{project.meta.name}</button>
             </div>
           </div>
