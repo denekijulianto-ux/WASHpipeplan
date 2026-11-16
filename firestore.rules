@@ -1,21 +1,42 @@
 rules_version = '2';
-// Aturan keamanan Firestore untuk TirtaPlan Studio.
-// Ganti ADMIN@ORGANISASI.ORG dengan email admin (huruf kecil), sama seperti di auth-config.js.
+// Aturan keamanan Firestore untuk aplikasi WASH PMI - Water for life.
+// Daftar email admin harus sama dengan adminEmails di auth-config.js (huruf kecil).
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email in ['admin@organisasi.org'];
+        && request.auth.token.email in ['denekijulianto@gmail.com', 'eki_julianto@pmi.or.id'];
     }
+    function approved() {
+      return isAdmin() || (request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved');
+    }
+    // Profil pengguna & persetujuan akun
     match /users/{uid} {
-      // Pengguna hanya bisa membaca profilnya sendiri; admin bisa membaca semua.
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      // Pendaftar baru selalu berstatus "pending" sampai disetujui admin.
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.status == 'pending';
-      // Hanya admin yang boleh menyetujui, menolak, menangguhkan, atau menghapus.
       allow update, delete: if isAdmin();
+    }
+    // Daftar proyek (ringkasan) — semua anggota yang disetujui boleh membaca
+    match /projects/{pid} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.ownerUid == request.auth.uid
+        && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']));
+      allow update: if approved()
+        && (resource.data.ownerUid == request.auth.uid || isAdmin())
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']));
+      allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+    }
+    // Isi lengkap proyek (terkompresi)
+    match /projectData/{pid} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin())
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
   }
 }

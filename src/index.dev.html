@@ -147,7 +147,7 @@ const { useState, useEffect, useMemo, useRef, useCallback, Fragment } = React;
 const STORAGE_KEY = 'tirtaplan-studio-v1';
 const OFFICER_KEY = 'tirtaplan-officer';
 const DEFAULT_ORG = 'WASH – Lembaga Pengembangan Air, Sanitasi dan Lingkungan · Bakti Star WASH · Palang Merah Indonesia';
-const OFFICER_ROLES = ['Surveyor / juru ukur', 'Koordinator lapangan', 'Relawan PMI', 'Drafter', 'Ahli teknik sipil / hidrolis', 'Pengawas', 'Lainnya'];
+const OFFICER_ROLES = ['Staf LPASL (pemeriksa)', 'Kepala LPASL (penyetuju)', 'Surveyor / juru ukur', 'Koordinator lapangan', 'Relawan PMI', 'Drafter', 'Ahli teknik sipil / hidrolis', 'Pengawas', 'Lainnya'];
 const DEFAULT_LOGOS = [
   { id: 'wash', name: "WASH \u2013 Lembaga Pengembangan Air, Sanitasi dan Lingkungan", w: 422, h: 117, src: 'data:image/png;base64,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' },
   { id: 'bsw', name: "Bakti Star WASH \u2013 Center of Excellence WASH", w: 137, h: 137, src: 'data:image/png;base64,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' },
@@ -490,7 +490,7 @@ function createExampleProject() {
       owner: 'Pemerintah Desa Sukamaju',
       consultant: 'Tim Perencana Teknis Desa',
       fiscal: 'Tahun Anggaran 2026',
-      drawnBy: 'Drafter', checkedBy: 'Ahli Teknik Sipil', approvedBy: 'Kepala Desa', surveyedBy: 'Tim Survei Lapangan',
+      drawnBy: 'Drafter', checkedBy: 'Staf LPASL', approvedBy: 'Kepala LPASL', surveyedBy: 'Tim Survei Lapangan', checkedName: '', checkedDate: '', approvedName: '', approvedDate: '',
       orgName: DEFAULT_ORG, orgLogo: '',
       drawingCode: 'AB-SKM', date: todayStr(),
     },
@@ -535,7 +535,11 @@ function normalizeProject(p) {
   if (!p || !Array.isArray(p.nodes) || !Array.isArray(p.pipes)) return base;
   return {
     version: 1,
-    meta: { ...base.meta, ...(p.meta || {}) },
+    meta: (() => { const m = { ...base.meta, ...(p.meta || {}) };
+      if (!m.checkedBy || m.checkedBy === 'Ahli Teknik Sipil') m.checkedBy = 'Staf LPASL';
+      if (!m.approvedBy || m.approvedBy === 'Kepala Desa') m.approvedBy = 'Kepala LPASL';
+      return m; })(),
+    cloud: p.cloud && p.cloud.id ? { status: 'draft', reviews: [], ...p.cloud } : null,
     nodes: p.nodes.map(n => ({ demand: 0, waterLevel: 0, elev: 0, elevAuto: false, elevSrc: 'manual', ...n, lat: +n.lat, lng: +n.lng, type: NODE_TYPES[n.type] ? n.type : 'junction' })),
     tracks: Array.isArray(p.tracks) ? p.tracks.filter(t => Array.isArray(t.points)) : [],
     team: Array.isArray(p.team) ? p.team.filter(t => t && t.id && t.name) : [],
@@ -2410,7 +2414,7 @@ function TitleBlock({ meta, title, scaleText, sheetNo, sheetTotal, legend }) {
     <g>{legend && legend(x, 94, w)}</g>
     {L(200)}{lab(200, 'PELAKSANA / PERENCANA')}{ml(wrapText(meta.orgName || meta.consultant || '-', 46).slice(0, 2), 206.6, 1.75, 600)}
     {L(213)}
-    {[['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedBy], ['DISETUJUI', meta.approvedBy]].map(([k, v], i) => { const y = 213 + i * 12; return <g key={k}>
+    {[['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedName ? `${meta.checkedName} · ${meta.checkedBy || 'Staf LPASL'}` : (meta.checkedBy || 'Staf LPASL')], ['DISETUJUI', meta.approvedName ? `${meta.approvedName} · ${meta.approvedBy || 'Kepala LPASL'}` : (meta.approvedBy || 'Kepala LPASL')]].map(([k, v], i) => { const y = 213 + i * 12; return <g key={k}>
       <line x1={x + 22} x2={x + 22} y1={y} y2={y + 12} stroke="#000" strokeWidth={0.25} />
       <text x={x + 2} y={y + 4.5} fontSize={1.9} fontWeight={600}>{k}</text>
       <text x={x + 23.5} y={y + 10.6} fontSize={1.9} fontWeight={600}>{String(v || '').slice(0, 34)}</text>
@@ -3276,7 +3280,7 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
       </div>
       <details className="border-t border-line pt-3">
         <summary className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer">Kop gambar</summary>
-        <div className="space-y-2 mt-2">{[['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Diperiksa'], ['approvedBy', 'Disetujui'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) =>
+        <div className="space-y-2 mt-2">{[['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Jabatan pemeriksa'], ['approvedBy', 'Jabatan penyetuju'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) =>
           <Field key={k} label={l}><input id={'meta-' + k} className="tp-field" value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>)}</div>
       </details>
     </aside>
@@ -3361,7 +3365,9 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
         <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>TOTAL</td><td className="r">{fmt(rab.grand, 0)}</td></tr>
         <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>DIBULATKAN</td><td className="r">{fmt(rab.rounded, 0)}</td></tr></tbody></table>
     <p><i>Terbilang: {terbilang(rab.rounded)}</i></p>
-    <table style={{ marginTop: '18pt', border: 0 }}><tbody><tr>{[['Dibuat oleh', project.meta.drawnBy], ['Diperiksa oleh', project.meta.checkedBy], ['Disetujui oleh', project.meta.approvedBy]].map(([a, b]) => <td key={a} style={{ border: 0, textAlign: 'center', width: '33%' }}>{a},<div style={{ height: '48pt' }} /><b><u>{b}</u></b></td>)}</tr></tbody></table>
+    {project.cloud && <p style={{ marginTop: '14pt', fontSize: '9pt' }}>Status dokumen: <b>{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</b>{project.meta.checkedName ? ` · diperiksa ${project.meta.checkedName} (${project.meta.checkedBy}) ${project.meta.checkedDate || ''}` : ''}{project.meta.approvedName ? ` · disetujui ${project.meta.approvedName} (${project.meta.approvedBy}) ${project.meta.approvedDate || ''}` : ''}</p>}
+    <table style={{ marginTop: '12pt', border: 0 }}><tbody><tr>{[['Dibuat oleh', project.meta.drawnBy, project.cloud?.ownerName], ['Diperiksa oleh', project.meta.checkedBy || 'Staf LPASL', project.meta.checkedName], ['Disetujui oleh', project.meta.approvedBy || 'Kepala LPASL', project.meta.approvedName]].map(([a, t, n]) =>
+      <td key={a} style={{ border: 0, textAlign: 'center', width: '33%' }}>{a},<br /><b>{t}</b><div style={{ height: '44pt' }} /><b><u>{n || '(............................................)'}</u></b></td>)}</tr></tbody></table>
     {sheets}
   </div>;
 }
@@ -3432,7 +3438,7 @@ function OfficerPicker({ project, setProject, officerId, onPick, onCancel }) {
 
 function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId }) {
   const setMeta = (k, v) => setProject(p => ({ ...p, meta: { ...p.meta, [k]: v } }), { noStamp: true });
-  const setTeam = (fn) => setProject(p => ({ ...p, team: fn(p.team || []) }), { noStamp: true });
+  const setTeam = (fn) => setProject(p => ({ ...p, team: fn(p.team || []) }), { noStamp: true, system: true });
   const [tab, setTab] = useState('org');
   const [logoErr, setLogoErr] = useState('');
   const team = project.team || [];
@@ -3461,7 +3467,7 @@ function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId }
           <Field label="Konsultan / tim perencana (opsional)"><input id="dlg-consultant" className="tp-field" value={project.meta.consultant || ''} onChange={e => setMeta('consultant', e.target.value)} /></Field>
         </>}
         {tab === 'proj' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Diperiksa oleh', 1], ['approvedBy', 'Disetujui oleh', 1]].map(([k, l, span]) =>
+          {[['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Jabatan pemeriksa', 1], ['approvedBy', 'Jabatan penyetuju', 1]].map(([k, l, span]) =>
             <div key={k} className={span === 2 ? 'sm:col-span-2' : ''}><Field label={l}><input id={'dlg-' + k} className="tp-field" value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>
               {k === 'surveyedBy' && surveyors.length > 0 && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline mt-1" onClick={() => setMeta('surveyedBy', surveyors.join(', '))}>Isi dari tim: {surveyors.join(', ')}</button>}</div>)}
         </div>}
@@ -3735,7 +3741,7 @@ async function makeFirebaseAuth() {
   const fire = async (u) => { if (!listener) return; if (!u) { listener(null); return; }
     try { listener(await loadProfile(u)); } catch (e) { listener({ uid: u.uid, email: u.email, name: u.displayName || u.email, status: 'error', error: fbErr(e) }); } };
   return {
-    mode: 'firebase',
+    mode: 'firebase', db,
     init(cb) { listener = cb; const un = auth.onAuthStateChanged(fire); return () => { listener = null; un(); }; },
     async signUp({ email, password, name, role, org, phone }) {
       form = { name, role, org, phone };
@@ -3876,13 +3882,214 @@ function Root() {
   return <App key={st.user.uid} user={st.user} api={api} />;
 }
 
+/* =====================================================================
+   17. BERKAS KERJA: DAFTAR PROYEK, SINKRON CLOUD, REVIEW
+   ===================================================================== */
+const PSTATUS = {
+  draft: ['Sedang dikerjakan', 's-idle'], review: ['Menunggu pemeriksaan', 's-low'], revisi: ['Perlu revisi', 's-high'],
+  checked: ['Sudah diperiksa', 's-src'], approved: ['Disetujui', 's-ok'],
+};
+const LIBK = (u) => 'tirtaplan-lib:' + u, PROJK = (id) => 'tirtaplan-proj:' + id, SYNCK = (id) => 'tirtaplan-sync:' + id, CURK = (u) => 'tirtaplan-current:' + u;
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); return true; } catch (e) { return false; } };
+const dtTxt = (ms) => ms ? new Date(ms).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
+function projMeta(p) { const c = p.cloud || {}; return { id: c.id, name: p.meta?.name || 'Tanpa nama', location: p.meta?.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName, status: c.status || 'draft', nodes: p.nodes.length, pipes: p.pipes.length, updatedAt: Date.now() }; }
+function ensureCloud(p, user) {
+  if (p.cloud && p.cloud.id) return p;
+  return { ...p, cloud: { id: uid('pj'), ownerUid: user.uid, ownerName: user.name || user.email, ownerEmail: user.email || '', status: 'draft', reviews: [] } };
+}
+const localLib = {
+  list(u) { return lsGet(LIBK(u), []); },
+  put(u, p, str) {
+    if (p.__fresh) { p = { ...p }; delete p.__fresh; str = null; }
+    const m = projMeta(p); const L = lsGet(LIBK(u), []).filter(x => x.id !== m.id); L.unshift(m);
+    const ok = lsSet(PROJK(m.id), str || JSON.stringify(p)) && lsSet(LIBK(u), L);
+    return ok;
+  },
+  get(id) { const p = lsGet(PROJK(id), null); return p ? normalizeProject(p) : null; },
+  has(id) { try { return !!localStorage.getItem(PROJK(id)); } catch (e) { return false; } },
+  remove(u, id) { lsSet(LIBK(u), lsGet(LIBK(u), []).filter(x => x.id !== id)); try { localStorage.removeItem(PROJK(id)); localStorage.removeItem(SYNCK(id)); } catch (e) {} },
+  sync(id) { return lsGet(SYNCK(id), { rev: null, dirty: false }); },
+  setSync(id, v) { lsSet(SYNCK(id), { ...lsGet(SYNCK(id), { rev: null, dirty: false }), ...v }); },
+  // Bila penyimpanan perangkat penuh: buang cache proyek yang sudah aman di cloud
+  evict(u, keepId) { lsGet(LIBK(u), []).forEach(m => { const s = localLib.sync(m.id); if (m.id !== keepId && !s.dirty && s.rev != null) try { localStorage.removeItem(PROJK(m.id)); } catch (e) {} }); },
+};
+async function packJson(obj) {
+  const s = typeof obj === 'string' ? obj : JSON.stringify(obj);
+  if (window.CompressionStream) { const st = new Blob([s]).stream().pipeThrough(new CompressionStream('gzip')); return { fmt: 'gz', bytes: new Uint8Array(await new Response(st).arrayBuffer()), size: s.length }; }
+  return { fmt: 'raw', text: s, size: s.length };
+}
+async function unpackJson(d) {
+  if (d.fmt === 'gz') { const b = d.data && d.data.toUint8Array ? d.data.toUint8Array() : d.data; const st = new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip')); return JSON.parse(await new Response(st).text()); }
+  return JSON.parse(d.text);
+}
+function makeCloudStore(api) {
+  if (!api || !api.db) return null;
+  const db = api.db, FS = firebase.firestore; const ms = (t) => t && t.toMillis ? t.toMillis() : (t || 0);
+  const metaOf = (d) => { const x = d.data(); return { ...x, id: d.id, updatedAt: ms(x.updatedAt), createdAt: ms(x.createdAt) }; };
+  const wrap = (e) => { const x = new Error(fbErr(e)); x.code = e.code; return x; };
+  return {
+    async list(scope, user) { try { let q = db.collection('projects'); if (scope === 'mine') q = q.where('ownerUid', '==', user.uid); const s = await q.get(); return s.docs.map(metaOf).sort((a, b) => b.updatedAt - a.updatedAt); } catch (e) { throw wrap(e); } },
+    async meta(id) { try { const s = await db.collection('projects').doc(id).get(); return s.exists ? metaOf(s) : null; } catch (e) { throw wrap(e); } },
+    async load(id) {
+      try { const [m, d] = await Promise.all([db.collection('projects').doc(id).get(), db.collection('projectData').doc(id).get()]);
+        if (!d.exists) throw new Error('Data proyek ini tidak ditemukan di cloud.');
+        return { project: normalizeProject(await unpackJson(d.data())), rev: m.exists ? m.data().rev || 0 : 0 }; } catch (e) { throw e.code ? wrap(e) : e; }
+    },
+    // baseRev: angka = harus sama dengan versi cloud; null = proyek baru; undefined = timpa paksa
+    async save(p, baseRev, user, str) {
+      const pk = await packJson(str || p); const bytes = pk.bytes ? pk.bytes.length : pk.size;
+      if (bytes > 950000) throw new Error('Proyek terlalu besar untuk cloud (lebih dari 1 MB setelah dikompresi). Hapus jejak GPS lama atau simpan sebagai .json.');
+      const c = p.cloud; const mRef = db.collection('projects').doc(c.id), dRef = db.collection('projectData').doc(c.id);
+      try {
+        return await db.runTransaction(async (tx) => {
+          const snap = await tx.get(mRef); const cur = snap.exists ? snap.data() : null;
+          if (baseRev !== undefined && cur && (cur.rev || 0) !== baseRev) { const e = new Error('conflict'); e.conflict = { by: cur.updatedByName, at: ms(cur.updatedAt), rev: cur.rev || 0 }; throw e; }
+          const rev = (cur?.rev || 0) + 1;
+          tx.set(mRef, { name: p.meta.name || 'Tanpa nama', location: p.meta.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName || '', ownerEmail: c.ownerEmail || '',
+            status: c.status || 'draft', rev, nodes: p.nodes.length, pipes: p.pipes.length, size: bytes, checkedName: p.meta.checkedName || '', approvedName: p.meta.approvedName || '',
+            updatedByUid: user.uid, updatedByName: user.name || user.email, updatedAt: FS.FieldValue.serverTimestamp(), createdAt: cur?.createdAt || FS.FieldValue.serverTimestamp() });
+          tx.set(dRef, { ownerUid: c.ownerUid, rev, fmt: pk.fmt, ...(pk.bytes ? { data: FS.Blob.fromUint8Array(pk.bytes) } : { text: pk.text }) });
+          return { rev };
+        });
+      } catch (e) { if (e.conflict) throw e; throw wrap(e); }
+    },
+    async remove(id) { try { await db.collection('projectData').doc(id).delete(); await db.collection('projects').doc(id).delete(); } catch (e) { throw wrap(e); } },
+  };
+}
+function SyncBadge({ sync, compact }) {
+  const m = { local: ['Database', 'Tersimpan di perangkat', 'text-slate-500'], idle: ['Database', 'Siap', 'text-slate-500'], saving: ['RotateCcw', 'Menyimpan ke cloud…', 'text-aqua-700'],
+    saved: ['CircleCheck', 'Tersimpan di cloud', 'text-green-700'], offline: ['TriangleAlert', 'Offline: disimpan di perangkat, sinkron saat online', 'text-amber-700'],
+    error: ['TriangleAlert', 'Gagal sinkron', 'text-red-700'], conflict: ['TriangleAlert', 'Ada versi lain di cloud', 'text-red-700'], readonly: ['Eye', 'Hanya-baca (milik pengguna lain)', 'text-slate-600'] }[sync.state] || ['Database', '', ''];
+  return <span className={'inline-flex items-center gap-1.5 ' + m[2]} title={sync.msg || m[1]}><Icon name={m[0]} size={13} />{compact ? '' : m[1]}{!compact && sync.state === 'saved' && sync.at ? ' ' + sync.at.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}</span>;
+}
+function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, onDelete, onClose, onImport }) {
+  const [tab, setTab] = useState('mine'); const [items, setItems] = useState(null); const [err, setErr] = useState(''); const [q, setQ] = useState(''); const [st, setSt] = useState('');
+  const [busy, setBusy] = useState(''); const [del, setDel] = useState(null);
+  const load = async () => {
+    setItems(null); setErr('');
+    const local = localLib.list(user.uid).map(m => ({ ...m, local: true, dirty: localLib.sync(m.id).dirty, synced: localLib.sync(m.id).rev != null }));
+    if (!store) { setItems(local); return; }
+    try {
+      const cloud = await store.list(tab, user); const ids = new Set(cloud.map(c => c.id));
+      const merged = cloud.map(c => { const l = local.find(x => x.id === c.id); return { ...c, dirty: l?.dirty, cached: !!l }; });
+      if (tab === 'mine') local.filter(l => !ids.has(l.id) && l.ownerUid === user.uid).forEach(l => merged.unshift({ ...l, pendingUpload: true }));
+      setItems(merged);
+    } catch (e) { setErr(e.message + (navigator.onLine ? '' : ' Menampilkan salinan di perangkat ini.')); setItems(local); }
+  };
+  useEffect(() => { load(); }, [tab]);
+  const run = async (key, fn) => { setBusy(key); setErr(''); try { await fn(); } catch (e) { setErr(e.message || String(e)); } setBusy(''); };
+  const shown = (items || []).filter(it => (!st || it.status === st) && (!q || `${it.name} ${it.location} ${it.ownerName}`.toLowerCase().includes(q.toLowerCase())));
+  return <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
+    <div className="bg-white rounded-lg w-full max-w-3xl max-h-[94vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-5 py-3 border-b border-line"><h2 className="font-semibold flex items-center gap-2"><Icon name="FolderOpen" size={17} className="text-aqua-600" />Berkas kerja (daftar proyek)</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="px-5 pt-3 flex flex-wrap gap-2">
+        <Btn variant="primary" icon="FilePlus2" onClick={() => onNew('empty')}>Proyek baru</Btn>
+        <Btn variant="outline" icon="BookOpen" onClick={() => onNew('example')}>Dari contoh</Btn>
+        <Btn variant="outline" icon="Upload" onClick={onImport}>Impor .json</Btn>
+      </div>
+      {store && <div className="flex border-b border-line text-[13px] mt-3 px-2">{[['mine', 'Proyek saya'], ['team', 'Semua proyek tim']].map(([k, l]) => <button key={k} type="button" onClick={() => setTab(k)} className={`px-4 py-2 font-medium ${tab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}</div>}
+      <div className="px-5 pt-3 flex flex-wrap gap-2">
+        <input id="lib-search" className="tp-field !w-auto flex-1 min-w-[160px]" placeholder="Cari nama, lokasi, pemilik…" value={q} onChange={e => setQ(e.target.value)} />
+        <select id="lib-status" className="tp-field !w-auto" value={st} onChange={e => setSt(e.target.value)}><option value="">Semua status</option>{Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}</select>
+      </div>
+      <div className="p-5 pt-3 overflow-y-auto space-y-2 text-[13px]">
+        {err && <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">{err}</div>}
+        {!items && <p className="text-slate-500">Memuat daftar proyek…</p>}
+        {items && shown.length === 0 && <p className="text-slate-500">Belum ada proyek{q || st ? ' yang cocok dengan pencarian' : ''}.</p>}
+        {shown.map(it => { const mine = it.ownerUid === user.uid; const canEdit = mine || user.admin; const cur = it.id === currentId; const S = PSTATUS[it.status] || PSTATUS.draft;
+          return <div key={it.id} className={`rounded-lg border p-3 flex flex-wrap items-center gap-3 ${cur ? 'border-aqua-500 bg-aqua-50' : 'border-line'}`}>
+            <div className="flex-1 min-w-[220px]">
+              <div className="font-semibold flex flex-wrap items-center gap-1.5">{it.name}{cur && <span className="pill s-src">sedang dibuka</span>}{!canEdit && <span className="pill s-idle">hanya-baca</span>}{(it.dirty || it.pendingUpload) && <span className="pill s-low">belum tersinkron</span>}</div>
+              <div className="text-[12px] text-slate-500">{[it.location, `${it.nodes ?? '?'} node · ${it.pipes ?? '?'} pipa`, `pemilik ${mine ? 'Anda' : it.ownerName || '-'}`].filter(Boolean).join(' · ')}</div>
+              <div className="text-[11.5px] text-slate-400">Diubah {dtTxt(it.updatedAt)}{it.updatedByName ? ` oleh ${it.updatedByName}` : ''}{it.approvedName ? ` · disetujui ${it.approvedName}` : it.checkedName ? ` · diperiksa ${it.checkedName}` : ''}</div>
+            </div>
+            <span className={'pill ' + S[1]}>{S[0]}</span>
+            <div className="flex flex-wrap gap-1.5">
+              <Btn variant={cur ? 'outline' : 'primary'} icon="FolderOpen" disabled={cur || !!busy} onClick={() => run('o' + it.id, () => onOpen(it))}>{busy === 'o' + it.id ? 'Membuka…' : cur ? 'Terbuka' : 'Buka'}</Btn>
+              <Btn variant="outline" icon="FilePlus2" disabled={!!busy} title="Simpan salinan sebagai proyek baru milik Anda" onClick={() => run('d' + it.id, () => onDuplicate(it))}>Salin</Btn>
+              {canEdit && !cur && (del === it.id ? <><Btn variant="danger" onClick={() => run('x' + it.id, async () => { await onDelete(it); setDel(null); await load(); })}>Ya, hapus</Btn><Btn variant="outline" onClick={() => setDel(null)}>Batal</Btn></>
+                : <Btn variant="ghost" icon="Trash2" title="Hapus proyek" onClick={() => setDel(it.id)} />)}
+            </div>
+          </div>; })}
+        <p className="text-[11.5px] text-slate-500 pt-1">{store ? 'Proyek tersimpan otomatis ke cloud setiap ada perubahan, dan salinannya disimpan di perangkat untuk kerja offline. Semua anggota tim yang disetujui dapat membuka proyek; hanya pemilik dan admin yang dapat mengubahnya.' : 'Mode lokal: proyek tersimpan di perangkat ini saja. Aktifkan login daring agar proyek bisa dibuka dari perangkat lain.'}</p>
+      </div>
+    </div>
+  </div>;
+}
+function ReviewDialog({ project, user, onAct, onClose }) {
+  const c = project.cloud || {}; const S = PSTATUS[c.status] || PSTATUS.draft; const [note, setNote] = useState(''); const [err, setErr] = useState('');
+  const isOwner = c.ownerUid === user.uid; const staf = /staf/i.test(user.role || '');
+  const acts = [];
+  if ((isOwner || user.admin) && ['draft', 'revisi'].includes(c.status || 'draft')) acts.push(['review', 'Ajukan untuk diperiksa', 'primary', false]);
+  if (user.admin && c.status === 'review') acts.push(['checked', 'Sudah diperiksa (Staf LPASL)', 'primary', false]);
+  if (user.admin && !staf && c.status === 'checked') acts.push(['approved', 'Setujui (Kepala LPASL)', 'primary', false]);
+  if (user.admin && ['review', 'checked'].includes(c.status)) acts.push(['revisi', 'Kembalikan untuk revisi', 'danger', true]);
+  if (user.admin && c.status === 'approved') acts.push(['draft', 'Buka kembali untuk diubah', 'outline', true]);
+  const go = (to, needNote) => { if (needNote && !note.trim()) { setErr('Tulis catatan alasannya terlebih dulu.'); return; } onAct(to, note.trim()); setNote(''); setErr(''); };
+  const steps = ['draft', 'review', 'checked', 'approved'];
+  return <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="bg-white rounded-lg w-full max-w-xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-5 py-3 border-b border-line"><h2 className="font-semibold flex items-center gap-2"><Icon name="CircleCheck" size={17} className="text-aqua-600" />Status & review proyek</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="p-5 overflow-y-auto space-y-4 text-[13px]">
+        <div><div className="font-semibold">{project.meta.name}</div><div className="text-slate-500 text-[12px]">Pemilik: {c.ownerName || '-'}{isOwner ? ' (Anda)' : ''}</div></div>
+        <div className="flex items-center gap-1 flex-wrap">{steps.map((s, i) => { const reached = steps.indexOf(c.status === 'revisi' ? 'draft' : (c.status || 'draft')) >= i; return <Fragment key={s}>
+          <span className={'pill ' + (reached ? PSTATUS[s][1] : 's-idle opacity-50')}>{PSTATUS[s][0]}</span>{i < steps.length - 1 && <Icon name="ArrowRight" size={13} className="text-slate-400" />}</Fragment>; })}</div>
+        <div>Status saat ini: <span className={'pill ' + S[1]}>{S[0]}</span></div>
+        <table className="tp-table"><tbody>
+          <tr><td className="text-slate-500">Pemeriksa ({project.meta.checkedBy || 'Staf LPASL'})</td><td>{project.meta.checkedName ? `${project.meta.checkedName} · ${project.meta.checkedDate || ''}` : '–'}</td></tr>
+          <tr><td className="text-slate-500">Penyetuju ({project.meta.approvedBy || 'Kepala LPASL'})</td><td>{project.meta.approvedName ? `${project.meta.approvedName} · ${project.meta.approvedDate || ''}` : '–'}</td></tr>
+        </tbody></table>
+        {acts.length > 0 ? <div className="space-y-2">
+          <Field label="Catatan (wajib bila dikembalikan untuk revisi)"><textarea id="rv-note" className="tp-field h-20" value={note} onChange={e => { setNote(e.target.value); setErr(''); }} placeholder="mis. Periksa ulang diameter pipa P4; tekanan di HU1 kurang." /></Field>
+          {err && <p className="text-red-700">{err}</p>}
+          <div className="flex flex-wrap gap-2">{acts.map(([to, l, v, nn]) => <Btn key={to} variant={v} onClick={() => go(to, nn)}>{l}</Btn>)}</div>
+        </div> : <p className="text-slate-500">{c.status === 'approved' ? 'Proyek sudah disetujui. Perubahan isi akan mengembalikan status ke "Sedang dikerjakan".' : user.admin ? 'Tidak ada tindakan untuk status ini.' : 'Pemeriksaan dan persetujuan dilakukan oleh admin LPASL.'}</p>}
+        <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Riwayat</div>
+          {(c.reviews || []).length === 0 ? <p className="text-slate-500">Belum ada riwayat.</p> :
+            <ol className="space-y-1.5">{[...(c.reviews || [])].reverse().map((r, i) => <li key={i} className="rounded-md border border-line px-3 py-2">
+              <div className="flex flex-wrap items-center gap-1.5"><span className={'pill ' + (PSTATUS[r.to] || PSTATUS.draft)[1]}>{(PSTATUS[r.to] || PSTATUS.draft)[0]}</span><span className="text-[12px] text-slate-500">{r.by?.name}{r.by?.role ? ` (${r.by.role})` : ''} · {dtTxt(r.at)}</span></div>
+              {r.note && <div className="mt-1 text-[12.5px]">{r.note}</div>}</li>)}</ol>}</div>
+      </div>
+    </div>
+  </div>;
+}
+function ConflictDialog({ info, canOverwrite, onCloud, onMine, onCopy, onClose }) {
+  return <div className="fixed inset-0 z-[2150] bg-black/40 flex items-center justify-center p-4">
+    <div className="bg-white rounded-lg w-full max-w-md p-5 space-y-3 text-[13px]">
+      <h2 className="font-semibold text-[15px] flex items-center gap-2"><Icon name="TriangleAlert" size={18} className="text-amber-600" />Ada versi lain di cloud</h2>
+      <p className="text-slate-600">Proyek <b>{info.name}</b> sudah diubah {info.by ? `oleh ${info.by} ` : ''}{info.at ? `pada ${dtTxt(info.at)} ` : ''}setelah versi yang ada di perangkat ini. Pilih versi yang dipakai:</p>
+      <button type="button" className="w-full text-left rounded-md border border-line hover:border-aqua-400 p-3" onClick={onCloud}><div className="font-semibold text-aqua-800">Pakai versi cloud</div><div className="text-[12px] text-slate-500">Perubahan di perangkat ini yang belum tersimpan dibuang.</div></button>
+      <button type="button" className="w-full text-left rounded-md border border-line hover:border-aqua-400 p-3" onClick={onCopy}><div className="font-semibold">Simpan versi saya sebagai salinan</div><div className="text-[12px] text-slate-500">Kedua versi tetap ada; versi Anda menjadi proyek baru.</div></button>
+      {canOverwrite && <button type="button" className="w-full text-left rounded-md border border-red-200 hover:border-red-400 p-3" onClick={onMine}><div className="font-semibold text-red-700">Timpa cloud dengan versi saya</div><div className="text-[12px] text-slate-500">Perubahan orang lain di cloud akan hilang.</div></button>}
+      <div className="flex justify-end"><Btn variant="outline" onClick={onClose}>Nanti saja</Btn></div>
+    </div>
+  </div>;
+}
+
 function App({ user, api }) {
-  const PKEY = projectKey(user);
-  const [project, setProjectRaw] = useState(() => loadInitialProject(PKEY));
+  const [project, setProjectRaw] = useState(() => {
+    const curId = lsGet(CURK(user.uid), null);
+    let p = curId && localLib.get(curId);
+    if (!p) { p = ensureCloud(loadInitialProject(projectKey(user)), user); localLib.put(user.uid, p); localLib.setSync(p.cloud.id, { dirty: true }); p = { ...p, __fresh: true }; }
+    lsSet(CURK(user.uid), JSON.stringify(p.cloud.id)); return p;
+  });
+  const store = useMemo(() => makeCloudStore(api), [api]);
+  const freshRef = useRef(!!project.__fresh); // perangkat baru: cek dulu proyek milik pengguna di cloud
+  const projectRef = useRef(project); projectRef.current = project;
+  const cleanRef = useRef({ id: project.cloud.id, str: localLib.sync(project.cloud.id).dirty ? '' : JSON.stringify(project) });
+  const [sync, setSync] = useState({ state: store ? 'idle' : 'local' });
+  const [conflict, setConflict] = useState(null);
+  const [libOpen, setLibOpen] = useState(false); const [reviewOpen, setReviewOpen] = useState(false);
+  const readOnly = !!store && project.cloud.ownerUid !== user.uid && !user.admin;
   const history = useRef([]); const [histLen, setHistLen] = useState(0);
   const officerRef = useRef(null);
   const setProject = useCallback((upd, opts = {}) => {
-    setProjectRaw(prev => { let next = typeof upd === 'function' ? upd(prev) : upd; if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current); if (next !== prev) { history.current.push(prev); if (history.current.length > 60) history.current.shift(); } return next; });
+    setProjectRaw(prev => { let next = typeof upd === 'function' ? upd(prev) : upd; if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current);
+      if (next !== prev && !opts.system && next.cloud && ['checked', 'approved'].includes(next.cloud.status) && Object.keys(next).some(k => k !== 'ded' ? next[k] !== prev[k] : Object.keys(next.ded).some(j => j !== 'sheet' && next.ded[j] !== prev.ded[j]))) {
+        const who = officerRef.current; next = { ...next, meta: { ...next.meta, checkedName: '', checkedDate: '', approvedName: '', approvedDate: '' },
+          cloud: { ...next.cloud, status: 'draft', reviews: [...(next.cloud.reviews || []), { at: Date.now(), by: who ? { uid: who.id, name: who.name, role: who.role } : null, from: next.cloud.status, to: 'draft', note: 'Isi proyek diubah setelah ' + (next.cloud.status === 'approved' ? 'disetujui' : 'diperiksa') + '; perlu diajukan ulang.' }] } }; }
+      if (next !== prev) { history.current.push(prev); if (history.current.length > 60) history.current.shift(); } return next; });
     setHistLen(history.current.length + 1);
   }, []);
   const undo = () => { const prev = history.current.pop(); if (prev) { setProjectRaw(prev); setHistLen(history.current.length); } };
@@ -3894,7 +4101,6 @@ function App({ user, api }) {
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
   const fileRef = useRef(null);
-  const projectRef = useRef(project); projectRef.current = project;
   const patchProject = useCallback((upd) => setProjectRaw(prev => typeof upd === 'function' ? upd(prev) : upd), []);
   const [prefs, setPrefs] = useState({ type: 'junction', material: 'PVC', diameter: 90, connectGps: true });
   const prefsRef = useRef(prefs); prefsRef.current = prefs;
@@ -3915,7 +4121,7 @@ function App({ user, api }) {
   const [userAdmin, setUserAdmin] = useState(false);
   useEffect(() => { if (!user) return;
     const m = { id: user.uid, name: user.name || user.email, role: user.role || OFFICER_ROLES[0], org: user.org || '', phone: user.phone || '', idno: '', email: user.email };
-    setProject(p => { const t = p.team || []; const ex = t.find(x => x.id === m.id); return ex ? p : { ...p, team: [...t, m] }; }, { noStamp: true });
+    setProject(p => { const t = p.team || []; const ex = t.find(x => x.id === m.id); return ex ? p : { ...p, team: [...t, m] }; }, { noStamp: true, system: true });
     if (!officerId || officerId === user.uid || !(project.team || []).some(t => t.id === officerId)) setOfficerId(user.uid);
   }, [user && user.uid]);
   const logout = async () => { stopRec(); gps.stop(); await api.signOut(); };
@@ -4018,7 +4224,78 @@ function App({ user, api }) {
   const boq = useMemo(() => computeBoQ(project, hyd), [project, hyd]);
   const rab = useMemo(() => buildRAB(project, boq), [project, boq]);
 
-  useEffect(() => { const t = setTimeout(() => { try { localStorage.setItem(PKEY, JSON.stringify(project)); setSavedAt(new Date()); } catch (e) { setSavedAt('err'); } }, 500); return () => clearTimeout(t); }, [project]);
+  // ---- Simpan otomatis ke perangkat & sinkron ke cloud ----
+  const pushCloud = useCallback(async (p, opts = {}) => {
+    if (!store) return; const id = p.cloud.id;
+    if (p.cloud.ownerUid !== user.uid && !user.admin) { if (id === projectRef.current.cloud.id) setSync({ state: 'readonly' }); return; }
+    if (!navigator.onLine) { if (id === projectRef.current.cloud.id) setSync({ state: 'offline' }); return; }
+    const str = JSON.stringify(p); if (id === projectRef.current.cloud.id) setSync({ state: 'saving' });
+    try {
+      const s = localLib.sync(id); const { rev } = await store.save(p, opts.overwrite ? undefined : s.rev, user, str);
+      const stillSame = id === projectRef.current.cloud.id && JSON.stringify(projectRef.current) === str;
+      localLib.setSync(id, { rev, dirty: !stillSame && id === projectRef.current.cloud.id });
+      if (id === projectRef.current.cloud.id) { if (stillSame) cleanRef.current = { id, str }; setSync({ state: 'saved', at: new Date() }); }
+    } catch (e) {
+      if (e.conflict) { setConflict({ ...e.conflict, name: p.meta.name, project: p }); setSync({ state: 'conflict' }); }
+      else if (id === projectRef.current.cloud.id) setSync({ state: navigator.onLine ? 'error' : 'offline', msg: e.message });
+    }
+  }, [store, user]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const str = JSON.stringify(project); const id = project.cloud.id;
+      let ok = localLib.put(user.uid, project, str); if (!ok) { localLib.evict(user.uid, id); ok = localLib.put(user.uid, project, str); }
+      setSavedAt(ok ? new Date() : 'err');
+      const changed = !(cleanRef.current.id === id && cleanRef.current.str === str);
+      if (changed && !readOnly) localLib.setSync(id, { dirty: true });
+      if (store && changed && !readOnly && !conflict && !freshRef.current) pushCloud(project);
+      if (readOnly) setSync({ state: 'readonly' });
+    }, store ? 1500 : 500);
+    return () => clearTimeout(t);
+  }, [project]);
+  // Saat masuk / kembali online: ambil versi terbaru, kirim perubahan yang tertunda
+  const syncAll = useCallback(async () => {
+    if (!store || !navigator.onLine) { if (store) setSync({ state: 'offline' }); return; }
+    try {
+      if (freshRef.current) {
+        const mine = await store.list('mine', user); const tmp = projectRef.current;
+        if (mine.length) { const r = await store.load(mine[0].id); localLib.remove(user.uid, tmp.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(mine[0].id, { rev: r.rev, dirty: false });
+          freshRef.current = false; switchTo(r.project); setToast(`Membuka proyek terakhir Anda: "${r.project.meta.name}"`); setSync({ state: 'saved', at: new Date() }); return; }
+        freshRef.current = false;
+      }
+    } catch (e) { setSync({ state: 'error', msg: e.message }); return; }
+    const cur = projectRef.current; const id = cur.cloud.id; const s = localLib.sync(id);
+    try {
+      const m = await store.meta(id);
+      if (m && (s.rev == null || m.rev > s.rev)) {
+        if (!s.dirty) { const r = await store.load(id); localLib.put(user.uid, r.project); localLib.setSync(id, { rev: r.rev, dirty: false }); cleanRef.current = { id, str: JSON.stringify(r.project) }; setProjectRaw(r.project); history.current = []; setHistLen(0); setToast(`Memuat versi terbaru "${r.project.meta.name}" dari cloud`); setSync({ state: 'saved', at: new Date() }); }
+        else if (cur.cloud.ownerUid === user.uid || user.admin) { setConflict({ by: m.updatedByName, at: m.updatedAt, rev: m.rev, name: cur.meta.name, project: cur }); setSync({ state: 'conflict' }); }
+        else setSync({ state: 'readonly' });
+      } else if (!m || s.dirty) await pushCloud(cur); else setSync({ state: readOnly ? 'readonly' : 'saved', at: new Date() });
+      for (const it of localLib.list(user.uid)) { if (it.id !== id && localLib.sync(it.id).dirty) { const p = localLib.get(it.id); if (p) await pushCloud(p); } }
+    } catch (e) { setSync({ state: 'error', msg: e.message }); }
+  }, [store, user, pushCloud]);
+  useEffect(() => { syncAll(); const on = () => syncAll(); window.addEventListener('online', on); const off = () => setSync(s => store ? { state: 'offline' } : s); window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); }; }, [syncAll]);
+  // ---- Buka / buat / salin / hapus proyek ----
+  const switchTo = (p) => { if (p.__fresh) { p = { ...p }; delete p.__fresh; } stopRec(); setActiveNode(null); history.current = []; setHistLen(0); cleanRef.current = { id: p.cloud.id, str: localLib.sync(p.cloud.id).dirty ? '' : JSON.stringify(p) };
+    setProjectRaw(p); lsSet(CURK(user.uid), JSON.stringify(p.cloud.id)); setSelection(null); setConflict(null); setSync({ state: store ? 'idle' : 'local' }); setTab('map'); };
+  const saveCurrentLocal = () => { const c = projectRef.current; if (!localLib.put(user.uid, c)) { localLib.evict(user.uid, c.cloud.id); localLib.put(user.uid, c); } };
+  const fetchProject = async (it) => {
+    const s = localLib.sync(it.id); let p = localLib.get(it.id);
+    if (store && navigator.onLine && (!p || (!s.dirty && (it.rev || 0) > (s.rev ?? -1)))) { const r = await store.load(it.id); p = r.project; localLib.put(user.uid, p); localLib.setSync(it.id, { rev: r.rev, dirty: false }); }
+    if (!p) throw new Error('Proyek ini belum tersimpan di perangkat ini dan perangkat sedang offline.');
+    return p;
+  };
+  const openProject = async (it) => { saveCurrentLocal(); const p = await fetchProject(it); switchTo(p); setLibOpen(false); setToast(`Membuka "${p.meta.name}"`); };
+  const newProject = (base, label) => { saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
+    if (label) q.meta = { ...q.meta, name: label }; localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
+  const duplicateProject = async (it) => { const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
+  const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
+  const reviewAct = (to, note) => setProject(p => { const c = p.cloud; const meta = { ...p.meta };
+    if (to === 'checked') { meta.checkedName = user.name || user.email; meta.checkedDate = todayStr(); }
+    if (to === 'approved') { meta.approvedName = user.name || user.email; meta.approvedDate = todayStr(); }
+    if (to === 'revisi' || to === 'draft') { meta.approvedName = ''; meta.approvedDate = ''; if (to === 'revisi' || c.status === 'approved') { meta.checkedName = ''; meta.checkedDate = ''; } }
+    return { ...p, meta, cloud: { ...c, status: to, reviews: [...(c.reviews || []), { at: Date.now(), by: { uid: user.uid, name: user.name || user.email, role: user.role || '' }, from: c.status || 'draft', to, note }] } }; }, { noStamp: true, system: true });
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 2600); return () => clearTimeout(t); }, [toast]);
   useEffect(() => {
     const onKey = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) { e.preventDefault(); undo(); }
@@ -4068,6 +4345,7 @@ function App({ user, api }) {
           <button type="button" onClick={() => setDialog(true)} className="min-w-0 flex-1 text-left">
             <div className="text-[11px] tracking-[0.04em] text-aqua-200 font-semibold">WASH PMI - Water for life</div>
             <div className="text-[13px] font-semibold truncate">{project.meta.name}</div></button>
+          <button type="button" onClick={() => setReviewOpen(true)} className={'pill shrink-0 !text-[10px] ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]}>{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</button>
           {rec && <span className="flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 bg-red-500"><span className="tp-rec w-1.5 h-1.5 rounded-full bg-white" />REC</span>}
           <button type="button" disabled={!histLen} onClick={undo} className="p-2 rounded disabled:opacity-30" aria-label="Urungkan"><Icon name="Undo2" size={20} /></button>
           <button type="button" onClick={() => setMenuOpen(true)} className="p-2 -mr-1 rounded" aria-label="Menu"><Icon name="Menu" size={22} /></button>
@@ -4083,7 +4361,8 @@ function App({ user, api }) {
             <div className="w-8 h-8 rounded-md bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={18} /></div>
             <div className="min-w-0">
               <div className="text-[12px] tracking-[0.04em] text-aqua-200 font-semibold">WASH PMI - Water for life</div>
-              <button type="button" onClick={() => setDialog(true)} className="block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[560px] hover:underline text-left" title="Ubah data proyek">{project.meta.name}</button>
+              <div className="flex items-center gap-2 min-w-0"><button type="button" onClick={() => setDialog(true)} className="block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[460px] hover:underline text-left" title="Ubah data proyek">{project.meta.name}</button>
+                <button type="button" onClick={() => setReviewOpen(true)} className={'pill shrink-0 ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]} title="Status & review proyek">{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</button></div>
             </div>
           </div>
           <div className="hidden xl:flex bg-white rounded-md px-2.5 py-1"><OrgLogos meta={project.meta} height={26} gap={12} /></div>
@@ -4093,8 +4372,9 @@ function App({ user, api }) {
           <button type="button" onClick={() => setPickOfficer({ then: null })} className="flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10" title="Ganti petugas di perangkat ini">
             <Icon name="UserRound" size={15} />{officer ? <span className="max-w-[160px] truncate">{officer.name}</span> : <span className="text-amber-300">Pilih petugas</span>}</button>
           <div className="flex flex-wrap items-center gap-1">
-            <Btn variant="dark" icon="FilePlus2" onClick={() => setConfirm({ text: 'Buat proyek baru yang kosong? Proyek saat ini akan diganti (simpan dulu ke .json bila perlu).', yes: () => { stopRec(); setActiveNode(null); setProject(createEmptyProject(), { noStamp: true }); setSelection(null); setTab('map'); } })}>Baru</Btn>
-            <Btn variant="dark" icon="BookOpen" onClick={() => setConfirm({ text: 'Muat ulang Proyek Contoh desa? Proyek saat ini akan diganti.', yes: () => { stopRec(); setActiveNode(null); setProject(createExampleProject(), { noStamp: true }); setSelection(null); } })}>Contoh</Btn>
+            <Btn variant="dark" icon="FolderOpen" onClick={() => setLibOpen(true)} title="Daftar berkas kerja / proyek">Proyek</Btn>
+            <Btn variant="dark" icon="FilePlus2" onClick={() => newProject(createEmptyProject(), 'Proyek baru')} title="Buat proyek kosong (proyek saat ini tetap tersimpan)">Baru</Btn>
+            <Btn variant="dark" icon="BookOpen" onClick={() => newProject(createExampleProject())} title="Buat proyek baru dari contoh">Contoh</Btn>
             <Btn variant="dark" icon="Undo2" disabled={!histLen} onClick={undo} title="Urungkan (Ctrl+Z)">Urungkan</Btn>
             <span className="w-px h-6 bg-white/15 mx-1" />
             <Btn variant="dark" icon="Download" onClick={saveFile} title="Simpan proyek ke berkas .json (Ctrl+S)">Simpan .json</Btn>
@@ -4115,6 +4395,10 @@ function App({ user, api }) {
           </button>)}
         </nav>
       </header>}
+      {readOnly && <div className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-900 text-[12.5px] px-4 py-1.5 flex flex-wrap items-center gap-2">
+        <Icon name="Eye" size={14} /><span className="flex-1 min-w-[200px]">Hanya-baca: proyek ini milik <b>{project.cloud.ownerName}</b>. Perubahan Anda tidak disimpan ke cloud.</span>
+        <button type="button" className="font-semibold text-aqua-700 hover:underline" onClick={() => { newProject(project, project.meta.name + ' (salinan)'); setToast('Salinan milik Anda dibuat'); }}>Simpan sebagai salinan saya</button></div>}
+      {mobile && store && ['offline', 'error', 'conflict'].includes(sync.state) && <div className="shrink-0 bg-white border-b border-line text-[12px] px-3 py-1"><SyncBadge sync={sync} /></div>}
       <main className="flex-1 min-h-0 relative">
         {tab === 'map' && <MapWorkspace project={project} setProject={setProject} hyd={hyd} selection={selection} setSelection={setSelection} field={field} />}
         {tab === 'hyd' && <HydraulicWorkspace project={project} setProject={setProject} hyd={hyd} setSelection={setSelection} goMap={() => setTab('map')} />}
@@ -4135,6 +4419,7 @@ function App({ user, api }) {
           {elevStatus.state === 'loading' ? <><Icon name="Mountain" size={13} className="text-aqua-600" />Mengambil elevasi DEM ({elevStatus.pending} titik)…</>
             : elevStatus.state === 'error' ? <><Icon name="TriangleAlert" size={13} className="text-amber-600" />Elevasi DEM tidak terjangkau; {elevStatus.pending} titik memakai perkiraan <button type="button" className="font-semibold text-aqua-700 hover:underline" onClick={() => { DEM.failUntil = 0; setElevRetry(x => x + 1); }}>Coba lagi</button></>
             : <><Icon name="Mountain" size={13} className="text-green-600" />Elevasi DEM terbaru</>}</span>}
+        <SyncBadge sync={sync} />
         <span className="flex items-center gap-1.5">{savedAt === 'err' ? <><Icon name="TriangleAlert" size={13} className="text-amber-600" />Penyimpanan otomatis tidak tersedia di browser ini</> : savedAt ? <><Icon name="CircleCheck" size={13} className="text-green-600" />Tersimpan otomatis {savedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</> : 'Menyimpan…'}</span>
       </footer>
     </div>
@@ -4145,10 +4430,17 @@ function App({ user, api }) {
         <button type="button" className="w-full text-left rounded-md border border-line hover:border-aqua-400 p-3" onClick={() => { const r = mergeProject(project, pendingLoad.data); setProject(r.project, { noStamp: true }); setPendingLoad(null);
           setToast(`Digabung: +${r.stats.nodes.added} node, +${r.stats.pipes.added} pipa, +${r.stats.structures.added} bangunan, +${r.stats.tracks.added} jejak; ${r.stats.nodes.updated + r.stats.structures.updated} diperbarui`); }}>
           <div className="font-semibold text-[13px] text-aqua-800">Gabungkan ke proyek ini</div><div className="text-[12px] text-slate-500">Untuk hasil survei dari HP: titik baru ditambahkan, titik yang sama (dari salinan proyek ini) diperbarui.</div></button>
-        <button type="button" className="w-full text-left rounded-md border border-line hover:border-aqua-400 p-3" onClick={() => { stopRec(); setActiveNode(null); setProject(normalizeProject(pendingLoad.data), { noStamp: true }); setSelection(null); setToast(`Proyek "${pendingLoad.name}" dimuat`); setPendingLoad(null); }}>
-          <div className="font-semibold text-[13px]">Ganti seluruh proyek</div><div className="text-[12px] text-slate-500">Proyek saat ini diganti isi berkas (bisa dibatalkan dengan Urungkan).</div></button>
+        <button type="button" className="w-full text-left rounded-md border border-line hover:border-aqua-400 p-3" onClick={() => { newProject(pendingLoad.data); setToast(`"${pendingLoad.name}" dibuka sebagai proyek baru`); setPendingLoad(null); }}>
+          <div className="font-semibold text-[13px]">Buka sebagai proyek baru</div><div className="text-[12px] text-slate-500">Isi berkas menjadi proyek tersendiri di daftar proyek; proyek saat ini tetap tersimpan.</div></button>
         <div className="flex justify-end"><Btn variant="outline" onClick={() => setPendingLoad(null)}>Batal</Btn></div>
       </div></div>}
+    {libOpen && <ProjectLibrary user={user} store={store} currentId={project.cloud.id} onClose={() => setLibOpen(false)} onOpen={openProject}
+      onNew={(k) => newProject(k === 'example' ? createExampleProject() : createEmptyProject(), k === 'example' ? undefined : 'Proyek baru')} onDuplicate={duplicateProject} onDelete={deleteProject} onImport={() => { setLibOpen(false); fileRef.current.click(); }} />}
+    {reviewOpen && <ReviewDialog project={project} user={user} onClose={() => setReviewOpen(false)} onAct={(to, note) => { reviewAct(to, note); setToast(`Status proyek: ${PSTATUS[to][0]}`); }} />}
+    {conflict && <ConflictDialog info={conflict} canOverwrite={conflict.project.cloud.ownerUid === user.uid || user.admin} onClose={() => setConflict(null)}
+      onCloud={async () => { try { const r = await store.load(conflict.project.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(r.project.cloud.id, { rev: r.rev, dirty: false }); if (conflict.project.cloud.id === projectRef.current.cloud.id) switchTo(r.project); setConflict(null); setSync({ state: 'saved', at: new Date() }); } catch (e) { setToast(e.message); } }}
+      onMine={async () => { const p = conflict.project; setConflict(null); await pushCloud(p, { overwrite: true }); }}
+      onCopy={async () => { const mine = conflict.project; setConflict(null); try { const r = await store.load(mine.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(r.project.cloud.id, { rev: r.rev, dirty: false }); } catch (e) {} newProject(mine, mine.meta.name + ' (versi saya)'); }} />}
     {userAdmin && <UserAdminDialog api={api} me={user} onClose={() => setUserAdmin(false)} />}
     {deviceDlg && <DeviceDialog onClose={() => setDeviceDlg(false)} install={installEvt ? install : null} shareData={shareData} />}
     {menuOpen && <div className="fixed inset-0 z-[1900] bg-black/40" onClick={() => setMenuOpen(false)}>
@@ -4161,6 +4453,8 @@ function App({ user, api }) {
             <span className="block text-[14px] font-semibold truncate">{officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih'}</span></span><span className="text-[12px] font-semibold text-aqua-700">Ganti</span></button>
         </div>
         {[
+          ['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)],
+          ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)],
           ['Undo2', 'Urungkan', undo, !histLen],
           ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')],
           ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')],
@@ -4172,9 +4466,8 @@ function App({ user, api }) {
           ['Building2', 'Data proyek', () => setDialog(true)],
           ['FileText', 'Cetak laporan', () => setPrintMode('report')],
           ['Printer', 'Cetak DED', () => setPrintMode('ded')],
-          ['BookOpen', 'Muat proyek contoh', () => setConfirm({ text: 'Muat ulang Proyek Contoh desa? Proyek saat ini akan diganti.', yes: () => { stopRec(); setActiveNode(null); setProject(createExampleProject(), { noStamp: true }); setSelection(null); } })],
-          ['X', `Keluar (${user.email})`, logout],
-          ['FilePlus2', 'Proyek baru (kosong)', () => setConfirm({ text: 'Buat proyek baru yang kosong? Proyek saat ini akan diganti (simpan dulu ke .json bila perlu).', yes: () => { stopRec(); setActiveNode(null); setProject(createEmptyProject(), { noStamp: true }); setSelection(null); setTab('map'); } })],
+          ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())],
+          ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')],
         ].map(([ic, l, fn, dis], i) => <button key={i} type="button" disabled={dis} onClick={() => { setMenuOpen(false); fn(); }} className="w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"><Icon name={ic} size={19} className="text-aqua-700" />{l}</button>)}
         <p className="px-4 py-3 text-[11px] text-slate-500">{savedAt instanceof Date ? `Tersimpan otomatis di perangkat ini ${savedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
       </div></div>}

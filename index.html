@@ -151,7 +151,7 @@ const {
 const STORAGE_KEY = 'tirtaplan-studio-v1';
 const OFFICER_KEY = 'tirtaplan-officer';
 const DEFAULT_ORG = 'WASH – Lembaga Pengembangan Air, Sanitasi dan Lingkungan · Bakti Star WASH · Palang Merah Indonesia';
-const OFFICER_ROLES = ['Surveyor / juru ukur', 'Koordinator lapangan', 'Relawan PMI', 'Drafter', 'Ahli teknik sipil / hidrolis', 'Pengawas', 'Lainnya'];
+const OFFICER_ROLES = ['Staf LPASL (pemeriksa)', 'Kepala LPASL (penyetuju)', 'Surveyor / juru ukur', 'Koordinator lapangan', 'Relawan PMI', 'Drafter', 'Ahli teknik sipil / hidrolis', 'Pengawas', 'Lainnya'];
 const DEFAULT_LOGOS = [{
   id: 'wash',
   name: "WASH \u2013 Lembaga Pengembangan Air, Sanitasi dan Lingkungan",
@@ -1078,9 +1078,13 @@ function createExampleProject() {
       consultant: 'Tim Perencana Teknis Desa',
       fiscal: 'Tahun Anggaran 2026',
       drawnBy: 'Drafter',
-      checkedBy: 'Ahli Teknik Sipil',
-      approvedBy: 'Kepala Desa',
+      checkedBy: 'Staf LPASL',
+      approvedBy: 'Kepala LPASL',
       surveyedBy: 'Tim Survei Lapangan',
+      checkedName: '',
+      checkedDate: '',
+      approvedName: '',
+      approvedDate: '',
       orgName: DEFAULT_ORG,
       orgLogo: '',
       drawingCode: 'AB-SKM',
@@ -1208,10 +1212,20 @@ function normalizeProject(p) {
   if (!p || !Array.isArray(p.nodes) || !Array.isArray(p.pipes)) return base;
   return {
     version: 1,
-    meta: {
-      ...base.meta,
-      ...(p.meta || {})
-    },
+    meta: (() => {
+      const m = {
+        ...base.meta,
+        ...(p.meta || {})
+      };
+      if (!m.checkedBy || m.checkedBy === 'Ahli Teknik Sipil') m.checkedBy = 'Staf LPASL';
+      if (!m.approvedBy || m.approvedBy === 'Kepala Desa') m.approvedBy = 'Kepala LPASL';
+      return m;
+    })(),
+    cloud: p.cloud && p.cloud.id ? {
+      status: 'draft',
+      reviews: [],
+      ...p.cloud
+    } : null,
     nodes: p.nodes.map(n => ({
       demand: 0,
       waterLevel: 0,
@@ -7947,7 +7961,7 @@ function TitleBlock({
     y2: 21,
     stroke: "#000",
     strokeWidth: 0.25
-  }), ml(wrapText('PEMILIK: ' + (meta.owner || '-'), 40).slice(0, 2).map(s => s.toUpperCase()), 24.3, 1.95, 700), ml([meta.fiscal || ''], 29.6, 1.7), L(31), lab(31, 'PEKERJAAN'), ml(nameLines, 38.5, 2.4, 700), L(56), lab(56, 'LOKASI'), ml(wrapText(meta.location, 38).slice(0, 2), 62.5, 2.1), L(70), lab(70, 'JUDUL GAMBAR'), ml(wrapText(title, 24).slice(0, 2), 78.5, 3.3, 700), L(89), lab(89, 'KETERANGAN'), React.createElement("g", null, legend && legend(x, 94, w)), L(200), lab(200, 'PELAKSANA / PERENCANA'), ml(wrapText(meta.orgName || meta.consultant || '-', 46).slice(0, 2), 206.6, 1.75, 600), L(213), [['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedBy], ['DISETUJUI', meta.approvedBy]].map(([k, v], i) => {
+  }), ml(wrapText('PEMILIK: ' + (meta.owner || '-'), 40).slice(0, 2).map(s => s.toUpperCase()), 24.3, 1.95, 700), ml([meta.fiscal || ''], 29.6, 1.7), L(31), lab(31, 'PEKERJAAN'), ml(nameLines, 38.5, 2.4, 700), L(56), lab(56, 'LOKASI'), ml(wrapText(meta.location, 38).slice(0, 2), 62.5, 2.1), L(70), lab(70, 'JUDUL GAMBAR'), ml(wrapText(title, 24).slice(0, 2), 78.5, 3.3, 700), L(89), lab(89, 'KETERANGAN'), React.createElement("g", null, legend && legend(x, 94, w)), L(200), lab(200, 'PELAKSANA / PERENCANA'), ml(wrapText(meta.orgName || meta.consultant || '-', 46).slice(0, 2), 206.6, 1.75, 600), L(213), [['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedName ? `${meta.checkedName} · ${meta.checkedBy || 'Staf LPASL'}` : meta.checkedBy || 'Staf LPASL'], ['DISETUJUI', meta.approvedName ? `${meta.approvedName} · ${meta.approvedBy || 'Kepala LPASL'}` : meta.approvedBy || 'Kepala LPASL']].map(([k, v], i) => {
     const y = 213 + i * 12;
     return React.createElement("g", {
       key: k
@@ -11720,7 +11734,7 @@ function DedWorkspace({
     className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer"
   }, "Kop gambar"), React.createElement("div", {
     className: "space-y-2 mt-2"
-  }, [['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Diperiksa'], ['approvedBy', 'Disetujui'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) => React.createElement(Field, {
+  }, [['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Jabatan pemeriksa'], ['approvedBy', 'Jabatan penyetuju'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) => React.createElement(Field, {
     key: k,
     label: l
   }, React.createElement("input", {
@@ -12007,23 +12021,28 @@ function PrintRoot({
     }
   }, "DIBULATKAN"), React.createElement("td", {
     className: "r"
-  }, fmt(rab.rounded, 0))))), React.createElement("p", null, React.createElement("i", null, "Terbilang: ", terbilang(rab.rounded))), React.createElement("table", {
+  }, fmt(rab.rounded, 0))))), React.createElement("p", null, React.createElement("i", null, "Terbilang: ", terbilang(rab.rounded))), project.cloud && React.createElement("p", {
     style: {
-      marginTop: '18pt',
+      marginTop: '14pt',
+      fontSize: '9pt'
+    }
+  }, "Status dokumen: ", React.createElement("b", null, (PSTATUS[project.cloud.status] || PSTATUS.draft)[0]), project.meta.checkedName ? ` · diperiksa ${project.meta.checkedName} (${project.meta.checkedBy}) ${project.meta.checkedDate || ''}` : '', project.meta.approvedName ? ` · disetujui ${project.meta.approvedName} (${project.meta.approvedBy}) ${project.meta.approvedDate || ''}` : ''), React.createElement("table", {
+    style: {
+      marginTop: '12pt',
       border: 0
     }
-  }, React.createElement("tbody", null, React.createElement("tr", null, [['Dibuat oleh', project.meta.drawnBy], ['Diperiksa oleh', project.meta.checkedBy], ['Disetujui oleh', project.meta.approvedBy]].map(([a, b]) => React.createElement("td", {
+  }, React.createElement("tbody", null, React.createElement("tr", null, [['Dibuat oleh', project.meta.drawnBy, project.cloud?.ownerName], ['Diperiksa oleh', project.meta.checkedBy || 'Staf LPASL', project.meta.checkedName], ['Disetujui oleh', project.meta.approvedBy || 'Kepala LPASL', project.meta.approvedName]].map(([a, t, n]) => React.createElement("td", {
     key: a,
     style: {
       border: 0,
       textAlign: 'center',
       width: '33%'
     }
-  }, a, ",", React.createElement("div", {
+  }, a, ",", React.createElement("br", null), React.createElement("b", null, t), React.createElement("div", {
     style: {
-      height: '48pt'
+      height: '44pt'
     }
-  }), React.createElement("b", null, React.createElement("u", null, b))))))), sheets);
+  }), React.createElement("b", null, React.createElement("u", null, n || '(............................................)'))))))), sheets);
 }
 function StampInfo({
   item
@@ -12289,7 +12308,8 @@ function ProjectDialog({
     ...p,
     team: fn(p.team || [])
   }), {
-    noStamp: true
+    noStamp: true,
+    system: true
   });
   const [tab, setTab] = useState('org');
   const [logoErr, setLogoErr] = useState('');
@@ -12413,7 +12433,7 @@ function ProjectDialog({
     onChange: e => setMeta('consultant', e.target.value)
   }))), tab === 'proj' && React.createElement("div", {
     className: "grid grid-cols-1 sm:grid-cols-2 gap-3"
-  }, [['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Diperiksa oleh', 1], ['approvedBy', 'Disetujui oleh', 1]].map(([k, l, span]) => React.createElement("div", {
+  }, [['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Jabatan pemeriksa', 1], ['approvedBy', 'Jabatan penyetuju', 1]].map(([k, l, span]) => React.createElement("div", {
     key: k,
     className: span === 2 ? 'sm:col-span-2' : ''
   }, React.createElement(Field, {
@@ -13372,6 +13392,7 @@ async function makeFirebaseAuth() {
   };
   return {
     mode: 'firebase',
+    db,
     init(cb) {
       listener = cb;
       const un = auth.onAuthStateChanged(fire);
@@ -13905,12 +13926,685 @@ function Root() {
     api: api
   });
 }
+const PSTATUS = {
+  draft: ['Sedang dikerjakan', 's-idle'],
+  review: ['Menunggu pemeriksaan', 's-low'],
+  revisi: ['Perlu revisi', 's-high'],
+  checked: ['Sudah diperiksa', 's-src'],
+  approved: ['Disetujui', 's-ok']
+};
+const LIBK = u => 'tirtaplan-lib:' + u,
+  PROJK = id => 'tirtaplan-proj:' + id,
+  SYNCK = id => 'tirtaplan-sync:' + id,
+  CURK = u => 'tirtaplan-current:' + u;
+const lsGet = (k, d) => {
+  try {
+    const v = localStorage.getItem(k);
+    return v ? JSON.parse(v) : d;
+  } catch (e) {
+    return d;
+  }
+};
+const lsSet = (k, v) => {
+  try {
+    localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+const dtTxt = ms => ms ? new Date(ms).toLocaleString('id-ID', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+}) : '–';
+function projMeta(p) {
+  const c = p.cloud || {};
+  return {
+    id: c.id,
+    name: p.meta?.name || 'Tanpa nama',
+    location: p.meta?.location || '',
+    ownerUid: c.ownerUid,
+    ownerName: c.ownerName,
+    status: c.status || 'draft',
+    nodes: p.nodes.length,
+    pipes: p.pipes.length,
+    updatedAt: Date.now()
+  };
+}
+function ensureCloud(p, user) {
+  if (p.cloud && p.cloud.id) return p;
+  return {
+    ...p,
+    cloud: {
+      id: uid('pj'),
+      ownerUid: user.uid,
+      ownerName: user.name || user.email,
+      ownerEmail: user.email || '',
+      status: 'draft',
+      reviews: []
+    }
+  };
+}
+const localLib = {
+  list(u) {
+    return lsGet(LIBK(u), []);
+  },
+  put(u, p, str) {
+    if (p.__fresh) {
+      p = {
+        ...p
+      };
+      delete p.__fresh;
+      str = null;
+    }
+    const m = projMeta(p);
+    const L = lsGet(LIBK(u), []).filter(x => x.id !== m.id);
+    L.unshift(m);
+    const ok = lsSet(PROJK(m.id), str || JSON.stringify(p)) && lsSet(LIBK(u), L);
+    return ok;
+  },
+  get(id) {
+    const p = lsGet(PROJK(id), null);
+    return p ? normalizeProject(p) : null;
+  },
+  has(id) {
+    try {
+      return !!localStorage.getItem(PROJK(id));
+    } catch (e) {
+      return false;
+    }
+  },
+  remove(u, id) {
+    lsSet(LIBK(u), lsGet(LIBK(u), []).filter(x => x.id !== id));
+    try {
+      localStorage.removeItem(PROJK(id));
+      localStorage.removeItem(SYNCK(id));
+    } catch (e) {}
+  },
+  sync(id) {
+    return lsGet(SYNCK(id), {
+      rev: null,
+      dirty: false
+    });
+  },
+  setSync(id, v) {
+    lsSet(SYNCK(id), {
+      ...lsGet(SYNCK(id), {
+        rev: null,
+        dirty: false
+      }),
+      ...v
+    });
+  },
+  evict(u, keepId) {
+    lsGet(LIBK(u), []).forEach(m => {
+      const s = localLib.sync(m.id);
+      if (m.id !== keepId && !s.dirty && s.rev != null) try {
+        localStorage.removeItem(PROJK(m.id));
+      } catch (e) {}
+    });
+  }
+};
+async function packJson(obj) {
+  const s = typeof obj === 'string' ? obj : JSON.stringify(obj);
+  if (window.CompressionStream) {
+    const st = new Blob([s]).stream().pipeThrough(new CompressionStream('gzip'));
+    return {
+      fmt: 'gz',
+      bytes: new Uint8Array(await new Response(st).arrayBuffer()),
+      size: s.length
+    };
+  }
+  return {
+    fmt: 'raw',
+    text: s,
+    size: s.length
+  };
+}
+async function unpackJson(d) {
+  if (d.fmt === 'gz') {
+    const b = d.data && d.data.toUint8Array ? d.data.toUint8Array() : d.data;
+    const st = new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(st).text());
+  }
+  return JSON.parse(d.text);
+}
+function makeCloudStore(api) {
+  if (!api || !api.db) return null;
+  const db = api.db,
+    FS = firebase.firestore;
+  const ms = t => t && t.toMillis ? t.toMillis() : t || 0;
+  const metaOf = d => {
+    const x = d.data();
+    return {
+      ...x,
+      id: d.id,
+      updatedAt: ms(x.updatedAt),
+      createdAt: ms(x.createdAt)
+    };
+  };
+  const wrap = e => {
+    const x = new Error(fbErr(e));
+    x.code = e.code;
+    return x;
+  };
+  return {
+    async list(scope, user) {
+      try {
+        let q = db.collection('projects');
+        if (scope === 'mine') q = q.where('ownerUid', '==', user.uid);
+        const s = await q.get();
+        return s.docs.map(metaOf).sort((a, b) => b.updatedAt - a.updatedAt);
+      } catch (e) {
+        throw wrap(e);
+      }
+    },
+    async meta(id) {
+      try {
+        const s = await db.collection('projects').doc(id).get();
+        return s.exists ? metaOf(s) : null;
+      } catch (e) {
+        throw wrap(e);
+      }
+    },
+    async load(id) {
+      try {
+        const [m, d] = await Promise.all([db.collection('projects').doc(id).get(), db.collection('projectData').doc(id).get()]);
+        if (!d.exists) throw new Error('Data proyek ini tidak ditemukan di cloud.');
+        return {
+          project: normalizeProject(await unpackJson(d.data())),
+          rev: m.exists ? m.data().rev || 0 : 0
+        };
+      } catch (e) {
+        throw e.code ? wrap(e) : e;
+      }
+    },
+    async save(p, baseRev, user, str) {
+      const pk = await packJson(str || p);
+      const bytes = pk.bytes ? pk.bytes.length : pk.size;
+      if (bytes > 950000) throw new Error('Proyek terlalu besar untuk cloud (lebih dari 1 MB setelah dikompresi). Hapus jejak GPS lama atau simpan sebagai .json.');
+      const c = p.cloud;
+      const mRef = db.collection('projects').doc(c.id),
+        dRef = db.collection('projectData').doc(c.id);
+      try {
+        return await db.runTransaction(async tx => {
+          const snap = await tx.get(mRef);
+          const cur = snap.exists ? snap.data() : null;
+          if (baseRev !== undefined && cur && (cur.rev || 0) !== baseRev) {
+            const e = new Error('conflict');
+            e.conflict = {
+              by: cur.updatedByName,
+              at: ms(cur.updatedAt),
+              rev: cur.rev || 0
+            };
+            throw e;
+          }
+          const rev = (cur?.rev || 0) + 1;
+          tx.set(mRef, {
+            name: p.meta.name || 'Tanpa nama',
+            location: p.meta.location || '',
+            ownerUid: c.ownerUid,
+            ownerName: c.ownerName || '',
+            ownerEmail: c.ownerEmail || '',
+            status: c.status || 'draft',
+            rev,
+            nodes: p.nodes.length,
+            pipes: p.pipes.length,
+            size: bytes,
+            checkedName: p.meta.checkedName || '',
+            approvedName: p.meta.approvedName || '',
+            updatedByUid: user.uid,
+            updatedByName: user.name || user.email,
+            updatedAt: FS.FieldValue.serverTimestamp(),
+            createdAt: cur?.createdAt || FS.FieldValue.serverTimestamp()
+          });
+          tx.set(dRef, {
+            ownerUid: c.ownerUid,
+            rev,
+            fmt: pk.fmt,
+            ...(pk.bytes ? {
+              data: FS.Blob.fromUint8Array(pk.bytes)
+            } : {
+              text: pk.text
+            })
+          });
+          return {
+            rev
+          };
+        });
+      } catch (e) {
+        if (e.conflict) throw e;
+        throw wrap(e);
+      }
+    },
+    async remove(id) {
+      try {
+        await db.collection('projectData').doc(id).delete();
+        await db.collection('projects').doc(id).delete();
+      } catch (e) {
+        throw wrap(e);
+      }
+    }
+  };
+}
+function SyncBadge({
+  sync,
+  compact
+}) {
+  const m = {
+    local: ['Database', 'Tersimpan di perangkat', 'text-slate-500'],
+    idle: ['Database', 'Siap', 'text-slate-500'],
+    saving: ['RotateCcw', 'Menyimpan ke cloud…', 'text-aqua-700'],
+    saved: ['CircleCheck', 'Tersimpan di cloud', 'text-green-700'],
+    offline: ['TriangleAlert', 'Offline: disimpan di perangkat, sinkron saat online', 'text-amber-700'],
+    error: ['TriangleAlert', 'Gagal sinkron', 'text-red-700'],
+    conflict: ['TriangleAlert', 'Ada versi lain di cloud', 'text-red-700'],
+    readonly: ['Eye', 'Hanya-baca (milik pengguna lain)', 'text-slate-600']
+  }[sync.state] || ['Database', '', ''];
+  return React.createElement("span", {
+    className: 'inline-flex items-center gap-1.5 ' + m[2],
+    title: sync.msg || m[1]
+  }, React.createElement(Icon, {
+    name: m[0],
+    size: 13
+  }), compact ? '' : m[1], !compact && sync.state === 'saved' && sync.at ? ' ' + sync.at.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit'
+  }) : '');
+}
+function ProjectLibrary({
+  user,
+  store,
+  currentId,
+  onOpen,
+  onNew,
+  onDuplicate,
+  onDelete,
+  onClose,
+  onImport
+}) {
+  const [tab, setTab] = useState('mine');
+  const [items, setItems] = useState(null);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [st, setSt] = useState('');
+  const [busy, setBusy] = useState('');
+  const [del, setDel] = useState(null);
+  const load = async () => {
+    setItems(null);
+    setErr('');
+    const local = localLib.list(user.uid).map(m => ({
+      ...m,
+      local: true,
+      dirty: localLib.sync(m.id).dirty,
+      synced: localLib.sync(m.id).rev != null
+    }));
+    if (!store) {
+      setItems(local);
+      return;
+    }
+    try {
+      const cloud = await store.list(tab, user);
+      const ids = new Set(cloud.map(c => c.id));
+      const merged = cloud.map(c => {
+        const l = local.find(x => x.id === c.id);
+        return {
+          ...c,
+          dirty: l?.dirty,
+          cached: !!l
+        };
+      });
+      if (tab === 'mine') local.filter(l => !ids.has(l.id) && l.ownerUid === user.uid).forEach(l => merged.unshift({
+        ...l,
+        pendingUpload: true
+      }));
+      setItems(merged);
+    } catch (e) {
+      setErr(e.message + (navigator.onLine ? '' : ' Menampilkan salinan di perangkat ini.'));
+      setItems(local);
+    }
+  };
+  useEffect(() => {
+    load();
+  }, [tab]);
+  const run = async (key, fn) => {
+    setBusy(key);
+    setErr('');
+    try {
+      await fn();
+    } catch (e) {
+      setErr(e.message || String(e));
+    }
+    setBusy('');
+  };
+  const shown = (items || []).filter(it => (!st || it.status === st) && (!q || `${it.name} ${it.location} ${it.ownerName}`.toLowerCase().includes(q.toLowerCase())));
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-3 sm:p-4",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-3xl max-h-[94vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center justify-between px-5 py-3 border-b border-line"
+  }, React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "FolderOpen",
+    size: 17,
+    className: "text-aqua-600"
+  }), "Berkas kerja (daftar proyek)"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "px-5 pt-3 flex flex-wrap gap-2"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    icon: "FilePlus2",
+    onClick: () => onNew('empty')
+  }, "Proyek baru"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "BookOpen",
+    onClick: () => onNew('example')
+  }, "Dari contoh"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Upload",
+    onClick: onImport
+  }, "Impor .json")), store && React.createElement("div", {
+    className: "flex border-b border-line text-[13px] mt-3 px-2"
+  }, [['mine', 'Proyek saya'], ['team', 'Semua proyek tim']].map(([k, l]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setTab(k),
+    className: `px-4 py-2 font-medium ${tab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`
+  }, l))), React.createElement("div", {
+    className: "px-5 pt-3 flex flex-wrap gap-2"
+  }, React.createElement("input", {
+    id: "lib-search",
+    className: "tp-field !w-auto flex-1 min-w-[160px]",
+    placeholder: "Cari nama, lokasi, pemilik\u2026",
+    value: q,
+    onChange: e => setQ(e.target.value)
+  }), React.createElement("select", {
+    id: "lib-status",
+    className: "tp-field !w-auto",
+    value: st,
+    onChange: e => setSt(e.target.value)
+  }, React.createElement("option", {
+    value: ""
+  }, "Semua status"), Object.entries(PSTATUS).map(([k, v]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, v[0])))), React.createElement("div", {
+    className: "p-5 pt-3 overflow-y-auto space-y-2 text-[13px]"
+  }, err && React.createElement("div", {
+    className: "rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2"
+  }, err), !items && React.createElement("p", {
+    className: "text-slate-500"
+  }, "Memuat daftar proyek\u2026"), items && shown.length === 0 && React.createElement("p", {
+    className: "text-slate-500"
+  }, "Belum ada proyek", q || st ? ' yang cocok dengan pencarian' : '', "."), shown.map(it => {
+    const mine = it.ownerUid === user.uid;
+    const canEdit = mine || user.admin;
+    const cur = it.id === currentId;
+    const S = PSTATUS[it.status] || PSTATUS.draft;
+    return React.createElement("div", {
+      key: it.id,
+      className: `rounded-lg border p-3 flex flex-wrap items-center gap-3 ${cur ? 'border-aqua-500 bg-aqua-50' : 'border-line'}`
+    }, React.createElement("div", {
+      className: "flex-1 min-w-[220px]"
+    }, React.createElement("div", {
+      className: "font-semibold flex flex-wrap items-center gap-1.5"
+    }, it.name, cur && React.createElement("span", {
+      className: "pill s-src"
+    }, "sedang dibuka"), !canEdit && React.createElement("span", {
+      className: "pill s-idle"
+    }, "hanya-baca"), (it.dirty || it.pendingUpload) && React.createElement("span", {
+      className: "pill s-low"
+    }, "belum tersinkron")), React.createElement("div", {
+      className: "text-[12px] text-slate-500"
+    }, [it.location, `${it.nodes ?? '?'} node · ${it.pipes ?? '?'} pipa`, `pemilik ${mine ? 'Anda' : it.ownerName || '-'}`].filter(Boolean).join(' · ')), React.createElement("div", {
+      className: "text-[11.5px] text-slate-400"
+    }, "Diubah ", dtTxt(it.updatedAt), it.updatedByName ? ` oleh ${it.updatedByName}` : '', it.approvedName ? ` · disetujui ${it.approvedName}` : it.checkedName ? ` · diperiksa ${it.checkedName}` : '')), React.createElement("span", {
+      className: 'pill ' + S[1]
+    }, S[0]), React.createElement("div", {
+      className: "flex flex-wrap gap-1.5"
+    }, React.createElement(Btn, {
+      variant: cur ? 'outline' : 'primary',
+      icon: "FolderOpen",
+      disabled: cur || !!busy,
+      onClick: () => run('o' + it.id, () => onOpen(it))
+    }, busy === 'o' + it.id ? 'Membuka…' : cur ? 'Terbuka' : 'Buka'), React.createElement(Btn, {
+      variant: "outline",
+      icon: "FilePlus2",
+      disabled: !!busy,
+      title: "Simpan salinan sebagai proyek baru milik Anda",
+      onClick: () => run('d' + it.id, () => onDuplicate(it))
+    }, "Salin"), canEdit && !cur && (del === it.id ? React.createElement(React.Fragment, null, React.createElement(Btn, {
+      variant: "danger",
+      onClick: () => run('x' + it.id, async () => {
+        await onDelete(it);
+        setDel(null);
+        await load();
+      })
+    }, "Ya, hapus"), React.createElement(Btn, {
+      variant: "outline",
+      onClick: () => setDel(null)
+    }, "Batal")) : React.createElement(Btn, {
+      variant: "ghost",
+      icon: "Trash2",
+      title: "Hapus proyek",
+      onClick: () => setDel(it.id)
+    }))));
+  }), React.createElement("p", {
+    className: "text-[11.5px] text-slate-500 pt-1"
+  }, store ? 'Proyek tersimpan otomatis ke cloud setiap ada perubahan, dan salinannya disimpan di perangkat untuk kerja offline. Semua anggota tim yang disetujui dapat membuka proyek; hanya pemilik dan admin yang dapat mengubahnya.' : 'Mode lokal: proyek tersimpan di perangkat ini saja. Aktifkan login daring agar proyek bisa dibuka dari perangkat lain.'))));
+}
+function ReviewDialog({
+  project,
+  user,
+  onAct,
+  onClose
+}) {
+  const c = project.cloud || {};
+  const S = PSTATUS[c.status] || PSTATUS.draft;
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+  const isOwner = c.ownerUid === user.uid;
+  const staf = /staf/i.test(user.role || '');
+  const acts = [];
+  if ((isOwner || user.admin) && ['draft', 'revisi'].includes(c.status || 'draft')) acts.push(['review', 'Ajukan untuk diperiksa', 'primary', false]);
+  if (user.admin && c.status === 'review') acts.push(['checked', 'Sudah diperiksa (Staf LPASL)', 'primary', false]);
+  if (user.admin && !staf && c.status === 'checked') acts.push(['approved', 'Setujui (Kepala LPASL)', 'primary', false]);
+  if (user.admin && ['review', 'checked'].includes(c.status)) acts.push(['revisi', 'Kembalikan untuk revisi', 'danger', true]);
+  if (user.admin && c.status === 'approved') acts.push(['draft', 'Buka kembali untuk diubah', 'outline', true]);
+  const go = (to, needNote) => {
+    if (needNote && !note.trim()) {
+      setErr('Tulis catatan alasannya terlebih dulu.');
+      return;
+    }
+    onAct(to, note.trim());
+    setNote('');
+    setErr('');
+  };
+  const steps = ['draft', 'review', 'checked', 'approved'];
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-xl max-h-[92vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center justify-between px-5 py-3 border-b border-line"
+  }, React.createElement("h2", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "CircleCheck",
+    size: 17,
+    className: "text-aqua-600"
+  }), "Status & review proyek"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "p-5 overflow-y-auto space-y-4 text-[13px]"
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "font-semibold"
+  }, project.meta.name), React.createElement("div", {
+    className: "text-slate-500 text-[12px]"
+  }, "Pemilik: ", c.ownerName || '-', isOwner ? ' (Anda)' : '')), React.createElement("div", {
+    className: "flex items-center gap-1 flex-wrap"
+  }, steps.map((s, i) => {
+    const reached = steps.indexOf(c.status === 'revisi' ? 'draft' : c.status || 'draft') >= i;
+    return React.createElement(Fragment, {
+      key: s
+    }, React.createElement("span", {
+      className: 'pill ' + (reached ? PSTATUS[s][1] : 's-idle opacity-50')
+    }, PSTATUS[s][0]), i < steps.length - 1 && React.createElement(Icon, {
+      name: "ArrowRight",
+      size: 13,
+      className: "text-slate-400"
+    }));
+  })), React.createElement("div", null, "Status saat ini: ", React.createElement("span", {
+    className: 'pill ' + S[1]
+  }, S[0])), React.createElement("table", {
+    className: "tp-table"
+  }, React.createElement("tbody", null, React.createElement("tr", null, React.createElement("td", {
+    className: "text-slate-500"
+  }, "Pemeriksa (", project.meta.checkedBy || 'Staf LPASL', ")"), React.createElement("td", null, project.meta.checkedName ? `${project.meta.checkedName} · ${project.meta.checkedDate || ''}` : '–')), React.createElement("tr", null, React.createElement("td", {
+    className: "text-slate-500"
+  }, "Penyetuju (", project.meta.approvedBy || 'Kepala LPASL', ")"), React.createElement("td", null, project.meta.approvedName ? `${project.meta.approvedName} · ${project.meta.approvedDate || ''}` : '–')))), acts.length > 0 ? React.createElement("div", {
+    className: "space-y-2"
+  }, React.createElement(Field, {
+    label: "Catatan (wajib bila dikembalikan untuk revisi)"
+  }, React.createElement("textarea", {
+    id: "rv-note",
+    className: "tp-field h-20",
+    value: note,
+    onChange: e => {
+      setNote(e.target.value);
+      setErr('');
+    },
+    placeholder: "mis. Periksa ulang diameter pipa P4; tekanan di HU1 kurang."
+  })), err && React.createElement("p", {
+    className: "text-red-700"
+  }, err), React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, acts.map(([to, l, v, nn]) => React.createElement(Btn, {
+    key: to,
+    variant: v,
+    onClick: () => go(to, nn)
+  }, l)))) : React.createElement("p", {
+    className: "text-slate-500"
+  }, c.status === 'approved' ? 'Proyek sudah disetujui. Perubahan isi akan mengembalikan status ke "Sedang dikerjakan".' : user.admin ? 'Tidak ada tindakan untuk status ini.' : 'Pemeriksaan dan persetujuan dilakukan oleh admin LPASL.'), React.createElement("div", null, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5"
+  }, "Riwayat"), (c.reviews || []).length === 0 ? React.createElement("p", {
+    className: "text-slate-500"
+  }, "Belum ada riwayat.") : React.createElement("ol", {
+    className: "space-y-1.5"
+  }, [...(c.reviews || [])].reverse().map((r, i) => React.createElement("li", {
+    key: i,
+    className: "rounded-md border border-line px-3 py-2"
+  }, React.createElement("div", {
+    className: "flex flex-wrap items-center gap-1.5"
+  }, React.createElement("span", {
+    className: 'pill ' + (PSTATUS[r.to] || PSTATUS.draft)[1]
+  }, (PSTATUS[r.to] || PSTATUS.draft)[0]), React.createElement("span", {
+    className: "text-[12px] text-slate-500"
+  }, r.by?.name, r.by?.role ? ` (${r.by.role})` : '', " \xB7 ", dtTxt(r.at))), r.note && React.createElement("div", {
+    className: "mt-1 text-[12.5px]"
+  }, r.note))))))));
+}
+function ConflictDialog({
+  info,
+  canOverwrite,
+  onCloud,
+  onMine,
+  onCopy,
+  onClose
+}) {
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2150] bg-black/40 flex items-center justify-center p-4"
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-md p-5 space-y-3 text-[13px]"
+  }, React.createElement("h2", {
+    className: "font-semibold text-[15px] flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "TriangleAlert",
+    size: 18,
+    className: "text-amber-600"
+  }), "Ada versi lain di cloud"), React.createElement("p", {
+    className: "text-slate-600"
+  }, "Proyek ", React.createElement("b", null, info.name), " sudah diubah ", info.by ? `oleh ${info.by} ` : '', info.at ? `pada ${dtTxt(info.at)} ` : '', "setelah versi yang ada di perangkat ini. Pilih versi yang dipakai:"), React.createElement("button", {
+    type: "button",
+    className: "w-full text-left rounded-md border border-line hover:border-aqua-400 p-3",
+    onClick: onCloud
+  }, React.createElement("div", {
+    className: "font-semibold text-aqua-800"
+  }, "Pakai versi cloud"), React.createElement("div", {
+    className: "text-[12px] text-slate-500"
+  }, "Perubahan di perangkat ini yang belum tersimpan dibuang.")), React.createElement("button", {
+    type: "button",
+    className: "w-full text-left rounded-md border border-line hover:border-aqua-400 p-3",
+    onClick: onCopy
+  }, React.createElement("div", {
+    className: "font-semibold"
+  }, "Simpan versi saya sebagai salinan"), React.createElement("div", {
+    className: "text-[12px] text-slate-500"
+  }, "Kedua versi tetap ada; versi Anda menjadi proyek baru.")), canOverwrite && React.createElement("button", {
+    type: "button",
+    className: "w-full text-left rounded-md border border-red-200 hover:border-red-400 p-3",
+    onClick: onMine
+  }, React.createElement("div", {
+    className: "font-semibold text-red-700"
+  }, "Timpa cloud dengan versi saya"), React.createElement("div", {
+    className: "text-[12px] text-slate-500"
+  }, "Perubahan orang lain di cloud akan hilang.")), React.createElement("div", {
+    className: "flex justify-end"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    onClick: onClose
+  }, "Nanti saja"))));
+}
 function App({
   user,
   api
 }) {
-  const PKEY = projectKey(user);
-  const [project, setProjectRaw] = useState(() => loadInitialProject(PKEY));
+  const [project, setProjectRaw] = useState(() => {
+    const curId = lsGet(CURK(user.uid), null);
+    let p = curId && localLib.get(curId);
+    if (!p) {
+      p = ensureCloud(loadInitialProject(projectKey(user)), user);
+      localLib.put(user.uid, p);
+      localLib.setSync(p.cloud.id, {
+        dirty: true
+      });
+      p = {
+        ...p,
+        __fresh: true
+      };
+    }
+    lsSet(CURK(user.uid), JSON.stringify(p.cloud.id));
+    return p;
+  });
+  const store = useMemo(() => makeCloudStore(api), [api]);
+  const freshRef = useRef(!!project.__fresh);
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const cleanRef = useRef({
+    id: project.cloud.id,
+    str: localLib.sync(project.cloud.id).dirty ? '' : JSON.stringify(project)
+  });
+  const [sync, setSync] = useState({
+    state: store ? 'idle' : 'local'
+  });
+  const [conflict, setConflict] = useState(null);
+  const [libOpen, setLibOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const readOnly = !!store && project.cloud.ownerUid !== user.uid && !user.admin;
   const history = useRef([]);
   const [histLen, setHistLen] = useState(0);
   const officerRef = useRef(null);
@@ -13918,6 +14612,34 @@ function App({
     setProjectRaw(prev => {
       let next = typeof upd === 'function' ? upd(prev) : upd;
       if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current);
+      if (next !== prev && !opts.system && next.cloud && ['checked', 'approved'].includes(next.cloud.status) && Object.keys(next).some(k => k !== 'ded' ? next[k] !== prev[k] : Object.keys(next.ded).some(j => j !== 'sheet' && next.ded[j] !== prev.ded[j]))) {
+        const who = officerRef.current;
+        next = {
+          ...next,
+          meta: {
+            ...next.meta,
+            checkedName: '',
+            checkedDate: '',
+            approvedName: '',
+            approvedDate: ''
+          },
+          cloud: {
+            ...next.cloud,
+            status: 'draft',
+            reviews: [...(next.cloud.reviews || []), {
+              at: Date.now(),
+              by: who ? {
+                uid: who.id,
+                name: who.name,
+                role: who.role
+              } : null,
+              from: next.cloud.status,
+              to: 'draft',
+              note: 'Isi proyek diubah setelah ' + (next.cloud.status === 'approved' ? 'disetujui' : 'diperiksa') + '; perlu diajukan ulang.'
+            }]
+          }
+        };
+      }
       if (next !== prev) {
         history.current.push(prev);
         if (history.current.length > 60) history.current.shift();
@@ -13941,8 +14663,6 @@ function App({
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
   const fileRef = useRef(null);
-  const projectRef = useRef(project);
-  projectRef.current = project;
   const patchProject = useCallback(upd => setProjectRaw(prev => typeof upd === 'function' ? upd(prev) : upd), []);
   const [prefs, setPrefs] = useState({
     type: 'junction',
@@ -14005,7 +14725,8 @@ function App({
         team: [...t, m]
       };
     }, {
-      noStamp: true
+      noStamp: true,
+      system: true
     });
     if (!officerId || officerId === user.uid || !(project.team || []).some(t => t.id === officerId)) setOfficerId(user.uid);
   }, [user && user.uid]);
@@ -14358,17 +15079,318 @@ function App({
   const hyd = useMemo(() => computeHydraulics(project), [project]);
   const boq = useMemo(() => computeBoQ(project, hyd), [project, hyd]);
   const rab = useMemo(() => buildRAB(project, boq), [project, boq]);
+  const pushCloud = useCallback(async (p, opts = {}) => {
+    if (!store) return;
+    const id = p.cloud.id;
+    if (p.cloud.ownerUid !== user.uid && !user.admin) {
+      if (id === projectRef.current.cloud.id) setSync({
+        state: 'readonly'
+      });
+      return;
+    }
+    if (!navigator.onLine) {
+      if (id === projectRef.current.cloud.id) setSync({
+        state: 'offline'
+      });
+      return;
+    }
+    const str = JSON.stringify(p);
+    if (id === projectRef.current.cloud.id) setSync({
+      state: 'saving'
+    });
+    try {
+      const s = localLib.sync(id);
+      const {
+        rev
+      } = await store.save(p, opts.overwrite ? undefined : s.rev, user, str);
+      const stillSame = id === projectRef.current.cloud.id && JSON.stringify(projectRef.current) === str;
+      localLib.setSync(id, {
+        rev,
+        dirty: !stillSame && id === projectRef.current.cloud.id
+      });
+      if (id === projectRef.current.cloud.id) {
+        if (stillSame) cleanRef.current = {
+          id,
+          str
+        };
+        setSync({
+          state: 'saved',
+          at: new Date()
+        });
+      }
+    } catch (e) {
+      if (e.conflict) {
+        setConflict({
+          ...e.conflict,
+          name: p.meta.name,
+          project: p
+        });
+        setSync({
+          state: 'conflict'
+        });
+      } else if (id === projectRef.current.cloud.id) setSync({
+        state: navigator.onLine ? 'error' : 'offline',
+        msg: e.message
+      });
+    }
+  }, [store, user]);
   useEffect(() => {
     const t = setTimeout(() => {
-      try {
-        localStorage.setItem(PKEY, JSON.stringify(project));
-        setSavedAt(new Date());
-      } catch (e) {
-        setSavedAt('err');
+      const str = JSON.stringify(project);
+      const id = project.cloud.id;
+      let ok = localLib.put(user.uid, project, str);
+      if (!ok) {
+        localLib.evict(user.uid, id);
+        ok = localLib.put(user.uid, project, str);
       }
-    }, 500);
+      setSavedAt(ok ? new Date() : 'err');
+      const changed = !(cleanRef.current.id === id && cleanRef.current.str === str);
+      if (changed && !readOnly) localLib.setSync(id, {
+        dirty: true
+      });
+      if (store && changed && !readOnly && !conflict && !freshRef.current) pushCloud(project);
+      if (readOnly) setSync({
+        state: 'readonly'
+      });
+    }, store ? 1500 : 500);
     return () => clearTimeout(t);
   }, [project]);
+  const syncAll = useCallback(async () => {
+    if (!store || !navigator.onLine) {
+      if (store) setSync({
+        state: 'offline'
+      });
+      return;
+    }
+    try {
+      if (freshRef.current) {
+        const mine = await store.list('mine', user);
+        const tmp = projectRef.current;
+        if (mine.length) {
+          const r = await store.load(mine[0].id);
+          localLib.remove(user.uid, tmp.cloud.id);
+          localLib.put(user.uid, r.project);
+          localLib.setSync(mine[0].id, {
+            rev: r.rev,
+            dirty: false
+          });
+          freshRef.current = false;
+          switchTo(r.project);
+          setToast(`Membuka proyek terakhir Anda: "${r.project.meta.name}"`);
+          setSync({
+            state: 'saved',
+            at: new Date()
+          });
+          return;
+        }
+        freshRef.current = false;
+      }
+    } catch (e) {
+      setSync({
+        state: 'error',
+        msg: e.message
+      });
+      return;
+    }
+    const cur = projectRef.current;
+    const id = cur.cloud.id;
+    const s = localLib.sync(id);
+    try {
+      const m = await store.meta(id);
+      if (m && (s.rev == null || m.rev > s.rev)) {
+        if (!s.dirty) {
+          const r = await store.load(id);
+          localLib.put(user.uid, r.project);
+          localLib.setSync(id, {
+            rev: r.rev,
+            dirty: false
+          });
+          cleanRef.current = {
+            id,
+            str: JSON.stringify(r.project)
+          };
+          setProjectRaw(r.project);
+          history.current = [];
+          setHistLen(0);
+          setToast(`Memuat versi terbaru "${r.project.meta.name}" dari cloud`);
+          setSync({
+            state: 'saved',
+            at: new Date()
+          });
+        } else if (cur.cloud.ownerUid === user.uid || user.admin) {
+          setConflict({
+            by: m.updatedByName,
+            at: m.updatedAt,
+            rev: m.rev,
+            name: cur.meta.name,
+            project: cur
+          });
+          setSync({
+            state: 'conflict'
+          });
+        } else setSync({
+          state: 'readonly'
+        });
+      } else if (!m || s.dirty) await pushCloud(cur);else setSync({
+        state: readOnly ? 'readonly' : 'saved',
+        at: new Date()
+      });
+      for (const it of localLib.list(user.uid)) {
+        if (it.id !== id && localLib.sync(it.id).dirty) {
+          const p = localLib.get(it.id);
+          if (p) await pushCloud(p);
+        }
+      }
+    } catch (e) {
+      setSync({
+        state: 'error',
+        msg: e.message
+      });
+    }
+  }, [store, user, pushCloud]);
+  useEffect(() => {
+    syncAll();
+    const on = () => syncAll();
+    window.addEventListener('online', on);
+    const off = () => setSync(s => store ? {
+      state: 'offline'
+    } : s);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, [syncAll]);
+  const switchTo = p => {
+    if (p.__fresh) {
+      p = {
+        ...p
+      };
+      delete p.__fresh;
+    }
+    stopRec();
+    setActiveNode(null);
+    history.current = [];
+    setHistLen(0);
+    cleanRef.current = {
+      id: p.cloud.id,
+      str: localLib.sync(p.cloud.id).dirty ? '' : JSON.stringify(p)
+    };
+    setProjectRaw(p);
+    lsSet(CURK(user.uid), JSON.stringify(p.cloud.id));
+    setSelection(null);
+    setConflict(null);
+    setSync({
+      state: store ? 'idle' : 'local'
+    });
+    setTab('map');
+  };
+  const saveCurrentLocal = () => {
+    const c = projectRef.current;
+    if (!localLib.put(user.uid, c)) {
+      localLib.evict(user.uid, c.cloud.id);
+      localLib.put(user.uid, c);
+    }
+  };
+  const fetchProject = async it => {
+    const s = localLib.sync(it.id);
+    let p = localLib.get(it.id);
+    if (store && navigator.onLine && (!p || !s.dirty && (it.rev || 0) > (s.rev ?? -1))) {
+      const r = await store.load(it.id);
+      p = r.project;
+      localLib.put(user.uid, p);
+      localLib.setSync(it.id, {
+        rev: r.rev,
+        dirty: false
+      });
+    }
+    if (!p) throw new Error('Proyek ini belum tersimpan di perangkat ini dan perangkat sedang offline.');
+    return p;
+  };
+  const openProject = async it => {
+    saveCurrentLocal();
+    const p = await fetchProject(it);
+    switchTo(p);
+    setLibOpen(false);
+    setToast(`Membuka "${p.meta.name}"`);
+  };
+  const newProject = (base, label) => {
+    saveCurrentLocal();
+    const q = ensureCloud({
+      ...normalizeProject(base),
+      cloud: null
+    }, user);
+    if (label) q.meta = {
+      ...q.meta,
+      name: label
+    };
+    localLib.put(user.uid, q);
+    localLib.setSync(q.cloud.id, {
+      rev: null,
+      dirty: true
+    });
+    switchTo(q);
+    cleanRef.current = {
+      id: q.cloud.id,
+      str: ''
+    };
+    setLibOpen(false);
+    return q;
+  };
+  const duplicateProject = async it => {
+    const p = it.id === project.cloud.id ? project : await fetchProject(it);
+    newProject(p, (p.meta.name || 'Proyek') + ' (salinan)');
+    setToast('Salinan dibuat dan dibuka');
+  };
+  const deleteProject = async it => {
+    if (store && !it.pendingUpload) await store.remove(it.id);
+    localLib.remove(user.uid, it.id);
+    setToast(`Proyek "${it.name}" dihapus`);
+  };
+  const reviewAct = (to, note) => setProject(p => {
+    const c = p.cloud;
+    const meta = {
+      ...p.meta
+    };
+    if (to === 'checked') {
+      meta.checkedName = user.name || user.email;
+      meta.checkedDate = todayStr();
+    }
+    if (to === 'approved') {
+      meta.approvedName = user.name || user.email;
+      meta.approvedDate = todayStr();
+    }
+    if (to === 'revisi' || to === 'draft') {
+      meta.approvedName = '';
+      meta.approvedDate = '';
+      if (to === 'revisi' || c.status === 'approved') {
+        meta.checkedName = '';
+        meta.checkedDate = '';
+      }
+    }
+    return {
+      ...p,
+      meta,
+      cloud: {
+        ...c,
+        status: to,
+        reviews: [...(c.reviews || []), {
+          at: Date.now(),
+          by: {
+            uid: user.uid,
+            name: user.name || user.email,
+            role: user.role || ''
+          },
+          from: c.status || 'draft',
+          to,
+          note
+        }]
+      }
+    };
+  }, {
+    noStamp: true,
+    system: true
+  });
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(''), 2600);
@@ -14492,7 +15514,11 @@ function App({
     className: "text-[11px] tracking-[0.04em] text-aqua-200 font-semibold"
   }, "WASH PMI - Water for life"), React.createElement("div", {
     className: "text-[13px] font-semibold truncate"
-  }, project.meta.name)), rec && React.createElement("span", {
+  }, project.meta.name)), React.createElement("button", {
+    type: "button",
+    onClick: () => setReviewOpen(true),
+    className: 'pill shrink-0 !text-[10px] ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]
+  }, (PSTATUS[project.cloud.status] || PSTATUS.draft)[0]), rec && React.createElement("span", {
     className: "flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 bg-red-500"
   }, React.createElement("span", {
     className: "tp-rec w-1.5 h-1.5 rounded-full bg-white"
@@ -14540,12 +15566,19 @@ function App({
     className: "min-w-0"
   }, React.createElement("div", {
     className: "text-[12px] tracking-[0.04em] text-aqua-200 font-semibold"
-  }, "WASH PMI - Water for life"), React.createElement("button", {
+  }, "WASH PMI - Water for life"), React.createElement("div", {
+    className: "flex items-center gap-2 min-w-0"
+  }, React.createElement("button", {
     type: "button",
     onClick: () => setDialog(true),
-    className: "block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[560px] hover:underline text-left",
+    className: "block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[460px] hover:underline text-left",
     title: "Ubah data proyek"
-  }, project.meta.name))), React.createElement("div", {
+  }, project.meta.name), React.createElement("button", {
+    type: "button",
+    onClick: () => setReviewOpen(true),
+    className: 'pill shrink-0 ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1],
+    title: "Status & review proyek"
+  }, (PSTATUS[project.cloud.status] || PSTATUS.draft)[0])))), React.createElement("div", {
     className: "hidden xl:flex bg-white rounded-md px-2.5 py-1"
   }, React.createElement(OrgLogos, {
     meta: project.meta,
@@ -14581,33 +15614,19 @@ function App({
     className: "flex flex-wrap items-center gap-1"
   }, React.createElement(Btn, {
     variant: "dark",
+    icon: "FolderOpen",
+    onClick: () => setLibOpen(true),
+    title: "Daftar berkas kerja / proyek"
+  }, "Proyek"), React.createElement(Btn, {
+    variant: "dark",
     icon: "FilePlus2",
-    onClick: () => setConfirm({
-      text: 'Buat proyek baru yang kosong? Proyek saat ini akan diganti (simpan dulu ke .json bila perlu).',
-      yes: () => {
-        stopRec();
-        setActiveNode(null);
-        setProject(createEmptyProject(), {
-          noStamp: true
-        });
-        setSelection(null);
-        setTab('map');
-      }
-    })
+    onClick: () => newProject(createEmptyProject(), 'Proyek baru'),
+    title: "Buat proyek kosong (proyek saat ini tetap tersimpan)"
   }, "Baru"), React.createElement(Btn, {
     variant: "dark",
     icon: "BookOpen",
-    onClick: () => setConfirm({
-      text: 'Muat ulang Proyek Contoh desa? Proyek saat ini akan diganti.',
-      yes: () => {
-        stopRec();
-        setActiveNode(null);
-        setProject(createExampleProject(), {
-          noStamp: true
-        });
-        setSelection(null);
-      }
-    })
+    onClick: () => newProject(createExampleProject()),
+    title: "Buat proyek baru dari contoh"
   }, "Contoh"), React.createElement(Btn, {
     variant: "dark",
     icon: "Undo2",
@@ -14664,7 +15683,25 @@ function App({
     className: "tp-rec w-1.5 h-1.5 rounded-full bg-white"
   }), "REC"), t.id === 'hyd' && hyd.warnings.length > 0 && React.createElement("span", {
     className: `ml-1 text-[10px] font-bold rounded-full px-1.5 ${nCrit ? 'bg-red-500' : 'bg-amber-400 text-ink'}`
-  }, hyd.warnings.length))))), React.createElement("main", {
+  }, hyd.warnings.length))))), readOnly && React.createElement("div", {
+    className: "shrink-0 bg-amber-50 border-b border-amber-200 text-amber-900 text-[12.5px] px-4 py-1.5 flex flex-wrap items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "Eye",
+    size: 14
+  }), React.createElement("span", {
+    className: "flex-1 min-w-[200px]"
+  }, "Hanya-baca: proyek ini milik ", React.createElement("b", null, project.cloud.ownerName), ". Perubahan Anda tidak disimpan ke cloud."), React.createElement("button", {
+    type: "button",
+    className: "font-semibold text-aqua-700 hover:underline",
+    onClick: () => {
+      newProject(project, project.meta.name + ' (salinan)');
+      setToast('Salinan milik Anda dibuat');
+    }
+  }, "Simpan sebagai salinan saya")), mobile && store && ['offline', 'error', 'conflict'].includes(sync.state) && React.createElement("div", {
+    className: "shrink-0 bg-white border-b border-line text-[12px] px-3 py-1"
+  }, React.createElement(SyncBadge, {
+    sync: sync
+  })), React.createElement("main", {
     className: "flex-1 min-h-0 relative"
   }, tab === 'map' && React.createElement(MapWorkspace, {
     project: project,
@@ -14763,7 +15800,9 @@ function App({
     name: "Mountain",
     size: 13,
     className: "text-green-600"
-  }), "Elevasi DEM terbaru")), React.createElement("span", {
+  }), "Elevasi DEM terbaru")), React.createElement(SyncBadge, {
+    sync: sync
+  }), React.createElement("span", {
     className: "flex items-center gap-1.5"
   }, savedAt === 'err' ? React.createElement(React.Fragment, null, React.createElement(Icon, {
     name: "TriangleAlert",
@@ -14806,25 +15845,83 @@ function App({
     type: "button",
     className: "w-full text-left rounded-md border border-line hover:border-aqua-400 p-3",
     onClick: () => {
-      stopRec();
-      setActiveNode(null);
-      setProject(normalizeProject(pendingLoad.data), {
-        noStamp: true
-      });
-      setSelection(null);
-      setToast(`Proyek "${pendingLoad.name}" dimuat`);
+      newProject(pendingLoad.data);
+      setToast(`"${pendingLoad.name}" dibuka sebagai proyek baru`);
       setPendingLoad(null);
     }
   }, React.createElement("div", {
     className: "font-semibold text-[13px]"
-  }, "Ganti seluruh proyek"), React.createElement("div", {
+  }, "Buka sebagai proyek baru"), React.createElement("div", {
     className: "text-[12px] text-slate-500"
-  }, "Proyek saat ini diganti isi berkas (bisa dibatalkan dengan Urungkan).")), React.createElement("div", {
+  }, "Isi berkas menjadi proyek tersendiri di daftar proyek; proyek saat ini tetap tersimpan.")), React.createElement("div", {
     className: "flex justify-end"
   }, React.createElement(Btn, {
     variant: "outline",
     onClick: () => setPendingLoad(null)
-  }, "Batal")))), userAdmin && React.createElement(UserAdminDialog, {
+  }, "Batal")))), libOpen && React.createElement(ProjectLibrary, {
+    user: user,
+    store: store,
+    currentId: project.cloud.id,
+    onClose: () => setLibOpen(false),
+    onOpen: openProject,
+    onNew: k => newProject(k === 'example' ? createExampleProject() : createEmptyProject(), k === 'example' ? undefined : 'Proyek baru'),
+    onDuplicate: duplicateProject,
+    onDelete: deleteProject,
+    onImport: () => {
+      setLibOpen(false);
+      fileRef.current.click();
+    }
+  }), reviewOpen && React.createElement(ReviewDialog, {
+    project: project,
+    user: user,
+    onClose: () => setReviewOpen(false),
+    onAct: (to, note) => {
+      reviewAct(to, note);
+      setToast(`Status proyek: ${PSTATUS[to][0]}`);
+    }
+  }), conflict && React.createElement(ConflictDialog, {
+    info: conflict,
+    canOverwrite: conflict.project.cloud.ownerUid === user.uid || user.admin,
+    onClose: () => setConflict(null),
+    onCloud: async () => {
+      try {
+        const r = await store.load(conflict.project.cloud.id);
+        localLib.put(user.uid, r.project);
+        localLib.setSync(r.project.cloud.id, {
+          rev: r.rev,
+          dirty: false
+        });
+        if (conflict.project.cloud.id === projectRef.current.cloud.id) switchTo(r.project);
+        setConflict(null);
+        setSync({
+          state: 'saved',
+          at: new Date()
+        });
+      } catch (e) {
+        setToast(e.message);
+      }
+    },
+    onMine: async () => {
+      const p = conflict.project;
+      setConflict(null);
+      await pushCloud(p, {
+        overwrite: true
+      });
+    },
+    onCopy: async () => {
+      const mine = conflict.project;
+      setConflict(null);
+      try {
+        const r = await store.load(mine.cloud.id);
+        localLib.put(user.uid, r.project);
+        localLib.setSync(r.project.cloud.id, {
+          rev: r.rev,
+          dirty: false
+        });
+      } catch (e) {}
+      newProject(mine, mine.meta.name + ' (versi saya)');
+    }
+  }), userAdmin && React.createElement(UserAdminDialog, {
     api: api,
     me: user,
     onClose: () => setUserAdmin(false)
@@ -14881,28 +15978,7 @@ function App({
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Muat proyek contoh', () => setConfirm({
-    text: 'Muat ulang Proyek Contoh desa? Proyek saat ini akan diganti.',
-    yes: () => {
-      stopRec();
-      setActiveNode(null);
-      setProject(createExampleProject(), {
-        noStamp: true
-      });
-      setSelection(null);
-    }
-  })], ['X', `Keluar (${user.email})`, logout], ['FilePlus2', 'Proyek baru (kosong)', () => setConfirm({
-    text: 'Buat proyek baru yang kosong? Proyek saat ini akan diganti (simpan dulu ke .json bila perlu).',
-    yes: () => {
-      stopRec();
-      setActiveNode(null);
-      setProject(createEmptyProject(), {
-        noStamp: true
-      });
-      setSelection(null);
-      setTab('map');
-    }
-  })]].map(([ic, l, fn, dis], i) => React.createElement("button", {
+  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')]].map(([ic, l, fn, dis], i) => React.createElement("button", {
     key: i,
     type: "button",
     disabled: dis,
