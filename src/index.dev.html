@@ -203,7 +203,7 @@ const DIAMETERS = [16, 20, 25, 32, 40, 50, 63, 75, 90, 110, 125, 150, 160, 200, 
 const DEFAULT_SETTINGS = {
   trenchWidth: 0.6, trenchDepth: 1.0, sandBed: 0.10, sandCover: 0.10,
   wastePct: 2, ppnPct: 11, vMin: 0.6, vMax: 2.5, pMin: 10, pMax: 80,
-  bendAngle: 15, staInterval: 50,
+  bendAngle: 15, staInterval: 50, hlMax: 10,
   elevSource: 'dem', geoidOffset: 0, gpsMaxAcc: 20, gpsMinStep: 3, autoNodes: true, autoTol: 6, autoMaxSeg: 100, flexCurve: true, srPeople: 5, srLpcd: 100, srPeak: 2, srPmin: 5, srMat: 'PE', srDia: 20, srMaxLen: 150,
 };
 const DEFAULT_DED = { sheet: 'layout', paper: 'A3', lsEnd: '', csDiameter: 0 };
@@ -664,6 +664,7 @@ function normalizeProject(p) {
     settings: { ...DEFAULT_SETTINGS, ...(p.settings || {}) },
     prices: { ...(p.prices || {}) },
     rabEdits: p.rabEdits && typeof p.rabEdits === 'object' ? p.rabEdits : {},
+    standards: Array.isArray(p.standards) ? p.standards.filter(x => x && x.code) : [],
     shs: { ...SHS_DEFAULTS, ...(p.shs && typeof p.shs === 'object' ? p.shs : {}) },
     ded: { ...DEFAULT_DED, ...(p.ded || {}) },
   };
@@ -847,6 +848,7 @@ function computeHydraulics(project) {
   pipes.forEach(p => { const a = nmap[p.from], b = nmap[p.to]; if (!a || !b || !(p.path || []).length || !isFlex(p.material)) return;
     const bad = pipeBends(p, a, b, s.bendAngle).filter(x => x.fitting); if (!bad.length) return; const w = bad.reduce((m, x) => x.R < m.R ? x : m);
     warnings.push({ level: 'low', ref: p.id, text: `Lengkung ${p.label} (${p.material} Ø${p.diameter}) terlalu tajam di ${bad.length} titik belok: R ≈ ${fmt(w.R, 1)} m < ${MATERIALS[p.material].flex}×OD = ${fmt(w.Rmin, 1)} m. Dihitung memakai fitting bend; perlebar lengkungan bila ingin tanpa fitting.` }); });
+  pipes.forEach(p => { const r = pipeRes[p.id]; if (r && r.Q > 0 && !r.trans && +s.hlMax > 0 && r.hfkm > +s.hlMax) warnings.push({ level: 'low', ref: p.id, text: `Gradien kehilangan tekan ${p.label} ${fmt(r.hfkm, 1)} m/km > ${fmt(+s.hlMax, 0)} m/km (SNI 7509:2011). Pertimbangkan diameter lebih besar.` }); });
   const totalDemand = nodes.filter(n => !isSrc(n)).reduce((a, n) => a + nodeDemand(n, s), 0);
   const totalLength = Object.values(lengths).reduce((a, b) => a + b, 0);
   const pressured = nodes.filter(n => nodeRes[n.id].pressure !== null && !isSrc(n) && !nodeRes[n.id].trans);
@@ -1049,6 +1051,50 @@ function buildRAB(project, boq) {
   const grand = total + ppn;
   const rounded = Math.floor(grand / 1000) * 1000;
   return { sections, total, ppn, grand, rounded, shs: { prov: sh.prov, name: PROV[sh.prov]?.name, year: sh.year, ikk: shsIkk(sh), factor: F, n: (sh.items || []).length, source: sh.source } };
+}
+
+/* ---------- 4y. ACUAN STANDAR (SNI) & PEMERIKSAAN KRITERIA DESAIN ---------- */
+// verify: judul/tahun edisi belum dicocokkan dengan dokumen resmi di aplikasi; periksa di katalog BSN (bsn.go.id) atau salinan resmi.
+const STD_DEFAULT = [
+  { code: 'SNI 7509:2011', title: 'Tata cara perencanaan teknik jaringan distribusi dan unit pelayanan Sistem Penyediaan Air Minum', tags: ['jaringan', 'sr'], use: true },
+  { code: 'SNI 7511:2011', title: 'Tata cara pemasangan pipa transmisi dan pipa distribusi serta bangunan pelintas pipa', tags: ['jaringan'], use: true, verify: true },
+  { code: 'SNI 7831:2012', title: 'Perencanaan Sistem Penyediaan Air Minum', tags: ['umum'], use: true },
+  { code: 'SNI 6774:2008', title: 'Tata cara perencanaan unit paket instalasi pengolahan air', tags: ['olah'], use: true, verify: true },
+  { code: 'SNI 3981:2008', title: 'Tata cara perencanaan instalasi saringan pasir lambat', tags: ['olah'], use: true, verify: true },
+  { code: 'SNI 2847:2019', title: 'Persyaratan beton struktural untuk bangunan gedung dan penjelasan', tags: ['bangunan', 'menara'], use: true },
+  { code: 'SNI 2052:2017', title: 'Baja tulangan beton', tags: ['bangunan', 'menara'], use: true },
+  { code: 'SNI 1726:2019', title: 'Tata cara perencanaan ketahanan gempa untuk struktur bangunan gedung dan nongedung', tags: ['bangunan', 'menara'], use: true },
+  { code: 'SNI 1727:2020', title: 'Beban desain minimum dan kriteria terkait untuk bangunan gedung dan struktur lain', tags: ['menara'], use: true },
+  { code: 'SNI 1729:2020', title: 'Spesifikasi untuk bangunan gedung baja struktural', tags: ['menara'], use: true },
+  { code: 'SNI 8153:2015', title: 'Sistem plambing pada bangunan gedung', tags: ['sr'], use: true },
+  { code: 'SNI 2398:2017', title: 'Tata cara perencanaan tangki septik dengan pengolahan lanjutan', tags: ['sanitasi'], use: false },
+  { code: 'Permen PUPR 27/PRT/M/2016', title: 'Penyelenggaraan Sistem Penyediaan Air Minum', tags: ['umum'], use: true },
+  { code: 'Permenkes 2/2023', title: 'Peraturan pelaksanaan PP 66/2014 tentang Kesehatan Lingkungan (standar baku mutu air minum)', tags: ['olah'], use: true },
+];
+const STD_TAGS = { umum: 'Umum', jaringan: 'Jaringan pipa', sr: 'Sambungan rumah / unit pelayanan', bangunan: 'Bangunan beton', menara: 'Menara air', olah: 'Pengolahan air', sanitasi: 'Sanitasi' };
+const stdList = (p) => Array.isArray(p.standards) && p.standards.length ? p.standards : STD_DEFAULT;
+// Baris "acuan" pada kop gambar sesuai jenis lembar
+function stdLine(p, tags) { const ts = [].concat(tags); return stdList(p).filter(s => s.use && (s.tags || []).some(t => ts.includes(t))).map(s => s.code).join(' · '); }
+const SNI_7509 = { vMin: 0.3, vMax: 3.0, pMin: 10, pMax: 80, hlMax: 10 };
+function sniChecks(project, hyd, boq) {
+  const s = project.settings; const nmap = Object.fromEntries(project.nodes.map(n => [n.id, n]));
+  const flowing = project.pipes.filter(p => hyd.pipes[p.id] && hyd.pipes[p.id].Q > 0 && !hyd.pipes[p.id].trans);
+  const vs = flowing.map(p => hyd.pipes[p.id].v); const vBad = flowing.filter(p => hyd.pipes[p.id].v < SNI_7509.vMin || hyd.pipes[p.id].v > SNI_7509.vMax);
+  const net = project.nodes.filter(n => !isSrc(n) && n.type !== 'sr' && hyd.nodes[n.id] && hyd.nodes[n.id].pressure != null && !hyd.nodes[n.id].trans);
+  const ps = net.map(n => hyd.nodes[n.id].pressure); const pmin = ps.length ? Math.min(...ps) : null, pmax = ps.length ? Math.max(...ps) : null;
+  const hl = flowing.map(p => hyd.pipes[p.id].hfkm); const hlBad = flowing.filter(p => hyd.pipes[p.id].hfkm > SNI_7509.hlMax);
+  const srs = project.nodes.filter(n => n.type === 'sr' && hyd.nodes[n.id]?.pressure != null); const srMin = srs.length ? Math.min(...srs.map(n => hyd.nodes[n.id].pressure)) : null;
+  const rows = [
+    { param: 'Kecepatan aliran pipa (jam puncak)', crit: `${fmt(SNI_7509.vMin, 1)}–${fmt(SNI_7509.vMax, 1)} m/s`, val: vs.length ? `${fmt(Math.min(...vs), 2)}–${fmt(Math.max(...vs), 2)} m/s` : '–', ok: vs.length ? !vBad.length : null, note: vBad.length ? `${vBad.length} pipa di luar batas: ${vBad.slice(0, 6).map(p => p.label).join(', ')}` : '', ref: 'SNI 7509:2011' },
+    { param: 'Sisa tekan minimum jaringan (jam puncak)', crit: `≥ ${SNI_7509.pMin} m`, val: pmin != null ? `${fmt(pmin, 1)} m` : '–', ok: pmin != null ? pmin >= SNI_7509.pMin : null, note: '', ref: 'SNI 7509:2011' },
+    { param: 'Tekanan maksimum jaringan', crit: `≤ ${SNI_7509.pMax} m`, val: pmax != null ? `${fmt(pmax, 1)} m` : '–', ok: pmax != null ? pmax <= SNI_7509.pMax : null, note: pmax > SNI_7509.pMax ? 'pasang BPT/PRV' : '', ref: 'SNI 7509:2011' },
+    { param: 'Gradien kehilangan tekan pipa distribusi', crit: `≤ ${SNI_7509.hlMax} m/km`, val: hl.length ? `maks. ${fmt(Math.max(...hl), 1)} m/km` : '–', ok: hl.length ? !hlBad.length : null, note: hlBad.length ? `${hlBad.length} pipa melebihi: ${hlBad.slice(0, 6).map(p => p.label).join(', ')}` : '', ref: 'SNI 7509:2011' },
+    ...(srs.length ? [{ param: 'Sisa tekan di meter air SR', crit: `≥ ${s.srPmin} m (kriteria proyek)`, val: `${fmt(srMin, 1)} m`, ok: srMin >= +s.srPmin, note: '', ref: 'SNI 7509:2011 (unit pelayanan)' }] : []),
+    ...(boq.structures || []).filter(x => x.q && x.q.need != null && x.q.need > 0).map(x => ({ param: `Kapasitas tampungan ${x.st.label}`, crit: `≥ ${fmt(x.q.need, 1)} m³ (${x.g.p.needPct || 15}% kebutuhan harian)`, val: `${fmt(x.q.cap, 1)} m³`, ok: x.q.cap >= x.q.need, note: '', ref: 'kriteria perencanaan proyek' })),
+    ...(boq.treat || []).map(x => ({ param: `Kualitas air olahan ${x.t.label}`, crit: 'memenuhi baku mutu air minum', val: x.d.allOk ? 'memenuhi (perkiraan)' : `${x.d.compliance.filter(c => !c.ok).length} parameter melebihi`, ok: x.d.allOk, note: 'wajib uji laboratorium', ref: 'Permenkes 2/2023' })),
+    ...((boq.structures || []).length ? [{ param: 'Mutu beton bangunan air', crit: "beton bertulang kedap air (fc' ≥ 20 MPa)", val: "K-250 ≈ fc' 20,75 MPa", ok: null, note: 'verifikasi ahli struktur', ref: 'SNI 2847:2019' }] : []),
+  ];
+  return rows;
 }
 
 /* ---------- 4z. STANDAR HARGA SATUAN (SHS) per provinsi ---------- */
@@ -3159,6 +3205,8 @@ function HydraulicWorkspace({ project, setProject, hyd, setSelection, goMap }) {
           <Field label="v maksimum (m/s)"><NumField id="s-vmax" value={s.vMax} step="0.1" onChange={v => setS('vMax', v)} /></Field>
           <Field label="P minimum (mka)"><NumField id="s-pmin" value={s.pMin} step="1" onChange={v => setS('pMin', v)} /></Field>
           <Field label="P maksimum (mka)"><NumField id="s-pmax" value={s.pMax} step="1" onChange={v => setS('pMax', v)} /></Field>
+          <Field label="Gradien hf maks. (m/km)" hint="0 = tidak dicek"><NumField id="s-hlmax" value={s.hlMax} step="1" min="0" onChange={v => setS('hlMax', Math.max(0, v))} /></Field>
+          <div className="flex items-end"><Btn variant="outline" icon="BookCheck" className="w-full justify-center" onClick={() => setProject(p => ({ ...p, settings: { ...p.settings, ...SNI_7509 } }))}>Terapkan kriteria SNI 7509:2011</Btn></div>
         </div>
         <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mt-3 mb-1.5">Sambungan rumah (SR)</div>
         <div className="grid grid-cols-2 gap-2">
@@ -3377,7 +3425,7 @@ function SvgDefs() {
     <marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="2.4" markerHeight="2.4" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 1.5 L10 5 L0 8.5 Z" fill="#000" /></marker>
   </defs>;
 }
-function TitleBlock({ meta, title, scaleText, sheetNo, sheetTotal, legend }) {
+function TitleBlock({ meta, title, scaleText, sheetNo, sheetTotal, legend, std }) {
   const x = FRAME.tbX, w = FRAME.x1 - FRAME.tbX, cx = x + w / 2;
   const L = (y) => <line x1={x} x2={FRAME.x1} y1={y} y2={y} stroke="#000" strokeWidth={0.35} />;
   const lab = (y, t) => <text x={x + 2} y={y + 3.2} fontSize={1.8} fill="#444" letterSpacing={0.15}>{t}</text>;
@@ -3395,6 +3443,7 @@ function TitleBlock({ meta, title, scaleText, sheetNo, sheetTotal, legend }) {
     {L(70)}{lab(70, 'JUDUL GAMBAR')}{ml(wrapText(title, 24).slice(0, 2), 78.5, 3.3, 700)}
     {L(89)}{lab(89, 'KETERANGAN')}
     <g>{legend && legend(x, 94, w)}</g>
+    {std && <g>{L(186)}{lab(186, 'ACUAN STANDAR')}{wrapText(std, 52).slice(0, 2).map((l, i) => <text key={i} x={x + 2} y={193.6 + i * 2.6} fontSize={1.55}>{l}</text>)}</g>}
     {L(200)}{lab(200, 'PELAKSANA / PERENCANA')}{ml(wrapText(meta.orgName || meta.consultant || '-', 46).slice(0, 2), 206.6, 1.75, 600)}
     {L(213)}
     {[['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedName ? `${meta.checkedName} · ${meta.checkedBy || 'Staf LPASL'}` : (meta.checkedBy || 'Staf LPASL')], ['DISETUJUI', meta.approvedName ? `${meta.approvedName} · ${meta.approvedBy || 'Kepala LPASL'}` : (meta.approvedBy || 'Kepala LPASL')]].map(([k, v], i) => { const y = 213 + i * 12; return <g key={k}>
@@ -3460,7 +3509,7 @@ function SheetLayout({ project, hyd }) {
     ps.forEach(p => { const o = pts[p.from === n.id ? p.to : p.from], m = pts[n.id]; if (!o) return; const dx = o.x - m.x, dy = -(o.y - m.y); const l = Math.hypot(dx, dy) || 1; vx += dx / l; vy += dy / l; });
     return { right: vx <= 0.05, down: vy < 0 }; };
   const heads = [['No', 0.07], ['Segmen', 0.17], ['Jenis', 0.13], ['Ø (mm)', 0.11], ['L (m)', 0.14], ['Q (L/dt)', 0.13], ['v (m/s)', 0.12], ['hf (m)', 0.13]];
-  return <Sheet meta={project.meta} title="DENAH SKEMA JARINGAN PIPA DISTRIBUSI" scaleText={fmtScale(S)} sheetNo={1} sheetTotal={sheetCount(project)} legend={LayoutLegend}>
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title="DENAH SKEMA JARINGAN PIPA DISTRIBUSI" scaleText={fmtScale(S)} sheetNo={1} sheetTotal={sheetCount(project)} legend={LayoutLegend}>
     <text x={area.x} y={area.y + 3} fontSize={3.2} fontWeight={700}>DENAH JARINGAN (LAYOUT PLAN)</text>
     <text x={area.x} y={area.y + 7} fontSize={2} fill="#333">Skala {fmtScale(S)} · Referensi koordinat pusat {c.lat.toFixed(5)}°, {c.lng.toFixed(5)}° (WGS 84)</text>
     {/* Panah utara */}
@@ -3506,7 +3555,7 @@ function SheetLayout({ project, hyd }) {
 
 function SheetLongSection({ project, hyd, endId }) {
   const s = project.settings; const path = buildPath(project, hyd, endId);
-  if (!path) return <Sheet meta={project.meta} title="POTONGAN MEMANJANG" scaleText="-" sheetNo={2} sheetTotal={sheetCount(project)}><text x={100} y={120} fontSize={5}>Belum ada jalur pipa dari reservoir.</text></Sheet>;
+  if (!path) return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title="POTONGAN MEMANJANG" scaleText="-" sheetNo={2} sheetTotal={sheetCount(project)}><text x={100} y={120} fontSize={5}>Belum ada jalur pipa dari reservoir.</text></Sheet>;
   const H = +s.trenchDepth, bed = +s.sandBed;
   const stations0 = buildStations(path, +s.staInterval || 0);
   const gx0 = 62, gx1 = 322, gy0 = 22, gy1 = 152;
@@ -3535,7 +3584,7 @@ function SheetLongSection({ project, hyd, endId }) {
   ];
   const ty0 = 158; let acc = ty0; const rowY = rows.map(r => { const y = acc; acc += r[1]; return y; });
   const ticks = []; for (let e = datum; e <= datum + (gy1 - gy0) / kv; e += tick) ticks.push(e);
-  return <Sheet meta={project.meta} title={`POTONGAN MEMANJANG ${path.points[0].node.label} – ${path.points[path.points.length - 1].node.label}`} scaleText={`H ${fmtScale(Sh)} · V ${fmtScale(Sv)}`} sheetNo={2} sheetTotal={sheetCount(project)}
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title={`POTONGAN MEMANJANG ${path.points[0].node.label} – ${path.points[path.points.length - 1].node.label}`} scaleText={`H ${fmtScale(Sh)} · V ${fmtScale(Sv)}`} sheetNo={2} sheetTotal={sheetCount(project)}
     legend={(x, y) => <g fontSize={2}>
       <line x1={x + 3} x2={x + 13} y1={y + 2} y2={y + 2} stroke="#5b4421" strokeWidth={0.6} /><text x={x + 16} y={y + 2.7}>Muka tanah asli</text>
       <line x1={x + 3} x2={x + 13} y1={y + 8} y2={y + 8} stroke="#0b4fa8" strokeWidth={0.8} /><text x={x + 16} y={y + 8.7}>Dasar pipa (elevasi tanam)</text>
@@ -3596,7 +3645,7 @@ function SheetCrossSection({ project, boq, diameter }) {
   const pipeY = H - bed - D / 2; const tape = Math.min(0.3, (H - sz) * 0.5);
   const per = grp ? grp.perM : { galian: W * H, pasir: W * sz - Math.PI * D * D / 4, kembali: W * (H - sz) };
   const leader = (x1, y1, x2, y2, lines) => <g><line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#000" strokeWidth={0.18} /><line x1={x2} y1={y2} x2={x2 + 3} y2={y2} stroke="#000" strokeWidth={0.18} /><circle cx={x1} cy={y1} r={0.45} fill="#000" />{lines.map((l, i) => <text key={i} x={x2 + 4} y={y2 + 0.7 + i * 2.6} fontSize={2.1}>{l}</text>)}</g>;
-  return <Sheet meta={project.meta} title="POTONGAN MELINTANG TIPIKAL GALIAN PIPA" scaleText={fmtScale(S)} sheetNo={3} sheetTotal={sheetCount(project)}
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan'])} title="POTONGAN MELINTANG TIPIKAL GALIAN PIPA" scaleText={fmtScale(S)} sheetNo={3} sheetTotal={sheetCount(project)}
     legend={(x, y) => <g fontSize={2}>
       {[['url(#pat-backfill)', 'Urugan tanah kembali dipadatkan'], ['url(#pat-sand)', 'Urugan pasir alas & penutup'], ['url(#pat-soil)', 'Tanah asli']].map(([f, l], i) => <g key={i}><rect x={x + 3} y={y + i * 7} width={10} height={5} fill={f} stroke="#000" strokeWidth={0.2} /><text x={x + 16} y={y + 3.3 + i * 7}>{l}</text></g>)}
       <g fontSize={1.75} fill="#222">{['CATATAN:', '1. Dasar galian dibersihkan dan diratakan sebelum', '    pasir alas dihamparkan.', '2. Urugan kembali dipadatkan per lapis maks. 20 cm.', '3. Pita penanda (warning tape) dipasang ±30 cm', '    di bawah muka tanah.', '4. Pada perlintasan jalan, pipa diberi selubung', '    (casing) GIP atau beton.', '5. Satuan ukuran dalam meter kecuali dinyatakan lain.'].map((t, i) => <text key={i} x={x + 3} y={y + 27 + i * 3.4} fontWeight={i === 0 ? 700 : 400}>{t}</text>)}</g>
@@ -3909,7 +3958,7 @@ function SheetStructure({ project, s, sheetNo, sheetTotal }) {
       && (g.Lo + 2 * g.ov + 1.6) * k + 20 <= 154 && hh <= 134 && (g.Bo + 2 * g.ov + 1.6) * k + 20 <= 148;
   };
   const S = STRUCT_SCALES.find(v => fits(1000 / v)) || 200; const k = 1000 / S;
-  return <Sheet meta={project.meta} title={`${STRUCT_TYPES[st.type].sheet} ${st.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal} legend={structLegend(g)}>
+  return <Sheet meta={project.meta} std={stdLine(project, ['bangunan'])} title={`${STRUCT_TYPES[st.type].sheet} ${st.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal} legend={structLegend(g)}>
     <line x1={FRAME.x0} x2={FRAME.tbX} y1={148.5} y2={148.5} stroke="#000" strokeWidth={0.2} />
     <line x1={172} x2={172} y1={FRAME.y0} y2={FRAME.y1} stroke="#000" strokeWidth={0.2} />
     <StructPlan g={g} ox={18} oy={10} w={152} h={137} k={k} S={S} />
@@ -4160,7 +4209,7 @@ function SheetTower({ project, s, sheetNo, sheetTotal }) {
   const span = Math.max(g.W, g.Dp, g.Sx + g.footB, g.Sy + g.footB) + 1.4;
   const SP = STRUCT_SCALES.find(v => span * 1000 / v + 14 <= 76 && span * 1000 / v + 26 <= 135) || 200;
   const SF = STRUCT_SCALES.find(v => (g.footB + 0.9) * 1000 / v + 24 <= 74 && (g.footD + 1.4) * 1000 / v + 24 <= 134) || 100;
-  return <Sheet meta={project.meta} title={`MENARA AIR ${st.label}`} scaleText={SE === SP && SP === SF ? fmtScale(SE) : 'Tertera'} sheetNo={sheetNo} sheetTotal={sheetTotal} legend={towerLegend(g)}>
+  return <Sheet meta={project.meta} std={stdLine(project, ['menara'])} title={`MENARA AIR ${st.label}`} scaleText={SE === SP && SP === SF ? fmtScale(SE) : 'Tertera'} sheetNo={sheetNo} sheetTotal={sheetTotal} legend={towerLegend(g)}>
     <line x1={172} x2={172} y1={FRAME.y0} y2={FRAME.y1} stroke="#000" strokeWidth={0.2} />
     <line x1={172} x2={FRAME.tbX} y1={148.5} y2={148.5} stroke="#000" strokeWidth={0.2} />
     <line x1={252} x2={252} y1={FRAME.y0} y2={148.5} stroke="#000" strokeWidth={0.2} />
@@ -4194,7 +4243,7 @@ function SheetBorehole({ project, hyd, node, sheetNo, sheetTotal }) {
   const sTop = pr.screenTop, sBot = pp.depth - 3, Rb = 15, Rc = 8;
   const tick = niceStep(pp.depth / 8);
   const tg = pr.target && project.nodes.find(n => n.id === pr.target);
-  return <Sheet meta={project.meta} title={`SUMUR BOR & POMPA ${node.label}`} scaleText="Skematik" sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['umum'])} title={`SUMUR BOR & POMPA ${node.label}`} scaleText="Skematik" sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-concrete)', 'Penyekat semen / bentonit'], ['url(#pat-gravel)', 'Kerikil pembalut (gravel pack)'], ['url(#pat-soil)', 'Tanah / batuan'], ['#d6ebf8', 'Air tanah']],
       ['1. Jarak sumur ≥ 10 m dari tangki septik & kandang.', '2. Lantai kedap air radius 1 m, miring ke luar.', '3. Uji pemompaan min. 24 jam + pemulihan.', '4. Desinfeksi sumur klor 50 mg/L, rendam 12 jam.', '5. Uji kualitas air sebelum dipakai (Permenkes', '    No. 2/2023).', '6. Pompa dipasang ≥ 3 m di bawah muka air', '    dinamis dan di atas saringan.'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>KONSTRUKSI SUMUR BOR {node.label} · KEDALAMAN {fmt(pp.depth, 0)} m · CASING Ø{pp.casing}"</text>
@@ -4279,7 +4328,7 @@ function SheetTreatFlow({ project, t, d, sheetNo, sheetTotal }) {
   const bx = i => x0 + i * (bw + gap); const by = 32, bh = 32;
   const wls = d.profile.map(p => p.wl); const wmin = Math.min(...wls), wmax = Math.max(...wls); const span = Math.max(1, wmax - wmin);
   const py0 = 90, py1 = 150; const PY = w => py1 - (w - wmin) / span * (py1 - py0 - 6);
-  return <Sheet meta={project.meta} title={`DIAGRAM ALIR IPA ${t.label}`} scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`DIAGRAM ALIR IPA ${t.label}`} scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['#e7f3f4', 'Unit pengolahan'], ['#d6ebf8', 'Muka air (profil hidrolis)']],
       ['1. Debit rencana ' + fmt(d.Qls, 2) + ' L/dtk (' + fmt(d.Qd, 0) + ' m³/hari).', '2. Kualitas air olahan adalah perkiraan;', '    wajib uji laboratorium setelah dibangun.', '3. Dosis tawas & klor ditetapkan dengan', '    uji jar dan uji sisa klor di lapangan.', '4. Baku mutu: Permenkes No. 2 Tahun 2023.', '5. Lokasi: ' + (t.location === 'reservoir' ? 'bak penampung sebelum distribusi.' : 'di sumber air baku.')])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>DIAGRAM ALIR & PROFIL HIDROLIS INSTALASI PENGOLAHAN AIR {t.label}</text>
@@ -4306,7 +4355,7 @@ function SheetTreatFlow({ project, t, d, sheetNo, sheetTotal }) {
 function SheetTreatFilter({ project, t, d, sheetNo, sheetTotal }) {
   const u = ['ssf', 'rsf', 'hrf', 'sed', 'gac', 'aer'].find(x => d.units.includes(x));
   const sz = u && d.sz[u];
-  if (!sz) return <Sheet meta={project.meta} title={`DETAIL UNIT ${t.label}`} scaleText="-" sheetNo={sheetNo} sheetTotal={sheetTotal}><text x={60} y={120} fontSize={4}>Rangkaian {t.label} tidak memiliki unit bak/saringan untuk digambar detail.</text></Sheet>;
+  if (!sz) return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`DETAIL UNIT ${t.label}`} scaleText="-" sheetNo={sheetNo} sheetTotal={sheetTotal}><text x={60} y={120} fontSize={4}>Rangkaian {t.label} tidak memiliki unit bak/saringan untuk digambar detail.</text></Sheet>;
   const tw = 0.25; const layers = sz.layers || (u === 'hrf' ? [['Ruang bebas', 0.4], ['Media kerikil 20–5 mm', 1.2]] : u === 'sed' ? [['Ruang bebas', 0.5], ['Air', 2.5], ['Zona lumpur', 0.5]] : [['Ruang bebas', 0.4], ['Air', 1.0], ['Media', sz.H - 1.4]]);
   const Htot = layers.reduce((a, l) => a + l[1], 0);
   const S = [20, 25, 30, 40, 50, 75, 100, 150, 200].find(v => (sz.L + 2 * tw) * 1000 / v <= 140 && (Htot + 0.6) * 1000 / v <= 110 && (sz.n * (sz.W + tw) + tw) * 1000 / v <= 140 && (sz.L + 2 * tw) * 1000 / v <= 110) || 200; const k = 1000 / S;
@@ -4314,7 +4363,7 @@ function SheetTreatFilter({ project, t, d, sheetNo, sheetTotal }) {
   const px = 30, py = 34; const Wtot = sz.n * (sz.W + tw) + tw;
   const fill = (name) => /^air/i.test(name) ? '#d6ebf8' : /pasir|greensand/i.test(name) ? 'url(#pat-sand)' : /kerikil|media/i.test(name) ? 'url(#pat-gravel)' : /lumpur/i.test(name) ? '#cdbf9f' : /underdrain|saluran/i.test(name) ? '#eee' : '#fff';
   const sx = 186, sy = 40; let zc = 0;
-  return <Sheet meta={project.meta} title={`DETAIL ${UNIT_INFO[u].short.toUpperCase()} ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`DETAIL ${UNIT_INFO[u].short.toUpperCase()} ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-concrete)', 'Beton bertulang K-250'], ['url(#pat-sand)', 'Pasir saringan'], ['url(#pat-gravel)', 'Kerikil / media kasar'], ['#d6ebf8', 'Air']],
       ['1. Dinding dalam diplester kedap air + acian.', '2. Media dicuci bersih sebelum dimasukkan.', '3. Saluran bawah: pipa PVC berlubang Ø10 mm', '    @10 cm, dibungkus kerikil.', '4. Satuan dalam meter kecuali dinyatakan lain.', u === 'ssf' ? '5. Jangan biarkan pasir kering; pertahankan' : '5. Cuci balik saat kehilangan tekan > 2 m', u === 'ssf' ? '    air di atas pasir saat beroperasi.' : '    atau tiap 24–48 jam.'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>DETAIL {UNIT_INFO[u].name.toUpperCase()} · {t.label}</text>
@@ -4494,7 +4543,7 @@ function SheetBroncapV({ project, s, sheetNo, sheetTotal }) {
     ['Kapasitas bak', `${fmt(g.cap, 2)} m³`], ['V-notch', `${g.ang}°, tinggi takik ${fmt(g.notch * 100, 0)} cm`], ['Debit mata air (ukur)', g.Qs > 0 ? `${fmt(g.Qs, 2)} L/dtk → H ${fmt(g.Hn * 100, 1)} cm` : 'belum diisi'],
     ['Elevasi mata air / lantai bak', `${elevTxt(g.elev)} / ${elevTxt(g.floor)}`]];
   const vol = [['Galian tanah', q.galian, 'm³'], ['Pasangan batu kali', q.wing, 'm³'], ['Beton K-250', q.concrete, 'm³'], ['Baja tulangan', q.steel, 'kg'], ['Kerikil filter', q.gravelV, 'm³'], ['Lempung', q.clayV, 'm³'], ...(q.ditch ? [['Saluran terbuka', q.ditch, "m'"]] : [])];
-  return <Sheet meta={project.meta} title={`BRONCAPTERING ${st.label}`} scaleText={SP === SS ? fmtScale(SP) : 'Tertera'} sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['bangunan'])} title={`BRONCAPTERING ${st.label}`} scaleText={SP === SS ? fmtScale(SP) : 'Tertera'} sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-stone)', 'Pasangan batu kali 1:4'], ['url(#pat-concrete)', 'Beton bertulang K-250'], ['url(#pat-gravel)', 'Kerikil filter'], ['#c9a77a', 'Lempung dipadatkan'], ['#d6ebf8', 'Air']],
       ['1. Mata air tidak boleh tertutup beton; lantai', '    tangkapan = tanah/batu asli.', '2. Kerikil dicuci, ijuk/geotekstil mencegah', '    lumpur masuk ke kerikil.', '3. Saluran terbuka di hulu mengalihkan', '    limpasan hujan dari area tangkapan.', '4. Area tangkapan dipagar, bebas cemaran r 10 m.', '5. Satuan dalam meter kecuali dinyatakan lain.'])}>
     <line x1={172} x2={172} y1={FRAME.y0} y2={FRAME.y1} stroke="#000" strokeWidth={0.2} /><line x1={FRAME.x0} x2={FRAME.tbX} y1={148.5} y2={148.5} stroke="#000" strokeWidth={0.2} />
@@ -4565,7 +4614,7 @@ function SheetFilterFrp({ project, t, d, sheetNo, sheetTotal }) {
     ['Kerikil penyangga', '2–4 mm dan 4–8 mm, ± 15% tinggi tabung'],
     ['Posisi', d.frp?.after ? `setelah ${d.frp.srcLabel}, sebelum distribusi` : 'setelah pompa, sebelum bak/menara'], ['Pompa pendorong', d.frp?.pumpOn ? `${d.frp.after ? 'booster' : 'umpan'} Q ${fmt(d.frp.pump.Q, 1)} m³/jam · H ${d.frp.head} m · ${fmt(d.frp.pump.motor, 2)} kW` : 'tanpa (gravitasi / pompa sumber)'],
     ['Penempatan', d.frp?.after ? 'lantai dudukan di samping bak/menara' : d.frp?.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `menyatu di platform menara ${d.frp.tower.label}` : `di samping menara ${d.frp.tower.label}`) : 'rumah filter + lantai dudukan beton']];
-  return <Sheet meta={project.meta} title={`TABUNG FILTER ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`TABUNG FILTER ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-sand)', 'Pasir silika / greensand'], ['#6b6b6b', 'Karbon aktif'], ['url(#pat-gravel)', 'Kerikil penyangga'], ['#e8d27a', 'Resin / media khusus'], ['#d6ebf8', 'Air']],
       ['1. Tabung FRP tekanan kerja 150 psi (10 bar).', '2. Media dicuci (backwash) sebelum operasi.', '3. Cuci balik saat ΔP > 0,5–0,7 bar atau', '    terjadwal tiap 1–3 hari.', '4. Pasang manometer masuk & keluar tiap tahap.', '5. Sampling tap setelah tiap tahap.', '6. Desinfeksi klorin / UV setelah filtrasi.'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>DETAIL TABUNG FILTER BERTEKANAN · {t.label}</text>
@@ -4608,6 +4657,30 @@ function SheetFilterFrp({ project, t, d, sheetNo, sheetTotal }) {
     <SvgTable x={196} y={160} w={132} title="SPESIFIKASI MEDIA & MEMBRAN" head={['Uraian', 'Spesifikasi']} cols={[0.34, 0.66]} rh={4.3} fs={1.55} rows={spec.map(r => [r[0], String(r[1]).slice(0, 52)])} />
   </Sheet>;
 }
+/* ---------- Gambar DED: kriteria desain & acuan standar ---------- */
+function SheetStd({ project, hyd, boq, sheetNo, sheetTotal }) {
+  const s = project.settings; const used = stdList(project).filter(x => x.use); const chk = sniChecks(project, hyd, boq);
+  const crit = [['Kecepatan aliran pipa', `${fmt(s.vMin, 1)}–${fmt(s.vMax, 1)} m/s`], ['Sisa tekan min. / tekanan maks.', `${fmt(s.pMin, 0)} m / ${fmt(s.pMax, 0)} m`], ['Gradien kehilangan tekan maks.', `${fmt(+s.hlMax || 10, 0)} m/km`],
+    ['Rumus kehilangan tekan', 'Hazen–Williams'], ['Kebutuhan SR', `${s.srPeople} jiwa × ${s.srLpcd} L/org/hari`], ['Faktor jam puncak SR', fmt(s.srPeak, 2)], ['Sisa tekan di meter SR', `≥ ${fmt(s.srPmin, 0)} m`],
+    ['Galian pipa (lebar × dalam)', `${fmt(s.trenchWidth, 2)} × ${fmt(s.trenchDepth, 2)} m`], ['Pasir alas / penutup pipa', `${fmt(s.sandBed * 100, 0)} / ${fmt(s.sandCover * 100, 0)} cm`], ['Sudut belokan dihitung fitting', `≥ ${s.bendAngle}°`]];
+  const notes = ['Perencanaan jaringan distribusi dan unit pelayanan (SR, hidran umum) mengacu SNI 7509:2011.', 'Pemasangan pipa, galian, urugan, uji tekan & bangunan pelintas mengacu SNI 7511.',
+    "Beton bertulang bangunan air mengacu SNI 2847:2019, baja tulangan SNI 2052:2017.", 'Menara air: beban SNI 1727:2020, gempa SNI 1726:2019, baja struktural SNI 1729:2020.',
+    'Unit pengolahan air mengacu SNI 6774:2008 / SNI 3981:2008; kualitas air minum Permenkes 2/2023.', 'Nilai "desain" pada tabel dihitung dari analisis hidrolis aplikasi pada kondisi jam puncak.',
+    'Dokumen SNI/peraturan resmi edisi terbaru tetap menjadi acuan akhir; periksa butir bertanda (*).'];
+  return <Sheet meta={project.meta} std={stdLine(project, ['umum', 'jaringan'])} title="KRITERIA DESAIN & ACUAN STANDAR" scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
+    legend={noteLegend([], ['✓ memenuhi kriteria', '✗ tidak memenuhi, lihat keterangan', '– tidak dapat diperiksa / informasi', '(*) judul/edisi perlu dicocokkan', '    dengan dokumen resmi BSN.'])}>
+    <text x={22} y={17} fontSize={3.2} fontWeight={700}>KRITERIA DESAIN & ACUAN STANDAR NASIONAL INDONESIA (SNI)</text>
+    <text x={22} y={21.5} fontSize={2.1} fill="#333">{project.meta.name}</text>
+    <SvgTable x={20} y={30} w={150} title="ACUAN STANDAR & PERATURAN" head={['Nomor', 'Judul', 'Dipakai untuk']} cols={[0.24, 0.53, 0.23]} rh={4.6} fs={1.42}
+      rows={used.map(x => [x.code + (x.verify ? ' (*)' : ''), String(x.title).slice(0, 62) + (String(x.title).length > 62 ? '…' : ''), (x.tags || []).map(t => STD_TAGS[t] || t).join(', ').slice(0, 26)])} />
+    <SvgTable x={176} y={30} w={152} title="PEMERIKSAAN KRITERIA DESAIN" head={['Parameter', 'Kriteria', 'Desain', 'Status', 'Acuan']} cols={[0.3, 0.2, 0.18, 0.1, 0.22]} rh={4.6} fs={1.38}
+      rows={chk.map(r => [r.param.slice(0, 36), r.crit.slice(0, 26), r.val.slice(0, 22), r.ok == null ? '–' : r.ok ? '✓' : '✗', r.ref.slice(0, 28)])} />
+    {chk.some(r => r.note) && <g fontSize={1.5}>{chk.filter(r => r.note).slice(0, 8).map((r, i) => <text key={i} x={177} y={30 + (chk.length + 1) * 4.6 + 5 + i * 2.8} fill={r.ok === false ? '#b91c1c' : '#444'}>• {r.param}: {r.note}</text>)}</g>}
+    <SvgTable x={20} y={Math.max(30 + (used.length + 1) * 4.6 + 14, 128)} w={150} title="KRITERIA DESAIN YANG DIPAKAI PADA PROYEK INI" head={['Uraian', 'Nilai']} cols={[0.55, 0.45]} rh={4.4} fs={1.55} rows={crit} />
+    <g transform={`translate(176, ${Math.max(30 + (chk.length + 1) * 4.6 + 34, 150)})`}><text x={0} y={0} fontSize={2.5} fontWeight={700}>CATATAN UMUM TEKNIS</text>
+      {notes.map((t, i) => wrapText(`${i + 1}. ${t}`, 92).map((l, j, a) => <text key={i + '-' + j} x={j ? 3 : 0} y={5 + i * 6.2 + j * 2.6} fontSize={1.6}>{l}</text>))}</g>
+  </Sheet>;
+}
 /* ---------- Gambar DED: detail & daftar sambungan rumah (SR) ---------- */
 function SheetSR({ project, hyd, sr, sheetNo, sheetTotal }) {
   const s = { ...DEFAULT_SETTINGS, ...project.settings }; const gy = 70; const blue = { fill: 'none', stroke: '#0b4fa8', strokeWidth: 1.1 };
@@ -4616,7 +4689,7 @@ function SheetSR({ project, hyd, sr, sheetNo, sheetTotal }) {
   const low = rows.filter(r => String(r[6]).startsWith('✗')).length; const maxRows = 60;
   const call = (x, y, n) => <g><circle cx={x} cy={y} r={2} fill="#fff" stroke="#000" strokeWidth={0.3} /><text x={x} y={y + 0.75} fontSize={2} textAnchor="middle" fontWeight={700}>{n}</text></g>;
   const notes = [`Clamp saddle + ball valve korporasi pada pipa distribusi`, `Pipa dinas ${s.srMat} Ø${s.srDia} mm, kedalaman min. 0,60 m`, 'Stop kran (kran pembuka/penutup) sebelum meter', 'Meter air kelas B (½" / ¾"), panah searah aliran', 'Check valve (katup searah) setelah meter', 'Ball valve pelanggan', 'Box meter beton/PVC bertutup + gembok di batas pekarangan', 'Kran halaman / pipa ke dalam rumah'];
-  return <Sheet meta={project.meta} title="SAMBUNGAN RUMAH (SR)" scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['sr'])} title="SAMBUNGAN RUMAH (SR)" scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['#d6ebf8', 'Pipa / air'], ['#ececec', 'Box meter'], ['url(#pat-soil)', 'Tanah urug']],
       [`1. Kebutuhan SR: ${s.srPeople} jiwa × ${s.srLpcd} L/org/hari`, `    × faktor jam puncak ${s.srPeak}.`, `2. Tekanan min. di meter ${s.srPmin} mka.`, '3. Meter dipasang datar, mudah dibaca,', '    tidak tergenang air.', '4. Uji tekan pipa dinas 1,5 × tekanan kerja.', '5. Satu meter untuk satu SR (rumah tangga).'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>DETAIL TIPIKAL SAMBUNGAN RUMAH (SR) & DAFTAR METER AIR</text>
@@ -4676,7 +4749,7 @@ function SheetFilterInstall({ project, t, d, sheetNo, sheetTotal }) {
   </g>;
   const lastX = vs.length ? vX(vs.length - 1) + vW : 110;
   const ops = VALVE_OPS[manual ? 'manual5' : 'mpv'];
-  return <Sheet meta={project.meta} title={`SKEMA INSTALASI FILTER ${t.label}`} scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`SKEMA INSTALASI FILTER ${t.label}`} scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['#e9f0e4', 'Tabung filter FRP'], ['url(#pat-sand)', 'Media pasir / greensand'], ['#6b6b6b', 'Karbon aktif'], ['#d6ebf8', 'Air bersih'], ['#dc2626', 'Katup (ball valve)']],
       [...(after ? ['1. Filter dipasang setelah bak/menara,', '    sebelum distribusi' + (boost ? ' (pompa booster).' : ' (gravitasi).')] : ['1. Filter dipasang setelah pompa dan', '    sebelum tandon (menara).']), '2. Pompa: Q ' + fmt(d.Qh, 1) + ' m³/jam, H ≥ ' + (fr?.head || 35) + ' m', '    (tekanan kerja filter 2–4 bar).', '3. Cuci balik saat ΔP > 0,5–0,7 bar.', '4. Pasang manometer sebelum/sesudah filter.', after ? '5. Klorinasi setelah filter, sebelum distribusi.' : '5. Klorinasi di tandon sebelum distribusi.'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>SKEMA INSTALASI FILTER AIR: {after ? 'SETELAH TANDON / SEBELUM DISTRIBUSI' : 'SETELAH POMPA / SEBELUM TANDON'} · {t.label}</text>
@@ -4743,7 +4816,7 @@ function SheetFilterTank({ project, t, d, sheetNo, sheetTotal }) {
     : wrapText(c.name, Math.max(8, Math.floor(c.L * kk / 1.2))).slice(0, 3).map((l, j) => <HaloText key={j} x={x} y={y + j * 2.3} fontSize={size} textAnchor="middle" fontWeight={700}>{l}</HaloText>);
   const chFill = c => c.k === 'store' || c.k === 'in' || c.k === 'sed' ? '#d6ebf8' : layerFill((c.layers.find(l => ['sand', 'carbon', 'gravel'].includes(l[2])) || [])[2]);
   const downflow = c => ['ssf', 'rsf', 'hrf'].includes(c.k);
-  return <Sheet meta={project.meta} title={`BAK BERSEKAT + FILTER ${t.label}`} scaleText={S === S2 ? fmtScale(S) : 'Tertera'} sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah', 'bangunan'])} title={`BAK BERSEKAT + FILTER ${t.label}`} scaleText={S === S2 ? fmtScale(S) : 'Tertera'} sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-concrete)', 'Beton bertulang K-250'], ['url(#pat-sand)', 'Pasir silika'], ['url(#pat-gravel)', 'Kerikil'], ['#6b6b6b', 'Karbon aktif'], ['#d6ebf8', 'Air']],
       [`1. Sekat beton t = ${fmt(ts * 100, 0)} cm, kedap air.`, '2. Saluran bawah pipa PVC berlubang Ø10 mm', '    @10 cm, dibungkus kerikil.', `3. Pasir ${SAND_MESH[cfg.sandMesh].label}.`, `4. Karbon aktif iodin ≥ ${cfg.iodine} mg/g.`, '5. Tiap ruang punya manhole & katup penguras.', T.link ? `6. Ruang air bersih = bangunan ${T.link.label}.` : '6. Uji kebocoran 24 jam sebelum media diisi.'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>BAK PENAMPUNG BERSEKAT DENGAN RUANG FILTER · {t.label}</text>
@@ -4853,7 +4926,7 @@ function SheetExtras({ project, s, sheetNo, sheetTotal }) {
   const { st, g } = s; const list = (st.extras || []).map(extraOf).slice(0, 4);
   const cells = [[18, 10], [175, 10], [18, 150], [175, 150]];
   const items = extraItems(st, g);
-  return <Sheet meta={project.meta} title={`KONSTRUKSI TAMBAHAN ${st.label}`} scaleText="Tertera" sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['bangunan'])} title={`KONSTRUKSI TAMBAHAN ${st.label}`} scaleText="Tertera" sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-concrete)', 'Beton bertulang'], ['#e9b9a0', 'Pasangan bata'], ['url(#pat-soil)', 'Tanah asli']],
       ['1. Bak katup/meter diberi lubang resapan', '    di lantai untuk air rembesan.', '2. Tutup plat bordes bergembok, mudah dibuka.', '3. Satuan dalam meter kecuali dinyatakan lain.', `4. Bagian dari bangunan ${st.label}.`])}>
     <line x1={173} x2={173} y1={FRAME.y0} y2={FRAME.y1} stroke="#000" strokeWidth={0.2} /><line x1={FRAME.x0} x2={FRAME.tbX} y1={148.5} y2={148.5} stroke="#000" strokeWidth={0.2} />
@@ -4871,7 +4944,7 @@ function SheetHousehold({ project, t, d, sheetNo, sheetTotal }) {
   let z = 0; const lay = hh.layers.map(([n, h]) => { const r = { n, z1: z, z2: z + h }; z += h; return r; });
   const wl = hh.outletZ + 0.12;
   const steps = d.units.map(u => UNIT_INFO[u].short);
-  return <Sheet meta={project.meta} title={`FILTER AIR RUMAH TANGGA ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`FILTER AIR RUMAH TANGGA ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
     legend={noteLegend([['url(#pat-sand)', 'Pasir silika'], ['#3f3f3f', 'Karbon aktif'], ['#cfd8c2', 'Zeolit / mangan zeolit'], ['url(#pat-gravel)', 'Kerikil'], ['#d6ebf8', 'Air']],
       ['1. Semua media dicuci sampai air bilasan jernih.', '2. Isi air dari atas pelan-pelan lewat pelat', '    penebar; jangan sampai pasir teraduk.', '3. Ujung keluaran 5 cm di atas pasir agar', '    media selalu terendam (lapisan biologis).', '4. Bersihkan 2 cm pasir atas bila aliran lambat.', '5. Air hasil saringan tetap didesinfeksi', '    (klor/rebus) sebelum diminum.'])}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>FILTER AIR SKALA RUMAH TANGGA {t.label} · {c.name.toUpperCase()}</text>
@@ -4921,7 +4994,7 @@ function SheetHousehold({ project, t, d, sheetNo, sheetTotal }) {
 }
 // Daftar lembar tambahan (sumur bor & pengolahan) untuk DED dan cetak
 function extraSheets(project, hyd, boq) {
-  const out = [];
+  const out = [{ key: 'std', label: 'Kriteria desain & SNI', sub: 'acuan standar', icon: 'BookCheck', group: 'Jaringan distribusi', render: (no, tot) => <SheetStd project={project} hyd={hyd} boq={boq} sheetNo={no} sheetTotal={tot} /> }];
   boq.structures.forEach(x => { out.push({ key: 'st:' + x.st.id, label: x.st.label, sub: STRUCT_TYPES[x.st.type].label.split(' (')[0], icon: x.st.type === 'tower' ? 'TowerControl' : 'Building2', group: 'Bangunan pelengkap',
     render: (no, tot) => x.st.type === 'tower' ? <SheetTower project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bc_v' ? <SheetBroncapV project={project} s={x} sheetNo={no} sheetTotal={tot} /> : <SheetStructure project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
     if ((x.st.extras || []).length) out.push({ key: 'sx:' + x.st.id, label: x.st.label, sub: 'Konstruksi tambahan', icon: 'Boxes', group: 'Bangunan pelengkap', render: (no, tot) => <SheetExtras project={project} s={x} sheetNo={no} sheetTotal={tot} /> }); });
@@ -4940,7 +5013,7 @@ function extraSheets(project, hyd, boq) {
   });
   return out;
 }
-const sheetCount = (project) => 3 + (project.nodes.some(n => n.type === 'sr') ? 1 : 0) + (project.structures || []).reduce((a, s) => a + 1 + ((s.extras || []).length ? 1 : 0), 0) + project.nodes.filter(n => n.type === 'borehole').length
+const sheetCount = (project) => 4 + (project.nodes.some(n => n.type === 'sr') ? 1 : 0) + (project.structures || []).reduce((a, s) => a + 1 + ((s.extras || []).length ? 1 : 0), 0) + project.nodes.filter(n => n.type === 'borehole').length
   + (project.treatments || []).reduce((a, t) => { const c = tfCfg(t); return a + (t.scale === 'household' ? 1 : 2 + (c.mode === 'basin' && (c.cart !== 'none' || c.mem !== 'none') ? 1 : 0) + (c.mode === 'frp' ? 1 : 0)); }, 0);
 
 /* =====================================================================
@@ -5088,6 +5161,22 @@ function StructureEditor({ s, project, setProject, onDelete, onDuplicate }) {
   </div>;
 }
 
+function StdEditor({ project, setProject }) {
+  const list = stdList(project); const setL = (fn) => setProject(p => ({ ...p, standards: fn(stdList(p).map(x => ({ ...x }))) }));
+  return <div className="space-y-1.5 mt-2 text-[12px]">
+    {list.map((x, i) => <div key={i} className="rounded-md border border-line p-2 space-y-1">
+      <div className="flex items-center gap-1.5"><input id={'std-use-' + i} type="checkbox" checked={!!x.use} onChange={e => setL(l => { l[i].use = e.target.checked; return l; })} />
+        <input id={'std-code-' + i} className="tp-field !py-0.5 font-semibold" value={x.code} onChange={e => setL(l => { l[i].code = e.target.value; l[i].verify = false; return l; })} />
+        <button type="button" title="Hapus" className="p-1 text-red-600" onClick={() => setL(l => l.filter((_, j) => j !== i))}><Icon name="X" size={13} /></button></div>
+      <textarea id={'std-title-' + i} className="tp-field !py-0.5 h-12 text-[11.5px]" value={x.title} onChange={e => setL(l => { l[i].title = e.target.value; return l; })} />
+      <div className="flex flex-wrap gap-1">{Object.entries(STD_TAGS).map(([t, lbl]) => <button key={t} type="button" onClick={() => setL(l => { const tg = new Set(l[i].tags || []); tg.has(t) ? tg.delete(t) : tg.add(t); l[i].tags = [...tg]; return l; })}
+        className={'rounded px-1.5 text-[10.5px] border ' + ((x.tags || []).includes(t) ? 'bg-aqua-600 text-white border-aqua-600' : 'border-line text-slate-500')}>{lbl}</button>)}</div>
+      {x.verify && <div className="text-[10.5px] text-amber-700">Periksa judul/tahun edisi dengan dokumen resmi BSN.</div>}</div>)}
+    <div className="flex gap-1.5"><Btn variant="outline" icon="CirclePlus" onClick={() => setL(l => [...l, { code: 'SNI ', title: '', tags: ['umum'], use: true }])}>Tambah acuan</Btn>
+      <Btn variant="ghost" icon="RotateCcw" onClick={() => setProject(p => ({ ...p, standards: [] }))}>Bawaan</Btn></div>
+    <p className="text-[11px] text-slate-500">Acuan yang dicentang tampil di kotak "Acuan standar" kop gambar sesuai jenis lembar dan di lembar Kriteria desain & SNI.</p>
+  </div>;
+}
 function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
   const ded = project.ded; const setDed = (k, v) => setProject(p => ({ ...p, ded: { ...p.ded, [k]: v } }));
   const setMeta = (k, v) => setProject(p => ({ ...p, meta: { ...p.meta, [k]: v } }));
@@ -5134,6 +5223,10 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
         <Btn icon="Printer" variant="primary" className="w-full justify-center" onClick={() => onPrint('ded')}>Cetak semua gambar DED ({total} lembar)</Btn>
         <p className="text-[11px] text-slate-500">Menu aplikasi disembunyikan otomatis; pilih "Simpan sebagai PDF" di dialog cetak untuk berkas PDF.</p>
       </div>
+      <details className="border-t border-line pt-3">
+        <summary className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer">Acuan standar (SNI)</summary>
+        <StdEditor project={project} setProject={setProject} />
+      </details>
       <details className="border-t border-line pt-3">
         <summary className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer">Kop gambar</summary>
         <div className="space-y-2 mt-2">{[['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Jabatan pemeriksa'], ['approvedBy', 'Jabatan penyetuju'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) =>
@@ -5246,6 +5339,7 @@ const KB = [
   { k: 'notifikasi ntfy email emailjs pop-up pemberitahuan hp tertutup', t: 'Notifikasi', a: '- **Dalam aplikasi**: ikon lonceng + pop-up; izinkan *notifikasi browser* agar muncul walau tab di belakang.\n- **Saat aplikasi tertutup**: pasang aplikasi **ntfy** (Android/iOS/desktop) lalu langganan topik pribadi yang tertera di *Menu → Notifikasi*.\n- **Email**: aktif bila admin mengisi konfigurasi EmailJS di `auth-config.js`.' },
   { k: 'pompa head sumur bor tdh debit motor kw daya', t: 'Pompa: head & daya', a: 'Head pompa (TDH) = beda tinggi statis (muka air dinamis → titik keluar) + kehilangan tekan pipa + kehilangan tekan filter + sisa tekan. Daya hidrolis P = ρ·g·Q·H / η (η 0,5–0,7). Pilih motor standar ≥ 1,15 × daya. Pastikan pompa terendam ≥ 2 m di bawah muka air dinamis dan debit ≤ debit aman sumur hasil uji pemompaan.' },
   // --- teknis WASH ---
+  { k: 'sni standar acuan 7509 7511 2847 1726 1729 peraturan kriteria desain', t: 'Acuan SNI pada DED', a: '- **SNI 7509:2011**: perencanaan teknik jaringan distribusi & unit pelayanan SPAM. Kriteria yang sering dikutip: sisa tekan ≥ 10 m, tekanan maks. ± 80 m, kecepatan ± 0,3–3,0 m/s, gradien kehilangan tekan ≤ 10 m/km.\n- **SNI 7511**: pemasangan pipa transmisi/distribusi & bangunan pelintas.\n- **SNI 2847:2019** beton struktural, **SNI 2052:2017** baja tulangan, **SNI 1726:2019** gempa, **SNI 1727:2020** beban, **SNI 1729:2020** baja struktural.\n- **SNI 6774:2008 / 3981:2008** unit pengolahan; **Permenkes 2/2023** baku mutu air minum.\nTombol *Terapkan kriteria SNI 7509:2011* ada di tab Analisis Hidrolis; lembar DED *Kriteria desain & SNI* memuat tabel pemeriksaannya. Selalu cocokkan dengan dokumen resmi edisi terbaru.' },
   { k: 'kebutuhan air liter orang hari lpcd pedesaan perkotaan standar konsumsi', t: 'Kebutuhan air per orang', a: '- Pedesaan (SPAM perdesaan): **60–90 L/orang/hari**; perkotaan kecil–sedang 90–130; kota besar 130–150+.\n- Hidran umum: ± 30 L/orang/hari.\n- Darurat (Sphere): minimal **15 L/orang/hari** (minum, masak, kebersihan dasar).\n- Faktor hari maksimum 1,1–1,2; **faktor jam puncak 1,5–2,0** (di aplikasi bawaan SR = 2).' },
   { k: 'kecepatan aliran pipa minimum maksimum m/s velocity endapan gerusan', t: 'Kriteria kecepatan aliran', a: 'Kecepatan dalam pipa transmisi/distribusi umumnya **0,3–3,0 m/s** (ideal ±0,6–2,5 m/s seperti bawaan aplikasi). Terlalu rendah → endapan & air basi (sediakan *wash out*); terlalu tinggi → gerusan, kebisingan, risiko *water hammer*.' },
   { k: 'tekanan sisa minimum maksimum mka bar sisa tekan pipa distribusi', t: 'Kriteria tekanan', a: '- Sisa tekan minimum di jaringan distribusi ± **10 m (1 bar)**; di meter/kran SR minimal ± 5 m.\n- Tekanan statis maksimum ± **80 m (8 bar)** agar pipa & aksesoris awet; bila lebih, pasang **Bak Pelepas Tekan (BPT)** atau PRV.\n- Tekanan negatif = air tidak sampai: perbesar diameter di hulu, naikkan muka air sumber/menara, atau ubah jalur.' },

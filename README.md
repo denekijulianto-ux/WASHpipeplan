@@ -37,6 +37,17 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Acuan SNI pada DED
+- Setiap lembar DED punya kotak **ACUAN STANDAR** di kop gambar sesuai jenis lembarnya:
+  - jaringan: SNI 7509:2011, SNI 7511, SNI 7831:2012, Permen PUPR 27/2016;
+  - bangunan beton: SNI 2847:2019, SNI 2052:2017, SNI 1726:2019;
+  - menara: ditambah SNI 1727:2020 dan SNI 1729:2020;
+  - pengolahan: SNI 6774:2008, SNI 3981:2008, Permenkes 2/2023;
+  - SR: SNI 7509:2011, SNI 8153:2015.
+- Lembar baru **Kriteria desain & SNI** berisi daftar acuan, tabel pemeriksaan kriteria hasil analisis hidrolis (kecepatan, sisa tekan, tekanan maksimum, gradien kehilangan tekan, tekanan di meter SR, kapasitas tampungan, kualitas air olahan), kriteria desain yang dipakai, dan catatan umum teknis.
+- Tombol **Terapkan kriteria SNI 7509:2011** ada di tab Analisis Hidrolis → Kriteria desain. Kriterianya: kecepatan 0,3–3,0 m/s, sisa tekan ≥ 10 m, tekanan maks. 80 m, gradien hf ≤ 10 m/km. Nilai ini dikutip konsisten di literatur; tetap cocokkan dengan dokumen SNI resmi.
+- Daftar acuan bisa diubah di tab DED → **Acuan standar (SNI)**: centang/hapus, ubah nomor, tahun, dan judul, atau tambah acuan lain. Butir bertanda (*) perlu dicocokkan judul/edisinya dengan katalog BSN.
+
 ## Standar Harga Satuan (SHS) per provinsi (tab BoQ & RAB)
 - Pilih **provinsi acuan SHS**. Harga bawaan aplikasi disusun untuk Jawa Barat dan disesuaikan dengan faktor **IKK** (Indeks Kemahalan Konstruksi) provinsi tersebut.
 - Angka IKK di aplikasi adalah **perkiraan**. Perbarui dari tabel resmi BPS (Indeks Kemahalan Konstruksi provinsi) bila diperlukan; isiannya bisa diubah langsung.
