@@ -717,10 +717,11 @@ const pumpCurve = (Hd, Qd, Q) => Math.max(0, Hd * (1.33 - 0.33 * Math.pow(Qd > 0
 function wellGeom(n, Q) {
   const pp = pumpP(n); const elev = +n.elev || 0;
   const screenTop = Math.max(pp.swl + 2, pp.depth - 3 - pp.screen);
-  const setting = Math.max(pp.swl + 3, Math.min(pp.swl + pp.dd + 6, screenTop - 1));
+  const autoSetting = Math.max(pp.swl + 3, Math.min(pp.swl + pp.dd + 6, screenTop - 1));
+  const setting = +pp.setManual > 0 ? clamp(+pp.setManual, pp.swl + 1, Math.max(pp.swl + 1, pp.depth - 2)) : autoSetting;
   const riserL = setting + 1.5; const C = MATERIALS[pp.riserMat]?.C || 110;
   const riserHf = hwLoss(riserL, Q, pp.riserDia, C) * 1.25 + 0.5; // +25% & 0,5 m kepala sumur (katup, meter air)
-  return { pp, elev, dwlElev: elev - pp.swl - pp.dd, swlElev: elev - pp.swl, screenTop, setting, riserL, riserHf, submergence: setting - pp.swl - pp.dd };
+  return { pp, elev, dwlElev: elev - pp.swl - pp.dd, swlElev: elev - pp.swl, screenTop, autoSetting, inScreen: setting > screenTop, setting, riserL, riserHf, submergence: setting - pp.swl - pp.dd };
 }
 function pumpEnergy(pp, Q, H, motorOver) {
   const Phyd = 9.81 * (Q / 1000) * H; const Pshaft = Phyd / (pp.etaP || 0.6); const Pin = Pshaft / (pp.etaM || 0.85);
@@ -815,6 +816,7 @@ function computeHydraulics(project) {
     pumps[b.id] = { mode, target: t?.target, Qd, Q, Hd, H, TDHreq, staticLift, pathHf, hsReq, ...wg, ...en, tiers };
     if (en.motor < en.Pshaft) pumpWarn.push({ level: 'high', ref: b.id, text: `Motor pompa ${b.label} ${fmt(en.motor, 2)} kW lebih kecil dari daya poros ${fmt(en.Pshaft, 2)} kW (efisiensi pompa ${fmt((pp.etaP || 0.6) * 100, 0)}%): motor akan kelebihan beban. Pilih motor lebih besar atau pompa berefisiensi ≥ 70%.` });
     if (Q > pp.yield) pumpWarn.push({ level: 'high', ref: b.id, text: `Debit pompa ${b.label} ${fmt(Q, 2)} L/dtk melebihi debit aman sumur ${fmt(pp.yield, 2)} L/dtk (hasil uji pemompaan). Tambah jam operasi, tambah sumur, atau kecilkan pompa.` });
+    if (wg.inScreen) pumpWarn.push({ level: 'low', ref: b.id, text: `Pompa ${b.label} dipasang pada ${fmt(wg.setting, 1)} m, di dalam zona saringan (mulai ${fmt(wg.screenTop, 1)} m): wajib pakai selubung pendingin (flow inducer sleeve) agar motor tetap dingin dan pasir tidak terisap; atau perpanjang pipa buta (blind casing) supaya saringan dimulai lebih dalam.` });
     if (wg.submergence < 2) pumpWarn.push({ level: 'high', ref: b.id, text: `Kedalaman pompa ${b.label} hanya ${fmt(wg.submergence, 1)} m di bawah muka air dinamis; risiko pompa kering. Perdalam sumur atau perpanjang saringan.` });
   });
   pipes.forEach(p => {
@@ -3630,6 +3632,8 @@ function PumpCard({ node, pr, project, setProject, openDed }) {
           {num('dd', 'Penurunan muka air (m)', 0.5, 0, 'drawdown saat dipompa')}
           {num('yield', 'Debit aman sumur (L/dtk)', 0.1, 0.1, 'dari uji pemompaan')}
           {num('screen', 'Panjang saringan (m)', 1, 1)}
+          <Field label="Kedalaman pompa (m bmt)" hint={`0 = otomatis (${fmt(pr.autoSetting, 1)} m, 1 m di atas saringan). Saringan mulai ${fmt(pr.screenTop, 1)} m; muka air dinamis ${fmt(pp.swl + pp.dd, 1)} m → terendam ${fmt(pr.submergence, 1)} m.${pr.inScreen ? ' ⚠ Pompa berada di zona saringan: wajib pakai selubung pendingin (shroud) atau perpanjang pipa buta.' : ''}`}>
+            <NumField id={`pp-${node.id}-setManual`} value={pp.setManual || 0} step={1} min={0} onChange={v => set('setManual', Math.max(0, v))} /></Field>
           {num('hours', 'Jam operasi per hari', 1, 1)}
           {num('peak', 'Faktor jam puncak', 0.05, 1)}
           <Field label="Pipa riser"><select id={`pp-${node.id}-riser`} className="tp-field" value={pp.riserDia} onChange={e => set('riserDia', +e.target.value)}>{DIAMETERS.map(d => <option key={d} value={d}>{pp.riserMat} Ø{d}</option>)}</select></Field>
