@@ -1651,6 +1651,10 @@ function normalizeProject(p) {
       ...(p.prices || {})
     },
     rabEdits: p.rabEdits && typeof p.rabEdits === 'object' ? p.rabEdits : {},
+    shs: {
+      ...SHS_DEFAULTS,
+      ...(p.shs && typeof p.shs === 'object' ? p.shs : {})
+    },
     ded: {
       ...DEFAULT_DED,
       ...(p.ded || {})
@@ -2597,14 +2601,23 @@ function buildRAB(project, boq) {
     VO = E.vol || {},
     UN = E.unit || {},
     TT = E.titles || {};
+  const sh = shsOf(project);
+  const F = shsFactor(sh);
+  const shsMap = Object.fromEntries((sh.items || []).map(x => [x.code, x]));
   const mk = sid => (key, desc, vol, unit, def) => {
     const ek = sid + '::' + key;
     const autoVol = round2(vol);
     const v = VO[ek] !== undefined && VO[ek] !== '' ? round2(+VO[ek]) : autoVol;
-    const price = P[key] !== undefined ? +P[key] : def;
+    const link = sh.links?.[ek] && shsMap[sh.links[ek]];
+    const base = link ? +link.price : def && F !== 1 ? Math.max(100, Math.round(def * F / 100) * 100) : def;
+    const price = P[key] !== undefined ? +P[key] : base;
+    const psrc = P[key] !== undefined ? 'manual' : link ? 'shs' : F !== 1 ? 'ikk' : 'default';
     return {
       key,
       ek,
+      shsCode: link ? link.code : null,
+      psrc,
+      base,
       desc: DS[ek] ?? desc,
       autoDesc: desc,
       vol: v,
@@ -2685,8 +2698,88 @@ function buildRAB(project, boq) {
     total,
     ppn,
     grand,
-    rounded
+    rounded,
+    shs: {
+      prov: sh.prov,
+      name: PROV[sh.prov]?.name,
+      year: sh.year,
+      ikk: shsIkk(sh),
+      factor: F,
+      n: (sh.items || []).length,
+      source: sh.source
+    }
   };
+}
+const PROVINCES = [['aceh', 'Aceh', 108], ['sumut', 'Sumatera Utara', 104], ['sumbar', 'Sumatera Barat', 101], ['riau', 'Riau', 108], ['jambi', 'Jambi', 101], ['sumsel', 'Sumatera Selatan', 97], ['bengkulu', 'Bengkulu', 99], ['lampung', 'Lampung', 95], ['babel', 'Kepulauan Bangka Belitung', 113], ['kepri', 'Kepulauan Riau', 115], ['dki', 'DKI Jakarta', 119], ['jabar', 'Jawa Barat', 103], ['jateng', 'Jawa Tengah', 96], ['diy', 'DI Yogyakarta', 101], ['jatim', 'Jawa Timur', 98], ['banten', 'Banten', 102], ['bali', 'Bali', 106], ['ntb', 'Nusa Tenggara Barat', 99], ['ntt', 'Nusa Tenggara Timur', 112], ['kalbar', 'Kalimantan Barat', 115], ['kalteng', 'Kalimantan Tengah', 118], ['kalsel', 'Kalimantan Selatan', 106], ['kaltim', 'Kalimantan Timur', 118], ['kaltara', 'Kalimantan Utara', 131], ['sulut', 'Sulawesi Utara', 109], ['sulteng', 'Sulawesi Tengah', 103], ['sulsel', 'Sulawesi Selatan', 99], ['sultra', 'Sulawesi Tenggara', 102], ['gorontalo', 'Gorontalo', 101], ['sulbar', 'Sulawesi Barat', 102], ['maluku', 'Maluku', 128], ['malut', 'Maluku Utara', 127], ['papuabarat', 'Papua Barat', 148], ['papuabd', 'Papua Barat Daya', 145], ['papua', 'Papua', 162], ['papuasel', 'Papua Selatan', 185], ['papuateng', 'Papua Tengah', 215], ['papuapeg', 'Papua Pegunungan', 249]];
+const PROV = Object.fromEntries(PROVINCES.map(([k, n, i]) => [k, {
+  name: n,
+  ikk: i
+}]));
+const SHS_BASE = 'jabar';
+const SHS_DEFAULTS = {
+  prov: SHS_BASE,
+  year: new Date().getFullYear(),
+  ikk: 0,
+  apply: true,
+  items: [],
+  links: {},
+  source: ''
+};
+const shsOf = p => ({
+  ...SHS_DEFAULTS,
+  ...(p.shs || {})
+});
+const shsIkk = sh => +sh.ikk > 0 ? +sh.ikk : PROV[sh.prov]?.ikk || PROV[SHS_BASE].ikk;
+const shsFactor = sh => sh.apply ? shsIkk(sh) / PROV[SHS_BASE].ikk : 1;
+const STOPW = new Set('dan atau di ke dari untuk dengan pada yang per mm cm m buah bh unit ls set the a lengkap termasuk pek pekerjaan pengadaan pemasangan pasang'.split(' '));
+const shsTokens = s => String(s || '').toLowerCase().replace(/[øØ]/g, ' d').replace(/[^a-z0-9.]+/g, ' ').split(' ').filter(w => w && !STOPW.has(w) && w.length > 1);
+function shsScore(a, b, ua, ub) {
+  const A = new Set(shsTokens(a)),
+    B = new Set(shsTokens(b));
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  A.forEach(w => {
+    if (B.has(w)) inter++;
+  });
+  const nums = t => new Set((String(t).match(/\d+(?:[.,]\d+)?/g) || []).map(x => x.replace(',', '.')));
+  const nA = nums(a),
+    nB = nums(b);
+  const numPenalty = nA.size && nB.size ? [...nA].every(n => nB.has(n)) || [...nB].every(n => nA.has(n)) ? 1 : 0.1 : 1;
+  const mats = t => new Set((String(t).toLowerCase().match(/\b(hdpe|pvc|gip|galvanis|pe|beton|bata|baja)\b/g) || []).map(m => m === 'galvanis' ? 'gip' : m));
+  const mA = mats(a),
+    mB = mats(b);
+  const matPenalty = mA.size && mB.size && ![...mA].some(m => mB.has(m)) ? 0.1 : 1;
+  const u = (ua || '').toLowerCase().replace(/[^a-z0-9³²']/g, ''),
+    v = (ub || '').toLowerCase().replace(/[^a-z0-9³²']/g, '');
+  return inter / Math.min(A.size, B.size) * numPenalty * matPenalty * (u && v && u !== v ? 0.75 : 1);
+}
+function parseShs(text) {
+  const num = s => {
+    let t = String(s || '').replace(/rp\.?/i, '').replace(/\s/g, '');
+    if (!t) return NaN;
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '');else t = t.replace(',', '.');
+    return parseFloat(t);
+  };
+  const out = [];
+  String(text || '').split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const sep = line.includes('\t') ? '\t' : line.includes(';') ? ';' : ',';
+    const c = line.split(sep).map(x => x.trim().replace(/^"|"$/g, ''));
+    if (c.length < 3) return;
+    const pi = [...c.keys()].reverse().find(i => isFinite(num(c[i])) && num(c[i]) > 0);
+    if (pi === undefined) return;
+    const rest = c.filter((_, i) => i !== pi);
+    const di = rest.reduce((m, x, i) => x.length > rest[m].length ? i : m, 0);
+    const code = rest.find((x, i) => i !== di && /\d/.test(x) && x.length <= 30 && /[.\-]/.test(x)) || '';
+    const unit = rest.find((x, i) => i !== di && x !== code && x.length <= 12) || '';
+    out.push({
+      code: code || 'SHS-' + (out.length + 1),
+      desc: rest[di],
+      unit,
+      price: Math.round(num(c[pi]))
+    });
+  });
+  return out;
 }
 const STRUCT_TYPES = {
   reservoir: {
@@ -10721,13 +10814,284 @@ function BoqWorkspace({
     className: "r"
   }, fmt(rab.sections.find(s => s.structId === x.st.id)?.subtotal, 0)))))), React.createElement("div", {
     className: "px-4 py-2 text-[12px] text-slate-500"
-  }, "Dimensi, perpipaan dan penulangan diatur di Workspace 4 (DED). Harga satuan beton, besi, bekisting dan plester berlaku sama untuk semua bangunan.")), React.createElement(RabTable, {
+  }, "Dimensi, perpipaan dan penulangan diatur di Workspace 4 (DED). Harga satuan beton, besi, bekisting dan plester berlaku sama untuk semua bangunan.")), React.createElement(ShsCard, {
+    project: project,
+    setProject: setProject,
+    rab: rab
+  }), React.createElement(RabTable, {
     project: project,
     setProject: setProject,
     rab: rab,
     setPrice: setPrice,
     nEdited: nEdited
   })));
+}
+function ShsCard({
+  project,
+  setProject,
+  rab
+}) {
+  const sh = shsOf(project);
+  const setSh = patch => setProject(p => ({
+    ...p,
+    shs: {
+      ...shsOf(p),
+      ...patch
+    }
+  }));
+  const [imp, setImp] = useState(false);
+  const [txt, setTxt] = useState('');
+  const [msg, setMsg] = useState('');
+  const fRef = useRef(null);
+  const ikk = shsIkk(sh),
+    F = shsFactor(sh);
+  const allItems = rab.sections.flatMap(x => x.items);
+  const nLinked = allItems.filter(it => it.shsCode).length;
+  const doImport = (text, src) => {
+    const rows = parseShs(text);
+    if (!rows.length) {
+      setMsg('Tidak ada baris yang terbaca. Format: kode ; uraian ; satuan ; harga (per baris), atau tempel langsung dari Excel.');
+      return;
+    }
+    setSh({
+      items: rows,
+      source: src || sh.source || 'Impor pengguna'
+    });
+    setMsg(`${rows.length} item SHS dimuat.`);
+    setImp(false);
+    setTxt('');
+  };
+  const autoMatch = () => {
+    const links = {
+      ...(sh.links || {})
+    };
+    let n = 0;
+    allItems.forEach(it => {
+      if (links[it.ek] || it.psrc === 'manual') return;
+      let best = null,
+        bs = 0;
+      sh.items.forEach(x => {
+        const sc = shsScore(it.desc, x.desc, it.unit, x.unit);
+        if (sc > bs) {
+          bs = sc;
+          best = x;
+        }
+      });
+      if (best && bs >= 0.5) {
+        links[it.ek] = best.code;
+        n++;
+      }
+    });
+    setSh({
+      links
+    });
+    setMsg(n ? `${n} item RAB ditautkan otomatis ke SHS. Periksa tautannya di tabel RAB (mode Edit item RAB).` : 'Tidak ada kecocokan yang cukup yakin; tautkan manual lewat tombol SHS di tabel RAB.');
+  };
+  return React.createElement(Card, {
+    title: "Standar Harga Satuan (SHS)",
+    icon: "Landmark",
+    right: React.createElement("span", {
+      className: "text-[12px] text-slate-500"
+    }, rab.shs.name, " ", sh.year)
+  }, React.createElement("div", {
+    className: "grid grid-cols-1 md:grid-cols-4 gap-3 text-[13px]"
+  }, React.createElement(Field, {
+    label: "Provinsi acuan SHS"
+  }, React.createElement("select", {
+    id: "shs-prov",
+    className: "tp-field",
+    value: sh.prov,
+    onChange: e => setSh({
+      prov: e.target.value,
+      ikk: 0,
+      links: {},
+      items: e.target.value === sh.prov ? sh.items : []
+    })
+  }, PROVINCES.map(([k, n]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, n)))), React.createElement(Field, {
+    label: "Tahun anggaran SHS"
+  }, React.createElement(NumField, {
+    id: "shs-year",
+    value: sh.year,
+    step: 1,
+    min: 2015,
+    onChange: v => setSh({
+      year: Math.round(v)
+    })
+  })), React.createElement(Field, {
+    label: "IKK provinsi (perkiraan, bisa diubah)",
+    hint: `Jawa Barat (acuan harga bawaan) = ${PROV[SHS_BASE].ikk}`
+  }, React.createElement(NumField, {
+    id: "shs-ikk",
+    value: sh.ikk || PROV[sh.prov].ikk,
+    step: 0.1,
+    min: 50,
+    onChange: v => setSh({
+      ikk: v
+    })
+  })), React.createElement(Field, {
+    label: "Faktor harga bawaan"
+  }, React.createElement("div", {
+    className: "tp-field bg-ground font-mono num flex items-center justify-between"
+  }, React.createElement("span", null, "\xD7 ", fmt(F, 3)), React.createElement("label", {
+    className: "flex items-center gap-1 text-[12px] font-sans"
+  }, React.createElement("input", {
+    id: "shs-apply",
+    type: "checkbox",
+    checked: !!sh.apply,
+    onChange: e => setSh({
+      apply: e.target.checked
+    })
+  }), "terapkan")))), React.createElement("div", {
+    className: "mt-3 flex flex-wrap items-center gap-2 text-[12.5px]"
+  }, React.createElement("span", {
+    className: "pill s-idle"
+  }, sh.items.length ? `${sh.items.length} item SHS ${sh.source ? '· ' + sh.source : ''}` : 'Belum ada daftar SHS resmi'), sh.items.length > 0 && React.createElement("span", {
+    className: "pill s-src"
+  }, nLinked, " item RAB tertaut SHS"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "ClipboardPaste",
+    onClick: () => setImp(v => !v)
+  }, "Impor daftar SHS"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Upload",
+    onClick: () => fRef.current.click()
+  }, "Dari berkas CSV"), React.createElement("input", {
+    ref: fRef,
+    id: "shs-file",
+    type: "file",
+    accept: ".csv,.txt,.tsv",
+    className: "hidden",
+    onChange: e => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => doImport(r.result, f.name);
+      r.readAsText(f);
+    }
+  }), sh.items.length > 0 && React.createElement(Btn, {
+    variant: "outline",
+    icon: "Wand2",
+    onClick: autoMatch
+  }, "Cocokkan otomatis ke RAB"), sh.items.length > 0 && React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Trash2",
+    onClick: () => {
+      setSh({
+        items: [],
+        links: {},
+        source: ''
+      });
+      setMsg('Daftar SHS dihapus.');
+    }
+  }, "Hapus SHS")), imp && React.createElement("div", {
+    className: "mt-2 space-y-2"
+  }, React.createElement("textarea", {
+    id: "shs-paste",
+    className: "tp-field h-36 font-mono text-[12px]",
+    value: txt,
+    onChange: e => setTxt(e.target.value),
+    placeholder: 'Tempel dari Excel / PDF SHS Pergub (satu item per baris):\n1.1.7.01.01.01 ; Pipa HDPE PN10 Ø110 mm ; m\' ; 145.000\n1.1.7.01.02.05 ; Semen Portland 50 kg ; zak ; 72.500'
+  }), React.createElement("div", {
+    className: "flex gap-2"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    icon: "Check",
+    onClick: () => doImport(txt, `SHS ${PROV[sh.prov].name} ${sh.year}`)
+  }, "Muat daftar"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => setImp(false)
+  }, "Batal"))), msg && React.createElement("p", {
+    className: "mt-2 text-[12.5px] text-aqua-800"
+  }, msg), React.createElement("p", {
+    className: "mt-2 text-[11.5px] text-slate-500 leading-snug"
+  }, "Urutan harga di RAB: ", React.createElement("b", null, "harga yang diisi manual"), " \u2192 ", React.createElement("b", null, "item SHS tertaut"), " \u2192 ", React.createElement("b", null, "harga bawaan \xD7 faktor IKK"), ". Angka IKK di aplikasi adalah perkiraan; perbarui dari tabel resmi BPS (Indeks Kemahalan Konstruksi) dan gunakan SHS / HSPK yang ditetapkan Pergub/Perbup setempat untuk dokumen anggaran resmi."));
+}
+function ShsPicker({
+  project,
+  setProject,
+  it,
+  onClose
+}) {
+  const sh = shsOf(project);
+  const [q, setQ] = useState('');
+  const list = sh.items.map(x => ({
+    x,
+    s: q.trim() ? shsScore(q, x.desc) + (x.code.includes(q.trim()) ? 1 : 0) : shsScore(it.desc, x.desc, it.unit, x.unit)
+  })).filter(r => !q.trim() || r.s > 0).sort((a, b) => b.s - a.s).slice(0, 40);
+  const link = code => {
+    setProject(p => {
+      const s0 = shsOf(p);
+      const links = {
+        ...(s0.links || {})
+      };
+      if (code) links[it.ek] = code;else delete links[it.ek];
+      return {
+        ...p,
+        shs: {
+          ...s0,
+          links
+        }
+      };
+    });
+    onClose();
+  };
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2200] bg-black/40 flex items-center justify-center p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-2xl max-h-[88vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "px-4 py-3 border-b border-line"
+  }, React.createElement("div", {
+    className: "font-semibold"
+  }, "Tautkan ke item SHS"), React.createElement("div", {
+    className: "text-[12px] text-slate-500 truncate"
+  }, it.desc, " \xB7 ", it.unit)), React.createElement("div", {
+    className: "p-3 border-b border-line"
+  }, React.createElement("input", {
+    id: "shs-q",
+    className: "tp-field",
+    autoFocus: true,
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "Cari uraian atau kode SHS\u2026"
+  })), React.createElement("div", {
+    className: "overflow-y-auto flex-1"
+  }, list.map(({
+    x,
+    s
+  }) => React.createElement("button", {
+    key: x.code,
+    type: "button",
+    onClick: () => link(x.code),
+    className: `w-full text-left px-4 py-2 border-b border-line/60 hover:bg-aqua-50 text-[12.5px] ${it.shsCode === x.code ? 'bg-aqua-50' : ''}`
+  }, React.createElement("div", {
+    className: "flex justify-between gap-3"
+  }, React.createElement("span", {
+    className: "min-w-0"
+  }, React.createElement("span", {
+    className: "font-mono text-[11px] text-slate-500"
+  }, x.code), " \xB7 ", x.desc), React.createElement("span", {
+    className: "shrink-0 font-mono num"
+  }, fmt(x.price, 0), " / ", x.unit)), !q && React.createElement("div", {
+    className: "text-[10.5px] text-slate-400"
+  }, "kemiripan ", fmt(s * 100, 0), "%"))), !list.length && React.createElement("p", {
+    className: "p-4 text-[12.5px] text-slate-500"
+  }, "Tidak ada item SHS yang cocok.")), React.createElement("div", {
+    className: "px-4 py-3 border-t border-line flex justify-between"
+  }, it.shsCode ? React.createElement(Btn, {
+    variant: "outline",
+    icon: "Unlink",
+    onClick: () => link(null)
+  }, "Lepas tautan SHS") : React.createElement("span", null), React.createElement(Btn, {
+    variant: "outline",
+    onClick: onClose
+  }, "Tutup"))));
 }
 function RabTable({
   project,
@@ -10736,6 +11100,8 @@ function RabTable({
   setPrice,
   nEdited
 }) {
+  const [shsPick, setShsPick] = useState(null);
+  const hasShs = (shsOf(project).items || []).length > 0;
   const s = project.settings;
   const E = project.rabEdits || {};
   const [edit, setEdit] = useState(false);
@@ -10812,7 +11178,12 @@ function RabTable({
     name: "RotateCcw",
     size: 13
   })) : null;
-  return React.createElement(Card, {
+  return React.createElement(React.Fragment, null, shsPick && React.createElement(ShsPicker, {
+    project: project,
+    setProject: setProject,
+    it: shsPick,
+    onClose: () => setShsPick(null)
+  }), React.createElement(Card, {
     title: "Rencana Anggaran Biaya (RAB)",
     icon: "Calculator",
     bodyClass: "overflow-x-auto",
@@ -10971,7 +11342,12 @@ function RabTable({
     value: it.price,
     edited: project.prices[it.key] !== undefined,
     onChange: v => setPrice(it.key, v)
-  })), React.createElement("td", {
+  }), (it.shsCode || edit && hasShs) && React.createElement("button", {
+    type: "button",
+    onClick: () => setShsPick(it),
+    title: it.shsCode ? `Harga SHS ${it.shsCode}` : 'Tautkan ke item SHS',
+    className: 'mt-0.5 text-[10.5px] font-semibold rounded px-1.5 ' + (it.shsCode ? 'bg-aqua-50 text-aqua-800 border border-aqua-200' : 'text-slate-500 border border-dashed border-slate-300')
+  }, it.shsCode ? 'SHS ' + it.shsCode.slice(-14) : '+ SHS')), React.createElement("td", {
     className: "r"
   }, fmt(it.amount, 0)), edit && React.createElement("td", null, React.createElement(Btn, {
     variant: "ghost",
@@ -11045,7 +11421,7 @@ function RabTable({
     className: "font-medium"
   }, terbilang(rab.rounded))), React.createElement("div", {
     className: "px-4 pb-3 text-[12px] text-slate-500"
-  }, "Harga bawaan adalah perkiraan awal. Ganti dengan Harga Satuan Pekerjaan (AHSP/SSH) daerah Anda: sel kuning menandai harga yang sudah diubah. Item berlabel \"diubah\" memakai uraian/volume/satuan yang diedit manual."));
+  }, "Harga bawaan adalah perkiraan awal. Ganti dengan Harga Satuan Pekerjaan (AHSP/SSH) daerah Anda: sel kuning menandai harga yang sudah diubah. Item berlabel \"diubah\" memakai uraian/volume/satuan yang diedit manual.")));
 }
 function CrossSectionMini({
   s,
@@ -11336,7 +11712,20 @@ function TitleBlock({
       y: y + 10.6,
       fontSize: 1.9,
       fontWeight: 600
-    }, String(v || '').slice(0, 34)), React.createElement("text", {
+    }, String(v || '').slice(0, 34)), k === 'DIPERIKSA' && meta.checkedSig || k === 'DISETUJUI' && meta.approvedSig ? React.createElement("g", null, React.createElement("image", {
+      href: k === 'DIPERIKSA' ? meta.checkedSig : meta.approvedSig,
+      x: FRAME.x1 - 30,
+      y: y + 0.4,
+      width: 28,
+      height: 7,
+      preserveAspectRatio: "xMaxYMid meet"
+    }), React.createElement("text", {
+      x: FRAME.x1 - 2,
+      y: y + 11,
+      fontSize: 1.3,
+      fill: "#444",
+      textAnchor: "end"
+    }, k === 'DIPERIKSA' ? meta.checkedDate : meta.approvedDate)) : React.createElement("text", {
       x: FRAME.x1 - 2,
       y: y + 3.6,
       fontSize: 1.5,
@@ -19674,6 +20063,439 @@ function PhotoReport({
     }), ph.by ? ` · ${ph.by.name}` : '')));
   })));
 }
+const KB = [{
+  k: 'login masuk gagal configuration-not-found firebase auth-config domain',
+  t: 'Gagal masuk / login daring',
+  a: '- **auth/configuration-not-found**: aktifkan *Authentication → Sign-in method → Email/Password* di Firebase dan pastikan isi `auth-config.js` sama persis dengan *Project settings → Your apps → Config*.\n- **unauthorized-domain**: tambahkan domain situs (mis. `nama.github.io`) di *Authentication → Settings → Authorized domains*.\n- **Email atau kata sandi salah**: pakai "Lupa kata sandi" di layar masuk.\n- Masuk pertama kali di perangkat baru butuh internet; setelah itu bisa luring hingga 30 hari.'
+}, {
+  k: 'daftar akun menunggu persetujuan pending approve admin setujui pengguna',
+  t: 'Akun menunggu persetujuan',
+  a: 'Akun baru berstatus **Menunggu persetujuan** sampai admin menyetujui di *Menu → Kelola pengguna*. Admin mendapat pop-up/notifikasi saat ada pendaftar baru. Setelah disetujui, tekan **Periksa ulang** di layar tunggu.'
+}, {
+  k: 'sinkron cloud gagal permission-denied aturan firestore rules simpan',
+  t: 'Sinkron cloud gagal',
+  a: '- **Akses ditolak (permission-denied)**: tempel ulang isi `firestore.rules` terbaru di *Firebase Console → Firestore → Rules → Publish*.\n- **Offline**: data tetap tersimpan di perangkat dan dikirim otomatis saat online.\n- **Ada versi lain di cloud**: pilih memakai versi cloud, menimpa dengan versi Anda, atau menyimpan sebagai salinan.'
+}, {
+  k: 'gps tidak akurat lokasi izin akurasi sinyal tracker rekam jejak',
+  t: 'GPS tidak akurat / tidak jalan',
+  a: '- Izinkan akses **Lokasi** untuk browser/aplikasi dan aktifkan mode akurasi tinggi.\n- Aplikasi harus dibuka lewat **HTTPS** (GitHub Pages sudah HTTPS).\n- Tunggu akurasi ≤ batas di *Pengaturan GPS* (bawaan 20 m); di bawah pohon/lembah akurasi turun.\n- Saat merekam jejak, layar dijaga tetap menyala; jangan kunci layar terlalu lama.'
+}, {
+  k: 'elevasi dem tidak terisi ketinggian otomatis open-meteo perkiraan',
+  t: 'Elevasi otomatis (DEM) tidak terisi',
+  a: 'Elevasi otomatis memakai DEM Copernicus 90 m via internet. Bila offline, elevasi sementara diperkirakan dari titik sekitar (label *Perkiraan*) dan diperbarui saat online (tombol *Coba lagi* di bilah bawah). Untuk akurasi lebih baik, isi elevasi manual dari survei (waterpass/GPS geodetik).'
+}, {
+  k: 'cetak pdf print laporan ded gambar kertas a3',
+  t: 'Mencetak laporan / gambar DED ke PDF',
+  a: 'Pilih **Cetak laporan** atau **Cetak DED**, lalu di dialog cetak pilih *Simpan sebagai PDF*. Ukuran kertas DED (A3/A4 lanskap) diatur di tab DED. Di HP, gunakan menu *Bagikan → Cetak* bila tombol cetak tidak muncul.'
+}, {
+  k: 'pindah perangkat hp laptop json bagikan muat gabungkan data hilang',
+  t: 'Memindahkan data antar perangkat',
+  a: '- Login daring: data otomatis tersinkron per akun.\n- Tanpa login daring: **Simpan .json** (ikut foto) lalu di perangkat lain **Muat / gabungkan .json** → *Gabungkan* (menambah titik baru) atau *Ganti seluruh proyek*.'
+}, {
+  k: 'foto asesmen kamera galeri tidak muncul sinkron',
+  t: 'Foto asesmen',
+  a: 'Ambil foto lewat tombol **Ambil foto** di inspektur titik, panel GPS, atau tab *Foto*. Miniatur tersimpan di proyek; foto penuh di perangkat dan di cloud (koleksi `photos`) bila aturan Firestore terbaru sudah dipasang. Foto penuh ikut di berkas .json.'
+}, {
+  k: 'sambungan rumah sr meter air tidak tersambung pipa dinas',
+  t: 'Sambungan rumah (SR) tidak tersambung',
+  a: 'SR otomatis disambung ke pipa distribusi terdekat dalam batas jarak (bawaan 150 m, ubah di *Analisis Hidrolis → Kriteria desain*). Bila lebih jauh, gambar dulu pipa distribusinya lalu tekan **Sambung ulang ke pipa terdekat** di inspektur SR.'
+}, {
+  k: 'pipa lengkung belok hdpe fleksibel titik belok luruskan',
+  t: 'Pipa lengkung HDPE',
+  a: 'Pilih pipa → seret titik ⊕ di tengah garis untuk melengkungkan; klik titik belok untuk menghapus. Saat menggambar, mode **Klik = titik lengkung** (tombol L) membelokkan pipa tanpa membuat node. HDPE/PE tidak butuh fitting selama radius lengkung ≥ 25×OD (HDPE) / 20×OD (PE).'
+}, {
+  k: 'harga satuan shs ikk provinsi rab harga material upah',
+  t: 'Harga satuan (SHS) & RAB',
+  a: 'Di tab **BoQ & RAB → Standar Harga Satuan**: pilih provinsi (harga bawaan disesuaikan dengan faktor IKK), lalu impor daftar SHS/HSPK resmi (tempel dari Excel atau CSV) dan tekan **Cocokkan otomatis**. Urutan harga: manual → SHS tertaut → bawaan × IKK.'
+}, {
+  k: 'review periksa setujui tanda tangan elektronik e-sign pemeriksa penyetuju alur',
+  t: 'Review & tanda tangan elektronik',
+  a: 'Pemilik proyek memilih **pemeriksa** (Staf LPASL) dan **penyetuju** (Kepala LPASL) di *Status & review*, lalu **Ajukan untuk diperiksa**. Pemeriksa mendapat notifikasi, memeriksa, lalu **menandatangani** → otomatis diteruskan ke penyetuju → setelah ditandatangani status menjadi *Disetujui* dan pemilik diberi tahu. Mengubah isi proyek setelah ditandatangani membatalkan tanda tangan.'
+}, {
+  k: 'notifikasi ntfy email emailjs pop-up pemberitahuan hp tertutup',
+  t: 'Notifikasi',
+  a: '- **Dalam aplikasi**: ikon lonceng + pop-up; izinkan *notifikasi browser* agar muncul walau tab di belakang.\n- **Saat aplikasi tertutup**: pasang aplikasi **ntfy** (Android/iOS/desktop) lalu langganan topik pribadi yang tertera di *Menu → Notifikasi*.\n- **Email**: aktif bila admin mengisi konfigurasi EmailJS di `auth-config.js`.'
+}, {
+  k: 'pompa head sumur bor tdh debit motor kw daya',
+  t: 'Pompa: head & daya',
+  a: 'Head pompa (TDH) = beda tinggi statis (muka air dinamis → titik keluar) + kehilangan tekan pipa + kehilangan tekan filter + sisa tekan. Daya hidrolis P = ρ·g·Q·H / η (η 0,5–0,7). Pilih motor standar ≥ 1,15 × daya. Pastikan pompa terendam ≥ 2 m di bawah muka air dinamis dan debit ≤ debit aman sumur hasil uji pemompaan.'
+}, {
+  k: 'kebutuhan air liter orang hari lpcd pedesaan perkotaan standar konsumsi',
+  t: 'Kebutuhan air per orang',
+  a: '- Pedesaan (SPAM perdesaan): **60–90 L/orang/hari**; perkotaan kecil–sedang 90–130; kota besar 130–150+.\n- Hidran umum: ± 30 L/orang/hari.\n- Darurat (Sphere): minimal **15 L/orang/hari** (minum, masak, kebersihan dasar).\n- Faktor hari maksimum 1,1–1,2; **faktor jam puncak 1,5–2,0** (di aplikasi bawaan SR = 2).'
+}, {
+  k: 'kecepatan aliran pipa minimum maksimum m/s velocity endapan gerusan',
+  t: 'Kriteria kecepatan aliran',
+  a: 'Kecepatan dalam pipa transmisi/distribusi umumnya **0,3–3,0 m/s** (ideal ±0,6–2,5 m/s seperti bawaan aplikasi). Terlalu rendah → endapan & air basi (sediakan *wash out*); terlalu tinggi → gerusan, kebisingan, risiko *water hammer*.'
+}, {
+  k: 'tekanan sisa minimum maksimum mka bar sisa tekan pipa distribusi',
+  t: 'Kriteria tekanan',
+  a: '- Sisa tekan minimum di jaringan distribusi ± **10 m (1 bar)**; di meter/kran SR minimal ± 5 m.\n- Tekanan statis maksimum ± **80 m (8 bar)** agar pipa & aksesoris awet; bila lebih, pasang **Bak Pelepas Tekan (BPT)** atau PRV.\n- Tekanan negatif = air tidak sampai: perbesar diameter di hulu, naikkan muka air sumber/menara, atau ubah jalur.'
+}, {
+  k: 'hazen williams rumus kehilangan tekan headloss koefisien c',
+  t: 'Rumus Hazen–Williams',
+  a: 'hf = 10,67 · L · Q^1,852 / (C^1,852 · D^4,87), dengan Q (m³/dtk), D (m), L (m). Koefisien C: HDPE ±130–150, PVC ±140–150, GIP ±110–120 (turun seiring umur pipa).'
+}, {
+  k: 'hdpe pvc gip pilih jenis pipa material kelebihan',
+  t: 'Memilih jenis pipa',
+  a: '- **HDPE**: fleksibel, tahan benturan & tanah bergerak, sambungan las (butt/electrofusion), cocok jalur berkelok & daerah gempa.\n- **PVC**: murah, ringan, sambungan RRJ/lem, perlu ditanam & dilindungi dari UV.\n- **GIP (pipa besi galvanis)**: kuat untuk jembatan pipa, pipa di atas tanah & lintasan jalan, tetapi bisa berkarat.\n- **PE gulungan**: sambungan rumah & jalur kecil.'
+}, {
+  k: 'air valve wash out penguras katup udara titik tinggi rendah',
+  t: 'Air valve & wash out',
+  a: 'Pasang **air valve** di titik tertinggi jalur (melepas udara terperangkap) dan **wash out** di titik terendah (menguras endapan). Juga pasang gate valve tiap ± 500–1.000 m dan di percabangan untuk isolasi perbaikan.'
+}, {
+  k: 'thrust block blok beton belokan tee ujung pipa dorongan',
+  t: 'Thrust block',
+  a: 'Blok beton penahan dipasang di belokan, tee, reducer, dan ujung pipa PVC/GIP untuk menahan gaya dorong air. Pipa HDPE yang dilas umumnya tidak perlu karena sambungannya menahan tarik.'
+}, {
+  k: 'uji tekanan pipa hydrotest pengujian kebocoran desinfeksi pipa baru',
+  t: 'Uji tekan & desinfeksi pipa baru',
+  a: '- **Uji tekan**: 1,5 × tekanan kerja (min. 10 bar untuk PN10) selama ± 2 jam, tanpa penurunan berarti.\n- **Desinfeksi**: isi pipa dengan larutan klor ± 50 mg/L, diamkan 24 jam, bilas hingga sisa klor normal (0,2–0,5 mg/L) sebelum dipakai.'
+}, {
+  k: 'reservoir kapasitas volume tampungan bak penampung ukuran',
+  t: 'Kapasitas reservoir',
+  a: 'Volume reservoir umumnya **15–25 % kebutuhan harian** (jam puncak) untuk sistem gravitasi; untuk sistem pompa yang beroperasi sebagian hari, hitung dari selisih kumulatif pasokan vs pemakaian. Tambah tinggi jagaan ± 0,3 m, ruang lumpur, peluap, penguras, ventilasi berkasa, dan manhole.'
+}, {
+  k: 'baku mutu air minum permenkes 2 2023 parameter e coli kekeruhan ph tds besi mangan',
+  t: 'Baku mutu air minum (Permenkes 2/2023)',
+  a: '- *E. coli* & total koliform: **0 CFU/100 mL**\n- Kekeruhan < 3 NTU; warna < 10 TCU; TDS < 300 mg/L; pH 6,5–8,5\n- Besi < 0,2 mg/L; mangan < 0,1 mg/L; nitrat (NO₃⁻) < 20 mg/L; fluorida < 1,5 mg/L; arsen < 0,01 mg/L\n- Sisa klor di kran 0,2–0,5 mg/L (bila diklorinasi).'
+}, {
+  k: 'klorinasi kaporit dosis klor sisa desinfeksi air',
+  t: 'Klorinasi',
+  a: 'Dosis = kebutuhan klor (± 0,5–2 mg/L untuk air jernih) + sisa klor 0,2–0,5 mg/L di kran terjauh; waktu kontak ≥ 30 menit. Kaporit 60%: kg/hari = dosis (mg/L) × debit (m³/hari) / 1000 / 0,6. Klorinasi efektif bila kekeruhan < 5 NTU.'
+}, {
+  k: 'besi mangan bau karat kuning air sumur bor aerasi',
+  t: 'Air berbau karat / kuning (besi-mangan)',
+  a: 'Oksidasi dengan **aerasi** (nampan bertingkat/semprot), endapkan, lalu saring dengan **pasir silika / mangan greensand** (filter FRP atau bak). Bila juga berbau/berwarna organik, tambahkan **karbon aktif**. Uji Fe & Mn sebelum dan sesudah.'
+}, {
+  k: 'air keruh lumpur sungai saringan pasir lambat sedimentasi koagulasi',
+  t: 'Air keruh (sungai / hujan)',
+  a: 'Kekeruhan < 10 NTU: saringan pasir lambat (SSF). 10–50 NTU: pengendapan + saringan kerikil + SSF. > 50 NTU: koagulasi (tawas/PAC) + sedimentasi + saringan pasir cepat, lalu klorinasi.'
+}, {
+  k: 'broncaptering mata air perlindungan pagar radius pencemaran',
+  t: 'Perlindungan mata air',
+  a: 'Mata air tidak boleh tertutup beton langsung; tangkap dengan kerikil + ijuk/geotekstil + lempung kedap. Buat **saluran pengalih air hujan** di hulu, pagar area tangkapan, dan bebaskan zona ± **10–30 m** dari jamban, kandang, dan pertanian berpestisida.'
+}, {
+  k: 'jarak sumur septik tank jamban resapan sanitasi',
+  t: 'Jarak sumber air dari jamban / septik',
+  a: 'Jarak bidang resapan/septik ke sumur atau sumber air minimal ± **10 m** (lebih jauh pada tanah berpasir/berbatu retak), dan sumber air sebaiknya di hulu (arah aliran air tanah) dari jamban.'
+}, {
+  k: 'stbm sanitasi total berbasis masyarakat 5 pilar ctps jamban',
+  t: 'STBM (5 pilar)',
+  a: '1. Stop buang air besar sembarangan\n2. Cuci tangan pakai sabun (CTPS)\n3. Pengelolaan air minum & makanan rumah tangga\n4. Pengamanan sampah rumah tangga\n5. Pengamanan limbah cair rumah tangga'
+}, {
+  k: 'darurat bencana sphere standar minimum air jamban pengungsi',
+  t: 'Standar minimum WASH darurat (Sphere)',
+  a: '- Air: ≥ 15 L/orang/hari; 1 kran per ± 250 orang; jarak ke titik air ≤ 500 m; antre ≤ 30 menit.\n- Jamban: 1 per 20 orang (target), terpisah laki-laki/perempuan, ≤ 50 m dari tempat tinggal, berkunci & berlampu.\n- Fasilitas cuci tangan dengan sabun di jamban & dapur umum.'
+}, {
+  k: 'penampungan air hujan pah atap volume tangki',
+  t: 'Penampungan air hujan (PAH)',
+  a: 'Volume terkumpul ≈ curah hujan (mm) × luas atap (m²) × koefisien 0,8 / 1000 (m³). Pasang **first flush** untuk membuang air hujan awal, saringan, tutup rapat, dan desinfeksi sebelum diminum.'
+}, {
+  k: 'pengelola kpspams operator iuran tarif pemeliharaan keberlanjutan',
+  t: 'Pengelolaan & keberlanjutan',
+  a: 'Bentuk pengelola (KP-SPAMS/BUMDes) dengan operator terlatih, catatan meter, iuran yang menutup biaya O&M (listrik pompa, bahan kimia, suku cadang) dan dana cadangan. Jadwalkan pembersihan bak, pengurasan pipa, dan uji kualitas air berkala.'
+}];
+function kbSearch(q, n = 3) {
+  const qt = shsTokens(q);
+  if (!qt.length) return [];
+  return KB.map(e => {
+    const ks = new Set(shsTokens(e.k + ' ' + e.t));
+    let sc = 0;
+    qt.forEach(w => {
+      if (ks.has(w)) sc += 1;else if ([...ks].some(k => k.length > 4 && (k.startsWith(w) || w.startsWith(k)))) sc += 0.5;
+    });
+    return {
+      e,
+      sc: sc / Math.sqrt(qt.length)
+    };
+  }).filter(r => r.sc >= 0.5).sort((a, b) => b.sc - a.sc).slice(0, n).map(r => r.e);
+}
+function projectDiag(project, hyd, rab) {
+  const w = hyd.warnings;
+  const hi = w.filter(x => x.level === 'high'),
+    lo = w.filter(x => x.level !== 'high');
+  const lines = [`**Pemeriksaan proyek "${project.meta.name}"**`, `- ${project.nodes.length} node, ${project.pipes.length} pipa (${fmt(hyd.totalLength, 0)} m), kebutuhan ${fmt(hyd.totalDemand, 2)} L/dtk.`, hyd.minP ? `- Tekanan terendah: ${hyd.minP.label} ${fmt(hyd.nodes[hyd.minP.id].pressure, 1)} mka.` : '- Belum ada node berkebutuhan air.', `- Total RAB: ${rp(rab.rounded)}.`];
+  if (!w.length) lines.push('', 'Tidak ada peringatan hidrolis. 👍');else {
+    if (hi.length) {
+      lines.push('', `**${hi.length} masalah penting:**`);
+      hi.slice(0, 8).forEach(x => lines.push('- ' + x.text));
+    }
+    if (lo.length) {
+      lines.push('', `**${lo.length} catatan lain:**`);
+      lo.slice(0, 6).forEach(x => lines.push('- ' + x.text));
+    }
+  }
+  return lines.join('\n');
+}
+function localAnswer(q, project, hyd, rab) {
+  const s = q.toLowerCase();
+  if (/periksa|cek|diagnos|masalah|peringatan|warning|kesalahan|error proyek/.test(s) && /proyek|jaringan|desain|ini|saya/.test(s)) return projectDiag(project, hyd, rab);
+  if (/total rab|biaya|anggaran/.test(s) && /berapa|total/.test(s)) return `Total RAB (dibulatkan, termasuk PPN ${project.settings.ppnPct}%): **${rp(rab.rounded)}** (${terbilang(rab.rounded)}). Acuan harga: SHS ${rab.shs.name} ${rab.shs.year}.`;
+  if (/panjang pipa|berapa meter pipa/.test(s)) return `Total panjang pipa ${fmt(hyd.totalLength, 1)} m pada ${project.pipes.length} segmen.`;
+  const nd = project.nodes.find(n => new RegExp('\\b' + n.label.toLowerCase().replace(/[^a-z0-9]/g, '') + '\\b').test(s.replace(/[^a-z0-9 ]/g, '')));
+  if (nd && /tekanan|tekan|mka|kenapa|mengapa/.test(s)) {
+    const r = hyd.nodes[nd.id];
+    const rel = hyd.warnings.filter(x => x.ref === nd.id).map(x => '- ' + x.text);
+    return `**${nd.label}** (${NODE_TYPES[nd.type].label}): elevasi ${fmt(+nd.elev, 2)} m, HGL ${r.head != null ? fmt(r.head, 2) : '–'} m, sisa tekan **${r.pressure != null ? fmt(r.pressure, 1) + ' mka' : 'tidak terhubung ke sumber'}**.${rel.length ? '\n' + rel.join('\n') : ''}`;
+  }
+  if (/kenapa|mengapa/.test(s) && /negatif|tidak sampai|tekanan kurang|rendah/.test(s)) return projectDiag(project, hyd, rab) + '\n\n' + KB.find(e => e.t === 'Kriteria tekanan').a;
+  const hits = kbSearch(q);
+  if (hits.length) return hits.map((e, i) => (i ? '\n\n' : '') + `**${e.t}**\n${e.a}`).join('');
+  return 'Maaf, saya belum menemukan jawabannya di basis pengetahuan luring. Coba kata kunci lain (mis. "kriteria tekanan", "baku mutu air minum", "cara impor SHS"), tekan **Periksa proyek ini**, atau aktifkan **mode AI** untuk pertanyaan bebas.';
+}
+const AI_KEY = 'tirtaplan-ai-key';
+let ANTHROPIC_MOD = null;
+async function askClaude(key, history, project, hyd, rab, onText) {
+  if (!ANTHROPIC_MOD) ANTHROPIC_MOD = await import('https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm');
+  const Anthropic = ANTHROPIC_MOD.default;
+  const client = new Anthropic({
+    apiKey: key,
+    dangerouslyAllowBrowser: true
+  });
+  const ctx = {
+    proyek: project.meta.name,
+    lokasi: project.meta.location,
+    node: project.nodes.length,
+    pipa: project.pipes.length,
+    panjang_pipa_m: Math.round(hyd.totalLength),
+    kebutuhan_Ls: +hyd.totalDemand.toFixed(2),
+    tekanan_terendah: hyd.minP ? `${hyd.minP.label} ${fmt(hyd.nodes[hyd.minP.id].pressure, 1)} mka` : null,
+    peringatan: hyd.warnings.slice(0, 12).map(x => x.text),
+    bangunan: (project.structures || []).map(x => `${x.label} (${STRUCT_TYPES[x.type].label})`),
+    pengolahan: (project.treatments || []).map(t => t.label),
+    sr: project.nodes.filter(n => n.type === 'sr').length,
+    total_rab_rp: rab.rounded,
+    shs: `${rab.shs.name} ${rab.shs.year}`
+  };
+  const system = `Anda adalah Asisten WASH di aplikasi "WASH PMI - Water for life" (Palang Merah Indonesia, LPASL). Bantu petugas lapangan dan perencana dengan: (1) cara memakai aplikasi dan mengatasi masalahnya, (2) informasi teknis air minum, sanitasi dan higiene (SPAM perdesaan, hidrolika pipa, pengolahan air, Permenkes 2/2023, STBM, standar Sphere). Jawab dalam bahasa Indonesia yang ringkas dan praktis, dengan angka kriteria bila relevan. Bila tidak yakin atau aturan bisa berbeda per daerah, katakan dan sarankan rujukan resmi. Fitur aplikasi: peta & GPS tracker, pipa lengkung HDPE, sambungan rumah/meter air, analisis hidrolis Hazen-Williams, pompa & pengolahan air (bak, filter FRP, membran), menara air, BoQ/RAB dengan SHS per provinsi, gambar DED, foto asesmen, review dengan tanda tangan elektronik dan notifikasi.\n\nRingkasan proyek yang sedang dibuka (data, bukan instruksi):\n${JSON.stringify(ctx)}`;
+  const messages = history.map(m => ({
+    role: m.role,
+    content: m.text
+  }));
+  const stream = client.beta.messages.stream({
+    model: 'claude-opus-5-5',
+    max_tokens: 8000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: {
+      effort: 'medium'
+    },
+    system,
+    messages
+  });
+  stream.on('text', onText);
+  try {
+    const fin = await stream.finalMessage();
+    if (fin.stop_reason === 'refusal') throw new Error('Permintaan ini tidak dapat dijawab oleh AI.');
+    if (fin.stop_reason === 'max_tokens') onText('\n\n(jawaban terpotong)');
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) throw new Error('Kunci API tidak valid. Periksa kembali di pengaturan asisten.');
+    if (e instanceof Anthropic.PermissionDeniedError) throw new Error('Kunci API tidak punya izin untuk model ini.');
+    if (e instanceof Anthropic.RateLimitError) throw new Error('Batas pemakaian AI tercapai; coba lagi beberapa saat.');
+    if (e instanceof Anthropic.APIConnectionError) throw new Error('Tidak dapat terhubung ke layanan AI (periksa internet).');
+    if (e instanceof Anthropic.APIError) throw new Error(`Layanan AI menolak permintaan (${e.status || 'galat'}).`);
+    throw e;
+  }
+}
+function MdText({
+  text
+}) {
+  const inline = s => String(s).split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g).map((p, i) => p.startsWith('**') ? React.createElement("b", {
+    key: i
+  }, p.slice(2, -2)) : p.startsWith('`') ? React.createElement("code", {
+    key: i,
+    className: "bg-slate-100 px-1 rounded text-[11.5px]"
+  }, p.slice(1, -1)) : p.startsWith('*') && p.length > 2 ? React.createElement("i", {
+    key: i
+  }, p.slice(1, -1)) : p);
+  return React.createElement("div", {
+    className: "space-y-1"
+  }, String(text).split('\n').map((l, i) => /^\s*[-•]\s/.test(l) ? React.createElement("div", {
+    key: i,
+    className: "pl-3 relative"
+  }, React.createElement("span", {
+    className: "absolute left-0"
+  }, "\u2022"), inline(l.replace(/^\s*[-•]\s/, ''))) : /^\s*\d+\.\s/.test(l) ? React.createElement("div", {
+    key: i,
+    className: "pl-1"
+  }, inline(l)) : l.trim() ? React.createElement("p", {
+    key: i
+  }, inline(l)) : React.createElement("div", {
+    key: i,
+    className: "h-1"
+  })));
+}
+function AssistantPanel({
+  project,
+  hyd,
+  rab,
+  onClose
+}) {
+  const [msgs, setMsgs] = useState([{
+    role: 'assistant',
+    text: 'Halo! Saya **Asisten WASH**. Tanyakan cara memakai aplikasi, masalah yang Anda temui, atau informasi teknis air & sanitasi. Tekan **Periksa proyek ini** untuk diagnosis cepat.'
+  }]);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showSet, setShowSet] = useState(false);
+  const [key, setKey] = useState(() => {
+    try {
+      return localStorage.getItem(AI_KEY) || '';
+    } catch (e) {
+      return '';
+    }
+  });
+  const [useAi, setUseAi] = useState(!!key);
+  const endRef = useRef(null);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({
+      block: 'end'
+    });
+  }, [msgs]);
+  const send = async text => {
+    const t = (text ?? q).trim();
+    if (!t || busy) return;
+    setQ('');
+    const hist = [...msgs.filter((m, i) => i > 0 && !m.err), {
+      role: 'user',
+      text: t
+    }];
+    setMsgs(m => [...m, {
+      role: 'user',
+      text: t
+    }]);
+    if (!(useAi && key) || /^periksa proyek/i.test(t)) {
+      setMsgs(m => [...m, {
+        role: 'assistant',
+        text: localAnswer(t, project, hyd, rab),
+        local: true
+      }]);
+      return;
+    }
+    setBusy(true);
+    setMsgs(m => [...m, {
+      role: 'assistant',
+      text: '',
+      ai: true
+    }]);
+    try {
+      await askClaude(key, hist.slice(-12), project, hyd, rab, d => setMsgs(m => {
+        const c = [...m];
+        c[c.length - 1] = {
+          ...c[c.length - 1],
+          text: c[c.length - 1].text + d
+        };
+        return c;
+      }));
+    } catch (e) {
+      setMsgs(m => {
+        const c = [...m];
+        c[c.length - 1] = {
+          role: 'assistant',
+          err: true,
+          text: `⚠ ${e.message}\n\nJawaban luring:\n\n${localAnswer(t, project, hyd, rab)}`
+        };
+        return c;
+      });
+    }
+    setBusy(false);
+  };
+  const chips = ['Periksa proyek ini', 'Kenapa tekanan negatif?', 'Kriteria kecepatan pipa', 'Baku mutu air minum', 'Kebutuhan air per orang', 'Cara impor SHS', 'GPS tidak akurat', 'Alur review & tanda tangan'];
+  return React.createElement("div", {
+    className: "fixed z-[1900] bottom-20 right-3 lg:bottom-4 lg:right-4 w-[min(420px,calc(100vw-24px))] h-[min(620px,calc(100vh-120px))] bg-white rounded-xl shadow-2xl border border-line flex flex-col"
+  }, React.createElement("div", {
+    className: "flex items-center gap-2 px-3 py-2.5 border-b border-line bg-deep text-white rounded-t-xl"
+  }, React.createElement(Icon, {
+    name: "MessagesSquare",
+    size: 17
+  }), React.createElement("span", {
+    className: "font-semibold flex-1"
+  }, "Asisten WASH"), React.createElement("span", {
+    className: 'text-[11px] rounded-full px-2 py-0.5 ' + (useAi && key ? 'bg-violet-500' : 'bg-white/15')
+  }, useAi && key ? 'AI Claude' : 'Luring'), React.createElement("button", {
+    type: "button",
+    title: "Pengaturan asisten",
+    onClick: () => setShowSet(v => !v),
+    className: "p-1 rounded hover:bg-white/10"
+  }, React.createElement(Icon, {
+    name: "Settings2",
+    size: 16
+  })), React.createElement("button", {
+    type: "button",
+    title: "Tutup",
+    onClick: onClose,
+    className: "p-1 rounded hover:bg-white/10"
+  }, React.createElement(Icon, {
+    name: "X",
+    size: 16
+  }))), showSet && React.createElement("div", {
+    className: "p-3 border-b border-line space-y-2 text-[12.5px] bg-ground"
+  }, React.createElement("label", {
+    className: "flex items-center gap-2"
+  }, React.createElement("input", {
+    id: "ai-use",
+    type: "checkbox",
+    checked: useAi,
+    onChange: e => setUseAi(e.target.checked)
+  }), "Pakai AI (Claude) untuk pertanyaan bebas"), React.createElement(Field, {
+    label: "Kunci API Anthropic (disimpan hanya di perangkat ini)"
+  }, React.createElement("input", {
+    id: "ai-key",
+    type: "password",
+    className: "tp-field font-mono",
+    value: key,
+    placeholder: "sk-ant-\u2026",
+    onChange: e => {
+      setKey(e.target.value);
+      try {
+        e.target.value ? localStorage.setItem(AI_KEY, e.target.value) : localStorage.removeItem(AI_KEY);
+      } catch (x) {}
+    }
+  })), React.createElement("p", {
+    className: "text-[11px] text-slate-500 leading-snug"
+  }, "Mode AI mengirim pertanyaan dan ringkasan proyek (nama, jumlah titik, peringatan, total RAB) ke Anthropic; biaya pemakaian ditagihkan ke kunci API Anda. Tanpa kunci, asisten tetap bekerja luring dengan basis pengetahuan & diagnosis proyek.")), React.createElement("div", {
+    className: "flex-1 overflow-y-auto p-3 space-y-2.5 text-[13px]"
+  }, msgs.map((m, i) => React.createElement("div", {
+    key: i,
+    className: m.role === 'user' ? 'flex justify-end' : ''
+  }, React.createElement("div", {
+    className: 'rounded-lg px-3 py-2 max-w-[92%] ' + (m.role === 'user' ? 'bg-aqua-600 text-white' : m.err ? 'bg-amber-50 border border-amber-200' : 'bg-slate-100')
+  }, m.role === 'user' ? m.text : m.text ? React.createElement(MdText, {
+    text: m.text
+  }) : React.createElement("span", {
+    className: "text-slate-500"
+  }, "Mengetik\u2026")))), React.createElement("div", {
+    ref: endRef
+  })), React.createElement("div", {
+    className: "px-3 pt-1 flex gap-1.5 overflow-x-auto pb-1.5"
+  }, chips.map(c => React.createElement("button", {
+    key: c,
+    type: "button",
+    disabled: busy,
+    onClick: () => send(c),
+    className: "shrink-0 rounded-full border border-line px-2.5 py-1 text-[11.5px] text-slate-700 hover:border-aqua-400"
+  }, c))), React.createElement("form", {
+    className: "p-2.5 border-t border-line flex gap-2",
+    onSubmit: e => {
+      e.preventDefault();
+      send();
+    }
+  }, React.createElement("input", {
+    id: "ai-q",
+    className: "tp-field",
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "Tulis pertanyaan\u2026",
+    disabled: busy
+  }), React.createElement(Btn, {
+    variant: "primary",
+    icon: "Send",
+    onClick: () => send(),
+    disabled: busy || !q.trim(),
+    title: "Kirim"
+  })));
+}
 function PrintRoot({
   mode,
   project,
@@ -19758,6 +20580,8 @@ function PrintRoot({
     project: project,
     hyd: hyd
   }), React.createElement(PhotoReport, {
+    project: project
+  }), React.createElement(SignReport, {
     project: project
   }), React.createElement("h2", null, "2. Data Jaringan"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Node"), React.createElement("th", null, "Tipe"), React.createElement("th", null, "Lintang"), React.createElement("th", null, "Bujur"), React.createElement("th", null, "Elevasi (mdpl)"), React.createElement("th", null, "Kebutuhan (L/dtk)"), React.createElement("th", null, "Dicatat oleh"))), React.createElement("tbody", null, project.nodes.map(n => React.createElement("tr", {
     key: n.id
@@ -19888,7 +20712,11 @@ function PrintRoot({
     style: {
       fontSize: '8.5pt'
     }
-  }, React.createElement("i", null, "Kualitas air olahan adalah perkiraan berdasarkan efisiensi tipikal unit; wajib dikonfirmasi dengan uji laboratorium."))), React.createElement("h2", null, "5. Rencana Anggaran Biaya"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "No"), React.createElement("th", null, "Uraian pekerjaan"), React.createElement("th", null, "Volume"), React.createElement("th", null, "Sat."), React.createElement("th", null, "Harga satuan (Rp)"), React.createElement("th", null, "Jumlah (Rp)"))), React.createElement("tbody", null, rab.sections.map(sec => React.createElement(Fragment, {
+  }, React.createElement("i", null, "Kualitas air olahan adalah perkiraan berdasarkan efisiensi tipikal unit; wajib dikonfirmasi dengan uji laboratorium."))), React.createElement("h2", null, "5. Rencana Anggaran Biaya"), React.createElement("p", {
+    style: {
+      fontSize: '9pt'
+    }
+  }, "Acuan harga: Standar Harga Satuan Provinsi ", rab.shs.name, " tahun ", rab.shs.year, rab.shs.n ? ` (${rab.shs.n} item SHS${rab.shs.source ? ', ' + rab.shs.source : ''})` : '', "; harga bawaan disesuaikan dengan IKK ", fmt(rab.shs.ikk, 1), " (faktor \xD7 ", fmt(rab.shs.factor, 3), " terhadap Jawa Barat)."), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "No"), React.createElement("th", null, "Uraian pekerjaan"), React.createElement("th", null, "Volume"), React.createElement("th", null, "Sat."), React.createElement("th", null, "Harga satuan (Rp)"), React.createElement("th", null, "Jumlah (Rp)"))), React.createElement("tbody", null, rab.sections.map(sec => React.createElement(Fragment, {
     key: sec.code
   }, React.createElement("tr", {
     className: "sect"
@@ -21626,11 +22454,25 @@ function AuthScreen({
     if (!/^\S+@\S+\.\S+$/.test(f.email)) return setErr('Format email tidak valid.');
     if (f.password.length < 8) return setErr('Kata sandi minimal 8 karakter.');
     if (f.password !== f.password2) return setErr('Konfirmasi kata sandi tidak sama.');
-    return run(() => api.signUp({
-      ...f,
-      name: f.name.trim(),
-      email: f.email.trim()
-    }));
+    return run(async () => {
+      await api.signUp({
+        ...f,
+        name: f.name.trim(),
+        email: f.email.trim()
+      });
+      sendNotify(api, {
+        to: ADMIN_EMAILS.filter(e => e !== normEmail(f.email)).map(email => ({
+          email,
+          name: 'Admin'
+        })),
+        title: 'Pendaftar baru menunggu persetujuan',
+        body: `${f.name.trim()} (${f.email.trim()})${f.role ? ', ' + f.role : ''}${f.org ? ', ' + f.org : ''} mendaftar di WASH PMI. Tinjau di Menu → Kelola pengguna.`,
+        kind: 'register',
+        from: {
+          name: f.name.trim()
+        }
+      }).catch(() => {});
+    });
   };
   return React.createElement(AuthShell, null, React.createElement("div", {
     className: "flex border-b border-line"
@@ -22187,6 +23029,8 @@ function makeCloudStore(api) {
             ownerName: c.ownerName || '',
             ownerEmail: c.ownerEmail || '',
             status: c.status || 'draft',
+            checkerUid: c.reviewers?.checker?.uid || '',
+            approverUid: c.reviewers?.approver?.uid || '',
             rev,
             nodes: p.nodes.length,
             pipes: p.pipes.length,
@@ -22457,6 +23301,7 @@ function ProjectLibrary({
 function ReviewDialog({
   project,
   user,
+  api,
   onAct,
   onClose
 }) {
@@ -22466,22 +23311,96 @@ function ReviewDialog({
   const [err, setErr] = useState('');
   const isOwner = c.ownerUid === user.uid;
   const staf = /staf/i.test(user.role || '');
-  const acts = [];
-  if ((isOwner || user.admin) && ['draft', 'revisi'].includes(c.status || 'draft')) acts.push(['review', 'Ajukan untuk diperiksa', 'primary', false]);
-  if (user.admin && c.status === 'review') acts.push(['checked', 'Sudah diperiksa (Staf LPASL)', 'primary', false]);
-  if (user.admin && !staf && c.status === 'checked') acts.push(['approved', 'Setujui (Kepala LPASL)', 'primary', false]);
-  if (user.admin && ['review', 'checked'].includes(c.status)) acts.push(['revisi', 'Kembalikan untuk revisi', 'danger', true]);
-  if (user.admin && c.status === 'approved') acts.push(['draft', 'Buka kembali untuk diubah', 'outline', true]);
-  const go = (to, needNote) => {
-    if (needNote && !note.trim()) {
-      setErr('Tulis catatan alasannya terlebih dulu.');
+  const rv = c.reviewers || {};
+  const [users, setUsers] = useState(null);
+  const [sel, setSel] = useState({
+    checker: rv.checker || null,
+    approver: rv.approver || null
+  });
+  const [signing, setSigning] = useState(null);
+  const [cur, setCur] = useState(null);
+  useEffect(() => {
+    (api && api.listUsers ? api.listUsers() : Promise.resolve([])).then(l => setUsers(l.filter(u => u.status === 'approved'))).catch(() => setUsers([]));
+  }, []);
+  useEffect(() => {
+    contentHash(project).then(setCur);
+  }, [project]);
+  const isChecker = rv.checker && rv.checker.uid === user.uid,
+    isApprover = rv.approver && rv.approver.uid === user.uid;
+  const canAssign = (isOwner || user.admin) && ['draft', 'revisi'].includes(c.status || 'draft');
+  const canCheck = c.status === 'review' && (isChecker || user.admin && !rv.checker);
+  const canApprove = c.status === 'checked' && (isApprover || user.admin && !staf && !rv.approver);
+  const canRevise = ['review', 'checked'].includes(c.status) && (isChecker || isApprover || user.admin);
+  const pick = (role, id) => {
+    const u = (users || []).find(x => x.uid === id);
+    setSel(s => ({
+      ...s,
+      [role]: u ? {
+        uid: u.uid,
+        email: u.email,
+        name: u.name || u.email,
+        role: u.role || ''
+      } : null
+    }));
+  };
+  const submit = () => {
+    if (!sel.checker || !sel.approver) {
+      setErr('Pilih pemeriksa dan penyetuju terlebih dulu.');
       return;
     }
-    onAct(to, note.trim());
+    onAct('review', note.trim(), {
+      reviewers: sel
+    });
     setNote('');
     setErr('');
   };
+  const revise = () => {
+    if (!note.trim()) {
+      setErr('Tulis catatan alasannya terlebih dulu.');
+      return;
+    }
+    onAct('revisi', note.trim());
+    setNote('');
+    setErr('');
+  };
+  const signs = c.signs || [];
+  const lastSign = role => [...signs].reverse().find(x => x.role === role);
   const steps = ['draft', 'review', 'checked', 'approved'];
+  const uSel = (role, label) => React.createElement(Field, {
+    label: label
+  }, React.createElement("select", {
+    id: 'rv-' + role,
+    className: "tp-field",
+    value: sel[role]?.uid || '',
+    onChange: e => pick(role, e.target.value),
+    disabled: !canAssign
+  }, React.createElement("option", {
+    value: ""
+  }, users === null ? 'Memuat daftar pengguna…' : 'Pilih pengguna'), sel[role] && !(users || []).some(u => u.uid === sel[role].uid) && React.createElement("option", {
+    value: sel[role].uid
+  }, sel[role].name), (users || []).map(u => React.createElement("option", {
+    key: u.uid,
+    value: u.uid
+  }, u.name || u.email, u.role ? ` · ${u.role}` : ''))));
+  const sigRow = (role, label) => {
+    const s0 = lastSign(role);
+    const who = rv[role];
+    return React.createElement("tr", null, React.createElement("td", {
+      className: "text-slate-500 align-top"
+    }, label), React.createElement("td", null, s0 ? React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, React.createElement("img", {
+      src: s0.sig,
+      alt: "ttd",
+      className: "h-10 max-w-[120px] object-contain bg-white border border-line rounded"
+    }), React.createElement("span", {
+      className: "text-[12px]"
+    }, React.createElement("b", null, s0.name), React.createElement("br", null), dtTxt(s0.at), React.createElement("br", null), React.createElement("span", {
+      className: cur === s0.hash ? 'text-green-700' : 'text-red-700'
+    }, cur ? cur === s0.hash ? '✓ isi sesuai saat ditandatangani' : '✗ isi berubah sejak ditandatangani' : ''))) : who ? React.createElement("span", {
+      className: "text-slate-600"
+    }, who.name, " \xB7 menunggu") : '–'));
+  };
   return React.createElement("div", {
     className: "fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4",
     onClick: onClose
@@ -22496,7 +23415,7 @@ function ReviewDialog({
     name: "CircleCheck",
     size: 17,
     className: "text-aqua-600"
-  }), "Status & review proyek"), React.createElement(Btn, {
+  }), "Status, review & tanda tangan"), React.createElement(Btn, {
     icon: "X",
     onClick: onClose,
     title: "Tutup"
@@ -22521,13 +23440,13 @@ function ReviewDialog({
     }));
   })), React.createElement("div", null, "Status saat ini: ", React.createElement("span", {
     className: 'pill ' + S[1]
-  }, S[0])), React.createElement("table", {
+  }, S[0])), React.createElement("div", {
+    className: "grid grid-cols-1 sm:grid-cols-2 gap-2"
+  }, uSel('checker', `Pemeriksa (${project.meta.checkedBy || 'Staf LPASL'})`), uSel('approver', `Penyetuju (${project.meta.approvedBy || 'Kepala LPASL'})`)), users && !users.length && canAssign && React.createElement("p", {
+    className: "text-[12px] text-amber-700"
+  }, "Daftar pengguna tidak dapat dimuat (periksa aturan firestore.rules terbaru)."), React.createElement("table", {
     className: "tp-table"
-  }, React.createElement("tbody", null, React.createElement("tr", null, React.createElement("td", {
-    className: "text-slate-500"
-  }, "Pemeriksa (", project.meta.checkedBy || 'Staf LPASL', ")"), React.createElement("td", null, project.meta.checkedName ? `${project.meta.checkedName} · ${project.meta.checkedDate || ''}` : '–')), React.createElement("tr", null, React.createElement("td", {
-    className: "text-slate-500"
-  }, "Penyetuju (", project.meta.approvedBy || 'Kepala LPASL', ")"), React.createElement("td", null, project.meta.approvedName ? `${project.meta.approvedName} · ${project.meta.approvedDate || ''}` : '–')))), acts.length > 0 ? React.createElement("div", {
+  }, React.createElement("tbody", null, sigRow('checker', 'Tanda tangan pemeriksa'), sigRow('approver', 'Tanda tangan penyetuju'))), canAssign || canCheck || canApprove || canRevise || user.admin && c.status === 'approved' ? React.createElement("div", {
     className: "space-y-2"
   }, React.createElement(Field, {
     label: "Catatan (wajib bila dikembalikan untuk revisi)"
@@ -22544,13 +23463,35 @@ function ReviewDialog({
     className: "text-red-700"
   }, err), React.createElement("div", {
     className: "flex flex-wrap gap-2"
-  }, acts.map(([to, l, v, nn]) => React.createElement(Btn, {
-    key: to,
-    variant: v,
-    onClick: () => go(to, nn)
-  }, l)))) : React.createElement("p", {
+  }, canAssign && React.createElement(Btn, {
+    variant: "primary",
+    icon: "Send",
+    onClick: submit
+  }, "Ajukan untuk diperiksa"), canCheck && React.createElement(Btn, {
+    variant: "primary",
+    icon: "FileSignature",
+    onClick: () => setSigning('checker')
+  }, "Periksa & tanda tangani"), canApprove && React.createElement(Btn, {
+    variant: "primary",
+    icon: "FileSignature",
+    onClick: () => setSigning('approver')
+  }, "Setujui & tanda tangani"), canRevise && React.createElement(Btn, {
+    variant: "danger",
+    onClick: revise
+  }, "Kembalikan untuk revisi"), user.admin && c.status === 'approved' && React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => {
+      if (!note.trim()) {
+        setErr('Tulis catatan alasannya terlebih dulu.');
+        return;
+      }
+      onAct('draft', note.trim());
+    }
+  }, "Buka kembali untuk diubah")), React.createElement("p", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Setelah diajukan, pemeriksa mendapat notifikasi. Begitu pemeriksa menandatangani, dokumen otomatis diteruskan ke penyetuju; setelah penyetuju menandatangani, pemilik diberi tahu.")) : React.createElement("p", {
     className: "text-slate-500"
-  }, c.status === 'approved' ? 'Proyek sudah disetujui. Perubahan isi akan mengembalikan status ke "Sedang dikerjakan".' : user.admin ? 'Tidak ada tindakan untuk status ini.' : 'Pemeriksaan dan persetujuan dilakukan oleh admin LPASL.'), React.createElement("div", null, React.createElement("div", {
+  }, c.status === 'review' ? `Menunggu pemeriksaan oleh ${rv.checker?.name || 'pemeriksa'}.` : c.status === 'checked' ? `Menunggu persetujuan oleh ${rv.approver?.name || 'penyetuju'}.` : c.status === 'approved' ? 'Proyek sudah disetujui. Perubahan isi akan membatalkan tanda tangan dan mengembalikan status ke "Sedang dikerjakan".' : 'Tidak ada tindakan untuk Anda pada status ini.'), React.createElement("div", null, React.createElement("div", {
     className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5"
   }, "Riwayat"), (c.reviews || []).length === 0 ? React.createElement("p", {
     className: "text-slate-500"
@@ -22565,9 +23506,577 @@ function ReviewDialog({
     className: 'pill ' + (PSTATUS[r.to] || PSTATUS.draft)[1]
   }, (PSTATUS[r.to] || PSTATUS.draft)[0]), React.createElement("span", {
     className: "text-[12px] text-slate-500"
-  }, r.by?.name, r.by?.role ? ` (${r.by.role})` : '', " \xB7 ", dtTxt(r.at))), r.note && React.createElement("div", {
+  }, r.by?.name, r.by?.role ? ` (${r.by.role})` : '', " \xB7 ", dtTxt(r.at), r.signed ? ' · ✍ ditandatangani' : '')), r.note && React.createElement("div", {
     className: "mt-1 text-[12.5px]"
-  }, r.note))))))));
+  }, r.note))))))), signing && React.createElement(SignPad, {
+    user: user,
+    project: project,
+    roleLabel: signing === 'checker' ? 'Pemeriksa' : 'Penyetuju',
+    onCancel: () => setSigning(null),
+    onSign: async ({
+      sig,
+      hash
+    }) => {
+      await onAct(signing === 'checker' ? 'checked' : 'approved', note.trim(), {
+        sign: {
+          role: signing,
+          sig,
+          hash,
+          uid: user.uid,
+          name: user.name || user.email,
+          email: user.email,
+          at: Date.now()
+        }
+      });
+      setSigning(null);
+      setNote('');
+    }
+  }));
+}
+const NOTIFY = window.TIRTAPLAN_AUTH && window.TIRTAPLAN_AUTH.notify || {};
+const ADMIN_EMAILS = (window.TIRTAPLAN_AUTH && window.TIRTAPLAN_AUTH.adminEmails || []).map(e => String(e).trim().toLowerCase());
+const LOCAL_INBOX = 'tirtaplan-inbox';
+async function sha256Hex(str) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function ntfyTopicFor(email) {
+  return NOTIFY.ntfyTopic ? `${NOTIFY.ntfyTopic}-${(await sha256Hex(normEmail(email))).slice(0, 10)}` : null;
+}
+const appUrl = () => location.origin + location.pathname;
+const NTFY_TEXT = {
+  register: 'Ada pendaftar baru menunggu persetujuan admin.',
+  review: 'Ada proyek menunggu pemeriksaan Anda.',
+  checked: 'Ada proyek menunggu persetujuan Anda.',
+  approved: 'Proyek Anda sudah disetujui.',
+  revisi: 'Proyek Anda dikembalikan untuk revisi.',
+  info: 'Ada pemberitahuan baru.'
+};
+async function sendNotify(api, {
+  to,
+  title,
+  body,
+  kind = 'info',
+  projectId = '',
+  from = null
+}) {
+  const out = {
+    inbox: 0,
+    push: 0,
+    email: 0
+  };
+  const seen = new Set();
+  for (const r of to || []) {
+    if (!r || !r.email) continue;
+    const email = normEmail(r.email);
+    if (seen.has(email)) continue;
+    seen.add(email);
+    const rec = {
+      toEmail: email,
+      toUid: r.uid || '',
+      title,
+      body,
+      kind,
+      projectId,
+      fromUid: from?.uid || '',
+      fromName: from?.name || '',
+      read: false
+    };
+    try {
+      if (api && api.db) await api.db.collection('notifications').add({
+        ...rec,
+        at: firebase.firestore.FieldValue.serverTimestamp()
+      });else {
+        const l = JSON.parse(localStorage.getItem(LOCAL_INBOX) || '[]');
+        l.push({
+          ...rec,
+          id: uid('nt'),
+          at: Date.now()
+        });
+        localStorage.setItem(LOCAL_INBOX, JSON.stringify(l.slice(-300)));
+        window.dispatchEvent(new Event('tp-inbox'));
+      }
+      out.inbox++;
+    } catch (e) {}
+    const topic = await ntfyTopicFor(email).catch(() => null);
+    if (topic) try {
+      const rs = await fetch('https://ntfy.sh/', {
+        method: 'POST',
+        body: JSON.stringify({
+          topic,
+          title: 'WASH PMI',
+          message: NTFY_TEXT[kind] || NTFY_TEXT.info,
+          click: appUrl(),
+          tags: ['droplet']
+        })
+      });
+      if (rs.ok) out.push++;
+    } catch (e) {}
+    const ej = NOTIFY.emailjs;
+    if (ej && ej.serviceId && ej.templateId && ej.publicKey) try {
+      const rs = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          service_id: ej.serviceId,
+          template_id: ej.templateId,
+          user_id: ej.publicKey,
+          template_params: {
+            to_email: email,
+            to_name: r.name || email,
+            subject: title,
+            message: body,
+            link: appUrl()
+          }
+        })
+      });
+      if (rs.ok) out.email++;
+    } catch (e) {}
+  }
+  return out;
+}
+async function browserNotify(title, body, tag) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const reg = navigator.serviceWorker && (await navigator.serviceWorker.getRegistration());
+    if (reg && reg.showNotification) {
+      await reg.showNotification(title, {
+        body,
+        tag,
+        icon: 'icon-192.png',
+        badge: 'icon-192.png'
+      });
+      return;
+    }
+    new Notification(title, {
+      body,
+      tag
+    });
+  } catch (e) {}
+}
+function useInbox(api, user) {
+  const [items, setItems] = useState([]);
+  const firstRef = useRef(true);
+  const seenRef = useRef(new Set());
+  const [popup, setPopup] = useState(null);
+  useEffect(() => {
+    if (!user) return;
+    const me = normEmail(user.email);
+    firstRef.current = true;
+    const apply = list => {
+      list.sort((a, b) => (b.at || 0) - (a.at || 0));
+      setItems(list);
+      const fresh = list.filter(x => !x.read && !seenRef.current.has(x.id));
+      list.forEach(x => seenRef.current.add(x.id));
+      if (!firstRef.current && fresh.length) {
+        setPopup(fresh[0]);
+        browserNotify(fresh[0].title, fresh[0].body, fresh[0].id);
+      }
+      firstRef.current = false;
+    };
+    if (api && api.db) return api.db.collection('notifications').where('toEmail', '==', me).onSnapshot(s => apply(s.docs.map(d => {
+      const x = d.data();
+      return {
+        ...x,
+        id: d.id,
+        at: x.at && x.at.toMillis ? x.at.toMillis() : Date.now()
+      };
+    })), () => {});
+    const read = () => {
+      try {
+        apply(JSON.parse(localStorage.getItem(LOCAL_INBOX) || '[]').filter(x => x.toEmail === me));
+      } catch (e) {}
+    };
+    read();
+    window.addEventListener('tp-inbox', read);
+    window.addEventListener('storage', read);
+    const t = setInterval(read, 15000);
+    return () => {
+      window.removeEventListener('tp-inbox', read);
+      window.removeEventListener('storage', read);
+      clearInterval(t);
+    };
+  }, [api, user && user.email]);
+  const mark = async (ids, patch = {
+    read: true
+  }) => {
+    if (api && api.db) {
+      for (const id of ids) await api.db.collection('notifications').doc(id).update(patch).catch(() => {});
+    } else {
+      try {
+        const l = JSON.parse(localStorage.getItem(LOCAL_INBOX) || '[]').map(x => ids.includes(x.id) ? {
+          ...x,
+          ...patch
+        } : x);
+        localStorage.setItem(LOCAL_INBOX, JSON.stringify(l));
+        window.dispatchEvent(new Event('tp-inbox'));
+      } catch (e) {}
+    }
+  };
+  const clearRead = async () => {
+    const ids = items.filter(x => x.read).map(x => x.id);
+    if (api && api.db) {
+      for (const id of ids) await api.db.collection('notifications').doc(id).delete().catch(() => {});
+    } else {
+      try {
+        const l = JSON.parse(localStorage.getItem(LOCAL_INBOX) || '[]').filter(x => !ids.includes(x.id));
+        localStorage.setItem(LOCAL_INBOX, JSON.stringify(l));
+        window.dispatchEvent(new Event('tp-inbox'));
+      } catch (e) {}
+    }
+  };
+  return {
+    items,
+    unread: items.filter(x => !x.read).length,
+    mark,
+    clearRead,
+    popup,
+    setPopup
+  };
+}
+function usePendingUsers(api, user) {
+  const [pend, setPend] = useState([]);
+  const [fresh, setFresh] = useState(null);
+  const seen = useRef(null);
+  useEffect(() => {
+    if (!user || !user.admin || !api) return;
+    const apply = list => {
+      if (seen.current) {
+        const nw = list.filter(u => !seen.current.has(u.uid));
+        if (nw.length) {
+          setFresh(nw[0]);
+          browserNotify('Pendaftar baru', `${nw[0].name || nw[0].email} menunggu persetujuan.`, 'reg-' + nw[0].uid);
+        }
+      }
+      seen.current = new Set(list.map(u => u.uid));
+      setPend(list);
+    };
+    if (api.db) return api.db.collection('users').where('status', '==', 'pending').onSnapshot(s => apply(s.docs.map(d => ({
+      uid: d.id,
+      ...d.data()
+    }))), () => {});
+    const poll = () => api.listUsers().then(l => apply(l.filter(u => u.status === 'pending'))).catch(() => {});
+    poll();
+    const t = setInterval(poll, 15000);
+    return () => clearInterval(t);
+  }, [api, user && user.uid, user && user.admin]);
+  return {
+    pend,
+    fresh,
+    setFresh
+  };
+}
+function NotifyCenter({
+  inbox,
+  user,
+  onOpenItem,
+  onClose
+}) {
+  const [topic, setTopic] = useState(null);
+  const [perm, setPerm] = useState(() => 'Notification' in window ? Notification.permission : 'unsupported');
+  useEffect(() => {
+    ntfyTopicFor(user.email).then(setTopic).catch(() => {});
+  }, [user.email]);
+  const ask = async () => {
+    try {
+      setPerm(await Notification.requestPermission());
+    } catch (e) {}
+  };
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2150] bg-black/30 flex justify-end",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white w-full max-w-sm h-full flex flex-col shadow-2xl",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center justify-between px-4 py-3 border-b border-line"
+  }, React.createElement("span", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "Bell",
+    size: 17,
+    className: "text-aqua-700"
+  }), "Notifikasi"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose
+  })), React.createElement("div", {
+    className: "flex-1 overflow-y-auto"
+  }, !inbox.items.length && React.createElement("p", {
+    className: "p-4 text-[13px] text-slate-500"
+  }, "Belum ada notifikasi."), inbox.items.map(n => React.createElement("button", {
+    key: n.id,
+    type: "button",
+    onClick: () => onOpenItem(n),
+    className: 'w-full text-left px-4 py-3 border-b border-line/70 hover:bg-aqua-50 ' + (n.read ? '' : 'bg-sky-50')
+  }, React.createElement("div", {
+    className: "flex items-start gap-2"
+  }, React.createElement(Icon, {
+    name: n.kind === 'register' ? 'UserPlus' : n.kind === 'approved' ? 'BadgeCheck' : n.kind === 'revisi' ? 'Undo2' : 'FileSignature',
+    size: 16,
+    className: "mt-0.5 text-aqua-700 shrink-0"
+  }), React.createElement("span", {
+    className: "min-w-0"
+  }, React.createElement("span", {
+    className: 'block text-[13px] ' + (n.read ? '' : 'font-semibold')
+  }, n.title), React.createElement("span", {
+    className: "block text-[12px] text-slate-600"
+  }, n.body), React.createElement("span", {
+    className: "block text-[11px] text-slate-400 mt-0.5"
+  }, dtTxt(n.at), n.fromName ? ` · ${n.fromName}` : '')))))), React.createElement("div", {
+    className: "border-t border-line p-4 space-y-2.5 text-[12.5px]"
+  }, inbox.items.some(x => x.read) && React.createElement(Btn, {
+    variant: "ghost",
+    icon: "Trash2",
+    onClick: inbox.clearRead
+  }, "Hapus yang sudah dibaca"), React.createElement("div", {
+    className: "font-semibold text-[11px] uppercase tracking-wide text-slate-500"
+  }, "Cara menerima notifikasi"), React.createElement("div", {
+    className: "flex items-center justify-between gap-2"
+  }, React.createElement("span", null, "Notifikasi browser/HP (saat browser terbuka)"), perm === 'granted' ? React.createElement("span", {
+    className: "pill s-ok"
+  }, "aktif") : perm === 'unsupported' ? React.createElement("span", {
+    className: "pill s-idle"
+  }, "tidak didukung") : React.createElement(Btn, {
+    variant: "outline",
+    onClick: ask
+  }, "Aktifkan")), topic ? React.createElement("div", {
+    className: "rounded-md bg-ground p-2.5 space-y-1"
+  }, React.createElement("div", null, "Push walau aplikasi tertutup: pasang aplikasi ", React.createElement("b", null, "ntfy"), " lalu langganan topik pribadi Anda:"), React.createElement("div", {
+    className: "flex items-center gap-1.5"
+  }, React.createElement("code", {
+    className: "flex-1 min-w-0 truncate bg-white border border-line rounded px-1.5 py-0.5 text-[11.5px]"
+  }, topic), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Copy",
+    title: "Salin topik",
+    onClick: () => navigator.clipboard && navigator.clipboard.writeText(topic)
+  }), React.createElement("a", {
+    className: "text-aqua-700 font-semibold",
+    href: 'https://ntfy.sh/' + topic,
+    target: "_blank",
+    rel: "noopener"
+  }, "Buka"))) : React.createElement("p", {
+    className: "text-slate-500"
+  }, "Push saat aplikasi tertutup (ntfy) belum disiapkan admin di ", React.createElement("code", null, "auth-config.js"), "."), React.createElement("p", {
+    className: "text-slate-500"
+  }, NOTIFY.emailjs && NOTIFY.emailjs.serviceId ? 'Email notifikasi aktif.' : 'Email notifikasi belum disiapkan (EmailJS di auth-config.js).'))));
+}
+async function contentHash(p) {
+  const m = {
+    ...p.meta
+  };
+  ['checkedName', 'checkedDate', 'approvedName', 'approvedDate', 'checkedSig', 'approvedSig'].forEach(k => delete m[k]);
+  return sha256Hex(JSON.stringify({
+    meta: m,
+    nodes: p.nodes,
+    pipes: p.pipes,
+    structures: p.structures,
+    treatments: p.treatments,
+    settings: p.settings,
+    prices: p.prices,
+    rabEdits: p.rabEdits,
+    shs: p.shs
+  }));
+}
+const SIG_KEY = u => 'tirtaplan-sig:' + u;
+function SignPad({
+  user,
+  roleLabel,
+  project,
+  onSign,
+  onCancel
+}) {
+  const cv = useRef(null);
+  const drawing = useRef(false);
+  const [empty, setEmpty] = useState(true);
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const saved = (() => {
+    try {
+      return localStorage.getItem(SIG_KEY(user.uid));
+    } catch (e) {
+      return null;
+    }
+  })();
+  useEffect(() => {
+    const c = cv.current;
+    const r = c.getBoundingClientRect();
+    c.width = r.width * 2;
+    c.height = r.height * 2;
+    const g = c.getContext('2d');
+    g.scale(2, 2);
+    g.lineWidth = 2.2;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.strokeStyle = '#0d2a6b';
+  }, []);
+  const pos = e => {
+    const r = cv.current.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+  const down = e => {
+    e.preventDefault();
+    cv.current.setPointerCapture(e.pointerId);
+    drawing.current = true;
+    const g = cv.current.getContext('2d');
+    const [x, y] = pos(e);
+    g.beginPath();
+    g.moveTo(x, y);
+  };
+  const move = e => {
+    if (!drawing.current) return;
+    const g = cv.current.getContext('2d');
+    const [x, y] = pos(e);
+    g.lineTo(x, y);
+    g.stroke();
+    setEmpty(false);
+  };
+  const clear = () => {
+    const c = cv.current;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    setEmpty(true);
+  };
+  const useSaved = () => {
+    const img = new Image();
+    img.onload = () => {
+      clear();
+      const c = cv.current,
+        g = c.getContext('2d');
+      const r = c.getBoundingClientRect();
+      const k = Math.min(r.width / img.width, r.height / img.height);
+      g.drawImage(img, (r.width - img.width * k) / 2, (r.height - img.height * k) / 2, img.width * k, img.height * k);
+      setEmpty(false);
+    };
+    img.src = saved;
+  };
+  const exportSig = () => {
+    const c = cv.current,
+      g = c.getContext('2d');
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let x0 = c.width,
+      y0 = c.height,
+      x1 = 0,
+      y1 = 0;
+    for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) if (d[(y * c.width + x) * 4 + 3] > 20) {
+      if (x < x0) x0 = x;
+      if (y < y0) y0 = y;
+      if (x > x1) x1 = x;
+      if (y > y1) y1 = y;
+    }
+    const w = Math.max(10, x1 - x0 + 12),
+      h = Math.max(10, y1 - y0 + 12);
+    const k = Math.min(1, 400 / w, 160 / h);
+    const o = document.createElement('canvas');
+    o.width = Math.round(w * k);
+    o.height = Math.round(h * k);
+    o.getContext('2d').drawImage(c, Math.max(0, x0 - 6), Math.max(0, y0 - 6), w, h, 0, 0, o.width, o.height);
+    return o.toDataURL('image/png');
+  };
+  const go = async () => {
+    setBusy(true);
+    const sig = exportSig();
+    try {
+      localStorage.setItem(SIG_KEY(user.uid), sig);
+    } catch (e) {}
+    const hash = await contentHash(project);
+    await onSign({
+      sig,
+      hash
+    });
+    setBusy(false);
+  };
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2300] bg-black/50 flex items-center justify-center p-3",
+    onClick: onCancel
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-lg p-4 space-y-3",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "font-semibold flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "FileSignature",
+    size: 17,
+    className: "text-aqua-700"
+  }), "Tanda tangan elektronik \xB7 ", roleLabel), React.createElement("div", {
+    className: "text-[12.5px] text-slate-600"
+  }, user.name || user.email, " (", user.email, ") \xB7 ", project.meta.name), React.createElement("canvas", {
+    ref: cv,
+    onPointerDown: down,
+    onPointerMove: move,
+    onPointerUp: () => drawing.current = false,
+    onPointerLeave: () => drawing.current = false,
+    className: "w-full h-40 border-2 border-dashed border-slate-300 rounded-md touch-none bg-[linear-gradient(transparent_75%,#e2e8f0_75%,#e2e8f0_76%,transparent_76%)]"
+  }), React.createElement("div", {
+    className: "flex gap-2 text-[12.5px]"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "Eraser",
+    onClick: clear
+  }, "Ulangi"), saved && React.createElement(Btn, {
+    variant: "outline",
+    icon: "History",
+    onClick: useSaved
+  }, "Pakai tanda tangan tersimpan")), React.createElement("label", {
+    className: "flex items-start gap-2 text-[12.5px]"
+  }, React.createElement("input", {
+    id: "sig-agree",
+    type: "checkbox",
+    className: "mt-0.5",
+    checked: agree,
+    onChange: e => setAgree(e.target.checked)
+  }), React.createElement("span", null, "Saya menyatakan telah ", /setuju/i.test(roleLabel) ? 'menyetujui' : 'memeriksa', " dokumen perencanaan ini. Tanda tangan dicatat bersama waktu dan sidik dokumen (SHA-256); bila isi proyek diubah, tanda tangan otomatis batal.")), React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, "Catatan: ini tanda tangan elektronik internal aplikasi, bukan Tanda Tangan Elektronik tersertifikasi (BSrE/PSrE)."), React.createElement("div", {
+    className: "flex justify-end gap-2"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    onClick: onCancel
+  }, "Batal"), React.createElement(Btn, {
+    variant: "primary",
+    icon: "FileSignature",
+    disabled: empty || !agree || busy,
+    onClick: go
+  }, busy ? 'Menandatangani…' : 'Tanda tangani'))));
+}
+function SignReport({
+  project
+}) {
+  const signs = project.cloud?.signs || [];
+  const [cur, setCur] = useState(null);
+  useEffect(() => {
+    contentHash(project).then(setCur);
+  }, [project]);
+  const row = (role, label) => {
+    const s = [...signs].reverse().find(x => x.role === role);
+    return React.createElement("tr", {
+      key: role
+    }, React.createElement("td", null, label), React.createElement("td", null, s ? s.name : '–'), React.createElement("td", {
+      style: {
+        height: '20mm',
+        textAlign: 'center'
+      }
+    }, s ? React.createElement("img", {
+      src: s.sig,
+      alt: "ttd",
+      style: {
+        maxHeight: '18mm',
+        maxWidth: '50mm'
+      }
+    }) : ''), React.createElement("td", null, s ? dtTxt(s.at) : ''), React.createElement("td", {
+      style: {
+        fontFamily: 'monospace',
+        fontSize: '7pt'
+      }
+    }, s ? `${s.hash.slice(0, 16)}… ${cur ? cur === s.hash ? '✓ sesuai' : '✗ isi berubah' : ''}` : ''));
+  };
+  return React.createElement(React.Fragment, null, React.createElement("h3", null, "Lembar pengesahan"), React.createElement("table", null, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Peran"), React.createElement("th", null, "Nama"), React.createElement("th", null, "Tanda tangan"), React.createElement("th", null, "Waktu"), React.createElement("th", null, "Sidik dokumen (SHA-256)"))), React.createElement("tbody", null, row('checker', `Diperiksa (${project.meta.checkedBy || 'Staf LPASL'})`), row('approver', `Disetujui (${project.meta.approvedBy || 'Kepala LPASL'})`))), React.createElement("p", {
+    style: {
+      fontSize: '8pt',
+      color: '#555'
+    }
+  }, "Tanda tangan elektronik internal aplikasi WASH PMI (bukan TTE tersertifikasi BSrE). Sidik dokumen menunjukkan isi desain tidak berubah sejak ditandatangani."));
 }
 function ConflictDialog({
   info,
@@ -22672,11 +24181,14 @@ function App({
             checkedName: '',
             checkedDate: '',
             approvedName: '',
-            approvedDate: ''
+            approvedDate: '',
+            checkedSig: '',
+            approvedSig: ''
           },
           cloud: {
             ...next.cloud,
             status: 'draft',
+            signs: [],
             reviews: [...(next.cloud.reviews || []), {
               at: Date.now(),
               by: who ? {
@@ -22805,6 +24317,10 @@ function App({
     });
   };
   const [menuOpen, setMenuOpen] = useState(false);
+  const [assistOpen, setAssistOpen] = useState(false);
+  const inbox = useInbox(api, user);
+  const pendU = usePendingUsers(api, user);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [logoutAsk, setLogoutAsk] = useState(false);
   const [deviceDlg, setDeviceDlg] = useState(false);
   const [pendingLoad, setPendingLoad] = useState(null);
@@ -23319,7 +24835,9 @@ function App({
   const pushCloud = useCallback(async (p, opts = {}) => {
     if (!store) return;
     const id = p.cloud.id;
-    if (p.cloud.ownerUid !== user.uid && !user.admin) {
+    const rvw = p.cloud.reviewers || {};
+    const isRv = [rvw.checker?.uid, rvw.approver?.uid].includes(user.uid);
+    if (p.cloud.ownerUid !== user.uid && !user.admin && !isRv) {
       if (id === projectRef.current.cloud.id) setSync({
         state: 'readonly'
       });
@@ -23544,6 +25062,26 @@ function App({
     if (!p) throw new Error('Proyek ini belum tersimpan di perangkat ini dan perangkat sedang offline.');
     return p;
   };
+  const openNotif = async n => {
+    inbox.mark([n.id]);
+    setNotifOpen(false);
+    inbox.setPopup(null);
+    if (n.kind === 'register') {
+      if (user.admin) setUserAdmin(true);
+      return;
+    }
+    if (n.projectId) {
+      try {
+        if (n.projectId !== projectRef.current.cloud.id) await openProject({
+          id: n.projectId,
+          rev: 1e15
+        });
+        setReviewOpen(true);
+      } catch (e) {
+        setToast(e.message || 'Proyek tidak dapat dibuka');
+      }
+    }
+  };
   const openProject = async it => {
     saveCurrentLocal();
     const p = await fetchProject(it);
@@ -23585,50 +25123,102 @@ function App({
     localLib.remove(user.uid, it.id);
     setToast(`Proyek "${it.name}" dihapus`);
   };
-  const reviewAct = (to, note) => setProject(p => {
-    const c = p.cloud;
-    const meta = {
-      ...p.meta
+  const reviewAct = (to, note, extra = {}) => {
+    const p0 = projectRef.current;
+    const c0 = p0.cloud;
+    const me = {
+      uid: user.uid,
+      name: user.name || user.email,
+      email: user.email
     };
+    setProject(p => {
+      const c = p.cloud;
+      const meta = {
+        ...p.meta
+      };
+      let signs = [...(c.signs || [])];
+      const reviewers = extra.reviewers || c.reviewers || null;
+      if (to === 'checked') {
+        meta.checkedName = user.name || user.email;
+        meta.checkedDate = todayStr();
+        if (extra.sign) meta.checkedSig = extra.sign.sig;
+      }
+      if (to === 'approved') {
+        meta.approvedName = user.name || user.email;
+        meta.approvedDate = todayStr();
+        if (extra.sign) meta.approvedSig = extra.sign.sig;
+      }
+      if (to === 'revisi' || to === 'draft' || to === 'review') {
+        meta.approvedName = '';
+        meta.approvedDate = '';
+        meta.approvedSig = '';
+        signs = signs.filter(x => x.role !== 'approver');
+        if (to !== 'review' && (to === 'revisi' || c.status === 'approved')) {
+          meta.checkedName = '';
+          meta.checkedDate = '';
+          meta.checkedSig = '';
+          signs = [];
+        }
+        if (to === 'review') {
+          meta.checkedName = '';
+          meta.checkedDate = '';
+          meta.checkedSig = '';
+          signs = [];
+        }
+      }
+      if (extra.sign) signs.push(extra.sign);
+      return {
+        ...p,
+        meta,
+        cloud: {
+          ...c,
+          status: to,
+          reviewers,
+          signs,
+          reviews: [...(c.reviews || []), {
+            at: Date.now(),
+            by: {
+              uid: user.uid,
+              name: user.name || user.email,
+              role: user.role || ''
+            },
+            from: c.status || 'draft',
+            to,
+            note,
+            signed: !!extra.sign
+          }]
+        }
+      };
+    }, {
+      noStamp: true,
+      system: true
+    });
+    const rv = extra.reviewers || c0.reviewers || {};
+    const owner = {
+      uid: c0.ownerUid,
+      email: c0.ownerEmail,
+      name: c0.ownerName
+    };
+    const nm = p0.meta.name || 'Proyek';
+    const pid = c0.id;
+    const N = (to2, title, body, kind) => sendNotify(api, {
+      to: to2.filter(Boolean),
+      title,
+      body,
+      kind,
+      projectId: pid,
+      from: me
+    }).then(r => {
+      if (r.inbox || r.email || r.push) setToast(`Notifikasi terkirim ke ${to2.filter(Boolean).map(x => x.name || x.email).join(', ')}`);
+    }).catch(() => {});
+    if (to === 'review' && rv.checker) N([rv.checker], `Periksa proyek: ${nm}`, `${me.name} mengajukan "${nm}" untuk diperiksa dan ditandatangani.${note ? ' Catatan: ' + note : ''}`, 'review');
     if (to === 'checked') {
-      meta.checkedName = user.name || user.email;
-      meta.checkedDate = todayStr();
+      if (rv.approver) N([rv.approver], `Persetujuan proyek: ${nm}`, `"${nm}" sudah diperiksa dan ditandatangani ${me.name}. Mohon diperiksa dan disetujui.`, 'checked');
+      N([owner], `Proyek diperiksa: ${nm}`, `${me.name} sudah menandatangani pemeriksaan "${nm}"; diteruskan ke ${rv.approver?.name || 'penyetuju'}.`, 'info');
     }
-    if (to === 'approved') {
-      meta.approvedName = user.name || user.email;
-      meta.approvedDate = todayStr();
-    }
-    if (to === 'revisi' || to === 'draft') {
-      meta.approvedName = '';
-      meta.approvedDate = '';
-      if (to === 'revisi' || c.status === 'approved') {
-        meta.checkedName = '';
-        meta.checkedDate = '';
-      }
-    }
-    return {
-      ...p,
-      meta,
-      cloud: {
-        ...c,
-        status: to,
-        reviews: [...(c.reviews || []), {
-          at: Date.now(),
-          by: {
-            uid: user.uid,
-            name: user.name || user.email,
-            role: user.role || ''
-          },
-          from: c.status || 'draft',
-          to,
-          note
-        }]
-      }
-    };
-  }, {
-    noStamp: true,
-    system: true
-  });
+    if (to === 'approved') N([owner, rv.checker], `Proyek disetujui: ${nm}`, `"${nm}" sudah disetujui dan ditandatangani ${me.name}.`, 'approved');
+    if (to === 'revisi') N([owner], `Revisi diperlukan: ${nm}`, `${me.name} mengembalikan "${nm}" untuk revisi. Catatan: ${note}`, 'revisi');
+  };
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(''), 2600);
@@ -23776,6 +25366,17 @@ function App({
     className: "tp-rec w-1.5 h-1.5 rounded-full bg-white"
   }), "REC"), React.createElement("button", {
     type: "button",
+    id: "bell-m",
+    onClick: () => setNotifOpen(true),
+    className: "relative p-2 rounded",
+    "aria-label": "Notifikasi"
+  }, React.createElement(Icon, {
+    name: "Bell",
+    size: 20
+  }), inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && React.createElement("span", {
+    className: "absolute top-0.5 right-0.5 min-w-[16px] h-[16px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5"
+  }, inbox.unread + (user.admin ? pendU.pend.length : 0))), React.createElement("button", {
+    type: "button",
     disabled: !histLen,
     onClick: undo,
     className: "p-2 rounded disabled:opacity-30",
@@ -23838,12 +25439,23 @@ function App({
     gap: 12
   })), React.createElement("div", {
     className: "flex-1"
-  }), user.admin && React.createElement(Btn, {
+  }), React.createElement("button", {
+    type: "button",
+    id: "bell-d",
+    onClick: () => setNotifOpen(true),
+    title: "Notifikasi",
+    className: "relative inline-flex items-center rounded-md px-2.5 py-1.5 text-slate-200 hover:bg-white/10 border border-white/10"
+  }, React.createElement(Icon, {
+    name: "Bell",
+    size: 16
+  }), inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && React.createElement("span", {
+    className: "absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10.5px] font-bold flex items-center justify-center px-1"
+  }, inbox.unread + (user.admin ? pendU.pend.length : 0))), user.admin && React.createElement(Btn, {
     variant: "dark",
     icon: "UserRound",
     onClick: () => setUserAdmin(true),
     title: "Setujui pendaftar & atur akses"
-  }, "Kelola pengguna"), React.createElement(Btn, {
+  }, "Kelola pengguna", pendU.pend.length ? ` (${pendU.pend.length})` : ''), React.createElement(Btn, {
     variant: "dark",
     icon: "X",
     onClick: logout,
@@ -24126,9 +25738,10 @@ function App({
   }), reviewOpen && React.createElement(ReviewDialog, {
     project: project,
     user: user,
+    api: api,
     onClose: () => setReviewOpen(false),
-    onAct: (to, note) => {
-      reviewAct(to, note);
+    onAct: (to, note, extra) => {
+      reviewAct(to, note, extra);
       setToast(`Status proyek: ${PSTATUS[to][0]}`);
     }
   }), conflict && React.createElement(ConflictDialog, {
@@ -24252,7 +25865,7 @@ function App({
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
+  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
     key: i,
     type: "button",
     disabled: dis,
@@ -24303,7 +25916,75 @@ function App({
     multiple: true,
     className: "hidden",
     onChange: onPhotoFiles
-  }), logoutAsk && React.createElement("div", {
+  }), assistOpen ? React.createElement(AssistantPanel, {
+    project: project,
+    hyd: hyd,
+    rab: rab,
+    onClose: () => setAssistOpen(false)
+  }) : !printMode && React.createElement("button", {
+    type: "button",
+    id: "assist-btn",
+    onClick: () => setAssistOpen(true),
+    title: "Asisten WASH",
+    className: "fixed z-[1900] bottom-20 right-3 lg:bottom-4 lg:right-4 flex items-center gap-1.5 rounded-full bg-deep text-white shadow-xl px-3.5 py-2.5 text-[13px] font-semibold hover:bg-aqua-800"
+  }, React.createElement(Icon, {
+    name: "MessagesSquare",
+    size: 17
+  }), "Asisten"), notifOpen && React.createElement(NotifyCenter, {
+    inbox: inbox,
+    user: user,
+    onOpenItem: openNotif,
+    onClose: () => setNotifOpen(false)
+  }), (inbox.popup || user.admin && pendU.fresh) && React.createElement("div", {
+    className: "fixed z-[2250] top-3 right-3 w-[min(360px,calc(100vw-24px))] space-y-2"
+  }, inbox.popup && React.createElement("div", {
+    className: "bg-white rounded-lg shadow-2xl border border-aqua-300 p-3 text-[13px]"
+  }, React.createElement("div", {
+    className: "flex items-start gap-2"
+  }, React.createElement(Icon, {
+    name: "Bell",
+    size: 17,
+    className: "text-aqua-700 mt-0.5"
+  }), React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, React.createElement("div", {
+    className: "font-semibold"
+  }, inbox.popup.title), React.createElement("div", {
+    className: "text-slate-600 text-[12.5px]"
+  }, inbox.popup.body), React.createElement("div", {
+    className: "flex gap-2 mt-2"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => openNotif(inbox.popup)
+  }, "Buka"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => inbox.setPopup(null)
+  }, "Nanti"))))), user.admin && pendU.fresh && React.createElement("div", {
+    className: "bg-white rounded-lg shadow-2xl border border-amber-300 p-3 text-[13px]"
+  }, React.createElement("div", {
+    className: "flex items-start gap-2"
+  }, React.createElement(Icon, {
+    name: "UserPlus",
+    size: 17,
+    className: "text-amber-700 mt-0.5"
+  }), React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, React.createElement("div", {
+    className: "font-semibold"
+  }, "Pendaftar baru menunggu persetujuan"), React.createElement("div", {
+    className: "text-slate-600 text-[12.5px]"
+  }, pendU.fresh.name || pendU.fresh.email, pendU.fresh.role ? ` · ${pendU.fresh.role}` : '', pendU.fresh.org ? ` · ${pendU.fresh.org}` : ''), React.createElement("div", {
+    className: "flex gap-2 mt-2"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => {
+      pendU.setFresh(null);
+      setUserAdmin(true);
+    }
+  }, "Tinjau sekarang"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: () => pendU.setFresh(null)
+  }, "Nanti")))))), logoutAsk && React.createElement("div", {
     className: "fixed inset-0 z-[2300] bg-black/40 flex items-center justify-center p-4",
     onClick: () => setLogoutAsk(false)
   }, React.createElement("div", {

@@ -37,6 +37,30 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Standar Harga Satuan (SHS) per provinsi (tab BoQ & RAB)
+- Pilih **provinsi acuan SHS**. Harga bawaan aplikasi disusun untuk Jawa Barat dan disesuaikan dengan faktor **IKK** (Indeks Kemahalan Konstruksi) provinsi tersebut.
+- Angka IKK di aplikasi adalah **perkiraan**. Perbarui dari tabel resmi BPS (Indeks Kemahalan Konstruksi provinsi) bila diperlukan; isiannya bisa diubah langsung.
+- **Impor daftar SHS** resmi (Pergub/Perbup) dengan menempel dari Excel/PDF atau memuat berkas CSV (kolom: kode, uraian, satuan, harga). Lalu tekan **Cocokkan otomatis**. Pencocokan memperhatikan diameter/ukuran dan jenis material. Tautan per item bisa diperiksa dan diubah lewat tombol **SHS** di tabel RAB (mode Edit item RAB).
+- Urutan harga: harga yang diisi manual → item SHS tertaut → harga bawaan × faktor IKK. Acuan SHS tercantum di laporan cetak.
+
+## Asisten WASH (chatbot)
+- Tombol **Asisten** di pojok kanan bawah.
+- **Mode luring** (tanpa biaya): menjawab dari basis pengetahuan (cara memakai aplikasi, troubleshooting, kriteria teknis SPAM, baku mutu Permenkes 2/2023, STBM, standar Sphere). Tombol **Periksa proyek ini** memberi diagnosis cepat dari analisis hidrolis.
+- **Mode AI (opsional)**: isi kunci API Anthropic di pengaturan asisten. Kunci disimpan hanya di perangkat itu. Pertanyaan dan ringkasan proyek dikirim ke Claude (model `claude-opus-5-5`), dan biaya ditagihkan ke kunci API tersebut.
+
+## Notifikasi & alur review dengan tanda tangan elektronik
+- **Pendaftar baru**: admin mendapat pop-up di aplikasi, notifikasi browser, dan entri di kotak masuk (ikon lonceng). Bila dikonfigurasi, admin juga mendapat push **ntfy** dan **email**.
+- **Review**: pemilik proyek memilih **pemeriksa** (Staf LPASL) dan **penyetuju** (Kepala LPASL) di *Status, review & tanda tangan*, lalu menekan **Ajukan untuk diperiksa**. Alurnya:
+  1. Pemeriksa mendapat notifikasi, membuka proyek, lalu **Periksa & tanda tangani** (tanda tangan digambar di layar).
+  2. Proyek otomatis diteruskan ke penyetuju, yang kemudian **Setujui & tanda tangani**.
+  3. Pemilik dan pemeriksa diberi tahu bahwa proyek disetujui.
+- Tanda tangan tercantum di kop setiap lembar DED dan di **Lembar pengesahan** laporan, bersama waktu dan sidik dokumen (SHA-256). Mengubah isi proyek setelah ditandatangani membatalkan tanda tangan.
+- Ini tanda tangan elektronik internal aplikasi, **bukan** TTE tersertifikasi BSrE/PSrE.
+- **Notifikasi saat aplikasi tertutup** (opsional, di `auth-config.js` → `notify`):
+  - `ntfyTopic`: isi kata acak. Setiap pengguna lalu memasang aplikasi gratis **ntfy** dan berlangganan topik pribadinya, yang tertera di ikon lonceng.
+  - `emailjs`: isi Service ID, Template ID, dan Public Key dari emailjs.com (gratis 200 email/bulan). Template memakai variabel `{{to_email}}`, `{{to_name}}`, `{{subject}}`, `{{message}}`, `{{link}}`.
+- Setelah memperbarui aplikasi, **tempel ulang `firestore.rules`** di Firebase Console. Aturan baru menambah koleksi `notifications`, izin pemeriksa/penyetuju, dan daftar pengguna untuk pemilihan pemeriksa.
+
 ## Lokasi pekerjaan & foto asesmen
 - **Lokasi pekerjaan**: saat membuat proyek baru, dialog Data proyek langsung meminta koordinat lokasi pekerjaan. Koordinat bisa diambil dari GPS, diketik (desimal / DMS / UTM), atau dicari dari nama desa. Saat berkas dibuka, peta langsung menuju lokasi itu. Setelah jaringan digambar, peta menyesuaikan jaringan, dan tiap proyek mengingat tampilan petanya sendiri.
 - **Foto asesmen**: tombol **Ambil foto** ada di inspektur node/bangunan, panel GPS, dan tab daftar **Foto**. Foto bisa diambil dengan kamera HP atau dipilih dari galeri. Koordinat GPS, waktu, dan nama petugas ikut tersimpan. Foto bisa diberi kategori (sumber air, bak/reservoir existing, fasilitas, dll.), keterangan, dan dikaitkan ke titik tertentu.

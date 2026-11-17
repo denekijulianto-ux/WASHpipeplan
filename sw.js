@@ -1,5 +1,5 @@
 // Service worker TirtaPlan Studio: aplikasi tetap terbuka tanpa sinyal di lapangan.
-const APP = 'tirtaplan-app-v17';
+const APP = 'tirtaplan-app-v18';
 const TILES = 'tirtaplan-tiles-v1';
 const MAX_TILES = 3000;
 const SHELL = ['./', './index.html', './auth-config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
@@ -34,7 +34,7 @@ async function trimTiles(c) { const keys = await c.keys(); if (keys.length > MAX
 self.addEventListener('fetch', (e) => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.hostname === 'api.open-meteo.com' || url.hostname === 'nominatim.openstreetmap.org' || /googleapis\.com|firebaseio\.com|identitytoolkit/.test(url.hostname)) return; // layanan daring: selalu dari jaringan
+  if (url.hostname === 'api.open-meteo.com' || url.hostname === 'nominatim.openstreetmap.org' || url.hostname === 'ntfy.sh' || url.hostname === 'api.emailjs.com' || url.hostname === 'api.anthropic.com' || /googleapis\.com|firebaseio\.com|identitytoolkit/.test(url.hostname)) return; // layanan daring: selalu dari jaringan
   if (url.pathname.endsWith('/auth-config.js')) { e.respondWith(fetch(req).then(r => { const cp = r.clone(); caches.open(APP).then(c => c.put(req.url, cp)); return r; }).catch(() => caches.match(req.url))); return; } // elevasi: selalu dari jaringan (aplikasi punya cadangan sendiri)
   if (isTile(url)) {
     e.respondWith((async () => {
@@ -55,4 +55,10 @@ self.addEventListener('fetch', (e) => {
     if (hit) { net.catch(() => {}); return hit; }
     return net;
   })());
+});
+
+// Klik notifikasi: buka / fokuskan aplikasi
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => { const w = list.find(c => c.url.startsWith(self.registration.scope)); return w ? w.focus() : self.clients.openWindow(self.registration.scope); }));
 });
