@@ -37,6 +37,57 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Sistem aerator (tab Olah Air → DED)
+Aktifkan unit *Aerasi* pada rangkaian IPA (disarankan otomatis bila besi/mangan/amonia tinggi), lalu pilih jenisnya:
+- **Nampan bertingkat (multiple tray)**: jumlah nampan, jarak, beban hidrolik, media (kokas/kerikil/bio-ball), bahan rangka (galvanis/SS304/FRP).
+- **Tangga / cascade (beton)**: jumlah anak tangga, tinggi & lebar injakan.
+- **Semprot (spray nozzle)**: debit per nosel & tekanan → jumlah dan diameter nosel.
+- **Difuser gelembung + blower**: waktu tinggal, kedalaman, rasio udara → jumlah difuser & daya blower.
+Lembar DED *Aerator* (potongan, denah, data teknis, daftar bahan) muncul otomatis di grup *Sumber & pengolahan air*, dan itemnya masuk RAB.
+
+## Spesifikasi teknis pompa
+Kartu sumur bor dan pompa filter menampilkan tabel *Spesifikasi teknis pompa (untuk pengadaan)*:
+- titik kerja Q–H, head tutup, kW/HP;
+- 1/3 fasa, arus, kVA, ukuran outlet;
+- jumlah stage dan diameter pompa submersible (dengan cek muat di casing & aliran pendingin motor);
+- ukuran kabel + rugi tegangan, starter & MCB, genset cadangan, standar uji.
+
+Pilih *Sumber listrik pompa* untuk memaksa 1 atau 3 fasa. Tabel yang sama tercetak di lembar DED sumur bor, dan uraian RAB pompa/panel/kabel ikut spesifik.
+
+## Spesifikasi minimal / ideal / maksimal di RAB
+Setiap item bahan punya tiga rekomendasi spesifikasi (mis. HDPE PE80 PN8 / PE100 PN10 / PE100 PN16; gate valve CI PN10 / DI PN16 / DI PN16 epoxy; beton K-175 / K-225 / K-300).
+- **Memilih tingkat:** pilih *Min / Ideal / Maks* per item, atau sekaligus untuk semua item di kepala tabel RAB.
+- **Harga:** harga satuan otomatis dikalikan faktor tingkat (Ideal = harga bawaan/SHS). Harga yang diketik manual tidak diubah.
+- **Membandingkan:** klik *bandingkan* untuk melihat ketiga spesifikasi beserta harganya.
+- **Cetak:** laporan memuat spesifikasi terpilih per item dan lampiran perbandingan ketiga tingkat.
+
+## Ukuran tabung FRP, cartridge, housing & membran
+- **Tabung FRP:** ukuran bisa dipilih per tahap (844 … 4872) atau otomatis.
+- **Cartridge:**
+  - jenis: PP/melt-blown, pleated, CTO karbon blok, GAC, keramik;
+  - ukuran: Slim 2,5" × 10"/20", Big Blue 4,5" × 10"/20", industri 2,5" × 20"/30"/40" (housing multi);
+  - bahan housing: plastik, SS304, SS316;
+  - opsi tahap CTO tambahan setelah filter sedimen.
+- **Membran UF/MF:**
+  - ukuran modul: 4" × 40", 6" × 60", 8" × 60", 10" × 72";
+  - bahan: PVDF, PES/PS, PAN, PVC, keramik.
+- **Membran NF:** ukuran 4040 / 8040 (TFC).
+
+## Gambar DED manual
+- **Menggambar di lembar otomatis:** tekan **Gambar manual di lembar ini** di tab DED, lalu pakai alat yang tersedia:
+  - garis, panah dengan keterangan, polyline, persegi/lingkaran berarsir (beton, tanah, pasir, kerikil, batu, air, putih penutup);
+  - garis ukur (angka otomatis dari skala), teks, simbol (katup, pompa, meter, kran, arah utara, dll.);
+  - sisipkan foto sketsa tangan.
+- **Bantuan menggambar:** snap grid, garis lurus (Shift), urungkan, gandakan, hapus.
+- **Lembar kosong:** **Tambah lembar gambar manual** membuat lembar kosong ber-kop dengan judul, skala, catatan, dan acuan standar sendiri.
+- **Cetak & tanda tangan:** gambar manual ikut tercetak dan termasuk dalam sidik dokumen tanda tangan.
+
+## Hak pemeriksa & penyetuju (custom)
+Di *Menu → Kelola pengguna*, admin mencentang **Pemeriksa** dan/atau **Penyetuju** per pengguna. Saat mengajukan review, daftar pilihan hanya berisi pengguna yang dicentang. Tidak semua Staf LPASL otomatis menjadi pemeriksa. Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.
+
+## Unggah gambar tanda tangan
+Di jendela tanda tangan elektronik, tekan **Unggah gambar tanda tangan** (PNG/JPG hasil foto/scan). Latar putih dihapus otomatis bila opsi dicentang.
+
 ## Acuan SNI pada DED
 - Setiap lembar DED punya kotak **ACUAN STANDAR** di kop gambar sesuai jenis lembarnya:
   - jaringan: SNI 7509:2011, SNI 7511, SNI 7831:2012, Permen PUPR 27/2016;

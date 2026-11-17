@@ -667,6 +667,8 @@ function normalizeProject(p) {
     standards: Array.isArray(p.standards) ? p.standards.filter(x => x && x.code) : [],
     shs: { ...SHS_DEFAULTS, ...(p.shs && typeof p.shs === 'object' ? p.shs : {}) },
     ded: { ...DEFAULT_DED, ...(p.ded || {}) },
+    dedDraw: (() => { const d = p.dedDraw && typeof p.dedDraw === 'object' ? p.dedDraw : {}; const marks = {}; Object.entries(d.marks || {}).forEach(([k, v]) => { if (Array.isArray(v) && v.length) marks[k] = v.filter(o => o && o.t); });
+      return { sheets: Array.isArray(d.sheets) ? d.sheets.filter(x => x && x.id) : [], marks, scales: d.scales && typeof d.scales === 'object' ? d.scales : {} }; })(),
   };
 }
 // Menggabungkan data dari perangkat lain: item baru ditambahkan, item dengan id sama diperbarui
@@ -704,7 +706,7 @@ function loadInitialProject(key = STORAGE_KEY) {
    ===================================================================== */
 const isSrc = (n) => !!n && (n.type === 'reservoir' || n.type === 'borehole');
 const PUMP_DEFAULTS = { mode: 'auto', depth: 60, casing: 6, swl: 15, dd: 8, yield: 10, screen: 12, auto: true, Qd: 5, Hd: 60, hours: 12, peak: 1.5,
-  riserDia: 75, riserMat: 'GIP', etaP: 0.62, etaM: 0.85, tariff: 1444.7, solar: false, psh: 4.0 };
+  riserDia: 75, riserMat: 'GIP', etaP: 0.62, etaM: 0.85, tariff: 1444.7, solar: false, psh: 4.0, phase: 'auto' };
 const pumpP = (n) => ({ ...PUMP_DEFAULTS, ...((n && n.pump) || {}) });
 const STD_MOTOR = [0.37, 0.55, 0.75, 1.1, 1.5, 2.2, 3, 4, 5.5, 7.5, 9.2, 11, 15, 18.5, 22, 30, 37, 45, 55, 75, 90, 110];
 function hwLoss(Lm, Qls, Dmm, C) { const Q = Qls / 1000, D = Dmm / 1000; return Q > 0 && D > 0 ? 10.67 * Lm * Math.pow(Q, 1.852) / (Math.pow(C, 1.852) * Math.pow(D, 4.87)) : 0; }
@@ -1005,14 +1007,17 @@ function computeBoQ(project, hyd) {
 //   items[] item tambahan {id, sec, desc, vol, unit}, sections[] bagian tambahan {id, title}, titles{sid} judul bagian.
 function buildRAB(project, boq) {
   const P = project.prices || {}; const E = project.rabEdits || {};
-  const H = E.hidden || {}, DS = E.desc || {}, VO = E.vol || {}, UN = E.unit || {}, TT = E.titles || {};
+  const H = E.hidden || {}, DS = E.desc || {}, VO = E.vol || {}, UN = E.unit || {}, TT = E.titles || {}, TI = E.tier || {}; const tAll = TIERS[E.tierAll] ? E.tierAll : 'ideal';
   // Urutan harga: diisi manual > item SHS tertaut > harga bawaan × faktor IKK provinsi
   const sh = shsOf(project); const F = shsFactor(sh); const shsMap = Object.fromEntries((sh.items || []).map(x => [x.code, x]));
   const mk = (sid) => (key, desc, vol, unit, def) => {
     const ek = sid + '::' + key; const autoVol = round2(vol); const v = VO[ek] !== undefined && VO[ek] !== '' ? round2(+VO[ek]) : autoVol;
-    const link = sh.links?.[ek] && shsMap[sh.links[ek]]; const base = link ? +link.price : (def && F !== 1 ? Math.max(100, Math.round(def * F / 100) * 100) : def);
+    const link = sh.links?.[ek] && shsMap[sh.links[ek]]; const base0 = link ? +link.price : (def && F !== 1 ? Math.max(100, Math.round(def * F / 100) * 100) : def);
+    const spec = specOf(key, desc, unit); const tier = spec ? (TIERS[TI[ek]] ? TI[ek] : tAll) : null; const tf = spec ? spec[tier].f : 1;
+    if (spec && tier !== 'ideal' && /^pipe\|/.test(key)) desc = desc.replace(/^Pipa .*? Ø/, 'Pipa ' + spec[tier].s.split(/[,(]/)[0].trim() + ' Ø');
+    const base = base0 && tf !== 1 ? Math.max(100, Math.round(base0 * tf / 100) * 100) : base0;
     const price = P[key] !== undefined ? +P[key] : base; const psrc = P[key] !== undefined ? 'manual' : link ? 'shs' : F !== 1 ? 'ikk' : 'default';
-    return { key, ek, shsCode: link ? link.code : null, psrc, base, desc: DS[ek] ?? desc, autoDesc: desc, vol: v, autoVol, unit: UN[ek] ?? unit, autoUnit: unit, price, def, amount: v * price,
+    return { key, ek, shsCode: link ? link.code : null, psrc, base, base0, spec, tier, specText: spec ? spec[tier].s : '', desc: DS[ek] ?? desc, autoDesc: desc, vol: v, autoVol, unit: UN[ek] ?? unit, autoUnit: unit, price, def, amount: v * price,
       edDesc: DS[ek] !== undefined, edVol: VO[ek] !== undefined && VO[ek] !== '', edUnit: UN[ek] !== undefined, hidden: !!H[ek] };
   };
   const L = boq.totalLength;
@@ -1050,7 +1055,201 @@ function buildRAB(project, boq) {
   const ppn = total * (+project.settings.ppnPct || 0) / 100;
   const grand = total + ppn;
   const rounded = Math.floor(grand / 1000) * 1000;
-  return { sections, total, ppn, grand, rounded, shs: { prov: sh.prov, name: PROV[sh.prov]?.name, year: sh.year, ikk: shsIkk(sh), factor: F, n: (sh.items || []).length, source: sh.source } };
+  return { sections, total, ppn, grand, rounded, tierAll: tAll, shs: { prov: sh.prov, name: PROV[sh.prov]?.name, year: sh.year, ikk: shsIkk(sh), factor: F, n: (sh.items || []).length, source: sh.source } };
+}
+
+/* ---------- 4x. TINGKAT SPESIFIKASI BAHAN (minimal / ideal / maksimal) ----------
+   Setiap item material RAB mendapat rekomendasi spesifikasi tiga tingkat. Harga bawaan = tingkat ideal;
+   tingkat minimal/maksimal mengalikan harga dasar (bawaan × IKK atau SHS) dengan faktor tingkat. Harga yang diketik manual tidak diubah. */
+const TIERS = { min: 'Minimal', ideal: 'Ideal', max: 'Maksimal' };
+const TIER_SHORT = { min: 'Min', ideal: 'Ideal', max: 'Maks' };
+const tierSpec = (a, b, c, f = [0.85, 1, 1.25]) => ({ min: { s: a, f: f[0] }, ideal: { s: b, f: f[1] }, max: { s: c, f: f[2] } });
+const NO_SPEC = /mobilisasi|pengukuran|uitzet|smkk|keselamatan|^galian|galian tanah|urugan tanah|uji tekan|uji hidro|uji pemompaan|flushing|dokumentasi|purna laksana|pengeboran|pembersihan|pengembangan|upah|perakitan|pelatihan|bekisting|plesteran|pemadatan|pembongkaran/i;
+const K_CLASSES = [[125, '10,4'], [175, '14,5'], [225, '18,7'], [250, '20,75'], [300, '24,9'], [350, '29,05']];
+const kTxt = (k) => { const c = K_CLASSES.find(x => x[0] === k); return `beton K-${k}${c ? ` (fc' ${c[1]} MPa)` : ''}`; };
+function specOf(key, desc, unit) {
+  const k = String(key || ''), d = String(desc || '');
+  if (NO_SPEC.test(d) && !/pipa|pompa|katup|valve/i.test(d.split(' ').slice(0, 2).join(' '))) return null;
+  const p = k.split('|');
+  // Pipa jaringan & pipa riser
+  const pipeMat = p[0] === 'pipe' ? p[1] : p[0] === 'pump' && p[1] === 'riser' ? (/GIP/.test(d) ? 'GIP' : /HDPE/.test(d) ? 'HDPE' : /PVC/.test(d) ? 'PVC' : 'GIP') : null;
+  if (pipeMat === 'HDPE') return tierSpec('HDPE PE80 PN8 (SDR 17), berlabel SNI', 'HDPE PE100 PN10 (SDR 17), SNI 4829.2, sambungan butt fusion', 'HDPE PE100 PN16 (SDR 11), SNI 4829.2 + sertifikat uji pabrik', [0.8, 1, 1.45]);
+  if (pipeMat === 'PVC') return tierSpec('PVC AW (≈ PN8 / S-16), sambungan lem', 'PVC PN10 (S-12,5) SNI 06-0084-2002, sambungan karet (RRJ)', 'PVC PN12,5–PN16 (S-10 / S-8) RRJ, SNI', [0.75, 1, 1.4]);
+  if (pipeMat === 'GIP') return tierSpec('GI kelas ringan (BS 1387 Light / medium A)', 'GI kelas medium (BS 1387 Medium / B), galvanis celup panas', 'GI kelas berat (BS 1387 Heavy / C) + lapis anti karat', [0.8, 1, 1.3]);
+  if (pipeMat === 'PE') return tierSpec('PE LDPE gulungan PN6', 'PE/HDPE gulungan PN10 food grade, berlabel SNI', 'HDPE PE100 gulungan PN12,5–PN16', [0.75, 1, 1.35]);
+  if (p[0] === 'fit') {
+    const f = p[1];
+    if (['tee', 'bend', 'reducer', 'endcap'].includes(f)) return tierSpec('Fitting PVC/PE sambungan lem/kompresi PN10', 'Fitting sejenis bahan pipa PN10 (HDPE butt fusion / PVC injeksi RRJ)', 'Fitting elektrofusi PN16 / besi tuang ductile flange', [0.75, 1, 1.6]);
+    if (f === 'gv') return tierSpec('Gate valve besi cor (cast iron) PN10; kuningan untuk ≤ 2"', 'Gate valve ductile iron PN16, resilient seated, flange', 'Gate valve ductile iron PN16 lapis epoxy, stem SS, bersertifikat air minum', [0.7, 1, 1.45]);
+    if (f === 'av') return tierSpec('Air valve single orifice PN10', 'Air valve double orifice ductile iron PN16 + stop kran', 'Air valve kinetic tiga fungsi (triple function) PN16 + katup isolasi', [0.7, 1, 1.6]);
+    if (f === 'wo') return tierSpec('Gate valve besi cor PN10 + pipa buang PVC', 'Gate valve ductile iron PN16 + pipa buang GI', 'Ductile iron PN16 + pipa GI + bak penguras beton pracetak', [0.8, 1, 1.3]);
+    if (f === 'hu') return tierSpec('Bak pasangan bata + 4 kran kuningan biasa', 'Bak beton bertulang + 4 kran kuningan tebal + meter air', 'Bak beton + kran tutup otomatis (hemat air) SS + meter air + lantai & saluran buang', [0.8, 1, 1.35]);
+    if (f === 'box') return tierSpec('Pasangan bata + tutup beton', 'Pasangan bata diplester + tutup pelat besi dicat', 'Beton pracetak + tutup besi tuang (ductile) berengsel & gembok', [0.8, 1, 1.6]);
+    if (f === 'thrust') return tierSpec(kTxt(125), kTxt(175), kTxt(225), [0.9, 1, 1.12]);
+  }
+  if (p[0] === 'pump') {
+    if (p[1] === 'unit') return tierSpec('Pompa merek lokal, impeller Noryl/plastik teknik, motor rewindable, garansi 1 tahun', 'Impeller & diffuser SS304, motor submersible IP68 isolasi kelas F, kurva uji ISO 9906, garansi 2 tahun', 'Seluruh bagian basah SS316, motor efisiensi tinggi + sensor suhu, garansi 3 tahun', [0.7, 1, 1.5]);
+    if (p[1] === 'panel') return tierSpec('Panel MCB + kontaktor + TOR (1 fasa: kapasitor)', 'Panel + WLC/elektroda level, proteksi dry-run, phase failure, volt/ampere meter, arrester', 'Panel + soft starter / VFD, kWh meter, telemetri GSM, box SS IP65', [0.65, 1, 1.9]);
+    if (p[1] === 'cable') return tierSpec('Kabel NYY ukuran sesuai hitungan', 'Kabel submersible pipih H07RN-F / NYFGbY sesuai hitungan, sambungan resin kit', 'Kabel submersible 1 tingkat lebih besar (rugi tegangan < 2%) + kabel ground', [0.85, 1, 1.35]);
+    if (p[1] === 'casing') return tierSpec('Pipa PVC casing kelas AW', 'Pipa PVC casing tebal (SDR 17) / baja hitam schedule 40', 'Pipa baja galvanis / stainless steel 304', [0.75, 1, 1.8]);
+    if (p[1] === 'screen') return tierSpec('Saringan PVC slot gergaji', 'Saringan PVC slot mesin 1 mm (bukaan ≥ 8%)', 'Saringan stainless steel wire-wrap (Johnson) slot 1 mm', [0.6, 1, 2.6]);
+    if (p[1] === 'gravel') return tierSpec('Kerikil kali diayak', 'Kerikil kuarsa bulat 2–5 mm, dicuci', 'Kerikil kuarsa bergradasi terkontrol (uji ayak), dicuci', [0.8, 1, 1.3]);
+    if (p[1] === 'head') return tierSpec('Katup kuningan / PVC, manometer biasa', 'Katup besi cor/ductile flange, meter air kelas B, manometer gliserin', 'Katup ductile PN16, meter air elektromagnetik, katup udara & sampling tap SS', [0.75, 1, 1.6]);
+    if (p[1] === 'house') return tierSpec('Rumah pompa rangka kayu/baja ringan + seng, pagar kawat', 'Rumah pompa pasangan bata + atap baja ringan, pagar BRC', 'Rumah pompa beton + ventilasi & penerangan, pagar panel beton/BRC galvanis', [0.75, 1, 1.35]);
+    if (p[1] === 'solar') return tierSpec('Panel polikristal + inverter pompa standar', 'Panel monokristal 550 Wp tier-1 + inverter/VFD surya MPPT, rangka galvanis', 'Panel monokristal bifacial + VFD surya dengan monitoring + penangkal petir', [0.8, 1, 1.3]);
+  }
+  if (p[0] === 'wt') {
+    const f = p[1];
+    if (f === 'frp') return tierSpec('Tabung FRP 150 psi liner PE, merek umum', 'Tabung FRP 150 psi bersertifikat NSF/ANSI 61, distributor atas-bawah', 'Tabung FRP 150 psi NSF + dudukan galvanis, distributor & nozzle SS', [0.8, 1, 1.3]);
+    if (f === 'frpv') return tierSpec('Manifold 5 katup manual (ball valve PVC)', 'Multiport valve manual 5 posisi', 'Valve otomatis (timer / meter air) cuci balik otomatis', [0.6, 1, 2.4]);
+    if (f === 'carth') return tierSpec('Housing plastik (PP/SAN)', 'Housing stainless SS304 + manometer & ventilasi udara', 'Housing SS316 sanitary, gasket EPDM food grade', [0.45, 1, 1.4]);
+    if (f === 'cart' || f === 'cto') return tierSpec('Cartridge PP spun biasa', 'Cartridge food grade (PP melt-blown / CTO karbon blok) sesuai rating', 'Cartridge pleated / absolute rated, bersertifikat NSF', [0.7, 1, 2.2]);
+    if (f === 'mem') return tierSpec('Modul membran PVC/PES lokal', 'Modul membran PVDF hollow fiber (tahan klorin), bersertifikat', 'Modul PVDF merek internasional / keramik, garansi ≥ 3 tahun', [0.65, 1, 1.6]);
+    if (f === 'memskid') return tierSpec('Rangka besi dicat, pompa permukaan standar, kontrol manual', 'Rangka SS304, pompa umpan & backwash, tangki CIP, panel otomatis', 'Rangka SS316, PLC + HMI, flow & TMP transmitter, telemetri', [0.7, 1, 1.6]);
+    if (f === 'aer' || f === 'aerm') return tierSpec('Rangka & nampan baja galvanis dicat, media kerikil', 'Rangka & nampan SS304, media kokas/kerikil 50–75 mm, penutup kasa', 'Seluruhnya SS316 / FRP, media plastik (bio-ball), penutup kasa SS', [0.75, 1, 1.4]);
+    if (f === 'aerblow') return tierSpec('Blower ring/side channel standar', 'Blower root / side channel + filter udara & katup searah', 'Blower efisiensi tinggi (VFD) + cadangan 1 unit', [0.8, 1, 1.7]);
+    if (f === 'aerdiff') return tierSpec('Difuser batu (air stone) / pipa berlubang', 'Difuser piringan membran EPDM 9" gelembung halus', 'Difuser membran silikon / panel gelembung halus', [0.6, 1, 1.5]);
+    if (f === 'aernoz') return tierSpec('Nosel PVC / kuningan buatan lokal', 'Nosel kuningan/SS304 tipe spiral', 'Nosel SS316 anti sumbat', [0.7, 1, 1.5]);
+    if (f === 'chlor' || f === 'dose') return tierSpec('Tangki PE + dosis gravitasi / manual', 'Pompa dosing diafragma elektronik + tangki 500 L + pengaduk', 'Pompa dosing proporsional (dengan flow meter) + analyzer sisa klor', [0.6, 1, 2]);
+    if (f === 'frppump' || f === 'frpbooster') return tierSpec('Pompa permukaan rumah besi cor, impeller kuningan', 'Pompa rumah SS304/besi cor epoxy, impeller SS, mechanical seal', 'Pompa full SS316 + VFD / pressure control otomatis', [0.7, 1, 1.6]);
+    if (f === 'brine') return tierSpec('Tangki garam PE 100 L', 'Tangki garam PE 200 L + injector', 'Tangki garam PE + katup brine otomatis', [0.8, 1, 1.5]);
+    if (f === 'hh') return tierSpec('Wadah plastik bekas pakai layak + media lokal', 'Wadah HDPE food grade baru + media sesuai gambar', 'Wadah HDPE food grade + media bersertifikat + keran SS', [0.8, 1, 1.3]);
+  }
+  // Pola umum berdasar uraian
+  const km = d.match(/K-?\s?(\d{3})/i);
+  if (/beton/i.test(d) && km) { const kv = +km[1]; const i = K_CLASSES.findIndex(x => x[0] >= kv); const lo = K_CLASSES[Math.max(0, i - 1)][0], hi = K_CLASSES[Math.min(K_CLASSES.length - 1, i + 1)][0];
+    return tierSpec(kTxt(lo) + ', campuran manual', kTxt(kv) + ', molen + vibrator', kTxt(hi) + ', beton siap pakai (ready mix) + uji kuat tekan', [0.92, 1, 1.12]); }
+  if (/besi|pembesian|tulangan|bjts|bjtp/i.test(d)) return tierSpec('Baja tulangan polos BJTP 280', 'Baja tulangan ulir BJTS 420B, SNI 2052:2017', 'BJTS 420B SNI 2052:2017 + uji tarik laboratorium, ukuran penuh (bukan banci)', [0.92, 1, 1.08]);
+  if (/karbon aktif/i.test(d)) return tierSpec('Karbon aktif batok kelapa, bilangan iodin ≥ 800 mg/g', 'Karbon aktif batok kelapa, iodin ≥ 1000 mg/g, dicuci asam', 'Karbon aktif iodin ≥ 1100 mg/g, bersertifikat NSF/ANSI 61', [0.75, 1, 1.3]);
+  if (/greensand|zeolit|mangan/i.test(d)) return tierSpec('Zeolit alam aktif', 'Mangan greensand / mangan zeolit', 'Media katalitik impor (mis. greensand plus / birm) bersertifikat', [0.6, 1, 1.5]);
+  if (/resin/i.test(d)) return tierSpec('Resin kation standar', 'Resin kation SAC food grade', 'Resin kation SAC NSF, kapasitas tinggi', [0.8, 1, 1.3]);
+  if (/alumina/i.test(d)) return tierSpec('Alumina aktif lokal', 'Alumina aktif 0,5–1 mm', 'Alumina aktif / media oksida besi bersertifikat', [0.8, 1, 1.4]);
+  if (/pasir/i.test(d)) return tierSpec('Pasir lokal diayak', 'Pasir dicuci, gradasi sesuai gambar', 'Pasir silika tersertifikasi (ES & UC terukur), dicuci', [0.8, 1, 1.3]);
+  if (/kerikil|gravel|batu kapur|kalsit|dolomit/i.test(d)) return tierSpec('Kerikil/batu lokal diayak', 'Kerikil bergradasi sesuai gambar, dicuci', 'Kerikil kuarsa bergradasi terkontrol (uji ayak), dicuci', [0.8, 1, 1.3]);
+  if (/meter air/i.test(d)) return tierSpec('Meter air kelas B', 'Meter air kelas C, bersertifikat tera', 'Meter air kelas C multijet + segel & pelindung anti pencurian', [0.8, 1, 1.4]);
+  if (/pompa/i.test(d)) return tierSpec('Pompa merek lokal, garansi 1 tahun', 'Pompa bagian basah SS304, kurva uji ISO 9906, garansi 2 tahun', 'Pompa full SS316, motor efisiensi tinggi, garansi 3 tahun', [0.7, 1, 1.5]);
+  if (/kabel/i.test(d)) return tierSpec('Kabel NYM / NYY sesuai hitungan', 'Kabel NYY / NYFGbY berlabel SNI', 'Kabel 1 tingkat lebih besar + pelindung pipa', [0.85, 1, 1.3]);
+  if (/panel|kontrol/i.test(d)) return tierSpec('Panel standar MCB + kontaktor', 'Panel + proteksi lengkap (dry-run, fasa, arrester)', 'Panel + VFD/soft starter + monitoring jarak jauh', [0.7, 1, 1.8]);
+  if (/katup|valve|kran|stop kran/i.test(d)) return tierSpec('Katup kuningan / PVC kelas umum', 'Katup kuningan tebal / ductile iron PN10–PN16', 'Katup ductile/SS PN16 bersertifikat air minum', [0.7, 1, 1.45]);
+  if (/manhole|pelat besi|plat besi|tutup/i.test(d)) return tierSpec('Pelat besi 3 mm dicat', 'Pelat bordes 4,5 mm galvanis + engsel & gembok', 'Tutup besi tuang ductile / FRP berkunci', [0.8, 1, 1.5]);
+  if (/tangki|tandon|toren/i.test(d)) return tierSpec('Tandon plastik PE standar', 'Tandon PE food grade 3 lapis tahan UV', 'Tandon stainless steel SS304', [0.75, 1, 1.8]);
+  if (/baja|profil|wf|rangka|tangga|railing|pagar/i.test(d)) return tierSpec('Baja profil SNI dicat dasar (meni)', 'Baja profil SNI, cat dasar + cat akhir epoxy', 'Baja galvanis celup panas + cat epoxy', [0.85, 1, 1.3]);
+  if (/bata|pasangan/i.test(d)) return tierSpec('Bata merah lokal, spesi 1:6', 'Bata merah press / batako, spesi 1:4', 'Bata press + spesi kedap 1:3 + plester aci', [0.85, 1, 1.2]);
+  if (/cat|waterproof|kedap|coating|epoxy/i.test(d)) return tierSpec('Cat/lapisan kedap biasa', 'Lapisan kedap semen polimer (food grade)', 'Lapisan epoxy food grade / membran HDPE', [0.8, 1, 1.5]);
+  if (/pipa/i.test(d)) return tierSpec('Pipa kelas tekanan rendah (PN8)', 'Pipa PN10 berlabel SNI', 'Pipa PN16 + sertifikat pabrik', [0.8, 1, 1.35]);
+  if (['bh', 'unit', 'set', 'kg', 'm³', 'm²', "m'", 'paket', 'modul', 'kWp', 'KK', 'buah', 'ls'].includes(unit)) return tierSpec('Mutu standar setara SNI, merek lokal', 'Mutu baik, berlabel SNI / bersertifikat, garansi pabrik ≥ 1 tahun', 'Mutu premium bersertifikat internasional, garansi ≥ 2 tahun', [0.85, 1, 1.25]);
+  return null;
+}
+
+/* ---------- 4w. SPESIFIKASI TEKNIS POMPA (untuk pengadaan) ---------- */
+const STD_INCH = [[20, '¾"'], [25, '1"'], [32, '1¼"'], [40, '1½"'], [50, '2"'], [65, '2½"'], [80, '3"'], [100, '4"'], [125, '5"'], [150, '6"'], [200, '8"'], [250, '10"']];
+const STD_CABLE = [[1.5, 15], [2.5, 21], [4, 28], [6, 36], [10, 50], [16, 66], [25, 88], [35, 109], [50, 131], [70, 167], [95, 202], [120, 234]];
+const STD_MCB = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400];
+const STD_GENSET = [3, 5, 7.5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 250];
+const PHASES = { auto: 'Otomatis (≤ 2,2 kW 1 fasa, selebihnya 3 fasa)', 1: '1 fasa 220 V / 50 Hz', 3: '3 fasa 380 V / 50 Hz' };
+// kind: 'sub' (submersible sumur bor) atau 'surface' (pompa permukaan/booster). Q dalam L/dtk, H dalam m, motor dalam kW.
+function pumpSpec({ kind = 'sub', Qls, H, motor, phase = 'auto', casing = 6, cableL = 0, typeLabel = '', ptype = '' }) {
+  const Qh = Qls * 3.6; const ph = phase === 'auto' ? (motor <= 2.2 ? 1 : 3) : +phase; const V = ph === 1 ? 220 : 380;
+  const pf = 0.85, em = motor <= 1.5 ? 0.75 : motor <= 7.5 ? 0.82 : 0.88;
+  const I = motor * 1000 / ((ph === 1 ? V : Math.sqrt(3) * V) * pf * em); const kva = motor / (pf * em);
+  const outD = Math.sqrt(4 * Math.max(Qls, 0.05) / 1000 / (Math.PI * 1.8)) * 1000; const out = STD_INCH.find(s => s[0] >= outD) || STD_INCH[STD_INCH.length - 1];
+  const pumpDia = kind === 'sub' ? (Qh <= 8 && motor <= 4 ? 4 : Qh <= 45 ? 6 : 8) : null;
+  const stageH = kind === 'sub' ? (pumpDia === 4 ? 5 : pumpDia === 6 ? 9 : 14) : ptype === 'multistage' || ptype === 'booster' ? 8 : 0;
+  const stages = stageH ? Math.max(1, Math.ceil(H / stageH)) : 1;
+  const rho = 0.0178; const L = Math.max(5, cableL); const dV = 0.03 * V;
+  const Areq = (ph === 1 ? 2 * L * I * rho : Math.sqrt(3) * L * I * rho * pf) / dV;
+  const cab = STD_CABLE.find(c => c[0] >= Areq && c[1] >= I * 1.25) || STD_CABLE[STD_CABLE.length - 1];
+  const vDrop = (ph === 1 ? 2 * L * I * rho : Math.sqrt(3) * L * I * rho * pf) / cab[0] / V * 100;
+  const mcb = STD_MCB.find(a => a >= I * 1.25) || STD_MCB[STD_MCB.length - 1];
+  const starter = ph === 1 ? 'Kotak kontrol kapasitor (control box) + MCB' : motor <= 5.5 ? 'Starter langsung (DOL) + TOR' : motor <= 22 ? 'Star-delta / soft starter' : 'Soft starter atau VFD';
+  const gk = kva * (/DOL|kapasitor/.test(starter) ? 2.5 : 1.5); const genset = STD_GENSET.find(g => g >= gk) || STD_GENSET[STD_GENSET.length - 1];
+  const warn = []; let cool = null;
+  if (kind === 'sub') {
+    if (casing <= pumpDia) warn.push(`Pompa ${pumpDia}" tidak muat di casing ${casing}" — perbesar casing minimal ${pumpDia + 2}" atau kurangi debit per pompa (mis. 2 sumur / 2 pompa lebih kecil).`);
+    else { const Dm = pumpDia === 4 ? 0.095 : pumpDia === 6 ? 0.14 : 0.19, Dc = casing * 0.0254 * 0.95; const ann = Math.PI / 4 * (Dc * Dc - Dm * Dm);
+    cool = ann > 0 ? Qls / 1000 / ann : 0; const need = pumpDia === 4 ? 0.08 : 0.16;
+    if (ann > 0 && cool < need) warn.push(`Kecepatan air pendingin motor ${fmt(cool, 2)} m/dtk < ${need} m/dtk: pasang selubung pendingin (flow inducer sleeve).`); }
+  }
+  if (vDrop > 3) warn.push(`Rugi tegangan kabel ${fmt(vDrop, 1)}% > 3%: perbesar penampang kabel.`);
+  if (ph === 1 && motor > 2.2) warn.push('Motor > 2,2 kW dengan listrik 1 fasa jarang tersedia: gunakan 3 fasa atau VFD 1→3 fasa.');
+  const rows = [
+    ['Jenis pompa', kind === 'sub' ? `Submersible sumur dalam ${pumpDia}", ${stages} tingkat (stage)` : `${typeLabel || 'Pompa permukaan'}${stages > 1 ? `, ± ${stages} tingkat` : ''}`],
+    ['Titik kerja (duty point)', `Q ${fmt(Qls, 2)} L/dtk = ${fmt(Qh, 2)} m³/jam = ${fmt(Qls * 60, 0)} L/mnt · H ${fmt(H, 1)} m`],
+    ['Head tutup (shut-off) min.', `± ${fmt(H * 1.3, 0)} m (titik kerja di 70–120% BEP)`],
+    ['Daya motor', `${fmt(motor, 2)} kW (${fmt(motor * 1.341, 1)} HP), 2 kutub ± 2900 rpm, kerja kontinu S1`],
+    ['Sumber listrik', `${ph} fasa ${V} V / 50 Hz · arus nominal ± ${fmt(I, 1)} A · ${fmt(kva, 1)} kVA`],
+    ['Ukuran keluaran (outlet)', `${out[1]} (DN${out[0]}), kecepatan ± ${fmt(Qls / 1000 / (Math.PI / 4 * Math.pow(out[0] / 1000, 2)), 2)} m/dtk`],
+    kind === 'sub' ? ['Pemasangan', `casing ≥ ${pumpDia + 2}", terendam ≥ 3 m di bawah muka air dinamis${cool ? `; aliran pendingin motor ${fmt(cool, 2)} m/dtk` : ''}`]
+      : ['Hisap', ptype === 'jet' ? 'tinggi hisap ≤ 8 m (jet)' : 'tinggi hisap ≤ 6 m atau posisi tergenang (flooded); NPSHa > NPSHr + 0,5 m'],
+    ['Bahan (rekomendasi ideal)', kind === 'sub' ? 'impeller & diffuser SS304, poros SS, motor IP68 isolasi kelas F' : 'rumah besi cor epoxy / SS304, impeller SS, mechanical seal karbon–keramik'],
+    ['Kabel daya', `${ph === 1 ? 3 : 4} × ${cab[0]} mm² ${kind === 'sub' ? 'kabel submersible' : 'NYY'}, panjang ± ${fmt(L, 0)} m, rugi tegangan ${fmt(vDrop, 1)}%`],
+    ['Starter & proteksi', `${starter}; MCB/MCCB ${mcb} A, proteksi beban lebih, dry-run (elektroda level)${ph === 3 ? ', phase failure' : ''}, arrester, grounding ≤ 5 Ω`],
+    ['Genset cadangan (opsional)', `≥ ${genset} kVA`],
+    ['Standar uji', 'kurva performa ISO 9906 (grade 2B); motor IEC 60034; sertifikat pabrik & garansi'],
+  ];
+  return { rows, warn, ph, V, I, kva, out, pumpDia, stages, cab, vDrop, mcb, starter, genset };
+}
+function PumpSpecTable({ spec, title = 'Spesifikasi teknis pompa (untuk pengadaan)' }) {
+  return <div className="space-y-1.5"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+    <table className="tp-table"><tbody>{spec.rows.map(([a, b]) => <tr key={a}><td className="text-slate-500 align-top w-[38%]" style={{ whiteSpace: 'normal' }}>{a}</td><td style={{ whiteSpace: 'normal' }}>{b}</td></tr>)}</tbody></table>
+    {spec.warn.map((w, i) => <div key={i} className="rounded bg-amber-50 border border-amber-200 text-amber-900 text-[12px] px-2 py-1">{w}</div>)}</div>;
+}
+
+/* ---------- 4v. AERATOR (sistem aerasi) ---------- */
+const AER_TYPES = {
+  tray: { label: 'Aerator nampan bertingkat (multiple tray)', short: 'Nampan bertingkat' },
+  cascade: { label: 'Aerator tangga / cascade (beton)', short: 'Tangga (cascade)' },
+  spray: { label: 'Aerator semprot (spray nozzle)', short: 'Semprot' },
+  diffuser: { label: 'Aerator difuser gelembung + blower', short: 'Difuser gelembung' },
+};
+const AER_MEDIA = { kokas: 'Kokas (coke) 50–75 mm', kerikil: 'Kerikil / batu pecah 50–75 mm', plastik: 'Media plastik (bio-ball)', none: 'Tanpa media (nampan berlubang saja)' };
+const AER_MAT = { galv: 'Baja galvanis dicat', ss304: 'Stainless steel SS304', frp: 'FRP / fiberglass' };
+const AER_DEFAULTS = { type: 'tray', nTray: 4, gap: 0.4, hlr: 50, media: 'kokas', mat: 'ss304', nStep: 6, stepH: 0.3, stepL: 0.5, nozzleQ: 1.5, nozzleH: 7, detMin: 15, airRatio: 0.5, depth: 2.5 };
+const aerCfg = (cfg) => ({ ...AER_DEFAULTS, ...((cfg && cfg.aer) || {}) });
+function designAerator(Qls, raw, cfgAll) {
+  const a = aerCfg(cfgAll); const Qh = Qls * 3.6; const items = []; const it = (k, desc, vol, unit, price) => items.push([k, desc, vol, unit, price]);
+  const o2 = 0.14 * (raw.fe || 0) + 0.27 * (raw.mn || 0) + 3.4 * (raw.nh3 || 0); const matF = a.mat === 'ss304' ? 1 : a.mat === 'frp' ? 0.9 : 0.7;
+  const box = (L, W, H, t = 0.15) => 2 * (L + W + 2 * t) * H * t + (L + 2 * t) * (W + 2 * t) * 0.2;
+  let g;
+  if (a.type === 'cascade') {
+    const W = round2(Math.max(0.5, Math.ceil(Qls / 10 / 0.05) * 0.05)); const n = clamp(Math.round(a.nStep), 3, 12); const sh = clamp(+a.stepH, 0.15, 0.6), sl = clamp(+a.stepL, 0.3, 1.0);
+    const drop = n * sh, Lc = n * sl; const basin = { L: 1.2, W: W + 0.4, H: 0.8 };
+    const conc = (Lc * W * 0.15 + 2 * (Lc + 0.3) * (drop / 2 + 0.3) * 0.15 + n * sh * sl / 2 * W * 0.5) + box(basin.L, basin.W, basin.H);
+    g = { type: 'cascade', W, n, sh, sl, drop, Lc, basin, L: round2(Lc + basin.L), H: round2(drop + basin.H), hl: round2(drop + 0.2), conc,
+      rows: [['Tipe', AER_TYPES.cascade.label], ['Lebar tangga', `${fmt(W, 2)} m (beban 10 L/dtk per m lebar)`], ['Anak tangga', `${n} × tinggi ${fmt(sh, 2)} m × injakan ${fmt(sl, 2)} m`], ['Tinggi jatuh total', `${fmt(drop, 2)} m`], ['Bak penampung bawah', `${fmt(basin.L, 2)} × ${fmt(basin.W, 2)} × ${fmt(basin.H, 2)} m`], ['Efisiensi aerasi', '± 60–70% kejenuhan O₂ (tergantung tinggi jatuh)'], ['Kebutuhan O₂ oksidasi', `± ${fmt(o2, 2)} mg/L (Fe, Mn, NH₃)`]] };
+    it('wt|aerc', `Beton bertulang K-225 aerator tangga ${n} anak tangga, lebar ${fmt(W, 2)} m + bak penampung`, conc, 'm³', 3300000);
+    it('wt|aerm', 'Railing pengaman & penutup kasa anti serangga aerator', round2(Lc + 1), "m'", 450000);
+  } else if (a.type === 'spray') {
+    const nz = Math.max(1, Math.ceil(Qls / clamp(+a.nozzleQ, 0.3, 5))); const cols = Math.ceil(Math.sqrt(nz)), rws = Math.ceil(nz / cols); const sp = 1.0;
+    const L = round2(cols * sp + 1), W = round2(rws * sp + 1), D = 0.8; const Hn = clamp(+a.nozzleH, 3, 15);
+    const qn = Qls / nz / 1000; const dn = Math.sqrt(4 * qn / (0.85 * Math.sqrt(2 * 9.81 * Hn)) / Math.PI) * 1000;
+    const conc = box(L, W, D);
+    g = { type: 'spray', nz, cols, rws, sp, L, W, D, Hn, dn, H: D + 1.5, hl: 1.0, conc,
+      rows: [['Tipe', AER_TYPES.spray.label], ['Jumlah nosel', `${nz} buah (${cols} × ${rws}, jarak ${fmt(sp, 1)} m), ${fmt(Qls / nz, 2)} L/dtk per nosel`], ['Tekanan di nosel', `${fmt(Hn, 1)} m (perlu pompa / beda tinggi)`], ['Diameter lubang nosel', `± ${fmt(dn, 1)} mm (Cd 0,85)`], ['Bak penampung', `${fmt(L, 2)} × ${fmt(W, 2)} × ${fmt(D, 2)} m`], ['Efisiensi aerasi', '± 70–80% kejenuhan O₂; CO₂ turun 70–90%'], ['Kebutuhan O₂ oksidasi', `± ${fmt(o2, 2)} mg/L`]] };
+    it('wt|aernoz', `Nosel semprot aerator (lubang ± ${fmt(dn, 0)} mm) + header & pipa cabang`, nz, 'bh', r500(350000 * matF + 150000));
+    it('wt|aerc', 'Beton bertulang K-225 bak aerator semprot', conc, 'm³', 3300000);
+    it('wt|aerm', 'Penutup kasa anti serangga + rangka (bak aerator semprot)', round2(L * W), 'm²', 350000);
+  } else if (a.type === 'diffuser') {
+    const V = Qh * clamp(+a.detMin, 5, 60) / 60; const Dw = clamp(+a.depth, 1.5, 4); const A = V / Dw; const W = round2(Math.max(1, Math.sqrt(A / 2))); const L = round2(Math.max(1, A / W));
+    const Qair = Qh * clamp(+a.airRatio, 0.1, 2); const nd = Math.max(2, Math.ceil(Qair / 4)); const dP = (Dw + 0.5) * 9.81; const kw = Qair / 3600 * dP / 0.5; const mot = STD_MOTOR.find(m => m >= kw * 1.2) || STD_MOTOR[STD_MOTOR.length - 1];
+    const conc = box(L, W, Dw + 0.4, 0.2);
+    g = { type: 'diffuser', V, Dw, L, W, Qair, nd, kw, mot, H: Dw + 0.4, hl: 0.3, conc,
+      rows: [['Tipe', AER_TYPES.diffuser.label], ['Bak aerasi', `${fmt(L, 2)} × ${fmt(W, 2)} m, kedalaman air ${fmt(Dw, 2)} m (${fmt(V, 1)} m³)`], ['Waktu tinggal', `${fmt(a.detMin, 0)} menit`], ['Debit udara', `${fmt(Qair, 1)} m³/jam (${fmt(a.airRatio, 2)} m³ udara per m³ air)`], ['Difuser', `${nd} piringan 9" gelembung halus (± 4 m³/jam per difuser)`], ['Blower', `tekanan ± ${fmt(dP, 0)} kPa (${fmt(Dw + 0.5, 1)} m kolom air), motor ${fmt(mot, 2)} kW, 2 unit (1 cadangan)`], ['Kebutuhan O₂ oksidasi', `± ${fmt(o2, 2)} mg/L`]] };
+    it('wt|aerblow', `Blower udara ${fmt(Qair, 1)} m³/jam, tekanan ${fmt(dP, 0)} kPa, motor ${fmt(mot, 2)} kW (1 kerja + 1 cadangan)`, 2, 'unit', r500(6000000 + 4500000 * mot));
+    it('wt|aerdiff', 'Difuser piringan 9" gelembung halus + pipa udara & dudukan', nd, 'bh', 650000);
+    it('wt|aerc', 'Beton bertulang K-250 bak aerasi difuser', conc, 'm³', 3600000);
+  } else {
+    const A = Math.max(0.36, Qh / clamp(+a.hlr, 20, 90)); const nU = Math.max(1, Math.ceil(A / 4)); const side = round2(Math.ceil(Math.sqrt(A / nU) / 0.05) * 0.05);
+    const n = clamp(Math.round(a.nTray), 3, 8); const gap = clamp(+a.gap, 0.3, 0.75); const basin = { L: side + 0.6, W: side + 0.6, H: 0.6 };
+    const Htot = round2(basin.H + 0.2 + n * gap + 0.35); const conc = nU * box(basin.L, basin.W, basin.H);
+    g = { type: 'tray', A, nU, side, n, gap, basin, L: side, W: side, H: Htot, hl: round2(n * gap + 0.6), conc,
+      rows: [['Tipe', AER_TYPES.tray.label], ['Luas nampan', `${fmt(A, 2)} m² = ${nU} unit × ${fmt(side, 2)} × ${fmt(side, 2)} m`], ['Beban hidrolik', `${fmt(Qh / A, 1)} m³/m²·jam (rencana ${fmt(a.hlr, 0)})`], ['Nampan', `${n} tingkat, jarak ${fmt(gap, 2)} m, dasar berlubang Ø6 mm @ 25 mm`], ['Media nampan', `${AER_MEDIA[a.media]}${a.media !== 'none' ? ', tebal 15 cm' : ''}`], ['Bahan rangka & nampan', AER_MAT[a.mat]], ['Tinggi total', `${fmt(Htot, 2)} m (bak penampung ${fmt(basin.H, 2)} m)`], ['Efisiensi aerasi', '± 60–80% kejenuhan O₂; CO₂ turun 50–70%'], ['Kebutuhan O₂ oksidasi', `± ${fmt(o2, 2)} mg/L (Fe, Mn, NH₃)`]] };
+    it('wt|aer', `Aerator nampan bertingkat ${fmt(side, 2)} × ${fmt(side, 2)} m, ${n} nampan, ${AER_MAT[a.mat].toLowerCase()} (rangka, nampan, distributor)`, nU, 'unit', r500((4000000 + 6000000 * side * side) * matF * n / 4));
+    if (a.media !== 'none') it('wt|aerm', `Media aerator: ${AER_MEDIA[a.media]}`, round2(nU * side * side * 0.15 * n), 'm³', a.media === 'plastik' ? 6500000 : a.media === 'kokas' ? 2200000 : 450000);
+    it('wt|aerb', 'Beton bertulang K-225 bak penampung aerator', conc, 'm³', 3300000);
+    it('wt|aerk', 'Atap & kasa anti serangga aerator', round2(nU * basin.L * basin.W), 'm²', 350000);
+  }
+  return { ...g, cfg: a, o2, items };
 }
 
 /* ---------- 4y. ACUAN STANDAR (SNI) & PEMERIKSAAN KRITERIA DESAIN ---------- */
@@ -1649,9 +1848,9 @@ const PUMP_TYPES = {
   submersible: { label: 'Submersible (di sumur bor / bak)', f: 1.4 },
   booster: { label: 'Booster otomatis + tangki tekan', f: 1.2 },
 };
-const FILT_PUMP = { mode: 'auto', type: 'auto', Q: 0, H: 0, lift: 0, eff: 55, hours: 16 };
-const FILT_DEFAULTS = { pump: FILT_PUMP, place: 'before', booster: 'auto', combine: false, nPar: 1, Havail: 0, valve: 'mpv', mode: 'basin', sandMesh: '16-30', iodine: 1000, carbonMesh: '8x30', cart: 'none', mem: 'none', towerId: '', towerPos: 'ground', structId: '', B: 0, Hw: 2.0, Vs: 0 };
-const tfCfg = (t) => ({ ...FILT_DEFAULTS, ...(t.filt || {}), pump: { ...FILT_PUMP, ...(t.filt?.pump || {}) } });
+const FILT_PUMP = { mode: 'auto', type: 'auto', Q: 0, H: 0, lift: 0, eff: 55, hours: 16, phase: 'auto' };
+const FILT_DEFAULTS = { pump: FILT_PUMP, place: 'before', booster: 'auto', combine: false, nPar: 1, Havail: 0, valve: 'mpv', mode: 'basin', sandMesh: '16-30', iodine: 1000, carbonMesh: '8x30', cart: 'none', cartType: 'pp', cartSize: 'ind40', housingMat: 'ss304', cto: false, mem: 'none', memSize: 'auto', memMat: 'pvdf', towerId: '', towerPos: 'ground', structId: '', B: 0, Hw: 2.0, Vs: 0 };
+const tfCfg = (t) => ({ ...FILT_DEFAULTS, ...(t.filt || {}), pump: { ...FILT_PUMP, ...(t.filt?.pump || {}) }, aer: { ...AER_DEFAULTS, ...(t.filt?.aer || {}) }, frpCode: { ...(t.filt?.frpCode || {}) } });
 // Desain tabung FRP untuk unit yang ditempatkan di tabung bertekanan
 const FRP_STAGE = {
   rsf: (ctx, cfg) => ctx.mnMedia ? { name: 'Filter mangan (greensand + pasir silika)', rate: 10, media: [['Mangan greensand', 0.45, 1400, 30000, 'kg'], [`Pasir silika ${SAND_MESH[cfg.sandMesh].label}`, 0.4, 1600, 3500, 'kg']], bw: 30 }
@@ -1667,21 +1866,64 @@ function designFrp(units, Qh, ctx, cfg) {
   const stages = units.filter(u => FRP_STAGE[u] && !(merge && u === 'gac')).map(u => {
     let s = FRP_STAGE[u](ctx, cfg);
     if (merge && u === 'rsf') { const c = FRP_STAGE.gac(ctx, cfg); s = { ...s, name: 'Filter multimedia (pasir silika + karbon aktif)', rate: Math.min(s.rate, c.rate), media: [...s.media.map(m => [m[0], m[1] * 0.5, m[2], m[3], m[4]]), [c.media[0][0], 0.4, c.media[0][2], c.media[0][3], c.media[0][4]]], bw: c.bw }; }
-    const Areq = Qh / s.rate; let v = null, n = 1;
-    for (const c of FRP_VESSELS) { const k = Math.ceil(Areq / (Math.PI * c.D * c.D / 4)); if (k <= Math.max(2, nPar)) { v = c; n = Math.max(k, nPar); break; } }
+    const Areq = Qh / s.rate; let v = null, n = 1; const forced = cfg.frpCode && cfg.frpCode[u] && FRP_VESSELS.find(c => c.code === cfg.frpCode[u]);
+    if (forced) { v = forced; n = Math.max(nPar, Math.ceil(Areq / (Math.PI * v.D * v.D / 4))); }
+    else for (const c of FRP_VESSELS) { const k = Math.ceil(Areq / (Math.PI * c.D * c.D / 4)); if (k <= Math.max(2, nPar)) { v = c; n = Math.max(k, nPar); break; } }
     if (!v) { v = FRP_VESSELS[FRP_VESSELS.length - 1]; n = Math.max(nPar, Math.ceil(Areq / (Math.PI * v.D * v.D / 4))); }
     const A = Math.PI * v.D * v.D / 4; const bed = v.H * 0.6; const rate = Qh / (n * A);
     const media = s.media.map(([name, f, dens, price, unit]) => { const V = n * A * bed * f; return { name, V, kg: V * dens, price, unit }; });
     const gravel = n * A * 0.15; const [valve, vp] = cfg.valve === 'manual5' ? [`Manifold 5 katup manual (ball valve) + pipa by-pass ${v.D <= 0.41 ? '1"' : v.D <= 0.62 ? '1½"' : v.D <= 0.92 ? '2"' : '3"'}`, r500(450000 + 2600000 * Math.pow(v.D / 0.6, 1.3))] : frpValve(v.D);
     const gacF = u === 'gac' ? 0.85 : merge && u === 'rsf' ? 0.4 : 0;
-    return { u, ...s, v, n, A, bed, rateAct: rate, media, gravel, valve, vp, ebct: gacF ? A * bed * gacF * n / Qh * 60 : null, bwQ: A * s.bw };
+    return { u, ...s, v, n, A, bed, forced: !!forced, rateAct: rate, media, gravel, valve, vp, ebct: gacF ? A * bed * gacF * n / Qh * 60 : null, bwQ: A * s.bw };
   });
   return stages;
 }
-function designCart(Qh, mic) { const n = Math.max(1, Math.ceil(Qh / 2)); const sizes = [[1, 2500000], [3, 6500000], [5, 9000000], [7, 12000000], [12, 18000000], [22, 28000000]];
-  let h = sizes.find(s => s[0] >= n); let nh = 1; if (!h) { h = sizes[sizes.length - 1]; nh = Math.ceil(n / 22); }
-  return { mic, n, per: h[0], housings: nh, hp: h[1], label: `Housing SS304 ${h[0]} × cartridge 40"` }; }
-function designMem(Qh, type) { const m = MEMBRANES[type]; const n = Math.max(1, Math.ceil(Qh * 1000 / (m.flux * m.area))); return { type, ...m, n, Qfeed: Qh / m.rec }; }
+// Pilihan ukuran & jenis cartridge, housing, membran (UF/MF/NF) dan bahannya
+const CART_TYPES = {
+  pp: { label: 'PP spun / melt-blown (sedimen)', f: 1, rate: 1, short: 'PP' },
+  pleated: { label: 'Pleated / lipat (bisa dicuci)', f: 3, rate: 1.5, short: 'pleated' },
+  cto: { label: 'CTO karbon blok (bau, rasa, klorin)', f: 3, rate: 0.5, short: 'CTO' },
+  gac: { label: 'GAC karbon butiran (UDF)', f: 2, rate: 0.6, short: 'GAC' },
+  ceramic: { label: 'Keramik 0,3 µm (bisa dicuci)', f: 6, rate: 0.3, short: 'keramik' },
+};
+const CART_SIZES = {
+  slim10: { label: 'Slim 2,5" × 10"', Q: 0.5, price: 25000, hp: 150000 },
+  slim20: { label: 'Slim 2,5" × 20"', Q: 1, price: 45000, hp: 250000 },
+  bb10: { label: 'Big Blue 4,5" × 10"', Q: 1.5, price: 65000, hp: 450000 },
+  bb20: { label: 'Big Blue 4,5" × 20"', Q: 3, price: 120000, hp: 650000 },
+  ind20: { label: 'Industri 2,5" × 20" (housing multi)', Q: 1, price: 45000, multi: 0.7 },
+  ind30: { label: 'Industri 2,5" × 30" (housing multi)', Q: 1.5, price: 65000, multi: 0.85 },
+  ind40: { label: 'Industri 2,5" × 40" (housing multi)', Q: 2, price: 85000, multi: 1 },
+};
+const HOUSING_MAT = { plastic: { label: 'Plastik PP/SAN', f: 1 }, ss304: { label: 'Stainless SS304', f: 1 }, ss316: { label: 'Stainless SS316', f: 1.4 } };
+const MEM_SIZES = {
+  mf: [['4in', '4" × 40"', 8], ['6in', '6" × 60"', 25], ['8in', '8" × 60"', 50], ['10in', '10" × 72"', 77]],
+  uf: [['4in', '4" × 40"', 8], ['6in', '6" × 60"', 25], ['8in', '8" × 60"', 55], ['10in', '10" × 72"', 77]],
+  nf: [['4040', '4040 (4" × 40")', 7.9], ['8040', '8040 (8" × 40")', 37]],
+};
+const MEM_MATS = { pvdf: { label: 'PVDF (tahan klorin)', f: 1 }, pes: { label: 'PES / PS', f: 0.85 }, pan: { label: 'PAN', f: 0.8 }, pvc: { label: 'PVC (ekonomis)', f: 0.7 }, ceramic: { label: 'Keramik (paling awet)', f: 3 }, tfc: { label: 'Poliamida TFC', f: 1 } };
+const memMatsFor = (type) => type === 'nf' ? ['tfc'] : ['pvdf', 'pes', 'pan', 'pvc', 'ceramic'];
+function designCart(Qh, mic, cfg = {}, typeOver) {
+  const type = CART_TYPES[typeOver || cfg.cartType] ? (typeOver || cfg.cartType) : 'pp'; const T = CART_TYPES[type];
+  const sizeK = CART_SIZES[cfg.cartSize] ? cfg.cartSize : 'ind40'; const S = CART_SIZES[sizeK];
+  const hm = HOUSING_MAT[cfg.housingMat] ? cfg.housingMat : 'ss304';
+  const perQ = S.Q * T.rate; const n = Math.max(1, Math.ceil(Qh / perQ)); const cp = r500(S.price * T.f);
+  let housings, per, hp, label;
+  if (S.multi) { const sizes = [[1, 2500000], [3, 6500000], [5, 9000000], [7, 12000000], [12, 18000000], [22, 28000000]];
+    let h = sizes.find(s => s[0] >= n); housings = 1; if (!h) { h = sizes[sizes.length - 1]; housings = Math.ceil(n / 22); }
+    per = h[0]; const mat = hm === 'plastic' ? 'ss304' : hm; hp = r500(h[1] * S.multi * HOUSING_MAT[mat].f); label = `Housing ${HOUSING_MAT[mat].label} ${per} × cartridge ${S.label.split(' (')[0].replace('Industri ', '')}`; }
+  else { per = 1; housings = n; hp = r500(S.hp * (hm === 'plastic' ? 1 : 3 * HOUSING_MAT[hm].f)); label = `Housing ${HOUSING_MAT[hm].label} ${S.label}`; }
+  return { mic, type, typeLabel: T.label, short: T.short, size: sizeK, sizeLabel: S.label, hm, n, per, housings, hp, cp, label, perQ };
+}
+function designMem(Qh, type, cfg = {}) {
+  const m = MEMBRANES[type]; const list = MEM_SIZES[type] || [];
+  const mats = memMatsFor(type); const mat = mats.includes(cfg.memMat) ? cfg.memMat : mats[0];
+  let sz = list.find(s => s[0] === cfg.memSize);
+  if (!sz) sz = list.find(s => Math.ceil(Qh * 1000 / (m.flux * s[2])) <= 4) || list[list.length - 1];
+  const area = sz ? sz[2] : m.area; const n = Math.max(1, Math.ceil(Qh * 1000 / (m.flux * area)));
+  const price = r500(m.price * Math.pow(area / m.area, 0.8) * MEM_MATS[mat].f);
+  return { type, ...m, area, n, price, size: sz ? sz[0] : '', sizeLabel: sz ? sz[1] : '', mat, matLabel: MEM_MATS[mat].label, Qfeed: Qh / m.rec };
+}
 // Bak bersekat: ruang penenang/sedimentasi → filter → karbon → air bersih
 function designTankFilter(t, units, Qh, Qd, ctx, cfg, project) {
   const link = cfg.structId && (project.structures || []).find(s => s.id === cfg.structId && s.type === 'reservoir');
@@ -1847,7 +2089,7 @@ function designTreatment(t, project, hyd) {
   const rec = recommendUnits(t, raw);
   const cfg = tfCfg(t);
   const base0 = Array.isArray(t.units) ? t.units.filter(u => UNIT_INFO[u] && !UNIT_INFO[u].cfg && UNIT_INFO[u].scale === (H ? 'h' : 'c')) : rec.units;
-  const extraU = H ? [] : [...(cfg.cart !== 'none' || cfg.mem !== 'none' ? ['cart'] : []), ...(cfg.mem !== 'none' ? ['mem'] : [])];
+  const extraU = H ? [] : [...(cfg.cart !== 'none' || cfg.mem !== 'none' || cfg.cto ? ['cart'] : []), ...(cfg.mem !== 'none' ? ['mem'] : [])];
   if (cfg.mem !== 'none' && cfg.cart === 'none') cfg.cart = '5';
   const units = UNIT_ORDER.filter(u => base0.includes(u) || extraU.includes(u));
   const ctx = { cfg, has: (u) => units.includes(u), mnMedia: raw.mn > 0.1, alum: raw.turb > 50, zeo: raw.fe > 0.2 || raw.mn > 0.1 || raw.nh3 > 1.5, gac: raw.color > 10 || raw.nh3 > 1.5, dolo: raw.ph < 6.5 };
@@ -1862,14 +2104,20 @@ function designTreatment(t, project, hyd) {
   const before = (u) => { const i = units.indexOf(u); return i > 0 ? sim.steps[i - 1].q : raw; };
   const handled = new Set(H ? [] : cfg.mode === 'reservoir' ? ['sed', 'hrf', 'ssf', 'rsf', 'gac'] : cfg.mode === 'frp' ? ['rsf', 'gac', 'aa', 'ix'] : []);
   if (!H) units.forEach(u => { const c0 = civil, i0 = items.length; (() => {
-    if (u === 'cart') { const c = designCart(Qh, cfg.cart); sz[u] = { L: 0.4, W: 0.4, H: 1.3, n: c.housings, hl: 0.5, cart: c, rows: [['Rating saring', `${c.mic} µm (polipropilena spun)`], ['Cartridge 40" × 2,5"', `${c.n} batang (± 2 m³/jam per batang)`], ['Housing', `${c.housings} × ${c.label}`], ['Penggantian', 'bila ΔP > 1 bar atau tiap 1–3 bulan']] };
-      item('wt|carth|' + c.per, `${c.label}, rating ${c.mic} µm, lengkap manometer`, c.housings, 'unit', c.hp); item('wt|cart|' + c.mic, `Cartridge PP spun ${c.mic} µm 40" (set awal)`, c.n, 'bh', 85000); om.push([`Cartridge ${c.mic} µm 40"`, c.n, 'bh/bulan', 85000]); }
-    if (u === 'mem') { const m = designMem(Qh, cfg.mem); sz[u] = { L: 2.5, W: 1.2, H: 2.2, n: 1, hl: 0, mem: m, rows: [['Jenis', m.label], ['Ukuran pori / MWCO', `${m.pore} · ${m.mwco}`], ['Fluks desain', `${m.flux} L/m²·jam`], ['Modul', `${m.n} modul × ${m.area} m²`], ['Recovery', `${fmt(m.rec * 100, 0)}% (air baku ${fmt(m.Qfeed, 2)} m³/jam)`], ['Pencucian', m.type === 'nf' ? 'CIP asam/basa tiap 1–3 bulan' : 'backwash tiap 30–60 menit, CIP bulanan']] };
-      item('wt|mem|' + m.type, `Modul membran ${m.label} (${m.pore}${m.mwco !== '-' ? ', MWCO ' + m.mwco : ''})`, m.n, 'modul', m.price);
+    if (u === 'cart') { const main = cfg.cart !== 'none' ? designCart(Qh, cfg.cart, cfg) : null; const cto = cfg.cto ? designCart(Qh, '10', { ...cfg, cartType: 'cto' }, 'cto') : null; const c = main || cto;
+      const rows = [...(main ? [['Cartridge sedimen', `${main.typeLabel}, ${main.mic} µm, ${main.sizeLabel}`], ['Jumlah', `${main.n} batang (± ${fmt(main.perQ, 1)} m³/jam per batang)`], ['Housing', `${main.housings} × ${main.label}`]] : []),
+        ...(cto ? [['Cartridge karbon (CTO)', `${cto.sizeLabel}, ${cto.n} batang`], ['Housing CTO', `${cto.housings} × ${cto.label}`]] : []), ['Penggantian', 'sedimen bila ΔP > 1 bar / 1–3 bulan; CTO tiap 3–6 bulan']];
+      sz[u] = { L: 0.4, W: 0.4, H: 1.3, n: c.housings + (main && cto ? cto.housings : 0), hl: 0.5 + (main && cto ? 0.3 : 0), cart: c, cto: main ? cto : null, rows };
+      [main, cto].filter(Boolean).forEach(x => { const tg = x.type === 'cto' ? 'cto' : 'cart';
+        item(`wt|carth|${x.size}|${x.hm}|${x.per}`, `${x.label}${x.type === 'cto' ? ' untuk CTO' : `, rating ${x.mic} µm`}, lengkap manometer`, x.housings, 'unit', x.hp);
+        item(`wt|${tg}|${x.type}|${x.size}|${x.mic}`, `Cartridge ${x.typeLabel.split(' (')[0]} ${x.type === 'cto' ? '' : x.mic + ' µm '}${x.sizeLabel.split(' (')[0]} (set awal)`, x.n, 'bh', x.cp);
+        om.push([`Cartridge ${x.short} ${x.sizeLabel.split(' (')[0]}`, x.n / (x.type === 'cto' ? 4 : 2), 'bh/bulan', x.cp]); }); }
+    if (u === 'mem') { const m = designMem(Qh, cfg.mem, cfg); sz[u] = { L: 2.5, W: 1.2, H: 2.2, n: 1, hl: 0, mem: m, rows: [['Jenis', m.label], ['Bahan membran', m.matLabel], ['Ukuran pori / MWCO', `${m.pore} · ${m.mwco}`], ['Fluks desain', `${m.flux} L/m²·jam`], ['Modul', `${m.n} modul ${m.sizeLabel} × ${m.area} m²`], ['Recovery', `${fmt(m.rec * 100, 0)}% (air baku ${fmt(m.Qfeed, 2)} m³/jam)`], ['Pencucian', m.type === 'nf' ? 'CIP asam/basa tiap 1–3 bulan' : 'backwash tiap 30–60 menit, CIP bulanan']] };
+      item(`wt|mem|${m.type}|${m.size}|${m.mat}`, `Modul membran ${m.label} ${m.sizeLabel}, bahan ${m.matLabel.split(' (')[0]}, ${m.area} m² (${m.pore}${m.mwco !== '-' ? ', MWCO ' + m.mwco : ''})`, m.n, 'modul', m.price);
       item('wt|memskid|' + t.id, 'Rangka skid membran, pompa umpan & backwash, tangki CIP, panel & instrumen', 1, 'set', r500(35000000 + 6000000 * m.n));
       om.push([`Energi membran (± ${m.kwh} kWh/m³)`, m.kwh * Qd * 30, 'kWh/bulan', 1500]); om.push(['Bahan kimia CIP (NaOCl, asam sitrat)', 2 * m.n, 'kg/bulan', 40000]); }
     if (u === 'screen') { const W = Math.max(0.5, Qls / 1000 / (0.6 * 0.5)); sz[u] = { L: 2, W: round2(W), H: 1.0, n: 1, hl: 0.1, rows: [['Lebar saluran', `${fmt(W, 2)} m`], ['Kecepatan lewat kisi', '≤ 0,6 m/s'], ['Kisi baja', 'Ø12 mm, jarak bersih 25 mm']] }; civil += box(1, 2, W, 1.0); item('wt|screen', 'Kisi saringan kasar baja galvanis + pintu air', 1, 'unit', 3500000); }
-    if (u === 'aer') { const A = Math.max(0.36, Qh / 50); const side = round2(Math.sqrt(A)); sz[u] = { L: side, W: side, H: 2.1, n: 1, hl: 2.0, rows: [['Luas nampan', `${fmt(A, 2)} m² (${fmt(side, 2)} × ${fmt(side, 2)} m)`], ['Beban hidrolik', '50 m³/m²·jam'], ['Jumlah nampan', '4 tingkat, jarak 0,4 m'], ['Media nampan', 'kokas / kerikil 50–75 mm tebal 15 cm']] }; item('wt|aer', `Aerator nampan bertingkat ${fmt(side, 2)} × ${fmt(side, 2)} m (rangka, 4 nampan, media)`, 1, 'unit', r500(4000000 + 6000000 * A)); civil += box(1, side + 0.6, side + 0.6, 0.6); }
+    if (u === 'aer') { const ae = designAerator(Qls, before('aer'), cfg); sz[u] = { L: ae.L, W: ae.W, H: ae.H, n: ae.nU || 1, hl: ae.hl, rows: ae.rows, aer: ae }; ae.items.forEach(r => item(...r)); }
     if (u === 'coag') { const tb = before('coag'); const dose = clamp(10 + 0.25 * tb.turb, 15, 80); const kg = dose * Qd / 1000; const Vf = Qh * 20 / 60, Vm = Math.max(0.2, Qls / 1000 * 60);
       sz[u] = { L: round2(Math.max(2, Vf / 1.2 / 1.5)), W: 1.5, H: 1.5, n: 1, hl: 0.6, rows: [['Dosis tawas (perkiraan)', `${fmt(dose, 0)} mg/L, pastikan dengan uji jar`], ['Kebutuhan tawas', `${fmt(kg, 1)} kg/hari`], ['Pengaduk cepat', `${fmt(Vm, 2)} m³ (60 detik, G ≈ 700 /dtk)`], ['Flokulasi sekat', `${fmt(Vf, 1)} m³ (20 menit, kedalaman 1,2 m)`]] };
       civil += box(1, Vf / 1.2 / 1.5 + 1, 1.5, 1.5); item('wt|dose', 'Unit pembubuh bahan kimia (tangki 500 L, pompa dosing, pengaduk)', 1, 'set', 12000000); om.push(['Tawas (aluminium sulfat)', kg * 30, 'kg/bulan', 6000]); }
@@ -1927,15 +2175,15 @@ function designTreatment(t, project, hyd) {
       const Qp = pc.mode === 'manual' && +pc.Q > 0 ? +pc.Q : Qh; const head = pc.mode === 'manual' && +pc.H > 0 ? +pc.H : autoH;
       const ptype = pc.type !== 'auto' && PUMP_TYPES[pc.type] ? pc.type : after ? 'booster' : head > 50 ? 'multistage' : 'centrifugal';
       const eff = clamp((+pc.eff || 55) / 100, 0.3, 0.85); const kw = pumpOn ? Qp / 3600 * 9.81 * head / eff : 0; const motor = STD_MOTOR.find(m => m >= kw * 1.15) || STD_MOTOR[STD_MOTOR.length - 1];
-      const hours = clamp(+pc.hours || 16, 1, 24);
+      const hours = clamp(+pc.hours || 16, 1, 24); const pspec = pumpSpec({ kind: 'surface', Qls: Qp / 3.6, H: head, motor, phase: pc.phase, typeLabel: PUMP_TYPES[ptype].label, ptype, cableL: 15 });
       const ctrl = after ? `pressure switch ${fmt(Math.max(1, (+project.settings.pMin + hlF) / 10), 1)}–${fmt(Math.max(1, (+project.settings.pMin + hlF) / 10) + 1, 1)} bar + tangki tekan` : towerS ? `pelampung otomatis (WLC) di tandon ${towerS.label}` : 'pelampung otomatis di bak penampung';
       const pwarn = [];
       if (Qp > Qh * 1.2) pwarn.push(`Debit pompa ${fmt(Qp, 1)} m³/jam > kapasitas desain filter ${fmt(Qh, 1)} m³/jam: laju filtrasi terlalu tinggi, tambah/perbesar tabung.`);
       if (head < autoH * 0.9) pwarn.push(`Head pompa ${fmt(head, 0)} m < kebutuhan ± ${autoH} m (angkat statis ${fmt(lift, 1)} m + filter kotor ${fmt(hlF, 0)} m + gesekan).`);
       if (ptype === 'jet' && Qp > 3) pwarn.push('Jet pump umumnya hanya untuk debit kecil (< 3 m³/jam).');
-      if (pumpOn) item(after ? 'wt|frpbooster' : 'wt|frppump', `${after ? `Pompa booster setelah ${srcLabel}` : 'Pompa umpan filter'}: ${PUMP_TYPES[ptype].label}, Q ${fmt(Qp, 1)} m³/jam, H ${head} m, motor ${fmt(motor, 2)} kW, ${ctrl}, panel & perpipaan hisap/tekan`, 1, 'set',
+      if (pumpOn) item(after ? 'wt|frpbooster' : 'wt|frppump', `${after ? `Pompa booster setelah ${srcLabel}` : 'Pompa umpan filter'}: ${PUMP_TYPES[ptype].label}, Q ${fmt(Qp, 1)} m³/jam, H ${head} m, motor ${fmt(motor, 2)} kW ${pspec.ph} fasa ${pspec.V} V, outlet ${pspec.out[1]}, ${ctrl}, panel & perpipaan hisap/tekan`, 1, 'set',
         r500(((after ? 2000000 : 0) + 4500000 + 1800000 * Math.pow(Qp, 0.7)) * PUMP_TYPES[ptype].f + 900000 * motor));
-      const pump = { Q: Qp, H: head, autoH, lift, liftSrc, type: ptype, typeLabel: PUMP_TYPES[ptype].label, eff, kw, motor, hours, ctrl, warn: pwarn };
+      const pump = { Q: Qp, H: head, autoH, lift, liftSrc, spec: pspec, type: ptype, typeLabel: PUMP_TYPES[ptype].label, eff, kw, motor, hours, ctrl, warn: pwarn };
       item('wt|frppipe|' + t.id, 'Perpipaan manifold filter (PVC/PPR), manometer, sampling tap & fitting', 1, 'ls', r500(stages.reduce((a, st) => a + st.n * st.v.price, 0) * 0.2 + 2500000));
       if (!(cfg.towerId && cfg.towerPos === 'top')) item('wt|frppad', 'Lantai dudukan tabung filter beton K-175 t = 15 cm + atap pelindung', foot * deep, 'm²', 650000);
       if (pumpOn) om.push([`Energi pompa ${after ? 'booster' : 'umpan'} filter (${fmt(kw, 2)} kW × ${hours} jam)`, kw * hours * 30, 'kWh/bulan', 1500]);
@@ -2003,8 +2251,9 @@ function designTreatment(t, project, hyd) {
   return { raw, units, rec, sim, compliance, allOk: compliance.every(c => c.ok), Qls, Qh, Qd, Qlabel, sz, items, om, omMonth, hh, profile, civil, cfg, frp, tank, handled };
 }
 // Item RAB sistem pompa sumur bor
+const boreSpec = (n, pr) => { const pp = pumpP(n); return pumpSpec({ kind: 'sub', Qls: pr.Q, H: pr.Hd, motor: pr.motor, phase: pp.phase, casing: +pp.casing || 6, cableL: pr.setting + 30 }); };
 function pumpItems(n, pr) {
-  const pp = pumpP(n); const cs = +pp.casing || 6; const k = cs / 6;
+  const pp = pumpP(n); const cs = +pp.casing || 6; const k = cs / 6; const sp = boreSpec(n, pr);
   const blind = Math.max(0, pp.depth - pp.screen - 3);
   const Db = (cs + 4) * 0.0254, Dc = cs * 0.0254; const gravel = Math.PI / 4 * (Db * Db - Dc * Dc) * (pp.screen + 6); const grout = Math.PI / 4 * (Db * Db - Dc * Dc) * 6;
   const it = [
@@ -2014,9 +2263,9 @@ function pumpItems(n, pr) {
     ['pump|gravel', 'Kerikil pembalut (gravel pack) 2–5 mm', gravel, 'm³', 900000],
     ['pump|grout', 'Penyekat semen/bentonit (sanitary seal) 0–6 m', grout, 'm³', 2500000],
     ['pump|dev', 'Pembersihan/pengembangan sumur, uji pemompaan & uji kualitas air', 1, 'ls', 9000000],
-    ['pump|unit|' + pr.motor, `Pompa submersible Q ${fmt(pr.Q, 2)} L/dtk, H ${fmt(pr.Hd, 0)} m, motor ${fmt(pr.motor, 2)} kW`, 1, 'unit', r500(6000000 + 7000000 * pr.motor)],
-    ['pump|panel|' + pr.motor, `Panel kontrol & proteksi pompa ${fmt(pr.motor, 2)} kW (level switch, MCB, kapasitor)`, 1, 'unit', r500(3500000 + 1200000 * pr.motor)],
-    ['pump|cable', 'Kabel listrik pompa submersible (NYY/NYFGbY)', Math.ceil(pr.setting + 30), "m'", 55000],
+    ['pump|unit|' + pr.motor, `Pompa submersible ${sp.pumpDia}" ${sp.stages} stage, Q ${fmt(pr.Q, 2)} L/dtk (${fmt(pr.Q * 3.6, 1)} m³/jam), H ${fmt(pr.Hd, 0)} m, motor ${fmt(pr.motor, 2)} kW ${sp.ph} fasa ${sp.V} V, outlet ${sp.out[1]}`, 1, 'unit', r500(6000000 + 7000000 * pr.motor)],
+    ['pump|panel|' + pr.motor, `Panel kontrol & proteksi pompa ${fmt(pr.motor, 2)} kW: ${sp.starter.toLowerCase()}, MCB ${sp.mcb} A, level switch/dry-run${sp.ph === 3 ? ', phase failure' : ''}, arrester`, 1, 'unit', r500(3500000 + 1200000 * pr.motor)],
+    ['pump|cable', `Kabel listrik pompa submersible ${sp.ph === 1 ? 3 : 4} × ${sp.cab[0]} mm² (rugi tegangan ${fmt(sp.vDrop, 1)}%)`, Math.ceil(pr.setting + 30), "m'", r500(12000 + 8000 * sp.cab[0] * (sp.ph === 1 ? 1 : 1.33))],
     ['pump|riser|' + pp.riserDia, `Pipa naik (riser) ${pp.riserMat} Ø${pp.riserDia} mm`, Math.ceil(pr.riserL), "m'", defPipePrice(pp.riserMat, pp.riserDia)],
     ['pump|head', 'Kepala sumur: katup searah, katup sorong, meter air, manometer, katup udara', 1, 'set', 6500000],
     ['pump|house', 'Rumah pompa & pagar pengaman (3 × 3 m)', 1, 'ls', 25000000],
@@ -2943,6 +3192,7 @@ function PumpCard({ node, pr, project, setProject, openDed }) {
           <Field label="Pipa riser"><select id={`pp-${node.id}-riser`} className="tp-field" value={pp.riserDia} onChange={e => set('riserDia', +e.target.value)}>{DIAMETERS.map(d => <option key={d} value={d}>{pp.riserMat} Ø{d}</option>)}</select></Field>
           {num('tariff', 'Tarif listrik (Rp/kWh)', 10, 0)}
           {num('etaP', 'Efisiensi pompa', 0.01, 0.2)}{num('etaM', 'Efisiensi motor', 0.01, 0.2)}
+          <div className="col-span-2"><Field label="Sumber listrik pompa"><select id={`pp-${node.id}-phase`} className="tp-field" value={pp.phase || 'auto'} onChange={e => set('phase', e.target.value)}>{Object.entries(PHASES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field></div>
         </div>
         <label className="flex items-center gap-2 text-[12.5px]"><input id={`pp-${node.id}-auto`} type="checkbox" checked={pp.auto} onChange={e => set('auto', e.target.checked)} />Pilih Q & H pompa otomatis dari kebutuhan</label>
         {!pp.auto && <div className="grid grid-cols-2 gap-2">{num('Qd', 'Q rencana pompa (L/dtk)', 0.1, 0.05)}{num('Hd', 'Head rencana pompa (m)', 1, 1)}</div>}
@@ -2957,9 +3207,28 @@ function PumpCard({ node, pr, project, setProject, openDed }) {
             ['Angkatan statis', `${fmt(pr.staticLift, 2)} m`], ['Kehilangan pipa transmisi', `${fmt(pr.pathHf, 2)} m`], ['Kehilangan pipa riser & kepala sumur', `${fmt(pr.riserHf, 2)} m`],
             ['Head total kebutuhan (TDH)', `${fmt(pr.TDHreq, 2)} m`], ['Daya hidrolik / masuk', `${fmt(pr.Phyd, 2)} / ${fmt(pr.Pin, 2)} kW`]].map(([a, b]) => <tr key={a}><td className="text-slate-500">{a}</td><td className="r font-mono">{b}</td></tr>)}
         </tbody></table>
+        <PumpSpecTable spec={boreSpec(node, pr)} />
       </div>
     </div>
   </Card>;
+}
+function AerConfig({ t, d, cfg, setF, sel }) {
+  const a = cfg.aer; const setA = (k, v) => setF({ aer: { ...a, [k]: v } }); const ae = d.sz.aer?.aer;
+  const num = (k, label, step, min, max, hint) => <Field label={label} hint={hint}><NumField id={`wt-${t.id}-a${k}`} value={a[k]} step={step} min={min} onChange={v => setA(k, clamp(v, min, max))} /></Field>;
+  return <div className="rounded-md bg-ground p-2.5 space-y-2">
+    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sistem aerator (oksidasi besi/mangan, buang CO₂ & bau)</div>
+    <Field label="Jenis aerator">{sel('atype', a.type, v => setA('type', v), Object.entries(AER_TYPES).map(([k, x]) => [k, x.label]))}</Field>
+    <div className="grid grid-cols-2 gap-2">
+      {a.type === 'tray' && <>{num('nTray', 'Jumlah nampan', 1, 3, 8)}{num('gap', 'Jarak antar nampan (m)', 0.05, 0.3, 0.75)}{num('hlr', 'Beban hidrolik (m³/m²·jam)', 5, 20, 90, 'umum 30–70')}
+        <Field label="Media nampan">{sel('amedia', a.media, v => setA('media', v), Object.entries(AER_MEDIA))}</Field>
+        <div className="col-span-2"><Field label="Bahan rangka & nampan">{sel('amat', a.mat, v => setA('mat', v), Object.entries(AER_MAT))}</Field></div></>}
+      {a.type === 'cascade' && <>{num('nStep', 'Jumlah anak tangga', 1, 3, 12)}{num('stepH', 'Tinggi anak tangga (m)', 0.05, 0.15, 0.6)}{num('stepL', 'Lebar injakan (m)', 0.05, 0.3, 1)}</>}
+      {a.type === 'spray' && <>{num('nozzleQ', 'Debit per nosel (L/dtk)', 0.1, 0.3, 5)}{num('nozzleH', 'Tekanan di nosel (m)', 0.5, 3, 15, 'umum 5–10 m')}
+        <Field label="Bahan nosel">{sel('amat', a.mat, v => setA('mat', v), Object.entries(AER_MAT))}</Field></>}
+      {a.type === 'diffuser' && <>{num('detMin', 'Waktu tinggal (menit)', 1, 5, 60)}{num('depth', 'Kedalaman air (m)', 0.1, 1.5, 4)}{num('airRatio', 'Rasio udara : air', 0.05, 0.1, 2, 'm³ udara per m³ air')}</>}
+    </div>
+    {ae && <p className="text-[12px] text-slate-700 leading-snug">{ae.rows.slice(1, 4).map(r => `${r[0]}: ${r[1]}`).join(' · ')}. Gambar DED aerator ada di tab DED (grup Sumber & pengolahan air).</p>}
+  </div>;
 }
 function FiltConfig({ t, d, project, upd }) {
   const H = t.scale === 'household'; const cfg = tfCfg(t); const setF = (patch) => upd({ filt: { ...cfg, ...patch } });
@@ -2968,6 +3237,7 @@ function FiltConfig({ t, d, project, upd }) {
   const num = (k, label, step, hint) => <Field label={label} hint={hint}><NumField id={`wt-${t.id}-f${k}`} value={cfg[k]} step={step} min={0} onChange={v => setF({ [k]: Math.max(0, v) })} /></Field>;
   const m = MEMBRANES[cfg.mem];
   return <div className="rounded-md border border-line p-3 space-y-2.5">
+    {!H && d.units.includes('aer') && <AerConfig t={t} d={d} cfg={cfg} setF={setF} sel={sel} />}
     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Jenis filtrasi & spesifikasi media</div>
     {!H && <Field label="Jenis / penempatan filtrasi">{sel('fmode', cfg.mode, v => setF({ mode: v }), Object.entries(FILT_MODES).map(([k, x]) => [k, x.label]))}</Field>}
     {!H && cfg.mode === 'reservoir' && <div className="grid grid-cols-2 gap-2">
@@ -2995,9 +3265,11 @@ function FiltConfig({ t, d, project, upd }) {
               {cfg.place !== 'after' && <Field label="Beda tinggi statis (m)" hint={pp ? `0 = otomatis: ${fmt(pp.lift, 1)} m (${pp.liftSrc})` : '0 = otomatis'}><NumField id={`wt-${t.id}-plift`} value={pc.lift} step={0.5} min={0} onChange={v => setPc('lift', Math.max(0, v))} /></Field>}
               <Field label="Efisiensi pompa (%)"><NumField id={`wt-${t.id}-peff`} value={pc.eff} step={5} min={30} onChange={v => setPc('eff', clamp(v, 30, 85))} /></Field>
               <Field label="Jam operasi / hari"><NumField id={`wt-${t.id}-phours`} value={pc.hours} step={1} min={1} onChange={v => setPc('hours', clamp(v, 1, 24))} /></Field>
+              <div className="col-span-2"><Field label="Sumber listrik pompa">{sel('pphase', pc.phase || 'auto', v => setPc('phase', v), Object.entries(PHASES))}</Field></div>
             </div>
             {pp && <div className="text-[12px] text-slate-700 leading-snug"><b>{pp.typeLabel}</b> · Q {fmt(pp.Q, 1)} m³/jam · H {pp.H} m{pc.mode === 'manual' ? ` (kebutuhan ± ${pp.autoH} m)` : ''} · daya {fmt(pp.kw, 2)} kW → motor {fmt(pp.motor, 2)} kW · kontrol: {pp.ctrl}.</div>}
             {pp && pp.warn.map((w, i) => <div key={i} className="rounded bg-amber-50 border border-amber-200 text-amber-900 text-[12px] px-2 py-1">{w}</div>)}
+            {pp && pp.spec && <PumpSpecTable spec={pp.spec} title={`Spesifikasi pompa ${cfg.place === 'after' ? 'booster' : 'umpan filter'} (untuk pengadaan)`} />}
           </div>; })()}
         <div><div className="text-[11.5px] text-slate-500 mb-1">Tahap tabung FRP (bisa lebih dari satu tabung, misalnya pasir dan karbon terpisah):</div>
           <div className="flex flex-wrap gap-1.5">{[['rsf', 'Tabung pasir silika / greensand'], ['gac', 'Tabung karbon aktif'], ['aa', 'Tabung alumina (F/As)'], ['ix', 'Tabung pelunak (resin)']].map(([u, l]) =>
@@ -3013,12 +3285,22 @@ function FiltConfig({ t, d, project, upd }) {
       <Field label="Pasir silika (ukuran mesh)" hint={SAND_MESH[cfg.sandMesh].use}>{sel('fmesh', cfg.sandMesh, v => setF({ sandMesh: v }), Object.entries(SAND_MESH).map(([k, x]) => [k, x.label]))}</Field>
       <Field label="Karbon aktif: bilangan iodin" hint="makin tinggi, makin kuat menyerap warna/bau">{sel('fiod', cfg.iodine, v => setF({ iodine: +v }), Object.keys(CARBON_IODINE).map(v => [v, `≥ ${v} mg/g`]))}</Field>
       {!H && <Field label="Karbon aktif: ukuran butir">{sel('fcm', cfg.carbonMesh, v => setF({ carbonMesh: v }), Object.entries(CARBON_MESH))}</Field>}
-      {!H && <Field label="Filter cartridge" hint={cfg.mem !== 'none' && cfg.cart === 'none' ? 'Otomatis 5 µm sebagai pra-saring membran' : ''}>{sel('fcart', cfg.cart, v => setF({ cart: v }), Object.entries(CARTRIDGES))}</Field>}
+      {!H && <Field label="Filter cartridge (rating)" hint={cfg.mem !== 'none' && cfg.cart === 'none' ? 'Otomatis 5 µm sebagai pra-saring membran' : ''}>{sel('fcart', cfg.cart, v => setF({ cart: v }), Object.entries(CARTRIDGES))}</Field>}
+      {!H && (cfg.cart !== 'none' || cfg.mem !== 'none' || cfg.cto) && <>
+        <Field label="Jenis cartridge">{sel('fctype', cfg.cartType, v => setF({ cartType: v }), Object.entries(CART_TYPES).map(([k, x]) => [k, x.label]))}</Field>
+        <Field label="Ukuran cartridge" hint={d.sz.cart?.cart ? `${d.sz.cart.cart.n} batang · ± ${fmt(d.sz.cart.cart.perQ, 1)} m³/jam per batang` : ''}>{sel('fcsize', cfg.cartSize, v => setF({ cartSize: v }), Object.entries(CART_SIZES).map(([k, x]) => [k, x.label]))}</Field>
+        <Field label="Bahan housing" hint={CART_SIZES[cfg.cartSize]?.multi && cfg.housingMat === 'plastic' ? 'Housing multi-cartridge selalu stainless (SS304).' : ''}>{sel('fhmat', cfg.housingMat, v => setF({ housingMat: v }), Object.entries(HOUSING_MAT).map(([k, x]) => [k, x.label]))}</Field>
+        <label className="flex items-center gap-2 text-[12px] self-end pb-2"><input id={`wt-${t.id}-fcto`} type="checkbox" checked={!!cfg.cto} onChange={e => setF({ cto: e.target.checked })} />Tambah tahap CTO (karbon blok) setelah sedimen</label></>}
       {!H && <div className="col-span-2"><Field label="Membran filtrasi" hint={m.pore ? `Pori ${m.pore}${m.mwco !== '-' ? ` · MWCO ${m.mwco}` : ''} · fluks ${m.flux} L/m²·jam · recovery ${fmt(m.rec * 100, 0)}%` : 'UF menahan bakteri & kekeruhan tanpa bahan kimia; NF juga menurunkan kesadahan & warna.'}>
         {sel('fmem', cfg.mem, v => setF({ mem: v }), Object.entries(MEMBRANES).map(([k, x]) => [k, x.pore ? `${x.label} · ${x.pore}` : x.label]))}</Field></div>}
+      {!H && cfg.mem !== 'none' && <>
+        <Field label="Ukuran modul membran" hint={d.sz.mem?.mem ? `${d.sz.mem.mem.n} modul × ${d.sz.mem.mem.area} m²` : ''}>{sel('fmsize', cfg.memSize, v => setF({ memSize: v }), [['auto', 'Otomatis'], ...(MEM_SIZES[cfg.mem] || []).map(([k, l, a]) => [k, `${l} · ${a} m²`])])}</Field>
+        <Field label="Bahan membran">{sel('fmmat', memMatsFor(cfg.mem).includes(cfg.memMat) ? cfg.memMat : memMatsFor(cfg.mem)[0], v => setF({ memMat: v }), memMatsFor(cfg.mem).map(k => [k, MEM_MATS[k].label]))}</Field></>}
     </div>
     {d.frp && <div className="overflow-x-auto"><table className="tp-table"><thead><tr><th>Tahap</th><th>Tabung</th><th className="r">Laju</th><th>Media</th></tr></thead><tbody>
-      {d.frp.stages.map(st => <tr key={st.u}><td className="whitespace-normal">{st.name}</td><td>{st.n} × FRP {st.v.code}</td><td className="r">{fmt(st.rateAct, 1)} m/jam</td><td className="whitespace-normal text-[11.5px]">{st.media.map(x => `${x.name} ${fmt(x.kg, 0)} kg`).join(' + ')}{st.ebct ? ` · EBCT ${fmt(st.ebct, 1)} mnt` : ''}</td></tr>)}</tbody></table>
+      {d.frp.stages.map(st => <tr key={st.u}><td className="whitespace-normal">{st.name}</td><td><div className="flex items-center gap-1.5"><span>{st.n} ×</span><select id={`wt-${t.id}-frp-${st.u}`} className="tp-field !py-0.5 !w-auto" value={cfg.frpCode?.[st.u] || 'auto'} onChange={e => setF({ frpCode: { ...(cfg.frpCode || {}), [st.u]: e.target.value } })}>
+        <option value="auto">Otomatis ({st.forced ? 'pilih' : st.v.code})</option>{FRP_VESSELS.map(v => <option key={v.code} value={v.code}>FRP {v.code} · Ø{fmt(v.D * 100, 0)} × {fmt(v.H * 100, 0)} cm</option>)}</select></div>
+        {st.forced && st.n > Math.max(4, cfg.nPar) && <div className="text-[11px] text-amber-700 whitespace-normal">{st.n} tabung paralel — terlalu banyak untuk debit ini, pilih tabung yang lebih besar</div>}</td><td className="r">{fmt(st.rateAct, 1)} m/jam</td><td className="whitespace-normal text-[11.5px]">{st.media.map(x => `${x.name} ${fmt(x.kg, 0)} kg`).join(' + ')}{st.ebct ? ` · EBCT ${fmt(st.ebct, 1)} mnt` : ''}</td></tr>)}</tbody></table>
       <p className="text-[11.5px] text-slate-500 mt-1">{d.frp.after ? `Filter dipasang setelah ${d.frp.srcLabel}, sebelum distribusi. ` : 'Filter dipasang setelah pompa, sebelum bak/menara. '}{d.frp.pumpOn ? `Pompa ${d.frp.after ? 'booster' : 'umpan'} ${fmt(d.Qh, 1)} m³/jam, H ${d.frp.head} m. ` : 'Tanpa pompa tambahan. '}{d.frp.after && !d.frp.pumpOn && d.frp.Havail < d.frp.needH ? `⚠ Tinggi tekan ${fmt(d.frp.Havail, 1)} m kurang dari kebutuhan filter ± ${fmt(d.frp.needH, 0)} m; aliran akan berkurang. ` : ''}{d.frp.after ? '' : d.frp.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `Tabung dipasang di platform menara ${d.frp.tower.label}; beban tabung ikut dicek pada struktur menara.` : `Tabung dipasang di samping menara ${d.frp.tower.label}.`) : 'Tabung dipasang di rumah filter tersendiri.'}</p></div>}
     {d.tank && <div className="overflow-x-auto"><table className="tp-table"><thead><tr><th>Ruang</th><th className="r">P × L (m)</th><th>Keterangan</th></tr></thead><tbody>
       {d.tank.ch.map(c => <tr key={c.k}><td className="whitespace-normal">{c.name}</td><td className="r">{fmt(c.L, 2)} × {fmt(d.tank.B, 2)}</td><td className="whitespace-normal text-[11.5px]">{c.note}{c.layers.length ? ' · ' + c.layers.map(l => l[0]).join(', ') : ''}</td></tr>)}</tbody></table>
@@ -3327,6 +3609,17 @@ function ShsPicker({ project, setProject, it, onClose }) {
       <div className="px-4 py-3 border-t border-line flex justify-between">{it.shsCode ? <Btn variant="outline" icon="Unlink" onClick={() => link(null)}>Lepas tautan SHS</Btn> : <span />}<Btn variant="outline" onClick={onClose}>Tutup</Btn></div>
     </div></div>;
 }
+function TierPick({ it, onPick, manual }) {
+  const [open, setOpen] = useState(false); const pr = (k) => it.base0 ? Math.max(100, Math.round(it.base0 * it.spec[k].f / 100) * 100) : 0;
+  return <div className="mt-1 text-[11.5px]">
+    <div className="flex flex-wrap items-center gap-1.5"><div className="inline-flex rounded border border-line overflow-hidden">{Object.keys(TIERS).map(k => <button key={k} type="button" onClick={() => onPick(k)} title={`${TIERS[k]}: ${it.spec[k].s}${pr(k) ? ` · ± Rp ${fmt(pr(k), 0)}` : ''}`}
+      className={`px-1.5 py-0.5 font-semibold ${it.tier === k ? (k === 'min' ? 'bg-amber-500 text-white' : k === 'max' ? 'bg-deep text-white' : 'bg-aqua-600 text-white') : 'bg-white text-slate-500 hover:bg-ground'}`}>{TIER_SHORT[k]}</button>)}</div>
+      <span className="text-slate-600">{it.specText}</span>
+      <button type="button" className="text-aqua-700 hover:underline" onClick={() => setOpen(v => !v)}>{open ? 'tutup' : 'bandingkan'}</button>
+      {manual && <span className="text-amber-700">(harga diisi manual, tidak ikut tingkat)</span>}</div>
+    {open && <table className="mt-1 w-full text-[11.5px]"><tbody>{Object.keys(TIERS).map(k => <tr key={k} className={it.tier === k ? 'bg-aqua-50' : ''}><td className="pr-2 font-semibold whitespace-nowrap align-top">{TIERS[k]}</td><td className="pr-2 align-top">{it.spec[k].s}</td><td className="text-right whitespace-nowrap align-top">{pr(k) ? `Rp ${fmt(pr(k), 0)}` : ''} <span className="text-slate-400">×{fmt(it.spec[k].f, 2)}</span></td></tr>)}</tbody></table>}
+  </div>;
+}
 function RabTable({ project, setProject, rab, setPrice, nEdited }) {
   const [shsPick, setShsPick] = useState(null); const hasShs = (shsOf(project).items || []).length > 0;
   const s = project.settings; const E = project.rabEdits || {};
@@ -3344,6 +3637,8 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
     right={<div className="flex flex-wrap items-center justify-end gap-2">
       {nEdited > 0 && <span className="text-[12px] text-amber-700">{nEdited} harga diubah</span>}
       {nEd > 0 && <span className="text-[12px] text-amber-700">{nEd} perubahan item</span>}
+      <label className="flex items-center gap-1.5 text-[12px]" title="Tingkat spesifikasi bahan untuk semua item (bisa diubah per item)">Spesifikasi
+        <select id="rab-tier-all" className="tp-field !py-1 !w-auto" value={rab.tierAll} onChange={e => { const v = e.target.value; setE(x => ({ ...x, tierAll: v, tier: {} })); }}>{Object.entries(TIERS).map(([k, l]) => <option key={k} value={k}>{l} (semua item)</option>)}</select></label>
       <Btn icon="RotateCcw" variant="outline" disabled={!nEdited} onClick={() => setProject(p => ({ ...p, prices: {} }))}>Harga bawaan</Btn>
       <Btn icon="PencilRuler" variant={edit ? 'primary' : 'outline'} onClick={() => setEdit(v => !v)}>{edit ? 'Selesai mengedit' : 'Edit item RAB'}</Btn></div>}>
     {edit && <div className="px-4 py-2.5 bg-aqua-50 border-b border-line text-[12.5px] text-aqua-900 flex flex-wrap items-center gap-2">
@@ -3364,7 +3659,8 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
             <td className="whitespace-normal min-w-[280px]">{edit ? <div className="flex items-start gap-1.5">
                 <textarea id={'rab-d-' + it.ek} rows={it.desc.length > 70 ? 2 : 1} className="tp-field !py-1 resize-y" value={it.desc} onChange={e => it.custom ? updCustom(it.cid, { desc: e.target.value }) : setMap('desc', it.ek, e.target.value)} />
                 {!it.custom && <Reset on={it.edDesc} title="Kembalikan uraian otomatis" onClick={() => setMap('desc', it.ek, undefined)} />}</div>
-              : <>{it.desc}{(it.edDesc || it.edVol || it.edUnit) && <span className="pill s-low ml-1.5 !text-[10px]">diubah</span>}{it.custom && <span className="pill s-src ml-1.5 !text-[10px]">tambahan</span>}</>}</td>
+              : <>{it.desc}{(it.edDesc || it.edVol || it.edUnit) && <span className="pill s-low ml-1.5 !text-[10px]">diubah</span>}{it.custom && <span className="pill s-src ml-1.5 !text-[10px]">tambahan</span>}</>}
+              {it.spec && <TierPick it={it} onPick={(k) => setMap('tier', it.ek, k === rab.tierAll ? undefined : k)} manual={project.prices[it.key] !== undefined} />}</td>
             <td className="r">{edit ? <div className="flex items-center justify-end gap-1.5"><div className="w-24"><NumField id={'rab-v-' + it.ek} value={it.vol} step="0.01" min="0" onChange={v => it.custom ? updCustom(it.cid, { vol: v }) : setMap('vol', it.ek, v)} /></div>
                 {!it.custom && <Reset on={it.edVol} title={`Kembalikan volume otomatis (${fmt(it.autoVol, 2)})`} onClick={() => setMap('vol', it.ek, undefined)} />}</div>
               : <span title={it.edVol ? `Volume otomatis: ${fmt(it.autoVol, 2)}` : undefined}>{fmt(it.vol, 2)}</span>}</td>
@@ -3388,6 +3684,7 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
         <tr className="bg-aqua-50"><td /><td colSpan={4} className="text-right font-bold text-aqua-800">DIBULATKAN</td><td className="r font-bold text-aqua-800 text-[14px]">{fmt(rab.rounded, 0)}</td>{edit && <td />}</tr>
       </tbody></table>
     <div className="px-4 py-3 text-[13px] border-t border-line"><span className="text-slate-500">Terbilang: </span><i className="font-medium">{terbilang(rab.rounded)}</i></div>
+    <div className="px-4 pb-1 text-[12px] text-slate-500">Tingkat spesifikasi: <b>Minimal</b> = mutu terendah yang masih layak, <b>Ideal</b> = rekomendasi (harga bawaan), <b>Maksimal</b> = mutu premium/umur pakai terpanjang. Harga satuan otomatis menyesuaikan tingkat (kecuali harga yang diisi manual).</div>
     <div className="px-4 pb-3 text-[12px] text-slate-500">Harga bawaan adalah perkiraan awal. Ganti dengan Harga Satuan Pekerjaan (AHSP/SSH) daerah Anda: sel kuning menandai harga yang sudah diubah. Item berlabel "diubah" memakai uraian/volume/satuan yang diedit manual.</div>
   </Card></>;
 }
@@ -3487,7 +3784,7 @@ function LayoutLegend(x, y, w) {
     </g>
   </g>;
 }
-function SheetLayout({ project, hyd }) {
+function SheetLayout({ project, hyd, sheetTotal }) {
   const rowsPer = 13; const pipes = project.pipes; const cols = Math.min(2, Math.max(1, Math.ceil(pipes.length / rowsPer)));
   const tableH = 12 + Math.min(rowsPer, Math.max(1, pipes.length)) * 4.2; const ty = FRAME.y1 - tableH - 2;
   const area = { x: 22, y: 14, w: 304, h: ty - 8 - 14 };
@@ -3509,7 +3806,7 @@ function SheetLayout({ project, hyd }) {
     ps.forEach(p => { const o = pts[p.from === n.id ? p.to : p.from], m = pts[n.id]; if (!o) return; const dx = o.x - m.x, dy = -(o.y - m.y); const l = Math.hypot(dx, dy) || 1; vx += dx / l; vy += dy / l; });
     return { right: vx <= 0.05, down: vy < 0 }; };
   const heads = [['No', 0.07], ['Segmen', 0.17], ['Jenis', 0.13], ['Ø (mm)', 0.11], ['L (m)', 0.14], ['Q (L/dt)', 0.13], ['v (m/s)', 0.12], ['hf (m)', 0.13]];
-  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title="DENAH SKEMA JARINGAN PIPA DISTRIBUSI" scaleText={fmtScale(S)} sheetNo={1} sheetTotal={sheetCount(project)} legend={LayoutLegend}>
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title="DENAH SKEMA JARINGAN PIPA DISTRIBUSI" scaleText={fmtScale(S)} sheetNo={1} sheetTotal={sheetTotal || sheetCount(project)} legend={LayoutLegend}>
     <text x={area.x} y={area.y + 3} fontSize={3.2} fontWeight={700}>DENAH JARINGAN (LAYOUT PLAN)</text>
     <text x={area.x} y={area.y + 7} fontSize={2} fill="#333">Skala {fmtScale(S)} · Referensi koordinat pusat {c.lat.toFixed(5)}°, {c.lng.toFixed(5)}° (WGS 84)</text>
     {/* Panah utara */}
@@ -3553,9 +3850,9 @@ function SheetLayout({ project, hyd }) {
   </Sheet>;
 }
 
-function SheetLongSection({ project, hyd, endId }) {
+function SheetLongSection({ project, hyd, endId, sheetTotal }) {
   const s = project.settings; const path = buildPath(project, hyd, endId);
-  if (!path) return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title="POTONGAN MEMANJANG" scaleText="-" sheetNo={2} sheetTotal={sheetCount(project)}><text x={100} y={120} fontSize={5}>Belum ada jalur pipa dari reservoir.</text></Sheet>;
+  if (!path) return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title="POTONGAN MEMANJANG" scaleText="-" sheetNo={2} sheetTotal={sheetTotal || sheetCount(project)}><text x={100} y={120} fontSize={5}>Belum ada jalur pipa dari reservoir.</text></Sheet>;
   const H = +s.trenchDepth, bed = +s.sandBed;
   const stations0 = buildStations(path, +s.staInterval || 0);
   const gx0 = 62, gx1 = 322, gy0 = 22, gy1 = 152;
@@ -3584,7 +3881,7 @@ function SheetLongSection({ project, hyd, endId }) {
   ];
   const ty0 = 158; let acc = ty0; const rowY = rows.map(r => { const y = acc; acc += r[1]; return y; });
   const ticks = []; for (let e = datum; e <= datum + (gy1 - gy0) / kv; e += tick) ticks.push(e);
-  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title={`POTONGAN MEMANJANG ${path.points[0].node.label} – ${path.points[path.points.length - 1].node.label}`} scaleText={`H ${fmtScale(Sh)} · V ${fmtScale(Sv)}`} sheetNo={2} sheetTotal={sheetCount(project)}
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'umum'])} title={`POTONGAN MEMANJANG ${path.points[0].node.label} – ${path.points[path.points.length - 1].node.label}`} scaleText={`H ${fmtScale(Sh)} · V ${fmtScale(Sv)}`} sheetNo={2} sheetTotal={sheetTotal || sheetCount(project)}
     legend={(x, y) => <g fontSize={2}>
       <line x1={x + 3} x2={x + 13} y1={y + 2} y2={y + 2} stroke="#5b4421" strokeWidth={0.6} /><text x={x + 16} y={y + 2.7}>Muka tanah asli</text>
       <line x1={x + 3} x2={x + 13} y1={y + 8} y2={y + 8} stroke="#0b4fa8" strokeWidth={0.8} /><text x={x + 16} y={y + 8.7}>Dasar pipa (elevasi tanam)</text>
@@ -3634,7 +3931,7 @@ function DimLine({ x1, y1, x2, y2, text, off = 0, size = 2.2, vertical }) {
     <text stroke="none" fontSize={size} textAnchor="middle" x={vertical ? mx - 1.2 : mx} y={vertical ? my : my - 1} transform={vertical ? `rotate(-90 ${mx - 1.2} ${my})` : undefined} fill="#000">{text}</text>
   </g>;
 }
-function SheetCrossSection({ project, boq, diameter }) {
+function SheetCrossSection({ project, boq, diameter, sheetTotal }) {
   const s = project.settings; const W = +s.trenchWidth, H = +s.trenchDepth, bed = +s.sandBed, cov = +s.sandCover;
   const dias = boq.pipeGroups.map(g => g.diameter); const D0 = diameter && dias.includes(diameter) ? diameter : (dias.length ? Math.max(...dias) : 90);
   const grp = boq.pipeGroups.find(g => g.diameter === D0) || boq.pipeGroups[0];
@@ -3645,7 +3942,7 @@ function SheetCrossSection({ project, boq, diameter }) {
   const pipeY = H - bed - D / 2; const tape = Math.min(0.3, (H - sz) * 0.5);
   const per = grp ? grp.perM : { galian: W * H, pasir: W * sz - Math.PI * D * D / 4, kembali: W * (H - sz) };
   const leader = (x1, y1, x2, y2, lines) => <g><line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#000" strokeWidth={0.18} /><line x1={x2} y1={y2} x2={x2 + 3} y2={y2} stroke="#000" strokeWidth={0.18} /><circle cx={x1} cy={y1} r={0.45} fill="#000" />{lines.map((l, i) => <text key={i} x={x2 + 4} y={y2 + 0.7 + i * 2.6} fontSize={2.1}>{l}</text>)}</g>;
-  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan'])} title="POTONGAN MELINTANG TIPIKAL GALIAN PIPA" scaleText={fmtScale(S)} sheetNo={3} sheetTotal={sheetCount(project)}
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan'])} title="POTONGAN MELINTANG TIPIKAL GALIAN PIPA" scaleText={fmtScale(S)} sheetNo={3} sheetTotal={sheetTotal || sheetCount(project)}
     legend={(x, y) => <g fontSize={2}>
       {[['url(#pat-backfill)', 'Urugan tanah kembali dipadatkan'], ['url(#pat-sand)', 'Urugan pasir alas & penutup'], ['url(#pat-soil)', 'Tanah asli']].map(([f, l], i) => <g key={i}><rect x={x + 3} y={y + i * 7} width={10} height={5} fill={f} stroke="#000" strokeWidth={0.2} /><text x={x + 16} y={y + 3.3 + i * 7}>{l}</text></g>)}
       <g fontSize={1.75} fill="#222">{['CATATAN:', '1. Dasar galian dibersihkan dan diratakan sebelum', '    pasir alas dihamparkan.', '2. Urugan kembali dipadatkan per lapis maks. 20 cm.', '3. Pita penanda (warning tape) dipasang ±30 cm', '    di bawah muka tanah.', '4. Pada perlintasan jalan, pipa diberi selubung', '    (casing) GIP atau beton.', '5. Satuan ukuran dalam meter kecuali dinyatakan lain.'].map((t, i) => <text key={i} x={x + 3} y={y + 27 + i * 3.4} fontWeight={i === 0 ? 700 : 400}>{t}</text>)}</g>
@@ -4319,6 +4616,8 @@ function SheetBorehole({ project, hyd, node, sheetNo, sheetTotal }) {
       ['Kedalaman pompa / terendam', `${fmt(pr.setting, 1)} m / ${fmt(pr.submergence, 1)} m`], ['Pipa riser', `${pp.riserMat} Ø${pp.riserDia} mm, ${fmt(pr.riserL, 0)} m`],
       ['Daya poros / motor standar', `${fmt(pr.Pshaft, 2)} kW / ${fmt(pr.motor, 2)} kW`], ['Energi & biaya listrik', `${fmt(pr.kwhDay, 1)} kWh/hari · ${rp(pr.costMonth)}/bln`],
       ['Opsi PLTS', `${fmt(pr.kWp, 1)} kWp (${pr.panels} × 550 Wp)`]]} />
+    {(() => { const sp = boreSpec(node, pr); return <SvgTable x={172} y={202} w={152} title="SPESIFIKASI TEKNIS POMPA (PENGADAAN)" head={['Uraian', 'Nilai']} cols={[0.3, 0.7]} rh={4.1} fs={1.55}
+      rows={sp.rows.filter(r => !/Standar uji|Genset/.test(r[0])).map(r => [r[0], String(r[1]).slice(0, 78)])} />; })()}
   </Sheet>;
 }
 const UNIT_HL_LABEL = (u, sz) => sz ? (sz.n > 1 ? `${sz.n} × ` : '') + (sz.L && sz.W ? `${fmt(sz.L, 1)} × ${fmt(sz.W, 1)} m` : '') : '';
@@ -4397,6 +4696,144 @@ function SheetTreatFilter({ project, t, d, sheetNo, sheetTotal }) {
     <SvgTable x={20} y={196} w={150} title={`DATA TEKNIS ${UNIT_INFO[u].short.toUpperCase()}`} head={['Uraian', 'Nilai']} cols={[0.4, 0.6]} rh={4.4} fs={1.75} rows={sz.rows.map(r => [r[0], String(r[1]).slice(0, 52)])} />
     <SvgTable x={176} y={196} w={150} title="DIMENSI SELURUH UNIT IPA" head={['Unit', 'Jumlah', 'P × L × T (m)']} cols={[0.46, 0.16, 0.38]} rh={4.4} fs={1.75}
       rows={d.units.filter(x => d.sz[x]).map(x => [UNIT_INFO[x].short, String(d.sz[x].n || 1), `${fmt(d.sz[x].L, 2)} × ${fmt(d.sz[x].W, 2)} × ${fmt(d.sz[x].H, 2)}`])} />
+  </Sheet>;
+}
+
+/* ---------- Gambar DED sistem aerator ---------- */
+function SheetAerator({ project, t, d, sheetNo, sheetTotal }) {
+  const ae = d.sz.aer?.aer; if (!ae) return null; const a = ae.cfg;
+  const water = '#d6ebf8', blue = '#0b4fa8', st = { stroke: '#000', strokeWidth: 0.35 };
+  // ukuran view potongan (lebar × tinggi, meter) dan denah
+  const secW = ae.type === 'tray' ? ae.basin.L + 1.2 : ae.type === 'cascade' ? ae.Lc + ae.basin.L + 0.8 : ae.type === 'spray' ? ae.L + 0.8 : ae.L + 2.6;
+  const secH = ae.type === 'tray' ? ae.H + 0.4 : ae.type === 'cascade' ? ae.drop + ae.basin.H + 0.8 : ae.type === 'spray' ? ae.D + ae.Hn * 0.25 + 1.2 : ae.H + 0.8;
+  const plW = ae.type === 'tray' ? ae.basin.L + 0.6 : ae.type === 'cascade' ? ae.Lc + ae.basin.L : ae.L + 0.6;
+  const plH = ae.type === 'tray' ? ae.basin.W + 0.6 : ae.type === 'cascade' ? Math.max(ae.W, ae.basin.W) + 0.6 : ae.W + 0.6;
+  const S = [10, 15, 20, 25, 30, 40, 50, 75, 100].find(v => { const k = 1000 / v; return secW * k <= 150 && secH * k <= 140 && plW * k <= 125 && plH * k <= 118; }) || 100; const k = 1000 / S;
+  const ox = 40, by = 172; const X = (v) => ox + v * k, Z = (z) => by - z * k;     // potongan: z = elevasi dari lantai
+  const px = 196, py = 36; const PX = (v) => px + v * k, PY = (v) => py + v * k;   // denah
+  const conc = (x, y, w, h, key) => <rect key={key} x={x} y={y} width={w} height={h} fill="url(#pat-concrete)" {...st} />;
+  const notes = {
+    tray: ['1. Nampan berlubang Ø6 mm @ 25 mm, tepi nampan', '    setinggi 10 cm; media dicuci sebelum dipasang.', '2. Rangka & nampan dibaut, mudah dibongkar untuk', '    dibersihkan dari endapan besi (tiap 1–3 bulan).', '3. Pasang kasa anti serangga & atap pelindung.', '4. Ventilasi terbuka di keempat sisi aerator.'],
+    cascade: ['1. Tangga beton K-225 diplester kedap air, sudut', '    tepi anak tangga dibulatkan / diberi bibir jatuh.', '2. Air harus jatuh bebas di tiap anak tangga', '    (bukan mengalir menempel).', '3. Bak penampung dilengkapi penguras & luapan.', '4. Bersihkan endapan besi berkala.'],
+    spray: ['1. Nosel diarahkan vertikal ke atas, jarak antar', '    nosel ± 1 m agar semprotan tidak saling tabrak.', '2. Tekanan di nosel dijaga dengan pompa / beda tinggi;', '    pasang manometer & katup pengatur di header.', '3. Bak dilengkapi kasa penutup & saluran luapan.', '4. Bersihkan nosel bila tersumbat endapan.'],
+    diffuser: ['1. Difuser dipasang rata di dasar bak, jarak', '    antar difuser seragam, ± 20 cm di atas lantai.', '2. Pipa udara dari blower dilengkapi katup searah,', '    katup kontrol & filter udara masuk.', '3. Blower 1 kerja + 1 cadangan, rumah blower kedap', '    suara & berventilasi.', '4. Bak dilengkapi penguras dan luapan.'],
+  }[ae.type];
+  const legend = noteLegend([['url(#pat-concrete)', 'Beton bertulang'], ['url(#pat-gravel)', 'Media aerator'], [water, 'Air'], ['#fff', 'Rangka / nampan (garis)']], notes);
+  let sec = null, plan = null;
+  if (ae.type === 'tray') {
+    const b = ae.basin, x0 = 0.6, side = ae.side; const z0 = b.H + 0.2; const top = z0 + ae.n * ae.gap;
+    sec = <g>
+      {conc(X(0), Z(b.H), 0.15 * k, b.H * k, 'wl')}{conc(X(b.L + 0.15), Z(b.H), 0.15 * k, b.H * k, 'wr')}{conc(X(0), Z(0), (b.L + 0.3) * k, 0.2 * k, 'fl')}
+      <rect x={X(0.15)} y={Z(b.H - 0.15)} width={b.L * k} height={(b.H - 0.15) * k} fill={water} stroke="none" />
+      {[x0 - 0.05, x0 + side].map((v, i) => <rect key={i} x={X(v + 0.15)} y={Z(top + 0.25)} width={0.05 * k} height={(top + 0.25 - b.H) * k} fill="#fff" {...st} />)}
+      {Array.from({ length: ae.n }).map((_, i) => { const z = z0 + i * ae.gap; return <g key={i}>
+        <rect x={X(x0 + 0.15)} y={Z(z + 0.15)} width={side * k} height={0.15 * k} fill="#fff" {...st} />
+        {a.media !== 'none' && <rect x={X(x0 + 0.15)} y={Z(z + 0.13)} width={side * k} height={0.11 * k} fill="url(#pat-gravel)" stroke="none" />}
+        <line x1={X(x0 + 0.15)} x2={X(x0 + 0.15 + side)} y1={Z(z)} y2={Z(z)} stroke="#000" strokeWidth={0.45} strokeDasharray="0.8 0.6" />
+        {i > 0 || true ? Array.from({ length: 6 }).map((_, j) => <line key={j} x1={X(x0 + 0.15 + side * (j + 0.5) / 6)} x2={X(x0 + 0.15 + side * (j + 0.5) / 6)} y1={Z(z) + 0.6} y2={Z(z - ae.gap + 0.2) - 0.6} stroke={blue} strokeWidth={0.2} strokeDasharray="0.6 0.9" />) : null}
+        <HaloText x={X(x0 + side + 0.45)} y={Z(z + 0.07)} fontSize={1.7}>Nampan {ae.n - i}</HaloText></g>; })}
+      <path d={`M${Math.max(20, X(-0.4))} ${Z(top + 0.12)} L${X(x0 + 0.15 + side * 0.9)} ${Z(top + 0.12)}`} stroke={blue} strokeWidth={0.9} fill="none" />
+      {Array.from({ length: 5 }).map((_, j) => <circle key={j} cx={X(x0 + 0.15 + side * (j + 0.6) / 5.5)} cy={Z(top + 0.12) + 0.9} r={0.35} fill={blue} />)}
+      <text x={Math.max(20, X(-0.4))} y={Z(top + 0.12) - 2} fontSize={1.8}>Inlet air baku (pipa distributor berlubang)</text>
+      <path d={`M${X(b.L + 0.3)} ${Z(0.35)} L${X(b.L + 0.3) + 12} ${Z(0.35)}`} stroke={blue} strokeWidth={0.9} fill="none" markerEnd="url(#arr)" />
+      <text x={X(b.L + 0.3) + 1} y={Z(0.35) + 3.4} fontSize={1.7}>Outlet ke unit berikutnya</text>
+      <line x1={X(x0 - 0.1)} x2={X(x0 + side + 0.4)} y1={Z(top + 0.32)} y2={Z(top + 0.32)} stroke="#000" strokeWidth={0.5} />
+      <text x={X(x0 + side / 2)} y={Z(top + 0.32) - 1.2} fontSize={1.6} textAnchor="middle">Atap + kasa anti serangga</text>
+      <DimLine x1={X(-0.15)} y1={Z(0)} x2={X(-0.15)} y2={Z(top + 0.32)} off={-6} vertical size={1.8} text={fmt(ae.H, 2)} />
+      <DimLine x1={X(b.L + 0.45)} y1={Z(z0)} x2={X(b.L + 0.45)} y2={Z(z0 + ae.gap)} off={9} vertical size={1.6} text={fmt(ae.gap, 2)} />
+      <DimLine x1={X(x0 + 0.15)} y1={Z(-0.1)} x2={X(x0 + 0.15 + side)} y2={Z(-0.1)} off={5} size={1.7} text={fmt(side, 2)} />
+      <ViewTitle x={X(b.L / 2)} y={by + 24} title="POTONGAN A–A" S={S} /></g>;
+    plan = <g>
+      <rect x={PX(0)} y={PY(0)} width={(b.L + 0.3) * k} height={(b.W + 0.3) * k} fill="url(#pat-concrete)" {...st} />
+      <rect x={PX(0.15)} y={PY(0.15)} width={b.L * k} height={b.W * k} fill={water} {...st} />
+      <rect x={PX(0.45)} y={PY(0.45)} width={side * k} height={side * k} fill="#fff" {...st} />
+      {Array.from({ length: 8 }).map((_, i) => Array.from({ length: 8 }).map((_, j) => <circle key={i + '-' + j} cx={PX(0.45 + side * (i + 0.5) / 8)} cy={PY(0.45 + side * (j + 0.5) / 8)} r={0.3} fill="none" stroke="#000" strokeWidth={0.12} />))}
+      {[[0.4, 0.4], [0.45 + side, 0.4], [0.4, 0.45 + side], [0.45 + side, 0.45 + side]].map(([u, v], i) => <rect key={i} x={PX(u)} y={PY(v)} width={0.05 * k + 0.6} height={0.05 * k + 0.6} fill="#000" />)}
+      <line x1={PX(-0.3)} x2={PX(b.L + 0.6)} y1={PY(0.15 + b.W / 2)} y2={PY(0.15 + b.W / 2)} stroke="#000" strokeWidth={0.2} strokeDasharray="3 1 0.6 1" />
+      <text x={PX(-0.3)} y={PY(0.15 + b.W / 2) - 1} fontSize={2} fontWeight={700}>A</text><text x={PX(b.L + 0.6)} y={PY(0.15 + b.W / 2) - 1} fontSize={2} fontWeight={700}>A</text>
+      <DimLine x1={PX(0)} y1={PY(b.W + 0.3)} x2={PX(b.L + 0.3)} y2={PY(b.W + 0.3)} off={5} size={1.7} text={fmt(b.L + 0.3, 2)} />
+      <ViewTitle x={PX((b.L + 0.3) / 2)} y={PY(b.W + 0.3) + 17} title={`DENAH${ae.nU > 1 ? ` (${ae.nU} UNIT IDENTIK)` : ''}`} S={S} /></g>;
+  } else if (ae.type === 'cascade') {
+    const top = ae.drop + ae.basin.H; const pts = [[0, top]]; for (let i = 0; i < ae.n; i++) { const xx = i * ae.sl, zz = top - i * ae.sh; pts.push([xx + ae.sl, zz]); pts.push([xx + ae.sl, zz - ae.sh]); }
+    const xB = ae.Lc; const b = ae.basin;
+    sec = <g>
+      <path d={`M${X(0)} ${Z(top)} ${pts.slice(1).map(p => `L${X(p[0])} ${Z(p[1])}`).join(' ')} L${X(xB)} ${Z(0)} L${X(0)} ${Z(0)} Z`} fill="url(#pat-concrete)" {...st} />
+      <path d={`M${X(-0.3)} ${Z(top + 0.05)} ${pts.slice(1).map((p, i) => i % 2 === 0 ? `L${X(p[0] + 0.05)} ${Z(p[1] + 0.05)}` : `L${X(p[0] + 0.12)} ${Z(p[1] + 0.05)}`).join(' ')}`} fill="none" stroke={blue} strokeWidth={0.7} />
+      {conc(X(xB), Z(b.H), (b.L + 0.3) * k, 0.2 * k, 'bf')}{conc(X(xB + b.L + 0.15), Z(b.H), 0.15 * k, b.H * k, 'bw')}
+      <rect x={X(xB)} y={Z(b.H - 0.15)} width={(b.L + 0.15) * k} height={(b.H - 0.35) * k} fill={water} stroke="none" />
+      <path d={`M${Math.max(20, X(-0.8))} ${Z(top + 0.05)} L${X(-0.05)} ${Z(top + 0.05)}`} stroke={blue} strokeWidth={0.9} fill="none" markerEnd="url(#arr)" /><text x={Math.max(20, X(-0.8))} y={Z(top + 0.05) - 1.5} fontSize={1.8}>Inlet</text>
+      <path d={`M${X(xB + b.L + 0.3)} ${Z(0.4)} L${X(xB + b.L + 0.3) + 10} ${Z(0.4)}`} stroke={blue} strokeWidth={0.9} fill="none" markerEnd="url(#arr)" /><text x={X(xB + b.L + 0.3)} y={Z(0.4) + 3.4} fontSize={1.7}>Outlet</text>
+      <DimLine x1={X(-0.1)} y1={Z(b.H)} x2={X(-0.1)} y2={Z(top)} off={-6} vertical size={1.8} text={fmt(ae.drop, 2)} />
+      <DimLine x1={X(0)} y1={Z(0)} x2={X(ae.sl)} y2={Z(0)} off={5} size={1.6} text={fmt(ae.sl, 2)} />
+      <DimLine x1={X(ae.sl)} y1={Z(top)} x2={X(ae.sl)} y2={Z(top - ae.sh)} off={4} vertical size={1.5} text={fmt(ae.sh, 2)} />
+      <DimLine x1={X(0)} y1={Z(-0.2)} x2={X(xB)} y2={Z(-0.2)} off={9} size={1.7} text={fmt(ae.Lc, 2)} />
+      <ViewTitle x={X((xB + b.L) / 2)} y={by + 24} title="POTONGAN MEMANJANG" S={S} /></g>;
+    plan = <g>
+      <rect x={PX(0)} y={PY(0)} width={ae.Lc * k} height={(ae.W + 0.3) * k} fill="url(#pat-concrete)" {...st} />
+      <rect x={PX(0)} y={PY(0.15)} width={ae.Lc * k} height={ae.W * k} fill="#f5f9fc" {...st} />
+      {Array.from({ length: ae.n }).map((_, i) => <line key={i} x1={PX((i + 1) * ae.sl)} x2={PX((i + 1) * ae.sl)} y1={PY(0.15)} y2={PY(0.15 + ae.W)} stroke="#000" strokeWidth={0.3} />)}
+      <rect x={PX(ae.Lc)} y={PY(0)} width={(b.L + 0.3) * k} height={(b.W + 0.3) * k} fill="url(#pat-concrete)" {...st} />
+      <rect x={PX(ae.Lc)} y={PY(0.15)} width={b.L * k} height={b.W * k} fill={water} {...st} />
+      <path d={`M${PX(0.1)} ${PY(0.15 + ae.W / 2)} L${PX(ae.Lc - 0.1)} ${PY(0.15 + ae.W / 2)}`} stroke={blue} strokeWidth={0.5} fill="none" markerEnd="url(#arr)" />
+      <DimLine x1={PX(0)} y1={PY(0.15)} x2={PX(0)} y2={PY(0.15 + ae.W)} off={-5} vertical size={1.7} text={fmt(ae.W, 2)} />
+      <ViewTitle x={PX((ae.Lc + b.L) / 2)} y={PY(Math.max(ae.W, b.W) + 0.3) + 16} title="DENAH" S={S} /></g>;
+  } else if (ae.type === 'spray') {
+    const L = ae.L, D = ae.D; const hz = D * 0.55, sprayH = Math.min(1.4, ae.Hn * 0.18); const o0 = 0.15 + (L - (ae.cols - 1) * ae.sp) / 2, o1 = 0.15 + (ae.W - (ae.rws - 1) * ae.sp) / 2;
+    sec = <g>
+      {conc(X(0), Z(D), 0.15 * k, D * k, 'l')}{conc(X(L + 0.15), Z(D), 0.15 * k, D * k, 'r')}{conc(X(0), Z(0), (L + 0.3) * k, 0.2 * k, 'f')}
+      <rect x={X(0.15)} y={Z(D - 0.2)} width={L * k} height={(D - 0.2) * k} fill={water} stroke="none" />
+      <line x1={X(0.3)} x2={X(o0 + (ae.cols - 1) * ae.sp)} y1={Z(hz)} y2={Z(hz)} stroke={blue} strokeWidth={0.9} />
+      {Array.from({ length: ae.cols }).map((_, i) => { const xx = o0 + i * ae.sp; return <g key={i}>
+        <line x1={X(xx)} x2={X(xx)} y1={Z(hz)} y2={Z(D + 0.15)} stroke="#000" strokeWidth={0.5} />
+        <path d={`M${X(xx)} ${Z(D + 0.15)} Q${X(xx - 0.35)} ${Z(D + 0.15 + sprayH)} ${X(xx - 0.45)} ${Z(D)} M${X(xx)} ${Z(D + 0.15)} Q${X(xx + 0.35)} ${Z(D + 0.15 + sprayH)} ${X(xx + 0.45)} ${Z(D)} M${X(xx)} ${Z(D + 0.15)} L${X(xx)} ${Z(D + 0.15 + sprayH)}`} fill="none" stroke={blue} strokeWidth={0.25} strokeDasharray="0.8 0.6" /></g>; })}
+      <path d={`M${Math.max(20, X(-0.6))} ${Z(hz)} L${X(0.3)} ${Z(hz)}`} stroke={blue} strokeWidth={0.9} fill="none" markerEnd="url(#arr)" />
+      <text x={Math.max(20, X(-0.6))} y={Z(hz) - 1.5} fontSize={1.7}>Pipa header (tekanan {fmt(ae.Hn, 1)} m)</text>
+      <text x={X(o0)} y={Z(D + 0.15 + sprayH) - 1.5} fontSize={1.7}>Nosel semprot Ø ± {fmt(ae.dn, 0)} mm</text>
+      <path d={`M${X(L + 0.3)} ${Z(0.3)} L${X(L + 0.3) + 10} ${Z(0.3)}`} stroke={blue} strokeWidth={0.9} fill="none" markerEnd="url(#arr)" /><text x={X(L + 0.3)} y={Z(0.3) + 3.4} fontSize={1.7}>Outlet</text>
+      <DimLine x1={X(-0.1)} y1={Z(0)} x2={X(-0.1)} y2={Z(D)} off={-6} vertical size={1.7} text={fmt(D, 2)} />
+      <DimLine x1={X(0.15)} y1={Z(-0.2)} x2={X(L + 0.15)} y2={Z(-0.2)} off={5} size={1.7} text={fmt(L, 2)} />
+      <ViewTitle x={X(L / 2)} y={by + 24} title="POTONGAN A–A" S={S} /></g>;
+    plan = <g>
+      <rect x={PX(0)} y={PY(0)} width={(L + 0.3) * k} height={(ae.W + 0.3) * k} fill="url(#pat-concrete)" {...st} />
+      <rect x={PX(0.15)} y={PY(0.15)} width={L * k} height={ae.W * k} fill={water} {...st} />
+      {Array.from({ length: ae.rws }).map((_, r) => <line key={'h' + r} x1={PX(0.3)} x2={PX(o0 + (ae.cols - 1) * ae.sp)} y1={PY(o1 + r * ae.sp)} y2={PY(o1 + r * ae.sp)} stroke={blue} strokeWidth={0.5} />)}
+      <line x1={PX(0.3)} x2={PX(0.3)} y1={PY(o1)} y2={PY(o1 + (ae.rws - 1) * ae.sp)} stroke={blue} strokeWidth={0.7} />
+      <path d={`M${PX(-0.5)} ${PY(o1)} L${PX(0.3)} ${PY(o1)}`} stroke={blue} strokeWidth={0.7} fill="none" />
+      {Array.from({ length: ae.nz }).map((_, i) => <circle key={i} cx={PX(o0 + (i % ae.cols) * ae.sp)} cy={PY(o1 + Math.floor(i / ae.cols) * ae.sp)} r={1.1} fill="#fff" stroke="#000" strokeWidth={0.3} />)}
+      {ae.cols > 1 && <DimLine x1={PX(o0)} y1={PY(0.15)} x2={PX(o0 + ae.sp)} y2={PY(0.15)} off={-4} size={1.5} text={fmt(ae.sp, 2)} />}
+      <ViewTitle x={PX((L + 0.3) / 2)} y={PY(ae.W + 0.3) + 16} title={`DENAH · ${ae.nz} NOSEL`} S={S} /></g>;
+  } else {
+    const L = ae.L, Dw = ae.Dw, Ht = ae.H; const bx = L + 0.6;
+    sec = <g>
+      {conc(X(0), Z(Ht), 0.2 * k, Ht * k, 'l')}{conc(X(L + 0.2), Z(Ht), 0.2 * k, Ht * k, 'r')}{conc(X(0), Z(0), (L + 0.4) * k, 0.25 * k, 'f')}
+      <rect x={X(0.2)} y={Z(Dw)} width={L * k} height={Dw * k} fill={water} stroke="none" />
+      <line x1={X(0.2)} x2={X(L + 0.2)} y1={Z(Dw)} y2={Z(Dw)} stroke={blue} strokeWidth={0.3} />
+      {Array.from({ length: Math.min(ae.nd, 8) }).map((_, i) => { const xx = 0.2 + L * (i + 0.5) / Math.min(ae.nd, 8); return <g key={i}>
+        <rect x={X(xx) - 1.6} y={Z(0.2) - 0.7} width={3.2} height={0.7} fill="#555" />
+        {Array.from({ length: 5 }).map((_, j) => <circle key={j} cx={X(xx) + (j % 2 ? 1 : -1) * 0.8} cy={Z(0.3 + j * Dw / 6)} r={0.45} fill="#fff" stroke={blue} strokeWidth={0.15} />)}</g>; })}
+      <path d={`M${X(bx + 1.2)} ${Z(Ht + 0.3)} L${X(L + 0.1)} ${Z(Ht + 0.3)} L${X(L + 0.1)} ${Z(0.2)} L${X(0.3)} ${Z(0.2)}`} fill="none" stroke="#7a3d00" strokeWidth={0.6} />
+      <rect x={X(bx + 0.9)} y={Z(Ht + 0.7)} width={0.9 * k} height={0.6 * k} fill="#fff" {...st} /><text x={X(bx + 1.35)} y={Z(Ht + 0.7) - 1.2} fontSize={1.7} textAnchor="middle">Blower {fmt(ae.mot, 2)} kW</text>
+      <path d={`M${Math.max(20, X(-0.6))} ${Z(Dw - 0.1)} L${X(0.2)} ${Z(Dw - 0.1)}`} stroke={blue} strokeWidth={0.9} fill="none" markerEnd="url(#arr)" /><text x={Math.max(20, X(-0.6))} y={Z(Dw - 0.1) - 1.5} fontSize={1.7}>Inlet</text>
+      <text x={X(L / 2)} y={Z(0.2) + 4} fontSize={1.6} textAnchor="middle">Difuser piringan 9" + pipa udara</text>
+      <DimLine x1={X(-0.1)} y1={Z(0)} x2={X(-0.1)} y2={Z(Dw)} off={-6} vertical size={1.7} text={fmt(Dw, 2)} />
+      <DimLine x1={X(0.2)} y1={Z(-0.3)} x2={X(L + 0.2)} y2={Z(-0.3)} off={5} size={1.7} text={fmt(L, 2)} />
+      <ViewTitle x={X(L / 2)} y={by + 24} title="POTONGAN A–A" S={S} /></g>;
+    const cols = Math.ceil(Math.sqrt(ae.nd * L / ae.W)), rws = Math.ceil(ae.nd / cols);
+    plan = <g>
+      <rect x={PX(0)} y={PY(0)} width={(L + 0.4) * k} height={(ae.W + 0.4) * k} fill="url(#pat-concrete)" {...st} />
+      <rect x={PX(0.2)} y={PY(0.2)} width={L * k} height={ae.W * k} fill={water} {...st} />
+      {Array.from({ length: rws }).map((_, r) => <line key={r} x1={PX(0.2)} x2={PX(0.2 + L)} y1={PY(0.2 + ae.W * (r + 0.5) / rws)} y2={PY(0.2 + ae.W * (r + 0.5) / rws)} stroke="#7a3d00" strokeWidth={0.35} />)}
+      {Array.from({ length: ae.nd }).map((_, i) => <circle key={i} cx={PX(0.2 + L * ((i % cols) + 0.5) / cols)} cy={PY(0.2 + ae.W * (Math.floor(i / cols) + 0.5) / rws)} r={Math.max(0.9, 0.115 * k)} fill="#fff" stroke="#000" strokeWidth={0.25} />)}
+      <DimLine x1={PX(0.2)} y1={PY(0.2)} x2={PX(0.2)} y2={PY(0.2 + ae.W)} off={-5} vertical size={1.7} text={fmt(ae.W, 2)} />
+      <ViewTitle x={PX((L + 0.4) / 2)} y={PY(ae.W + 0.4) + 16} title={`DENAH · ${ae.nd} DIFUSER`} S={S} /></g>;
+  }
+  const items = (d.items || []).filter(r => String(r[0]).startsWith('wt|aer'));
+  return <Sheet meta={project.meta} std={stdLine(project, ['olah'])} title={`AERATOR ${t.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal} legend={legend}>
+    <text x={22} y={17} fontSize={3.2} fontWeight={700}>DETAIL SISTEM AERASI · {AER_TYPES[ae.type].label.toUpperCase()} · {t.label}</text>
+    <text x={22} y={21.5} fontSize={2.1} fill="#333">Debit {fmt(d.Qls, 2)} L/dtk ({fmt(d.Qh, 1)} m³/jam) · tujuan: oksidasi Fe/Mn, buang CO₂/H₂S & bau, menaikkan oksigen terlarut</text>
+    {sec}{plan}
+    <SvgTable x={20} y={204} w={150} title="DATA TEKNIS AERATOR" head={['Uraian', 'Nilai']} cols={[0.36, 0.64]} rh={4.2} fs={1.7} rows={ae.rows.map(r => [r[0], String(r[1]).slice(0, 62)])} />
+    <SvgTable x={176} y={204} w={150} title="DAFTAR BAHAN UTAMA" head={['Uraian', 'Vol.', 'Sat.']} cols={[0.72, 0.15, 0.13]} rh={4.2} fs={1.65} rows={items.map(r => [String(r[1]).slice(0, 70), fmt(r[2], 2), r[3]])} />
   </Sheet>;
 }
 
@@ -4605,12 +5042,13 @@ function SheetFilterFrp({ project, t, d, sheetNo, sheetTotal }) {
   const pos = eq.map(e => { const cx = x + 18 + e.D * k / 2; x += e.D * k + 22; return cx; });
   const mesh = SAND_MESH[cfg.sandMesh];
   const sched = [...stages.map(st => [st.name, `${st.n} × FRP ${st.v.code} (Ø${fmt(st.v.D * 100, 0)}×${fmt(st.v.H * 100, 0)})`, `${fmt(st.rateAct, 1)} m/jam`, st.valve.replace('multiport valve', 'MPV')]),
-    ...(cart ? [['Cartridge ' + cart.mic + ' µm', `${cart.housings} × housing ${cart.per} × 40"`, `${fmt(d.Qh, 1)} m³/jam`, `${cart.n} cartridge PP`]] : []),
-    ...(mem ? [[mem.label, `${mem.n} modul × ${mem.area} m²`, `${mem.flux} L/m²·jam`, `recovery ${fmt(mem.rec * 100, 0)}%`]] : [])];
+    ...(cart ? [[`Cartridge ${cart.short} ${cart.type === 'cto' ? '' : cart.mic + ' µm'}`, `${cart.housings} × ${cart.per > 1 ? `housing ${cart.per} batang` : 'housing'} ${cart.sizeLabel.split(' (')[0]}`, `${fmt(d.Qh, 1)} m³/jam`, `${cart.n} cartridge`]] : []),
+    ...(d.sz.cart?.cto ? [['Cartridge CTO', `${d.sz.cart.cto.housings} × housing ${d.sz.cart.cto.sizeLabel.split(' (')[0]}`, `${fmt(d.Qh, 1)} m³/jam`, `${d.sz.cart.cto.n} cartridge CTO`]] : []),
+    ...(mem ? [[mem.label, `${mem.n} modul ${mem.sizeLabel || ''} × ${mem.area} m²`, `${mem.flux} L/m²·jam`, `recovery ${fmt(mem.rec * 100, 0)}%`]] : [])];
   const spec = [['Pasir silika', `${mesh.label} · ES ± ${fmt(mesh.es, 2)} mm`], ['Karbon aktif', `batok kelapa ${CARBON_MESH[cfg.carbonMesh]}, iodin ≥ ${cfg.iodine} mg/g`],
     ...stages.filter(st => st.ebct).map(st => ['Waktu kontak karbon (EBCT)', `${fmt(st.ebct, 1)} menit (min. 5)`]),
-    ...(cart ? [['Cartridge', `PP spun ${cart.mic} µm, ganti bila ΔP > 1 bar`]] : []),
-    ...(mem ? [['Membran', `${mem.label}, pori ${mem.pore}${mem.mwco !== '-' ? ', MWCO ' + mem.mwco : ''}`], ['Pencucian membran', mem.type === 'nf' ? 'CIP asam/basa tiap 1–3 bulan' : 'backwash 30–60 menit, CIP bulanan']] : []),
+    ...(cart ? [['Cartridge', `${cart.typeLabel}, ${cart.mic} µm, ${cart.sizeLabel}; housing ${HOUSING_MAT[cart.hm]?.label || ''}; ganti bila ΔP > 1 bar`]] : []),
+    ...(mem ? [['Membran', `${mem.label} ${mem.matLabel ? mem.matLabel.split(' (')[0] : ''}, pori ${mem.pore}${mem.mwco !== '-' ? ', MWCO ' + mem.mwco : ''}`], ['Pencucian membran', mem.type === 'nf' ? 'CIP asam/basa tiap 1–3 bulan' : 'backwash 30–60 menit, CIP bulanan']] : []),
     ['Kerikil penyangga', '2–4 mm dan 4–8 mm, ± 15% tinggi tabung'],
     ['Posisi', d.frp?.after ? `setelah ${d.frp.srcLabel}, sebelum distribusi` : 'setelah pompa, sebelum bak/menara'], ['Pompa pendorong', d.frp?.pumpOn ? `${d.frp.after ? 'booster' : 'umpan'} Q ${fmt(d.frp.pump.Q, 1)} m³/jam · H ${d.frp.head} m · ${fmt(d.frp.pump.motor, 2)} kW` : 'tanpa (gravitasi / pompa sumber)'],
     ['Penempatan', d.frp?.after ? 'lantai dudukan di samping bak/menara' : d.frp?.tower ? (d.frp.pos === 'top' && d.frp.tower.params?.system !== 'rc_tank' ? `menyatu di platform menara ${d.frp.tower.label}` : `di samping menara ${d.frp.tower.label}`) : 'rumah filter + lantai dudukan beton']];
@@ -5004,6 +5442,7 @@ function extraSheets(project, hyd, boq) {
     if (x.t.scale === 'household') out.push({ key: 'th:' + x.t.id, label: x.t.label, sub: 'Filter rumah tangga', icon: 'House', group: 'Sumber & pengolahan air', render: (no, tot) => <SheetHousehold project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> });
     else {
       out.push({ key: 'tv:' + x.t.id, label: x.t.label, sub: 'Diagram alir IPA', icon: 'Factory', group: 'Sumber & pengolahan air', render: (no, tot) => <SheetTreatFlow project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> });
+      if (x.d.sz.aer?.aer) out.push({ key: 'ta:' + x.t.id, label: x.t.label, sub: 'Aerator · ' + AER_TYPES[x.d.sz.aer.aer.type].short, icon: 'Wind', group: 'Sumber & pengolahan air', render: (no, tot) => <SheetAerator project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> });
       const fm = x.d.tank ? 'tank' : x.d.frp || (x.d.cfg.mode === 'frp' && (x.d.sz.cart || x.d.sz.mem)) ? 'frp' : 'basin';
       out.push({ key: 'tf:' + x.t.id, label: x.t.label, sub: fm === 'tank' ? 'Bak bersekat + filter' : fm === 'frp' ? 'Tabung filter FRP' : 'Detail unit filter', icon: 'Factory', group: 'Sumber & pengolahan air',
         render: (no, tot) => fm === 'tank' ? <SheetFilterTank project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> : fm === 'frp' ? <SheetFilterFrp project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> : <SheetTreatFilter project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> });
@@ -5011,10 +5450,154 @@ function extraSheets(project, hyd, boq) {
       if (fm === 'basin' && (x.d.sz.cart || x.d.sz.mem)) out.push({ key: 'tm:' + x.t.id, label: x.t.label, sub: 'Cartridge & membran', icon: 'Factory', group: 'Sumber & pengolahan air', render: (no, tot) => <SheetFilterFrp project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> });
     }
   });
+  drawOf(project).sheets.forEach(m => out.push({ key: 'mn:' + m.id, label: m.title || 'Gambar manual', sub: 'Gambar manual', icon: 'PenTool', group: 'Gambar manual', manual: m,
+    render: (no, tot) => <Sheet meta={project.meta} std={m.std || ''} title={(m.title || 'GAMBAR MANUAL').toUpperCase()} scaleText={m.scaleText || (m.scale ? fmtScale(+m.scale) : '-')} sheetNo={no} sheetTotal={tot}
+      legend={noteLegend([], (m.notes || '').split('\n').filter(Boolean).slice(0, 18).map(l => l.slice(0, 44)))} /> }));
   return out;
 }
 const sheetCount = (project) => 4 + (project.nodes.some(n => n.type === 'sr') ? 1 : 0) + (project.structures || []).reduce((a, s) => a + 1 + ((s.extras || []).length ? 1 : 0), 0) + project.nodes.filter(n => n.type === 'borehole').length
   + (project.treatments || []).reduce((a, t) => { const c = tfCfg(t); return a + (t.scale === 'household' ? 1 : 2 + (c.mode === 'basin' && (c.cart !== 'none' || c.mem !== 'none') ? 1 : 0) + (c.mode === 'frp' ? 1 : 0)); }, 0);
+
+/* =====================================================================
+   GAMBAR MANUAL DED: lembar gambar kosong + lapisan gambar tangan di atas setiap lembar otomatis
+   project.dedDraw = { sheets: [{ id, title, scale }], marks: { [kunci lembar]: [objek] } }
+   Koordinat objek dalam mm kertas A3 (420 × 297), sama dengan viewBox lembar DED.
+   ===================================================================== */
+const DRAW_COLORS = [['#000000', 'Hitam'], ['#0b4fa8', 'Biru (air/pipa)'], ['#c8102e', 'Merah'], ['#0b6e74', 'Hijau tosca'], ['#7a3d00', 'Coklat'], ['#6b7280', 'Abu-abu']];
+const DRAW_FILLS = [['none', 'Tanpa isi'], ['#ffffff', 'Putih (penutup)'], ['url(#pat-concrete)', 'Arsir beton'], ['url(#pat-soil)', 'Arsir tanah'], ['url(#pat-sand)', 'Arsir pasir'], ['url(#pat-gravel)', 'Arsir kerikil'], ['url(#pat-stone)', 'Pasangan batu'], ['#d6ebf8', 'Air']];
+const DRAW_DASH = [['', 'Penuh'], ['2 1', 'Putus-putus'], ['4 1 0.8 1', 'Garis sumbu'], ['0.6 0.8', 'Titik-titik']];
+const DRAW_SYMS = [['gate_valve', 'Katup sorong (GV)'], ['air_valve', 'Katup udara (AV)'], ['wash_out', 'Penguras (WO)'], ['check', 'Katup searah'], ['pump', 'Pompa'], ['meter', 'Meter air'], ['tap', 'Kran'], ['reservoir', 'Reservoir'], ['borehole', 'Sumur bor'], ['hydrant', 'Hidran umum'], ['sr', 'Sambungan rumah'], ['junction', 'Titik sambung'], ['north', 'Arah utara']];
+const DRAW_TOOLS = [['select', 'MousePointer2', 'Pilih & geser'], ['line', 'Slash', 'Garis'], ['arrow', 'MoveUpRight', 'Panah / penunjuk'], ['poly', 'Spline', 'Polyline (klik titik, klik ganda untuk selesai)'], ['rect', 'Square', 'Persegi'], ['circle', 'Circle', 'Lingkaran'],
+  ['dim', 'Ruler', 'Garis ukur (dimensi)'], ['text', 'Type', 'Teks'], ['sym', 'Shapes', 'Simbol'], ['img', 'ImagePlus', 'Sisipkan gambar / foto sketsa'], ['erase', 'Eraser', 'Hapus objek']];
+const DRAW_DEF = { c: '#000000', w: 0.35, dash: '', fill: 'none', size: 2.5, sym: 'gate_valve', grid: 1, ortho: false };
+const drawOf = (p) => ({ sheets: [], marks: {}, ...(p.dedDraw || {}) });
+function DrawSym({ o }) {
+  const { x, y, s = 1, c = '#000', sym } = o; const g = (ch) => <g transform={`translate(${x},${y}) rotate(${o.rot || 0}) scale(${s})`}>{ch}</g>;
+  if (sym === 'check') return g(<><path d="M-2 -1.2 L2 0 L-2 1.2 Z" fill={c} /><line x1={2} x2={2} y1={-1.4} y2={1.4} stroke={c} strokeWidth={0.35} /></>);
+  if (sym === 'pump') return g(<><circle r={2.4} fill="#fff" stroke={c} strokeWidth={0.35} /><path d="M-1.2 -1.6 L1.9 0 L-1.2 1.6 Z" fill={c} /></>);
+  if (sym === 'meter') return g(<><circle r={2} fill="#fff" stroke={c} strokeWidth={0.35} /><text y={0.8} fontSize={2.1} fontWeight={700} textAnchor="middle" fill={c}>M</text></>);
+  if (sym === 'tap') return g(<><path d="M-2 0 L1 0 L1 2 M0 -1.4 L2 -1.4 M1 -1.4 L1 0" fill="none" stroke={c} strokeWidth={0.4} /></>);
+  if (sym === 'north') return g(<><circle r={3.2} fill="none" stroke={c} strokeWidth={0.25} /><path d="M0 -3 L1.3 1.8 L0 0.9 L-1.3 1.8 Z" fill={c} /><text y={-3.8} fontSize={2.2} fontWeight={700} textAnchor="middle" fill={c}>U</text></>);
+  return <DedSymbol type={sym} x={x} y={y} s={s} angle={o.rot || 0} color={c} />;
+}
+function dimLabel(o, scale) { if (o.label) return o.label; const L = Math.hypot(o.x2 - o.x1, o.y2 - o.y1) * (+scale || 100) / 1000; return fmt(L, L < 10 ? 2 : 1); }
+function DrawItem({ o, i, scale, sel, onDown }) {
+  const common = { 'data-i': i, onPointerDown: onDown ? (e) => onDown(e, i) : undefined, style: onDown ? { cursor: 'move' } : undefined };
+  const hl = sel ? { filter: 'drop-shadow(0 0 0.6px #f97316) drop-shadow(0 0 0.6px #f97316)' } : {};
+  const sk = { stroke: o.c || '#000', strokeWidth: o.lw || 0.35, strokeDasharray: o.dash || undefined, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const hit = onDown ? <>{o.t === 'line' || o.t === 'arrow' || o.t === 'dim' ? <line x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke="transparent" strokeWidth={3} /> : o.t === 'poly' ? <polyline points={o.pts.map(p => p.join(',')).join(' ')} fill="none" stroke="transparent" strokeWidth={3} />
+    : o.t === 'rect' ? <rect x={Math.min(o.x, o.x + o.w)} y={Math.min(o.y, o.y + o.h)} width={Math.abs(o.w)} height={Math.abs(o.h)} fill="none" stroke="transparent" strokeWidth={3} />
+    : o.t === 'circle' ? <circle cx={o.cx} cy={o.cy} r={o.r} fill="none" stroke="transparent" strokeWidth={3} /> : o.t === 'text' || o.t === 'sym' ? null : null}</> : null;
+  let el = null;
+  if (o.t === 'line') el = <line x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} {...sk} />;
+  else if (o.t === 'arrow') el = <><line x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} {...sk} markerEnd="url(#arr)" />{o.label && <HaloText x={o.x1 + (o.x1 >= o.x2 ? 1 : -1)} y={o.y1 - 1} fontSize={o.size || 2.2} textAnchor={o.x1 >= o.x2 ? 'start' : 'end'} fill={o.c}>{o.label}</HaloText>}</>;
+  else if (o.t === 'poly') el = <polyline points={o.pts.map(p => p.join(',')).join(' ') + (o.closed ? ' ' + o.pts[0].join(',') : '')} fill={o.closed ? (o.fill || 'none') : 'none'} {...sk} />;
+  else if (o.t === 'rect') el = <rect x={Math.min(o.x, o.x + o.w)} y={Math.min(o.y, o.y + o.h)} width={Math.abs(o.w)} height={Math.abs(o.h)} fill={o.fill || 'none'} {...sk} />;
+  else if (o.t === 'circle') el = <circle cx={o.cx} cy={o.cy} r={o.r} fill={o.fill || 'none'} {...sk} />;
+  else if (o.t === 'text') el = <text x={o.x} y={o.y} fontSize={o.size || 2.5} fontWeight={o.bold ? 700 : 400} fill={o.c || '#000'} textAnchor={o.anchor || 'start'}>{String(o.s || '').split('\n').map((l, j) => <tspan key={j} x={o.x} dy={j ? (o.size || 2.5) * 1.25 : 0}>{l}</tspan>)}</text>;
+  else if (o.t === 'dim') el = <DimLine x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} text={dimLabel(o, scale)} size={o.size || 1.9} vertical={Math.abs(o.x2 - o.x1) < Math.abs(o.y2 - o.y1)} />;
+  else if (o.t === 'sym') el = <DrawSym o={o} />;
+  else if (o.t === 'img') el = <image href={o.href} x={o.x} y={o.y} width={o.w} height={o.h} opacity={o.op ?? 1} preserveAspectRatio="none" />;
+  return <g {...common} style={{ ...(common.style || {}), ...hl }}>{hit}{el}</g>;
+}
+const moveItem = (o, dx, dy) => { const m = { ...o };
+  if ('x1' in m) { m.x1 += dx; m.x2 += dx; m.y1 += dy; m.y2 += dy; }
+  if (m.t === 'poly') m.pts = m.pts.map(([a, b]) => [a + dx, b + dy]);
+  if (m.t === 'circle') { m.cx += dx; m.cy += dy; }
+  if (['rect', 'text', 'sym', 'img'].includes(m.t)) { m.x += dx; m.y += dy; } return m; };
+// Lapisan tampilan saja (dipakai di layar & saat cetak)
+function MarksOverlay({ items, scale }) {
+  if (!items || !items.length) return null;
+  return <svg viewBox={`0 0 ${SW} ${SH}`} className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="xMidYMid meet" fontFamily="'IBM Plex Sans', Arial, sans-serif"><SvgDefs />{items.map((o, i) => <DrawItem key={i} o={o} i={i} scale={scale} />)}</svg>;
+}
+// Editor gambar manual: menangkap klik/sentuh di atas lembar
+function DrawLayer({ items, setItems, scale, opt, setOpt, sel, setSel, tool }) {
+  const ref = useRef(null); const [draft, setDraft] = useState(null); const drag = useRef(null); const fileRef = useRef(null); const imgAt = useRef(null);
+  const pt = (e) => { const svg = ref.current; const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); const g = +opt.grid || 0;
+    return g ? [Math.round(q.x / g) * g, Math.round(q.y / g) * g] : [round2(q.x), round2(q.y)]; };
+  const ortho = (a, b, e) => { if (!(opt.ortho || e.shiftKey)) return b; return Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? [b[0], a[1]] : [a[0], b[1]]; };
+  const style = { c: opt.c, lw: +opt.w, dash: opt.dash };
+  const add = (o) => { setItems(l => [...l, o]); setSel(items.length); };
+  const down = (e) => {
+    if (e.button !== undefined && e.button !== 0) return; e.preventDefault(); try { window.getSelection()?.removeAllRanges(); } catch (er) {} const p = pt(e);
+    if (tool === 'select') { setSel(null); return; }
+    if (tool === 'text') { const s = window.prompt('Isi teks (gunakan \\n untuk baris baru):', ''); if (s) add({ t: 'text', x: p[0], y: p[1], s: s.replace(/\\n/g, '\n'), size: +opt.size, c: opt.c, bold: false }); return; }
+    if (tool === 'sym') { add({ t: 'sym', x: p[0], y: p[1], sym: opt.sym, s: 1, c: opt.c, rot: 0 }); return; }
+    if (tool === 'img') { imgAt.current = p; fileRef.current?.click(); return; }
+    if (tool === 'poly') { setDraft(d => d && d.t === 'poly' ? { ...d, pts: [...d.pts.slice(0, -1), ortho(d.pts[d.pts.length - 2] || p, p, e), p] } : { t: 'poly', pts: [p, p], ...style, fill: 'none' }); return; }
+    if (['line', 'arrow', 'dim', 'rect', 'circle'].includes(tool)) { e.currentTarget.setPointerCapture?.(e.pointerId); setDraft({ t: tool, a: p, b: p }); }
+  };
+  const move = (e) => { const p = pt(e);
+    if (drag.current) { const d = drag.current; const dx = p[0] - d.p[0], dy = p[1] - d.p[1]; setItems(l => l.map((o, j) => j === d.i ? moveItem(d.o, dx, dy) : o)); return; }
+    if (!draft) return; if (draft.t === 'poly') setDraft(d => ({ ...d, pts: [...d.pts.slice(0, -1), ortho(d.pts[d.pts.length - 2], p, e)] })); else setDraft(d => ({ ...d, b: ['line', 'arrow', 'dim'].includes(d.t) ? ortho(d.a, p, e) : p })); };
+  const finishPoly = () => { if (draft && draft.t === 'poly') { const pts = draft.pts.slice(0, -1); if (pts.length >= 2) add({ ...draft, pts }); setDraft(null); } };
+  const up = () => { if (drag.current) { drag.current = null; return; }
+    if (!draft || draft.t === 'poly') return; const { a, b, t } = draft; setDraft(null); if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.8) return;
+    if (t === 'rect') add({ t, x: a[0], y: a[1], w: b[0] - a[0], h: b[1] - a[1], ...style, fill: opt.fill });
+    else if (t === 'circle') add({ t, cx: a[0], cy: a[1], r: round2(Math.hypot(b[0] - a[0], b[1] - a[1])), ...style, fill: opt.fill });
+    else if (t === 'arrow') { const label = window.prompt('Keterangan penunjuk (boleh kosong):', '') || ''; add({ t, x1: a[0], y1: a[1], x2: b[0], y2: b[1], ...style, label, size: +opt.size }); }
+    else add({ t, x1: a[0], y1: a[1], x2: b[0], y2: b[1], ...style, ...(t === 'dim' ? { size: 1.9 } : {}) }); };
+  const itemDown = (e, i) => { if (tool === 'erase') { e.stopPropagation(); setItems(l => l.filter((_, j) => j !== i)); setSel(null); return; }
+    if (tool !== 'select') return; e.stopPropagation(); e.preventDefault(); setSel(i); ref.current.setPointerCapture?.(e.pointerId); drag.current = { i, o: items[i], p: pt(e) }; };
+  useEffect(() => { const k = (e) => { if (/input|textarea|select/i.test(document.activeElement?.tagName || '')) return;
+    if (e.key === 'Escape') { setDraft(null); setSel(null); } if (e.key === 'Enter') finishPoly();
+    if ((e.key === 'Delete' || e.key === 'Backspace') && sel !== null) { e.preventDefault(); setItems(l => l.filter((_, j) => j !== sel)); setSel(null); } };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); });
+  const onFile = async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { const r = await resizeImage(f, 1000, 0.7); const w = 150, h = round2(150 * r.h / r.w); const p = imgAt.current || [40, 40]; add({ t: 'img', x: p[0], y: p[1], w, h: Math.min(h, 250), href: r.data, op: 1 }); } catch (err) { window.alert(err.message); } };
+  const g = +opt.grid || 0;
+  return <>
+    <svg ref={ref} viewBox={`0 0 ${SW} ${SH}`} className="absolute inset-0 w-full h-full touch-none select-none" preserveAspectRatio="xMidYMid meet" style={{ userSelect: 'none', WebkitUserSelect: 'none', cursor: tool === 'select' ? 'default' : tool === 'erase' ? 'not-allowed' : 'crosshair' }}
+      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }} onDragStart={e => e.preventDefault()} onDoubleClick={finishPoly} fontFamily="'IBM Plex Sans', Arial, sans-serif">
+      <SvgDefs />
+      {g >= 1 && <><defs><pattern id="draw-grid" width={g * 5} height={g * 5} patternUnits="userSpaceOnUse"><path d={`M ${g * 5} 0 L 0 0 0 ${g * 5}`} fill="none" stroke="#7dd3fc" strokeWidth={0.12} /></pattern></defs><rect width={SW} height={SH} fill="url(#draw-grid)" opacity={0.6} pointerEvents="none" /></>}
+      <rect width={SW} height={SH} fill="transparent" />
+      {items.map((o, i) => <DrawItem key={i} o={o} i={i} scale={scale} sel={sel === i} onDown={itemDown} />)}
+      {draft && (draft.t === 'poly' ? <polyline points={draft.pts.map(p => p.join(',')).join(' ')} fill="none" stroke={opt.c} strokeWidth={+opt.w} strokeDasharray="1 0.6" pointerEvents="none" />
+        : <g pointerEvents="none" opacity={0.75}><DrawItem o={draft.t === 'rect' ? { t: 'rect', x: draft.a[0], y: draft.a[1], w: draft.b[0] - draft.a[0], h: draft.b[1] - draft.a[1], ...style, fill: opt.fill } : draft.t === 'circle' ? { t: 'circle', cx: draft.a[0], cy: draft.a[1], r: Math.hypot(draft.b[0] - draft.a[0], draft.b[1] - draft.a[1]), ...style, fill: opt.fill } : { t: draft.t, x1: draft.a[0], y1: draft.a[1], x2: draft.b[0], y2: draft.b[1], ...style }} i={-1} scale={scale} /></g>)}
+    </svg>
+    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+  </>;
+}
+// Bilah alat gambar manual + panel properti objek terpilih
+function DrawToolbar({ tool, setTool, opt, setOpt, items, setItems, sel, setSel, undo, canUndo, scale, setScale, sheetLabel }) {
+  const o = sel !== null ? items[sel] : null; const setO = (patch) => setItems(l => l.map((x, j) => j === sel ? { ...x, ...patch } : x));
+  const color = (v, on) => <div className="flex gap-1">{DRAW_COLORS.map(([c, l]) => <button key={c} type="button" title={l} aria-label={l} onClick={() => on(c)} className={`w-5 h-5 rounded-full border-2 ${v === c ? 'border-orange-500' : 'border-white'} shadow`} style={{ background: c }} />)}</div>;
+  const sel_ = (id, v, on, opts) => <select id={id} className="tp-field !py-1 !text-[12px] !w-auto" value={v} onChange={e => on(e.target.value)}>{opts.map(([a, b]) => <option key={a} value={a}>{b}</option>)}</select>;
+  return <div className="sticky top-0 z-[5] mb-2 rounded-lg bg-white border border-line shadow-sm p-2 space-y-2 text-[12px]">
+    <div className="flex flex-wrap items-center gap-1">
+      {DRAW_TOOLS.map(([k, ic, l]) => <button key={k} type="button" title={l} aria-label={l} onClick={() => { setTool(k); setSel(null); }} className={`rounded-md px-2 py-1.5 border ${tool === k ? 'bg-aqua-600 text-white border-aqua-600' : 'border-line hover:border-aqua-400'}`}><Icon name={ic} size={15} /></button>)}
+      <span className="w-px h-6 bg-line mx-1" />
+      <Btn icon="Undo2" variant="outline" disabled={!canUndo} onClick={undo} title="Batalkan langkah terakhir">Urungkan</Btn>
+      <span className="text-slate-500 ml-1">{DRAW_TOOLS.find(t => t[0] === tool)?.[2]} · {items.length} objek di {sheetLabel}</span>
+    </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {color(opt.c, c => setOpt({ c }))}
+      <label className="flex items-center gap-1">Tebal {sel_('dw-w', opt.w, v => setOpt({ w: +v }), [[0.18, 'tipis'], [0.35, 'sedang'], [0.6, 'tebal'], [1, 'sangat tebal']])}</label>
+      <label className="flex items-center gap-1">Garis {sel_('dw-dash', opt.dash, v => setOpt({ dash: v }), DRAW_DASH)}</label>
+      {['rect', 'circle'].includes(tool) && <label className="flex items-center gap-1">Isi {sel_('dw-fill', opt.fill, v => setOpt({ fill: v }), DRAW_FILLS)}</label>}
+      {['text', 'arrow'].includes(tool) && <label className="flex items-center gap-1">Huruf {sel_('dw-size', opt.size, v => setOpt({ size: +v }), [[1.8, 'kecil'], [2.5, 'sedang'], [3.5, 'besar'], [5, 'judul']])}</label>}
+      {tool === 'sym' && <label className="flex items-center gap-1">Simbol {sel_('dw-sym', opt.sym, v => setOpt({ sym: v }), DRAW_SYMS)}</label>}
+      <label className="flex items-center gap-1">Snap {sel_('dw-grid', opt.grid, v => setOpt({ grid: +v }), [[0, 'mati'], [1, '1 mm'], [2.5, '2,5 mm'], [5, '5 mm']])}</label>
+      <label className="flex items-center gap-1"><input id="dw-ortho" type="checkbox" checked={!!opt.ortho} onChange={e => setOpt({ ortho: e.target.checked })} />Lurus (H/V)</label>
+      <label className="flex items-center gap-1" title="Untuk menghitung angka garis ukur">Skala ukur 1 : <input id="dw-scale" className="tp-field !py-1 !w-20" type="number" min="1" value={scale} onChange={e => setScale(Math.max(1, +e.target.value || 100))} /></label>
+    </div>
+    {o && <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md bg-orange-50 border border-orange-200 px-2 py-1.5">
+      <b>Objek terpilih ({{ line: 'garis', arrow: 'panah', poly: 'polyline', rect: 'persegi', circle: 'lingkaran', dim: 'garis ukur', text: 'teks', sym: 'simbol', img: 'gambar' }[o.t]})</b>
+      {o.t !== 'img' && color(o.c, c => setO({ c }))}
+      {['line', 'arrow', 'poly', 'rect', 'circle'].includes(o.t) && <>{sel_('dw-ow', o.lw || 0.35, v => setO({ lw: +v }), [[0.18, 'tipis'], [0.35, 'sedang'], [0.6, 'tebal'], [1, 'sangat tebal']])}{sel_('dw-odash', o.dash || '', v => setO({ dash: v }), DRAW_DASH)}</>}
+      {(['rect', 'circle'].includes(o.t) || (o.t === 'poly' && o.closed)) && sel_('dw-ofill', o.fill || 'none', v => setO({ fill: v }), DRAW_FILLS)}
+      {o.t === 'poly' && <label className="flex items-center gap-1"><input id="dw-oclosed" type="checkbox" checked={!!o.closed} onChange={e => setO({ closed: e.target.checked })} />Tertutup</label>}
+      {o.t === 'text' && <><textarea id="dw-otext" rows={1} className="tp-field !py-1 !w-64" value={o.s} onChange={e => setO({ s: e.target.value })} />{sel_('dw-osize', o.size, v => setO({ size: +v }), [[1.8, 'kecil'], [2.5, 'sedang'], [3.5, 'besar'], [5, 'judul']])}<label className="flex items-center gap-1"><input id="dw-obold" type="checkbox" checked={!!o.bold} onChange={e => setO({ bold: e.target.checked })} />Tebal</label></>}
+      {(o.t === 'arrow' || o.t === 'dim') && <input id="dw-olabel" className="tp-field !py-1 !w-48" placeholder={o.t === 'dim' ? `otomatis: ${dimLabel({ ...o, label: '' }, scale)}` : 'keterangan'} value={o.label || ''} onChange={e => setO({ label: e.target.value })} />}
+      {o.t === 'sym' && <>{sel_('dw-osym', o.sym, v => setO({ sym: v }), DRAW_SYMS)}<label className="flex items-center gap-1">Ukuran<input id="dw-os" type="number" step="0.25" min="0.25" className="tp-field !py-1 !w-16" value={o.s} onChange={e => setO({ s: Math.max(0.25, +e.target.value || 1) })} /></label><label className="flex items-center gap-1">Putar°<input id="dw-orot" type="number" step="15" className="tp-field !py-1 !w-16" value={o.rot || 0} onChange={e => setO({ rot: +e.target.value || 0 })} /></label></>}
+      {o.t === 'img' && <><label className="flex items-center gap-1">Lebar<input id="dw-oiw" type="number" min="10" className="tp-field !py-1 !w-20" value={o.w} onChange={e => { const w = Math.max(10, +e.target.value || 10); setO({ w, h: round2(o.h * w / o.w) }); }} /></label>
+        <label className="flex items-center gap-1">Transparansi<input id="dw-oop" type="range" min="0.2" max="1" step="0.1" value={o.op ?? 1} onChange={e => setO({ op: +e.target.value })} /></label></>}
+      <Btn icon="Copy" variant="outline" onClick={() => { setItems(l => [...l, moveItem(o, 5, 5)]); setSel(items.length); }}>Gandakan</Btn>
+      <Btn icon="Trash2" variant="danger" onClick={() => { setItems(l => l.filter((_, j) => j !== sel)); setSel(null); }}>Hapus</Btn>
+    </div>}
+    <p className="text-[11px] text-slate-500">Seret untuk menggambar garis/persegi/lingkaran/ukuran; polyline: klik tiap titik lalu klik ganda (atau Enter). Tahan Shift untuk garis lurus. Pilih objek lalu seret untuk memindahkan; Delete untuk menghapus. Persegi "Putih (penutup)" bisa menutupi bagian gambar otomatis yang ingin digambar ulang.</p>
+  </div>;
+}
 
 /* =====================================================================
    13. WORKSPACE 4: DED
@@ -5189,6 +5772,20 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
   const curIdx = String(ded.sheet).startsWith('st:') ? structs.findIndex(x => x.st.id === ded.sheet.slice(3)) : -1;
   const cur = curIdx >= 0 ? structs[curIdx] : null;
   const sheet = ex ? ded.sheet : (sheets.some(x => x[0] === ded.sheet) ? ded.sheet : 'layout');
+  // Gambar manual (lapisan di atas lembar otomatis & lembar kosong)
+  const dr = drawOf(project); const curKey = sheet; const marks = dr.marks[curKey] || []; const manual = ex?.manual || null;
+  const mScale = manual ? (+manual.scale || 100) : ((dr.scales || {})[curKey] || 100);
+  const [drawOn, setDrawOn] = useState(false); const [tool, setTool] = useState('line'); const [opt, setOptS] = useState(DRAW_DEF); const setOpt = (p) => setOptS(o => ({ ...o, ...p })); const [selI, setSelI] = useState(null);
+  const hist = useRef({}); const lastPush = useRef(0); const [, setHv] = useState(0);
+  useEffect(() => { setSelI(null); }, [curKey]);
+  const setDraw = (fn) => setProject(p => ({ ...p, dedDraw: fn(drawOf(p)) }));
+  const setMarks = (fn) => { const now = Date.now(); if (now - lastPush.current > 500) { const h = hist.current[curKey] || (hist.current[curKey] = []); h.push(marks); if (h.length > 60) h.shift(); setHv(v => v + 1); } lastPush.current = now;
+    setDraw(d => ({ ...d, marks: { ...d.marks, [curKey]: fn(d.marks[curKey] || []) } })); };
+  const undo = () => { const h = hist.current[curKey]; if (!h || !h.length) return; const prev = h.pop(); setSelI(null); lastPush.current = 0; setHv(v => v + 1); setDraw(d => ({ ...d, marks: { ...d.marks, [curKey]: prev } })); };
+  const setMScale = (v) => manual ? setDraw(d => ({ ...d, sheets: d.sheets.map(m => m.id === manual.id ? { ...m, scale: v } : m) })) : setDraw(d => ({ ...d, scales: { ...(d.scales || {}), [curKey]: v } }));
+  const addManual = () => { const id = uid('mn'); setDraw(d => ({ ...d, sheets: [...d.sheets, { id, title: `Gambar manual ${d.sheets.length + 1}`, scale: 50, notes: '' }] })); setDed('sheet', 'mn:' + id); setDrawOn(true); };
+  const updManual = (patch) => setDraw(d => ({ ...d, sheets: d.sheets.map(m => m.id === manual.id ? { ...m, ...patch } : m) }));
+  const delManual = () => { setDraw(d => { const mk = { ...d.marks }; delete mk['mn:' + manual.id]; return { ...d, sheets: d.sheets.filter(m => m.id !== manual.id), marks: mk }; }); setDed('sheet', 'layout'); };
   const addStructure = () => { const st = newStructure(addType, project.structures || [], { params: { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[addType], elev: project.nodes[0] ? +project.nodes[0].elev : 100 } });
     setProject(p => ({ ...p, structures: [...(p.structures || []), st], ded: { ...p.ded, sheet: 'st:' + st.id } })); };
   const dupStructure = (st) => { const c = { ...st, id: uid('s'), nodeId: '', label: nextLabel(project.structures, STRUCT_TYPES[st.type].short + '-'), params: { ...st.params, elev: structGeom(st, project).ground } };
@@ -5209,10 +5806,17 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
         </div>
         {[...new Set(extras.map(x => x.group))].filter(gr => gr !== 'Bangunan pelengkap').map(gr => <Fragment key={gr}><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5 mt-3">{gr}</div>
           <div className="space-y-1">{extras.map((x, i) => x.group === gr && sheetBtn(x.key, 4 + i, x.label, x.icon, x.sub))}</div></Fragment>)}
-        <p className="text-[11px] text-slate-500 mt-1.5">Sumur bor dan desain pengolahan diatur di tab Olah Air.</p>
+        <Btn icon="FilePlus2" variant="outline" className="w-full justify-center mt-3" onClick={addManual}>Tambah lembar gambar manual</Btn>
+        <p className="text-[11px] text-slate-500 mt-1.5">Sumur bor dan desain pengolahan diatur di tab Olah Air. Lembar manual digambar bebas dengan alat gambar (garis, persegi, ukuran, teks, simbol, foto sketsa).</p>
       </div>
       <div className="space-y-2 border-t border-line pt-3">
-        {cur ? <StructureEditor key={cur.st.id} s={cur} project={project} setProject={setProject} onDelete={() => delStructure(cur.st.id)} onDuplicate={() => dupStructure(cur.st)} />
+        {manual ? <div className="space-y-2"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Lembar gambar manual</div>
+            <Field label="Judul gambar"><input id="mn-title" className="tp-field" value={manual.title || ''} onChange={e => updManual({ title: e.target.value })} /></Field>
+            <Field label="Skala gambar (1 : …)" hint="Tampil di kop dan dipakai untuk angka garis ukur."><NumField id="mn-scale" value={manual.scale || 50} min={1} step={5} onChange={v => updManual({ scale: Math.max(1, v) })} /></Field>
+            <Field label="Catatan di kop (satu baris per catatan)"><textarea id="mn-notes" className="tp-field h-24" value={manual.notes || ''} onChange={e => updManual({ notes: e.target.value })} placeholder={'1. Beton K-250.\n2. Satuan dalam meter.'} /></Field>
+            <Field label="Acuan standar (opsional)"><input id="mn-std" className="tp-field" value={manual.std || ''} onChange={e => updManual({ std: e.target.value })} placeholder="mis. SNI 7509:2011" /></Field>
+            <Btn icon="Trash2" variant="danger" onClick={delManual}>Hapus lembar ini</Btn></div>
+        : cur ? <StructureEditor key={cur.st.id} s={cur} project={project} setProject={setProject} onDelete={() => delStructure(cur.st.id)} onDuplicate={() => dupStructure(cur.st)} />
           : <><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Opsi gambar jaringan</div>
             <Field label="Jalur potongan memanjang"><select id="ded-lsend" className="tp-field" value={ded.lsEnd || path?.endId || ''} onChange={e => setDed('lsEnd', e.target.value)}>{ends.map(n => <option key={n.id} value={n.id}>{path?.points[0].node.label || 'R'} → {n.label}</option>)}</select></Field>
             <Field label="Interval patok STA (m)"><select id="ded-sta" className="tp-field" value={project.settings.staInterval} onChange={e => setProject(p => ({ ...p, settings: { ...p.settings, staInterval: +e.target.value } }))}>{[0, 25, 50, 100, 200].map(v => <option key={v} value={v}>{v === 0 ? 'Hanya titik node' : v + ' m'}</option>)}</select></Field>
@@ -5234,12 +5838,20 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
       </details>
     </aside>
     <div className="flex-1 lg:overflow-auto p-3 lg:p-6 min-w-0 bg-[#dfe6e4] shrink-0 lg:shrink">
-      <div className="paper mx-auto max-w-[1400px] overflow-x-auto">
-        {sheet === 'layout' && <SheetLayout project={project} hyd={hyd} />}
-        {sheet === 'long' && <SheetLongSection project={project} hyd={hyd} endId={ded.lsEnd} />}
-        {sheet === 'cross' && <SheetCrossSection project={project} boq={boq} diameter={ded.csDiameter} />}
-        {ex && ex.render(4 + exIdx, total)}
+      <div className="max-w-[1400px] mx-auto mb-2 flex flex-wrap items-center gap-2">
+        <Btn icon="PenTool" variant={drawOn ? 'primary' : 'outline'} onClick={() => { setDrawOn(v => !v); setSelI(null); }}>{drawOn ? 'Selesai menggambar' : 'Gambar manual di lembar ini'}</Btn>
+        {!drawOn && marks.length > 0 && <span className="text-[12px] text-slate-600">{marks.length} objek gambar manual di lembar ini (ikut tercetak)</span>}
+        {!drawOn && <Btn icon="FilePlus2" variant="ghost" onClick={addManual}>Lembar kosong baru</Btn>}
       </div>
+      {drawOn && <div className="max-w-[1400px] mx-auto sticky top-0 z-[5]"><DrawToolbar tool={tool} setTool={setTool} opt={opt} setOpt={setOpt} items={marks} setItems={setMarks} sel={selI} setSel={setSelI} undo={undo} canUndo={!!(hist.current[curKey] || []).length}
+        scale={mScale} setScale={setMScale} sheetLabel={ex ? `${ex.label} · ${ex.sub}` : (sheets.find(x => x[0] === sheet) || [])[1]} /></div>}
+      <div className="paper mx-auto max-w-[1400px] overflow-x-auto"><div className="relative">
+        {sheet === 'layout' && <SheetLayout project={project} hyd={hyd} sheetTotal={total} />}
+        {sheet === 'long' && <SheetLongSection project={project} hyd={hyd} endId={ded.lsEnd} sheetTotal={total} />}
+        {sheet === 'cross' && <SheetCrossSection project={project} boq={boq} diameter={ded.csDiameter} sheetTotal={total} />}
+        {ex && ex.render(4 + exIdx, total)}
+        {drawOn ? <DrawLayer items={marks} setItems={setMarks} scale={mScale} opt={opt} setOpt={setOpt} sel={selI} setSel={setSelI} tool={tool} /> : <MarksOverlay items={marks} scale={mScale} />}
+      </div></div>
     </div>
   </div>;
 }
@@ -5324,6 +5936,13 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'aerator aerasi nampan tray cascade tangga spray semprot difuser blower besi mangan oksidasi', t: 'Sistem aerator', a: 'Aerator dipakai bila air mengandung **besi/mangan/amonia**, CO₂ atau bau H₂S. Aktifkan unit *Aerasi* di rangkaian pengolahan (tab **Olah Air**), lalu pilih jenisnya: **nampan bertingkat** (paling umum, tanpa listrik), **tangga/cascade** (beton, perawatan mudah), **semprot** (butuh tekanan 5–10 m) atau **difuser + blower** (bak tertutup, butuh listrik). Gambar DED aerator muncul di tab **DED → Sumber & pengolahan air**.' },
+  { k: 'gambar manual menggambar sendiri ded tangan garis sketsa lembar kosong edit gambar', t: 'Menggambar DED secara manual', a: 'Di tab **DED** tekan **Gambar manual di lembar ini** untuk menggambar di atas lembar otomatis (garis, panah, polyline, persegi berarsir, lingkaran, garis ukur, teks, simbol katup/pompa, dan foto sketsa). Tekan **Tambah lembar gambar manual** untuk lembar kosong dengan kop gambar sendiri. Persegi isi *Putih* bisa menutup bagian gambar otomatis yang ingin digambar ulang. Gambar manual ikut tercetak.' },
+  { k: 'spesifikasi minimal ideal maksimal mutu bahan rab boq harga kelas pn sni', t: 'Spesifikasi minimal / ideal / maksimal di RAB', a: 'Setiap item bahan di RAB punya tiga rekomendasi spesifikasi. Pilih **Min / Ideal / Maks** di bawah uraian item, atau ubah semua sekaligus di kepala tabel RAB. Harga satuan menyesuaikan otomatis (Ideal = harga bawaan). Klik **bandingkan** untuk melihat ketiga spesifikasi dan harganya. Lampiran spesifikasi ikut tercetak di laporan.' },
+  { k: 'spesifikasi pompa fasa volt kabel mcb starter outlet stage pengadaan', t: 'Spesifikasi teknis pompa', a: 'Tab **Olah Air** menampilkan tabel *Spesifikasi teknis pompa (untuk pengadaan)*: titik kerja Q–H, daya kW/HP, 1 atau 3 fasa, arus, ukuran outlet, jumlah stage, ukuran kabel dan rugi tegangan, starter & MCB, genset cadangan, serta standar uji. Pilih **Sumber listrik pompa** bila ingin memaksa 1 atau 3 fasa.' },
+  { k: 'ukuran tabung frp membran housing cartridge cto pvdf uf big blue 4040 8040', t: 'Ukuran tabung FRP, membran, housing & cartridge', a: 'Di pengaturan filtrasi (tab **Olah Air**): ukuran tabung FRP bisa dipilih per tahap (844 sampai 4872), cartridge bisa PP/pleated/CTO/GAC/keramik dengan ukuran Slim 10"/20", Big Blue 10"/20" atau industri 20"/30"/40", housing plastik/SS304/SS316, plus tahap CTO tambahan. Membran UF/MF bisa 4"–10" dengan bahan PVDF/PES/PAN/PVC/keramik; NF 4040 atau 8040.' },
+  { k: 'pemeriksa penyetuju hak review staf lpasl custom tidak semua', t: 'Mengatur siapa pemeriksa & penyetuju', a: 'Admin membuka *Menu → Kelola pengguna* lalu mencentang **Pemeriksa** dan/atau **Penyetuju** pada pengguna tertentu. Saat proyek diajukan, daftar pilihan hanya berisi pengguna yang dicentang (jabatan di profil tidak menentukan). Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.' },
+  { k: 'unggah upload tanda tangan gambar scan foto ttd esign', t: 'Unggah gambar tanda tangan', a: 'Pada jendela tanda tangan elektronik tekan **Unggah gambar tanda tangan** dan pilih foto/scan tanda tangan (PNG/JPG). Opsi *Hapus latar putih otomatis* membuat latar kertas transparan. Tanda tangan disimpan di perangkat untuk dipakai lagi.' },
   { k: 'login masuk gagal configuration-not-found firebase auth-config domain', t: 'Gagal masuk / login daring', a: '- **auth/configuration-not-found**: aktifkan *Authentication → Sign-in method → Email/Password* di Firebase dan pastikan isi `auth-config.js` sama persis dengan *Project settings → Your apps → Config*.\n- **unauthorized-domain**: tambahkan domain situs (mis. `nama.github.io`) di *Authentication → Settings → Authorized domains*.\n- **Email atau kata sandi salah**: pakai "Lupa kata sandi" di layar masuk.\n- Masuk pertama kali di perangkat baru butuh internet; setelah itu bisa luring hingga 30 hari.' },
   { k: 'daftar akun menunggu persetujuan pending approve admin setujui pengguna', t: 'Akun menunggu persetujuan', a: 'Akun baru berstatus **Menunggu persetujuan** sampai admin menyetujui di *Menu → Kelola pengguna*. Admin mendapat pop-up/notifikasi saat ada pendaftar baru. Setelah disetujui, tekan **Periksa ulang** di layar tunggu.' },
   { k: 'sinkron cloud gagal permission-denied aturan firestore rules simpan', t: 'Sinkron cloud gagal', a: '- **Akses ditolak (permission-denied)**: tempel ulang isi `firestore.rules` terbaru di *Firebase Console → Firestore → Rules → Publish*.\n- **Offline**: data tetap tersimpan di perangkat dan dikirim otomatis saat online.\n- **Ada versi lain di cloud**: pilih memakai versi cloud, menimpa dengan versi Anda, atau menyimpan sebagai salinan.' },
@@ -5452,11 +6071,13 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
   const sheetStyle = { width: (paper.w - 12) + 'mm', height: (paper.h - 12) + 'mm' };
   const nmap = Object.fromEntries(project.nodes.map(n => [n.id, n]));
   const s = project.settings;
+  const exs = extraSheets(project, hyd, boq); const tot = 3 + exs.length; const dr = drawOf(project);
+  const ps = (key, el) => <div key={key} className="print-sheet" style={{ ...sheetStyle, position: 'relative' }}>{el}<MarksOverlay items={dr.marks[key]} scale={(dr.scales || {})[key] || dr.sheets.find(m => 'mn:' + m.id === key)?.scale || 100} /></div>;
   const sheets = <>
-    <div className="print-sheet" style={sheetStyle}><SheetLayout project={project} hyd={hyd} /></div>
-    <div className="print-sheet" style={sheetStyle}><SheetLongSection project={project} hyd={hyd} endId={project.ded.lsEnd} /></div>
-    <div className="print-sheet" style={sheetStyle}><SheetCrossSection project={project} boq={boq} diameter={project.ded.csDiameter} /></div>
-    {extraSheets(project, hyd, boq).map((x, i, arr) => <div key={x.key} className="print-sheet" style={sheetStyle}>{x.render(4 + i, 3 + arr.length)}</div>)}
+    {ps('layout', <SheetLayout project={project} hyd={hyd} sheetTotal={tot} />)}
+    {ps('long', <SheetLongSection project={project} hyd={hyd} endId={project.ded.lsEnd} sheetTotal={tot} />)}
+    {ps('cross', <SheetCrossSection project={project} boq={boq} diameter={project.ded.csDiameter} sheetTotal={tot} />)}
+    {exs.map((x, i) => ps(x.key, x.render(4 + i, tot)))}
   </>;
   if (mode === 'ded') return sheets;
   return <div className="rp">
@@ -5511,12 +6132,15 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
     <p style={{ fontSize: '9pt' }}>Acuan harga: Standar Harga Satuan Provinsi {rab.shs.name} tahun {rab.shs.year}{rab.shs.n ? ` (${rab.shs.n} item SHS${rab.shs.source ? ', ' + rab.shs.source : ''})` : ''}; harga bawaan disesuaikan dengan IKK {fmt(rab.shs.ikk, 1)} (faktor × {fmt(rab.shs.factor, 3)} terhadap Jawa Barat).</p>
     <table><thead><tr><th>No</th><th>Uraian pekerjaan</th><th>Volume</th><th>Sat.</th><th>Harga satuan (Rp)</th><th>Jumlah (Rp)</th></tr></thead>
       <tbody>{rab.sections.map(sec => <Fragment key={sec.code}><tr className="sect"><td>{sec.code}</td><td colSpan={4}>{sec.title}</td><td className="r">{fmt(sec.subtotal, 0)}</td></tr>
-        {sec.items.map((it, i) => <tr key={it.key}><td>{i + 1}</td><td>{it.desc}</td><td className="r">{fmt(it.vol, 2)}</td><td>{it.unit}</td><td className="r">{fmt(it.price, 0)}</td><td className="r">{fmt(it.amount, 0)}</td></tr>)}</Fragment>)}
+        {sec.items.map((it, i) => <tr key={it.key}><td>{i + 1}</td><td>{it.desc}{it.spec && <div style={{ fontSize: '7.5pt', color: '#444' }}>Spek {TIERS[it.tier].toLowerCase()}: {it.specText}</div>}</td><td className="r">{fmt(it.vol, 2)}</td><td>{it.unit}</td><td className="r">{fmt(it.price, 0)}</td><td className="r">{fmt(it.amount, 0)}</td></tr>)}</Fragment>)}
         <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>JUMLAH</td><td className="r">{fmt(rab.total, 0)}</td></tr>
         <tr><td /><td colSpan={4} style={{ textAlign: 'right' }}>PPN {s.ppnPct}%</td><td className="r">{fmt(rab.ppn, 0)}</td></tr>
         <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>TOTAL</td><td className="r">{fmt(rab.grand, 0)}</td></tr>
         <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>DIBULATKAN</td><td className="r">{fmt(rab.rounded, 0)}</td></tr></tbody></table>
     <p><i>Terbilang: {terbilang(rab.rounded)}</i></p>
+    {rab.sections.some(x => x.items.some(it => it.spec)) && <><h3>Lampiran: rekomendasi spesifikasi bahan (minimal · ideal · maksimal)</h3>
+      <table style={{ fontSize: '7.5pt' }}><thead><tr><th>No</th><th>Item</th><th>Minimal</th><th>Ideal</th><th>Maksimal</th><th>Dipakai</th></tr></thead>
+        <tbody>{rab.sections.flatMap(x => x.items.filter(it => it.spec).map(it => [x.code, it])).map(([c, it], i) => <tr key={it.ek}><td>{i + 1}</td><td>{it.desc}</td><td>{it.spec.min.s}</td><td>{it.spec.ideal.s}</td><td>{it.spec.max.s}</td><td>{TIERS[it.tier]}</td></tr>)}</tbody></table></>}
     {project.cloud && <p style={{ marginTop: '14pt', fontSize: '9pt' }}>Status dokumen: <b>{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</b>{project.meta.checkedName ? ` · diperiksa ${project.meta.checkedName} (${project.meta.checkedBy}) ${project.meta.checkedDate || ''}` : ''}{project.meta.approvedName ? ` · disetujui ${project.meta.approvedName} (${project.meta.approvedBy}) ${project.meta.approvedDate || ''}` : ''}</p>}
     <table style={{ marginTop: '12pt', border: 0 }}><tbody><tr>{[['Dibuat oleh', project.meta.drawnBy, project.cloud?.ownerName], ['Diperiksa oleh', project.meta.checkedBy || 'Staf LPASL', project.meta.checkedName], ['Disetujui oleh', project.meta.approvedBy || 'Kepala LPASL', project.meta.approvedName]].map(([a, t, n]) =>
       <td key={a} style={{ border: 0, textAlign: 'center', width: '33%' }}>{a},<br /><b>{t}</b><div style={{ height: '44pt' }} /><b><u>{n || '(............................................)'}</u></b></td>)}</tr></tbody></table>
@@ -5850,7 +6474,7 @@ const USER_STATUS = { pending: ['Menunggu persetujuan', 's-low'], approved: ['Ak
 function makeLocalAuth() {
   const read = () => { try { return JSON.parse(localStorage.getItem(LOCAL_USERS) || '[]'); } catch (e) { return []; } };
   const write = (u) => localStorage.setItem(LOCAL_USERS, JSON.stringify(u));
-  const pub = (u) => u ? { uid: u.uid, email: u.email, name: u.name, role: u.role, org: u.org, phone: u.phone, status: u.status, admin: !!u.admin, createdAt: u.createdAt } : null;
+  const pub = (u) => u ? { uid: u.uid, email: u.email, name: u.name, role: u.role, org: u.org, phone: u.phone, status: u.status, admin: !!u.admin, review: u.review || null, createdAt: u.createdAt } : null;
   const session = (id) => localStorage.setItem(LOCAL_SESSION, JSON.stringify({ uid: id, exp: Date.now() + 30 * 864e5 }));
   let listener = null;
   const emit = () => { let s = null; try { s = JSON.parse(localStorage.getItem(LOCAL_SESSION) || 'null'); } catch (e) {} const u = s && s.exp > Date.now() ? read().find(x => x.uid === s.uid) : null; listener && listener(pub(u)); };
@@ -5875,6 +6499,7 @@ function makeLocalAuth() {
     async listUsers() { return read().map(pub); },
     async setStatus(id, status) { write(read().map(u => u.uid === id ? { ...u, status } : u)); },
     async setAdmin(id, admin) { write(read().map(u => u.uid === id ? { ...u, admin, status: admin ? 'approved' : u.status } : u)); },
+    async setReview(id, review) { write(read().map(u => u.uid === id ? { ...u, review } : u)); },
     async remove(id) { write(read().filter(u => u.uid !== id)); },
     async adminSetPassword(id, pw) { const h = await hashPw(pw); write(read().map(u => u.uid === id ? { ...u, ...h } : u)); },
   };
@@ -5932,6 +6557,7 @@ async function makeFirebaseAuth() {
       const q = await db.collection('users').get().catch(e => { throw new Error(fbErr(e)); });
       return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, status: isAdm(x.email) ? 'approved' : x.status, admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
     async setStatus(id, status) { await db.collection('users').doc(id).update({ status }).catch(e => { throw new Error(fbErr(e)); }); },
+    async setReview(id, review) { await db.collection('users').doc(id).update({ review }).catch(e => { throw new Error(fbErr(e)); }); },
     async remove(id) { await db.collection('users').doc(id).delete().catch(e => { throw new Error(fbErr(e)); }); },
   };
 }
@@ -6019,6 +6645,7 @@ function UserAdminDialog({ api, me, onClose }) {
     <div className="bg-white rounded-lg w-full max-w-3xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between px-5 py-3 border-b border-line"><h2 className="font-semibold flex items-center gap-2"><Icon name="UserRound" size={17} className="text-aqua-600" />Kelola pengguna {nPend > 0 && <span className="pill s-low">{nPend} menunggu</span>}</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
       <div className="p-5 overflow-y-auto space-y-3 text-[13px]">
+        <p className="text-slate-600 rounded-md bg-aqua-50 border border-aqua-100 px-3 py-2"><b>Hak review:</b> centang <i>Pemeriksa</i> / <i>Penyetuju</i> pada pengguna yang boleh dipilih saat proyek diajukan. Tidak semua Staf LPASL harus menjadi pemeriksa; jabatan di profil tidak menentukan hak ini. Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.</p>
         <p className="text-slate-600">{AUTH_MODE === 'firebase' ? 'Pengguna terdaftar di semua perangkat. Setujui akun agar pemiliknya dapat memakai aplikasi; tangguhkan untuk mencabut akses.' : 'Mode lokal: daftar ini hanya berisi akun di perangkat ini.'}</p>
         {AUTH_MODE === 'firebase' && me.admin && me.verified === false && <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900">Verifikasi email admin Anda dulu (cek kotak masuk), lalu keluar dan masuk lagi, agar aturan keamanan mengizinkan Anda mengelola pengguna.</div>}
         {err && <div className="rounded-md bg-red-50 text-red-800 px-3 py-2">{err}</div>}
@@ -6028,6 +6655,8 @@ function UserAdminDialog({ api, me, onClose }) {
             <div className="text-[12px] text-slate-500">{[u.email, u.role, u.org, u.phone].filter(Boolean).join(' · ')}</div>
             {u.createdAt > 0 && <div className="text-[11px] text-slate-400">Daftar {new Date(u.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}</div>
           <span className={'pill ' + (USER_STATUS[u.status] || USER_STATUS.pending)[1]}>{(USER_STATUS[u.status] || USER_STATUS.pending)[0]}</span>
+          {api.setReview && u.status === 'approved' && <div className="flex items-center gap-3 text-[12px] rounded-md bg-ground px-2 py-1" title="Hak dalam alur review proyek">
+            {[['check', 'Pemeriksa'], ['approve', 'Penyetuju']].map(([k, l]) => <label key={k} className="flex items-center gap-1"><input id={`rv-${k}-${u.uid}`} type="checkbox" checked={!!u.review?.[k]} onChange={e => act(() => api.setReview(u.uid, { check: !!u.review?.check, approve: !!u.review?.approve, [k]: e.target.checked }))} />{l}</label>)}</div>}
           {u.uid !== me.uid && !(AUTH_MODE === 'firebase' && u.admin) && <div className="flex flex-wrap gap-1.5">
             {u.status !== 'approved' && <Btn variant="primary" icon="CircleCheck" onClick={() => act(() => api.setStatus(u.uid, 'approved'))}>Setujui</Btn>}
             {u.status === 'pending' && <Btn variant="danger" onClick={() => act(() => api.setStatus(u.uid, 'rejected'))}>Tolak</Btn>}
@@ -6211,10 +6840,12 @@ function ReviewDialog({ project, user, api, onAct, onClose }) {
   const revise = () => { if (!note.trim()) { setErr('Tulis catatan alasannya terlebih dulu.'); return; } onAct('revisi', note.trim()); setNote(''); setErr(''); };
   const signs = c.signs || []; const lastSign = (role) => [...signs].reverse().find(x => x.role === role);
   const steps = ['draft', 'review', 'checked', 'approved'];
+  const [showAll, setShowAll] = useState(false); const anyRights = (users || []).some(u => u.review && (u.review.check || u.review.approve));
+  const eligible = (role) => (users || []).filter(u => showAll || !anyRights || !!u.review?.[role === 'checker' ? 'check' : 'approve']);
   const uSel = (role, label) => <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pick(role, e.target.value)} disabled={!canAssign}>
-    <option value="">{users === null ? 'Memuat daftar pengguna…' : 'Pilih pengguna'}</option>
-    {sel[role] && !(users || []).some(u => u.uid === sel[role].uid) && <option value={sel[role].uid}>{sel[role].name}</option>}
-    {(users || []).map(u => <option key={u.uid} value={u.uid}>{u.name || u.email}{u.role ? ` · ${u.role}` : ''}</option>)}</select></Field>;
+    <option value="">{users === null ? 'Memuat daftar pengguna…' : eligible(role).length ? 'Pilih pengguna' : 'Belum ada pengguna dengan hak ini'}</option>
+    {sel[role] && !eligible(role).some(u => u.uid === sel[role].uid) && <option value={sel[role].uid}>{sel[role].name}</option>}
+    {eligible(role).map(u => <option key={u.uid} value={u.uid}>{u.name || u.email}{u.role ? ` · ${u.role}` : ''}</option>)}</select></Field>;
   const sigRow = (role, label) => { const s0 = lastSign(role); const who = rv[role];
     return <tr><td className="text-slate-500 align-top">{label}</td><td>{s0 ? <div className="flex items-center gap-2"><img src={s0.sig} alt="ttd" className="h-10 max-w-[120px] object-contain bg-white border border-line rounded" />
       <span className="text-[12px]"><b>{s0.name}</b><br />{dtTxt(s0.at)}<br /><span className={cur === s0.hash ? 'text-green-700' : 'text-red-700'}>{cur ? (cur === s0.hash ? '✓ isi sesuai saat ditandatangani' : '✗ isi berubah sejak ditandatangani') : ''}</span></span></div>
@@ -6228,6 +6859,8 @@ function ReviewDialog({ project, user, api, onAct, onClose }) {
           <span className={'pill ' + (reached ? PSTATUS[s][1] : 's-idle opacity-50')}>{PSTATUS[s][0]}</span>{i < steps.length - 1 && <Icon name="ArrowRight" size={13} className="text-slate-400" />}</Fragment>; })}</div>
         <div>Status saat ini: <span className={'pill ' + S[1]}>{S[0]}</span></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{uSel('checker', `Pemeriksa (${project.meta.checkedBy || 'Staf LPASL'})`)}{uSel('approver', `Penyetuju (${project.meta.approvedBy || 'Kepala LPASL'})`)}</div>
+        {users && users.length > 0 && canAssign && <p className="text-[11.5px] text-slate-500">{anyRights ? 'Daftar hanya berisi pengguna yang diberi hak pemeriksa/penyetuju oleh admin.' : 'Admin belum menetapkan hak pemeriksa/penyetuju, jadi semua pengguna aktif ditampilkan.'}
+          {anyRights && user.admin && <label className="ml-2 inline-flex items-center gap-1"><input id="rv-showall" type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />tampilkan semua (admin)</label>}</p>}
         {users && !users.length && canAssign && <p className="text-[12px] text-amber-700">Daftar pengguna tidak dapat dimuat (periksa aturan firestore.rules terbaru).</p>}
         <table className="tp-table"><tbody>{sigRow('checker', 'Tanda tangan pemeriksa')}{sigRow('approver', 'Tanda tangan penyetuju')}</tbody></table>
         {(canAssign || canCheck || canApprove || canRevise || (user.admin && c.status === 'approved')) ? <div className="space-y-2">
@@ -6344,11 +6977,13 @@ function NotifyCenter({ inbox, user, onOpenItem, onClose }) {
 // Sidik dokumen: isi desain yang ditandatangani (tanpa status/tanda tangan & data lapangan non-desain)
 async function contentHash(p) {
   const m = { ...p.meta }; ['checkedName', 'checkedDate', 'approvedName', 'approvedDate', 'checkedSig', 'approvedSig'].forEach(k => delete m[k]);
-  return sha256Hex(JSON.stringify({ meta: m, nodes: p.nodes, pipes: p.pipes, structures: p.structures, treatments: p.treatments, settings: p.settings, prices: p.prices, rabEdits: p.rabEdits, shs: p.shs }));
+  const dd = p.dedDraw && ((p.dedDraw.sheets || []).length || Object.values(p.dedDraw.marks || {}).some(v => v && v.length)) ? { dedDraw: { sheets: p.dedDraw.sheets, marks: p.dedDraw.marks } } : {};
+  return sha256Hex(JSON.stringify({ meta: m, nodes: p.nodes, pipes: p.pipes, structures: p.structures, treatments: p.treatments, settings: p.settings, prices: p.prices, rabEdits: p.rabEdits, shs: p.shs, ...dd }));
 }
 const SIG_KEY = (u) => 'tirtaplan-sig:' + u;
 function SignPad({ user, roleLabel, project, onSign, onCancel }) {
   const cv = useRef(null); const drawing = useRef(false); const [empty, setEmpty] = useState(true); const [agree, setAgree] = useState(false); const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null); const [rmBg, setRmBg] = useState(true); const [upErr, setUpErr] = useState('');
   const saved = (() => { try { return localStorage.getItem(SIG_KEY(user.uid)); } catch (e) { return null; } })();
   useEffect(() => { const c = cv.current; const r = c.getBoundingClientRect(); c.width = r.width * 2; c.height = r.height * 2; const g = c.getContext('2d'); g.scale(2, 2); g.lineWidth = 2.2; g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = '#0d2a6b'; }, []);
   const pos = (e) => { const r = cv.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
@@ -6356,6 +6991,14 @@ function SignPad({ user, roleLabel, project, onSign, onCancel }) {
   const move = (e) => { if (!drawing.current) return; const g = cv.current.getContext('2d'); const [x, y] = pos(e); g.lineTo(x, y); g.stroke(); setEmpty(false); };
   const clear = () => { const c = cv.current; c.getContext('2d').clearRect(0, 0, c.width, c.height); setEmpty(true); };
   const useSaved = () => { const img = new Image(); img.onload = () => { clear(); const c = cv.current, g = c.getContext('2d'); const r = c.getBoundingClientRect(); const k = Math.min(r.width / img.width, r.height / img.height); g.drawImage(img, (r.width - img.width * k) / 2, (r.height - img.height * k) / 2, img.width * k, img.height * k); setEmpty(false); }; img.src = saved; };
+  const upload = (e) => { const f = e.target.files?.[0]; e.target.value = ''; setUpErr(''); if (!f) return; if (!/^image\//.test(f.type)) { setUpErr('Pilih berkas gambar (PNG/JPG).'); return; }
+    const url = URL.createObjectURL(f); const img = new Image();
+    img.onload = () => { const m = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight)); const o = document.createElement('canvas'); o.width = Math.round(img.naturalWidth * m); o.height = Math.round(img.naturalHeight * m);
+      const og = o.getContext('2d'); og.drawImage(img, 0, 0, o.width, o.height);
+      if (rmBg) { const id = og.getImageData(0, 0, o.width, o.height); const px = id.data; for (let i = 0; i < px.length; i += 4) { const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; if (lum > 200) px[i + 3] = 0; else if (lum > 150) px[i + 3] = Math.round(px[i + 3] * (200 - lum) / 50); } og.putImageData(id, 0, 0); }
+      clear(); const c = cv.current, g = c.getContext('2d'); const r = c.getBoundingClientRect(); const k = Math.min(r.width / o.width, r.height / o.height) * 0.92;
+      g.drawImage(o, (r.width - o.width * k) / 2, (r.height - o.height * k) / 2, o.width * k, o.height * k); setEmpty(false); URL.revokeObjectURL(url); };
+    img.onerror = () => { URL.revokeObjectURL(url); setUpErr('Gambar tidak dapat dibaca.'); }; img.src = url; };
   const exportSig = () => { const c = cv.current, g = c.getContext('2d'); const d = g.getImageData(0, 0, c.width, c.height).data; let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0;
     for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) if (d[(y * c.width + x) * 4 + 3] > 20) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
     const w = Math.max(10, x1 - x0 + 12), h = Math.max(10, y1 - y0 + 12); const k = Math.min(1, 400 / w, 160 / h); const o = document.createElement('canvas'); o.width = Math.round(w * k); o.height = Math.round(h * k);
@@ -6366,9 +7009,13 @@ function SignPad({ user, roleLabel, project, onSign, onCancel }) {
       <div className="font-semibold flex items-center gap-2"><Icon name="FileSignature" size={17} className="text-aqua-700" />Tanda tangan elektronik · {roleLabel}</div>
       <div className="text-[12.5px] text-slate-600">{user.name || user.email} ({user.email}) · {project.meta.name}</div>
       <canvas ref={cv} onPointerDown={down} onPointerMove={move} onPointerUp={() => (drawing.current = false)} onPointerLeave={() => (drawing.current = false)} className="w-full h-40 border-2 border-dashed border-slate-300 rounded-md touch-none bg-[linear-gradient(transparent_75%,#e2e8f0_75%,#e2e8f0_76%,transparent_76%)]" />
-      <div className="flex gap-2 text-[12.5px]"><Btn variant="outline" icon="Eraser" onClick={clear}>Ulangi</Btn>{saved && <Btn variant="outline" icon="History" onClick={useSaved}>Pakai tanda tangan tersimpan</Btn>}</div>
+      <div className="flex flex-wrap gap-2 text-[12.5px]"><Btn variant="outline" icon="Eraser" onClick={clear}>Ulangi</Btn>{saved && <Btn variant="outline" icon="History" onClick={useSaved}>Pakai tanda tangan tersimpan</Btn>}
+        <Btn variant="outline" icon="Upload" onClick={() => fileRef.current?.click()}>Unggah gambar tanda tangan</Btn>
+        <input ref={fileRef} id="sig-file" type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={upload} /></div>
+      <label className="flex items-center gap-2 text-[12px] text-slate-600"><input id="sig-rmbg" type="checkbox" checked={rmBg} onChange={e => setRmBg(e.target.checked)} />Hapus latar putih otomatis (untuk foto/scan tanda tangan di kertas putih)</label>
+      {upErr && <p className="text-[12px] text-red-700">{upErr}</p>}
       <label className="flex items-start gap-2 text-[12.5px]"><input id="sig-agree" type="checkbox" className="mt-0.5" checked={agree} onChange={e => setAgree(e.target.checked)} /><span>Saya menyatakan telah {/setuju/i.test(roleLabel) ? 'menyetujui' : 'memeriksa'} dokumen perencanaan ini. Tanda tangan dicatat bersama waktu dan sidik dokumen (SHA-256); bila isi proyek diubah, tanda tangan otomatis batal.</span></label>
-      <p className="text-[11px] text-slate-500">Catatan: ini tanda tangan elektronik internal aplikasi, bukan Tanda Tangan Elektronik tersertifikasi (BSrE/PSrE).</p>
+      <p className="text-[11px] text-slate-500">Gambar tanda tangan disimpan di perangkat ini untuk dipakai lagi berikutnya. Catatan: ini tanda tangan elektronik internal aplikasi, bukan Tanda Tangan Elektronik tersertifikasi (BSrE/PSrE).</p>
       <div className="flex justify-end gap-2"><Btn variant="outline" onClick={onCancel}>Batal</Btn><Btn variant="primary" icon="FileSignature" disabled={empty || !agree || busy} onClick={go}>{busy ? 'Menandatangani…' : 'Tanda tangani'}</Btn></div>
     </div></div>;
 }
