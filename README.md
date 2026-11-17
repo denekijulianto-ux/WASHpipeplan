@@ -37,6 +37,36 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Air tanah & hidrologi (tab Peta → panel "Air tanah & hidrologi")
+- **Lapisan peta:**
+  - sungai, mata air & sumur dari OpenStreetMap (Overpass);
+  - sungai & badan air (Esri Hydro) dan relief bayangan (Esri);
+  - lapisan sendiri: WMS, tile XYZ, ArcGIS MapServer, GeoJSON (mis. batas Cekungan Air Tanah/CAT), atau gambar/scan Peta Hidrogeologi dengan koordinat batasnya.
+- **Analisis potensi titik air tanah:**
+  - grid di sekitar pusat area (radius 0,5–5 km) dengan tumpang-susun berbobot dari:
+    - kemiringan lereng, indeks kebasahan topografi (TWI), dan posisi lembah (semuanya dari DEM);
+    - jarak ke sungai & kerapatan aliran (OSM);
+    - litologi;
+  - hasilnya dikoreksi data lapangan: sumur existing (muka air, debit, kering saat kemarau) dan pendugaan geolistrik/VES (tafsiran resistivitas → tebal & kedalaman akuifer);
+  - keluaran: peta kelas potensi (sangat rendah – sangat tinggi) dan 5 titik usulan dengan jenis sumur (dangkal / bor), perkiraan kedalaman, muka air, dan debit. Satu klik menjadikannya titik sumur bor di proyek.
+- **Catatan:** hasilnya penapisan awal. Tetap lakukan survei geolistrik, pengamatan sumur warga, dan uji pompa, serta urus izin penggunaan air tanah.
+
+## Kalkulator (tombol "Kalkulator" di bilah atas)
+- **Kebutuhan air & jumlah node:**
+  - proyeksi penduduk, debit rata-rata / hari maksimum / jam puncak (L/dtk), debit pompa sesuai jam operasi;
+  - jumlah sumur bor, volume reservoir, jumlah SR & hidran umum;
+  - jumlah node jaringan utama yang disarankan dibanding node proyek;
+  - tombol untuk menerapkan kebutuhan ke node HU & pengaturan SR.
+- **Daya pompa sumur bor:** rincian head total (muka air dinamis, beda tinggi, gesekan Hazen-Williams, kehilangan minor, sisa tekan) dan kebutuhan motor tiga tingkat dalam kW & HP.
+
+## Daya pompa minimal / ideal / maksimal
+Kartu sumur bor dan pompa filter menampilkan tabel kebutuhan motor tiga tingkat:
+- **Minimal:** head pas, efisiensi 70%, tanpa cadangan.
+- **Ideal:** head +10%, faktor layanan 1,15.
+- **Maksimal:** head +25%, debit +10%, efisiensi 50%.
+
+Tiap tingkat berisi daya hidrolik & poros, motor standar kW/HP, arus, energi, dan biaya listrik. Motor yang dipasang bisa dipilih: otomatis atau salah satu tingkat. Pilihan ini dipakai untuk energi, RAB, dan DED; bila motor lebih kecil dari daya poros, aplikasi memberi peringatan.
+
 ## Sistem aerator (tab Olah Air → DED)
 Aktifkan unit *Aerasi* pada rangkaian IPA (disarankan otomatis bila besi/mangan/amonia tinggi), lalu pilih jenisnya:
 - **Nampan bertingkat (multiple tray)**: jumlah nampan, jarak, beban hidrolik, media (kokas/kerikil/bio-ball), bahan rangka (galvanis/SS304/FRP).

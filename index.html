@@ -1661,6 +1661,8 @@ function normalizeProject(p) {
       ...DEFAULT_DED,
       ...(p.ded || {})
     },
+    gw: p.gw && typeof p.gw === 'object' ? p.gw : undefined,
+    calc: p.calc && typeof p.calc === 'object' ? p.calc : undefined,
     dedDraw: (() => {
       const d = p.dedDraw && typeof p.dedDraw === 'object' ? p.dedDraw : {};
       const marks = {};
@@ -1792,11 +1794,11 @@ function wellGeom(n, Q) {
     submergence: setting - pp.swl - pp.dd
   };
 }
-function pumpEnergy(pp, Q, H) {
+function pumpEnergy(pp, Q, H, motorOver) {
   const Phyd = 9.81 * (Q / 1000) * H;
   const Pshaft = Phyd / (pp.etaP || 0.6);
   const Pin = Pshaft / (pp.etaM || 0.85);
-  const motor = STD_MOTOR.find(m => m >= Pshaft * 1.15) || STD_MOTOR[STD_MOTOR.length - 1];
+  const motor = motorOver || STD_MOTOR.find(m => m >= Pshaft * 1.15) || STD_MOTOR[STD_MOTOR.length - 1];
   const kwhDay = Pin * pp.hours;
   const kWp = kwhDay / ((pp.psh || 4) * 0.7);
   return {
@@ -2052,7 +2054,16 @@ function computeHydraulics(project) {
       });
     }
     const wg = wellGeom(b, Q);
-    const en = pumpEnergy(pp, Q, H);
+    const tiers = motorTiers({
+      Qls: Qd,
+      H: TDHreq,
+      etaP: pp.etaP,
+      etaM: pp.etaM,
+      hours: pp.hours,
+      tariff: pp.tariff,
+      phase: pp.phase || 'auto'
+    });
+    const en = pumpEnergy(pp, Q, H, pp.motorTier && tiers[pp.motorTier] ? tiers[pp.motorTier].motor : null);
     pumps[b.id] = {
       mode,
       target: t?.target,
@@ -2065,8 +2076,14 @@ function computeHydraulics(project) {
       pathHf,
       hsReq,
       ...wg,
-      ...en
+      ...en,
+      tiers
     };
+    if (en.motor < en.Pshaft) pumpWarn.push({
+      level: 'high',
+      ref: b.id,
+      text: `Motor pompa ${b.label} ${fmt(en.motor, 2)} kW lebih kecil dari daya poros ${fmt(en.Pshaft, 2)} kW (efisiensi pompa ${fmt((pp.etaP || 0.6) * 100, 0)}%): motor akan kelebihan beban. Pilih motor lebih besar atau pompa berefisiensi ≥ 70%.`
+    });
     if (Q > pp.yield) pumpWarn.push({
       level: 'high',
       ref: b.id,
@@ -2870,7 +2887,8 @@ function pumpSpec({
   casing = 6,
   cableL = 0,
   typeLabel = '',
-  ptype = ''
+  ptype = '',
+  tiers = null
 }) {
   const Qh = Qls * 3.6;
   const ph = phase === 'auto' ? motor <= 2.2 ? 1 : 3 : +phase;
@@ -2908,7 +2926,7 @@ function pumpSpec({
   }
   if (vDrop > 3) warn.push(`Rugi tegangan kabel ${fmt(vDrop, 1)}% > 3%: perbesar penampang kabel.`);
   if (ph === 1 && motor > 2.2) warn.push('Motor > 2,2 kW dengan listrik 1 fasa jarang tersedia: gunakan 3 fasa atau VFD 1→3 fasa.');
-  const rows = [['Jenis pompa', kind === 'sub' ? `Submersible sumur dalam ${pumpDia}", ${stages} tingkat (stage)` : `${typeLabel || 'Pompa permukaan'}${stages > 1 ? `, ± ${stages} tingkat` : ''}`], ['Titik kerja (duty point)', `Q ${fmt(Qls, 2)} L/dtk = ${fmt(Qh, 2)} m³/jam = ${fmt(Qls * 60, 0)} L/mnt · H ${fmt(H, 1)} m`], ['Head tutup (shut-off) min.', `± ${fmt(H * 1.3, 0)} m (titik kerja di 70–120% BEP)`], ['Daya motor', `${fmt(motor, 2)} kW (${fmt(motor * 1.341, 1)} HP), 2 kutub ± 2900 rpm, kerja kontinu S1`], ['Sumber listrik', `${ph} fasa ${V} V / 50 Hz · arus nominal ± ${fmt(I, 1)} A · ${fmt(kva, 1)} kVA`], ['Ukuran keluaran (outlet)', `${out[1]} (DN${out[0]}), kecepatan ± ${fmt(Qls / 1000 / (Math.PI / 4 * Math.pow(out[0] / 1000, 2)), 2)} m/dtk`], kind === 'sub' ? ['Pemasangan', `casing ≥ ${pumpDia + 2}", terendam ≥ 3 m di bawah muka air dinamis${cool ? `; aliran pendingin motor ${fmt(cool, 2)} m/dtk` : ''}`] : ['Hisap', ptype === 'jet' ? 'tinggi hisap ≤ 8 m (jet)' : 'tinggi hisap ≤ 6 m atau posisi tergenang (flooded); NPSHa > NPSHr + 0,5 m'], ['Bahan (rekomendasi ideal)', kind === 'sub' ? 'impeller & diffuser SS304, poros SS, motor IP68 isolasi kelas F' : 'rumah besi cor epoxy / SS304, impeller SS, mechanical seal karbon–keramik'], ['Kabel daya', `${ph === 1 ? 3 : 4} × ${cab[0]} mm² ${kind === 'sub' ? 'kabel submersible' : 'NYY'}, panjang ± ${fmt(L, 0)} m, rugi tegangan ${fmt(vDrop, 1)}%`], ['Starter & proteksi', `${starter}; MCB/MCCB ${mcb} A, proteksi beban lebih, dry-run (elektroda level)${ph === 3 ? ', phase failure' : ''}, arrester, grounding ≤ 5 Ω`], ['Genset cadangan (opsional)', `≥ ${genset} kVA`], ['Standar uji', 'kurva performa ISO 9906 (grade 2B); motor IEC 60034; sertifikat pabrik & garansi']];
+  const rows = [['Jenis pompa', kind === 'sub' ? `Submersible sumur dalam ${pumpDia}", ${stages} tingkat (stage)` : `${typeLabel || 'Pompa permukaan'}${stages > 1 ? `, ± ${stages} tingkat` : ''}`], ['Titik kerja (duty point)', `Q ${fmt(Qls, 2)} L/dtk = ${fmt(Qh, 2)} m³/jam = ${fmt(Qls * 60, 0)} L/mnt · H ${fmt(H, 1)} m`], ['Head tutup (shut-off) min.', `± ${fmt(H * 1.3, 0)} m (titik kerja di 70–120% BEP)`], ['Daya motor', `${fmt(motor, 2)} kW (${hpOf(motor)} HP), 2 kutub ± 2900 rpm, kerja kontinu S1`], ...(tiers ? [['Motor minimal · ideal · maksimal', ['min', 'ideal', 'max'].map(k => `${fmt(tiers[k].motor, 2)} kW / ${tiers[k].hp} HP`).join(' · ')]] : []), ['Sumber listrik', `${ph} fasa ${V} V / 50 Hz · arus nominal ± ${fmt(I, 1)} A · ${fmt(kva, 1)} kVA`], ['Ukuran keluaran (outlet)', `${out[1]} (DN${out[0]}), kecepatan ± ${fmt(Qls / 1000 / (Math.PI / 4 * Math.pow(out[0] / 1000, 2)), 2)} m/dtk`], kind === 'sub' ? ['Pemasangan', `casing ≥ ${pumpDia + 2}", terendam ≥ 3 m di bawah muka air dinamis${cool ? `; aliran pendingin motor ${fmt(cool, 2)} m/dtk` : ''}`] : ['Hisap', ptype === 'jet' ? 'tinggi hisap ≤ 8 m (jet)' : 'tinggi hisap ≤ 6 m atau posisi tergenang (flooded); NPSHa > NPSHr + 0,5 m'], ['Bahan (rekomendasi ideal)', kind === 'sub' ? 'impeller & diffuser SS304, poros SS, motor IP68 isolasi kelas F' : 'rumah besi cor epoxy / SS304, impeller SS, mechanical seal karbon–keramik'], ['Kabel daya', `${ph === 1 ? 3 : 4} × ${cab[0]} mm² ${kind === 'sub' ? 'kabel submersible' : 'NYY'}, panjang ± ${fmt(L, 0)} m, rugi tegangan ${fmt(vDrop, 1)}%`], ['Starter & proteksi', `${starter}; MCB/MCCB ${mcb} A, proteksi beban lebih, dry-run (elektroda level)${ph === 3 ? ', phase failure' : ''}, arrester, grounding ≤ 5 Ω`], ['Genset cadangan (opsional)', `≥ ${genset} kVA`], ['Standar uji', 'kurva performa ISO 9906 (grade 2B); motor IEC 60034; sertifikat pabrik & garansi']];
   return {
     rows,
     warn,
@@ -3140,6 +3158,1946 @@ function designAerator(Qls, raw, cfgAll) {
     o2,
     items
   };
+}
+const STD_HP = {
+  0.37: '0,5',
+  0.55: '0,75',
+  0.75: '1',
+  1.1: '1,5',
+  1.5: '2',
+  2.2: '3',
+  3: '4',
+  4: '5,5',
+  5.5: '7,5',
+  7.5: '10',
+  9.2: '12,5',
+  11: '15',
+  15: '20',
+  18.5: '25',
+  22: '30',
+  30: '40',
+  37: '50',
+  45: '60',
+  55: '75',
+  75: '100',
+  90: '125',
+  110: '150'
+};
+const TIER_DEF = {
+  min: {
+    hk: 1.0,
+    qk: 1.0,
+    eta: 0.70,
+    sf: 1.0,
+    label: 'Minimal',
+    note: 'Batas bawah mutlak: head pas kebutuhan, efisiensi pompa ≥ 70%, tanpa cadangan. Berisiko tidak kuat saat muka air turun di musim kemarau.'
+  },
+  ideal: {
+    hk: 1.10,
+    qk: 1.0,
+    eta: null,
+    sf: 1.15,
+    label: 'Ideal',
+    note: 'Disarankan: cadangan head 10% (penurunan muka air & penuaan pipa), efisiensi pompa realistis, faktor layanan motor 1,15.'
+  },
+  max: {
+    hk: 1.25,
+    qk: 1.10,
+    eta: 0.50,
+    sf: 1.25,
+    label: 'Maksimal',
+    note: 'Batas atas wajar: sumur belum diuji pompa atau ada rencana penambahan debit. Lebih besar dari ini boros listrik dan pompa bekerja jauh dari titik efisiennya.'
+  }
+};
+const hpOf = kw => STD_HP[kw] || fmt(kw / 0.746, 1);
+function motorTiers({
+  Qls,
+  H,
+  etaP = 0.62,
+  etaM = 0.85,
+  hours = 12,
+  tariff = 1444.7,
+  phase = 'auto'
+}) {
+  const out = {};
+  Object.entries(TIER_DEF).forEach(([k, t]) => {
+    const Q = Math.max(0, Qls) * t.qk,
+      Hd = Math.max(0, H) * t.hk,
+      eta = t.eta || clamp(+etaP || 0.62, 0.3, 0.85);
+    const Phyd = 9.81 * Q / 1000 * Hd,
+      Psh = Phyd / eta,
+      need = Psh * t.sf;
+    const motor = STD_MOTOR.find(m => m >= need) || STD_MOTOR[STD_MOTOR.length - 1];
+    const ph = phase === 'auto' ? motor <= 2.2 ? 1 : 3 : +phase;
+    const V = ph === 1 ? 220 : 380;
+    const I = motor * 1000 / ((ph === 1 ? V : Math.sqrt(3) * V) * 0.85 * (motor <= 1.5 ? 0.75 : motor <= 7.5 ? 0.82 : 0.88));
+    const kwh = Psh / (etaM || 0.85) * hours;
+    out[k] = {
+      ...t,
+      Q,
+      H: Hd,
+      eta,
+      Phyd,
+      Psh,
+      need,
+      needHp: need / 0.746,
+      motor,
+      hp: hpOf(motor),
+      ph,
+      V,
+      I,
+      kwh,
+      cost: kwh * 30 * tariff
+    };
+  });
+  return out;
+}
+function PowerTierTable({
+  tiers,
+  title = 'Kebutuhan daya pompa: minimal · ideal · maksimal',
+  pick,
+  onPick,
+  head
+}) {
+  const ks = ['min', 'ideal', 'max'];
+  const row = (l, f) => React.createElement("tr", null, React.createElement("td", {
+    className: "text-slate-500",
+    style: {
+      whiteSpace: 'normal'
+    }
+  }, l), ks.map(k => React.createElement("td", {
+    key: k,
+    className: 'r ' + (pick === k ? 'bg-aqua-50 font-semibold' : '')
+  }, f(tiers[k]))));
+  return React.createElement("div", {
+    className: "space-y-1.5"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, title), head && React.createElement("p", {
+    className: "text-[12px] text-slate-700 leading-snug"
+  }, head), React.createElement("div", {
+    className: "overflow-x-auto"
+  }, React.createElement("table", {
+    className: "tp-table"
+  }, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "Uraian"), ks.map(k => React.createElement("th", {
+    key: k,
+    className: 'r ' + (k === 'ideal' ? 'text-aqua-700' : '')
+  }, TIER_DEF[k].label)))), React.createElement("tbody", null, row('Head rencana', t => `${fmt(t.H, 1)} m`), row('Debit rencana', t => `${fmt(t.Q, 2)} L/dtk`), row('Efisiensi pompa', t => `${fmt(t.eta * 100, 0)}%`), row('Daya hidrolik (ρ·g·Q·H)', t => `${fmt(t.Phyd, 2)} kW`), row('Daya poros pompa', t => `${fmt(t.Psh, 2)} kW`), row('Kebutuhan motor (× faktor layanan)', t => `${fmt(t.need, 2)} kW = ${fmt(t.needHp, 2)} HP`), React.createElement("tr", {
+    className: "bg-ground"
+  }, React.createElement("td", {
+    className: "font-semibold"
+  }, "Motor standar dipilih"), ks.map(k => React.createElement("td", {
+    key: k,
+    className: 'r font-bold ' + (pick === k ? 'text-aqua-800' : '')
+  }, fmt(tiers[k].motor, 2), " kW \xB7 ", tiers[k].hp, " HP"))), row('Listrik & arus', t => `${t.ph} fasa ${t.V} V · ${fmt(t.I, 1)} A`), row('Energi', t => `${fmt(t.kwh, 1)} kWh/hari`), row('Biaya listrik', t => `Rp ${fmt(t.cost / 1e6, 2)} jt/bln`)))), React.createElement("ul", {
+    className: "text-[11.5px] text-slate-600 space-y-0.5"
+  }, ks.map(k => React.createElement("li", {
+    key: k
+  }, React.createElement("b", null, TIER_DEF[k].label, ":"), " ", TIER_DEF[k].note))), onPick && React.createElement(Field, {
+    label: "Motor yang dipasang (dipakai untuk RAB, energi & DED)"
+  }, React.createElement("select", {
+    id: "pt-pick",
+    className: "tp-field",
+    value: pick || 'auto',
+    onChange: e => onPick(e.target.value)
+  }, React.createElement("option", {
+    value: "auto"
+  }, "Otomatis (daya poros \xD7 1,15)"), ks.map(k => React.createElement("option", {
+    key: k,
+    value: k
+  }, TIER_DEF[k].label, ": ", fmt(tiers[k].motor, 2), " kW / ", tiers[k].hp, " HP")))));
+}
+const CALC_DEF = {
+  P0: 1000,
+  jpk: 4,
+  r: 1.5,
+  n: 10,
+  cov: 100,
+  srPct: 70,
+  qSR: 100,
+  qHU: 30,
+  perSR: 5,
+  perHU: 100,
+  nonDom: 10,
+  loss: 20,
+  fmd: 1.15,
+  fjp: 1.75,
+  hours: 12,
+  yieldW: 2,
+  spacing: 100,
+  swl: 15,
+  dd: 8,
+  ground: 100,
+  outletH: 120,
+  Lp: 500,
+  dia: 75,
+  mat: 'HDPE',
+  resid: 2,
+  etaP: 0.62,
+  tariff: 1444.7,
+  phase: 'auto'
+};
+function calcDemand(c, project, hyd) {
+  const P = c.P0 * Math.pow(1 + c.r / 100, c.n);
+  const Pl = P * c.cov / 100;
+  const PSR = Pl * c.srPct / 100,
+    PHU = Pl - PSR;
+  const nSR = Math.ceil(PSR / Math.max(1, c.perSR)),
+    nHU = Math.ceil(PHU / Math.max(1, c.perHU));
+  const qDom = (PSR * c.qSR + PHU * c.qHU) / 86400;
+  const qND = qDom * c.nonDom / 100;
+  const Qr = (qDom + qND) / (1 - Math.min(0.6, c.loss / 100));
+  const Qmd = Qr * c.fmd,
+    Qjp = Qr * c.fjp;
+  const Qpump = Qmd * 24 / clamp(c.hours, 1, 24);
+  const nWell = Math.ceil(Qpump / Math.max(0.1, c.yieldW));
+  const Vres = Math.max(Qmd * 86.4 * 0.2, Qmd * 86.4 * (1 - clamp(c.hours, 1, 24) / 24) * 0.6);
+  const L = hyd && project ? Object.values(hyd.pipes).reduce((a, p) => a + (p.length || 0), 0) : 0;
+  const deg = {};
+  (project?.pipes || []).forEach(p => {
+    deg[p.from] = (deg[p.from] || 0) + 1;
+    deg[p.to] = (deg[p.to] || 0) + 1;
+  });
+  const branches = Object.values(deg).filter(v => v >= 3).length;
+  const hi = (project?.nodes || []).filter(n => n.type === 'air_valve').length,
+    lo = (project?.nodes || []).filter(n => n.type === 'wash_out').length;
+  const inter = L ? Math.ceil(L / Math.max(25, c.spacing)) : 0;
+  const nodesMain = nHU + branches + inter + hi + lo + 1;
+  const nodesRec = nodesMain + nSR;
+  const cur = project ? {
+    all: project.nodes.length,
+    hu: project.nodes.filter(n => n.type === 'hydrant').length,
+    sr: project.nodes.filter(n => n.type === 'sr').length
+  } : null;
+  const qHUpeak = nHU ? PHU * c.qHU / 86400 * (1 + c.nonDom / 100) / (1 - Math.min(0.6, c.loss / 100)) * c.fjp / nHU : 0;
+  const qSRpeak = nSR ? PSR * c.qSR / 86400 * (1 + c.nonDom / 100) / (1 - Math.min(0.6, c.loss / 100)) * c.fjp / nSR : 0;
+  return {
+    P,
+    Pl,
+    PSR,
+    PHU,
+    nSR,
+    nHU,
+    qDom,
+    qND,
+    Qr,
+    Qmd,
+    Qjp,
+    Qpump,
+    nWell,
+    Vres,
+    L,
+    branches,
+    inter,
+    hi,
+    lo,
+    nodesMain,
+    nodesRec,
+    cur,
+    qHUpeak,
+    qSRpeak
+  };
+}
+function calcPump(c) {
+  const Q = Math.max(0.01, +c.Qp || 0);
+  const dwlDepth = +c.swl + +c.dd;
+  const setting = dwlDepth + 6;
+  const staticLift = +c.outletH - +c.ground + dwlDepth;
+  const C = MATERIALS[c.mat]?.C || 130;
+  const Ltot = +c.Lp + setting;
+  const hf = hwLoss(Ltot, Q, +c.dia, C);
+  const minor = 0.15 * hf + 0.5;
+  const H = staticLift + hf + minor + +c.resid;
+  const v = Q / 1000 / (Math.PI / 4 * Math.pow(+c.dia / 1000, 2));
+  return {
+    Q,
+    dwlDepth,
+    setting,
+    staticLift,
+    hf,
+    minor,
+    H,
+    v,
+    tiers: motorTiers({
+      Qls: Q,
+      H,
+      etaP: +c.etaP,
+      hours: +c.hours,
+      tariff: +c.tariff,
+      phase: c.phase
+    })
+  };
+}
+function CalcDialog({
+  project,
+  setProject,
+  hyd,
+  onClose,
+  initialTab = 'air'
+}) {
+  const [tab, setTab] = useState(initialTab);
+  const [c, setC] = useState(() => ({
+    ...CALC_DEF,
+    ...(project.calc || {})
+  }));
+  const [done, setDone] = useState('');
+  const set = (k, v) => setC(o => ({
+    ...o,
+    [k]: v
+  }));
+  useEffect(() => {
+    const t = setTimeout(() => setProject(p => ({
+      ...p,
+      calc: c
+    })), 400);
+    return () => clearTimeout(t);
+  }, [c]);
+  const d = calcDemand(c, project, hyd);
+  const pu = calcPump({
+    ...c,
+    Qp: c.Qp || round2(d.Qpump)
+  });
+  const num = (k, l, step = 1, hint, min = 0) => React.createElement(Field, {
+    label: l,
+    hint: hint
+  }, React.createElement(NumField, {
+    id: 'calc-' + k,
+    value: c[k],
+    step: step,
+    min: min,
+    onChange: v => set(k, Math.max(min, v))
+  }));
+  const out = (l, v, u, sub, strong) => React.createElement("div", {
+    className: 'rounded-md border px-3 py-2 ' + (strong ? 'border-aqua-400 bg-aqua-50' : 'border-line')
+  }, React.createElement("div", {
+    className: "text-[11px] text-slate-500"
+  }, l), React.createElement("div", {
+    className: "font-semibold text-[16px] num"
+  }, v, " ", React.createElement("span", {
+    className: "text-[12px] font-normal"
+  }, u)), sub && React.createElement("div", {
+    className: "text-[11px] text-slate-500"
+  }, sub));
+  const applyDemand = () => {
+    setProject(p => {
+      const hus = p.nodes.filter(n => n.type === 'hydrant');
+      return {
+        ...p,
+        settings: {
+          ...p.settings,
+          srLpcd: c.qSR,
+          srPeople: c.perSR,
+          srPeak: c.fjp
+        },
+        nodes: p.nodes.map(n => n.type === 'hydrant' && hus.length ? {
+          ...n,
+          demand: round2(d.Qjp * (d.PHU / Math.max(1, d.Pl)) / hus.length)
+        } : n)
+      };
+    });
+    setDone('Diterapkan: kebutuhan hidran umum dibagi rata ke node HU, dan pengaturan SR (L/orang/hari, jiwa per SR, faktor jam puncak) diperbarui. Buka Analisis Hidrolis untuk melihat hasilnya.');
+  };
+  const toPump = () => {
+    setProject(p => ({
+      ...p,
+      nodes: p.nodes.map(n => n.type === 'borehole' ? {
+        ...n,
+        pump: {
+          ...pumpP(n),
+          swl: +c.swl,
+          dd: +c.dd,
+          hours: +c.hours,
+          phase: c.phase
+        }
+      } : n)
+    }));
+    setDone('Muka air statis, penurunan, jam operasi & sumber listrik diterapkan ke semua sumur bor di proyek.');
+  };
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    className: "bg-white rounded-lg w-full max-w-5xl max-h-[94vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center gap-2 px-5 py-3 border-b border-line"
+  }, React.createElement(Icon, {
+    name: "Calculator",
+    size: 17,
+    className: "text-aqua-600"
+  }), React.createElement("h2", {
+    className: "font-semibold flex-1"
+  }, "Kalkulator perencanaan"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "flex border-b border-line text-[13px] font-semibold"
+  }, [['air', 'Kebutuhan air (L/dtk) & jumlah node'], ['pompa', 'Daya pompa sumur bor (HP / kW)']].map(([k, l]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setTab(k),
+    className: `px-4 py-2.5 border-b-2 ${tab === k ? 'border-aqua-600 text-aqua-800' : 'border-transparent text-slate-500'}`
+  }, l))), React.createElement("div", {
+    className: "p-5 overflow-y-auto text-[13px] space-y-4"
+  }, done && React.createElement("div", {
+    className: "rounded-md bg-green-50 border border-green-200 text-green-900 px-3 py-2"
+  }, done), tab === 'air' && React.createElement("div", {
+    className: "grid grid-cols-1 lg:grid-cols-5 gap-5"
+  }, React.createElement("div", {
+    className: "lg:col-span-2 space-y-3"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Penduduk"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('P0', 'Jumlah penduduk sekarang (jiwa)', 10), num('r', 'Pertumbuhan (%/tahun)', 0.1), num('n', 'Umur rencana (tahun)', 1), num('cov', 'Cakupan pelayanan (%)', 5)), React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Pola pelayanan"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('srPct', 'Dilayani SR (%)', 5, 'sisanya hidran umum'), num('perSR', 'Jiwa per SR', 1), num('qSR', 'Kebutuhan SR (L/org/hari)', 5), num('qHU', 'Kebutuhan HU (L/org/hari)', 5), num('perHU', 'Jiwa per hidran umum', 10), num('nonDom', 'Non-domestik (% domestik)', 1, 'sekolah, masjid, puskesmas')), React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Faktor desain"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, num('loss', 'Kehilangan air (%)', 1), num('fmd', 'Faktor hari maksimum', 0.05, '1,05–1,25'), num('fjp', 'Faktor jam puncak', 0.05, '1,5–2,0'), num('hours', 'Jam operasi pompa/hari', 1, '', 1), num('yieldW', 'Debit aman per sumur (L/dtk)', 0.1, 'dari uji pompa', 0.1), num('spacing', 'Jarak node antara (m)', 10, 'node tiap ± 100–200 m', 25))), React.createElement("div", {
+    className: "lg:col-span-3 space-y-3"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Hasil kebutuhan air"), React.createElement("div", {
+    className: "grid grid-cols-2 sm:grid-cols-3 gap-2"
+  }, out('Penduduk tahun ke-' + c.n, fmt(d.P, 0), 'jiwa', `dilayani ${fmt(d.Pl, 0)} jiwa`), out('Debit rata-rata', fmt(d.Qr, 2), 'L/dtk', `${fmt(d.Qr * 86.4, 1)} m³/hari (termasuk kehilangan)`), out('Debit hari maksimum', fmt(d.Qmd, 2), 'L/dtk', 'kapasitas minimum sumber air', true), out('Debit jam puncak', fmt(d.Qjp, 2), 'L/dtk', 'dasar desain pipa distribusi', true), out(`Debit pompa (${c.hours} jam/hari)`, fmt(d.Qpump, 2), 'L/dtk', `${fmt(d.Qpump * 3.6, 1)} m³/jam`, true), out('Jumlah sumur bor', d.nWell, 'sumur', `@ ${fmt(c.yieldW, 1)} L/dtk`), out('Volume reservoir', fmt(d.Vres, 0), 'm³', '≥ 20% kebutuhan harian / sesuai pola pompa'), out('Sambungan rumah (SR)', d.nSR, 'unit', `${fmt(d.qSRpeak * 1000, 0)} mL/dtk per SR saat puncak`), out('Hidran umum (HU)', d.nHU, 'unit', `${fmt(d.qHUpeak, 2)} L/dtk per HU saat puncak`)), React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 pt-1"
+  }, "Jumlah node model jaringan"), React.createElement("table", {
+    className: "tp-table"
+  }, React.createElement("tbody", null, [['Hidran umum (HU)', d.nHU], ['Percabangan (tee) di jaringan saat ini', d.branches], [`Node antara tiap ± ${c.spacing} m pipa (${fmt(d.L, 0)} m)`, d.inter], ['Titik tinggi (air valve) / rendah (wash out)', `${d.hi} / ${d.lo}`], ['Sumber / reservoir', 1]].map(([a, b]) => React.createElement("tr", {
+    key: a
+  }, React.createElement("td", {
+    className: "text-slate-500"
+  }, a), React.createElement("td", {
+    className: "r"
+  }, b))), React.createElement("tr", {
+    className: "bg-aqua-50 font-semibold"
+  }, React.createElement("td", null, "Node jaringan utama yang disarankan"), React.createElement("td", {
+    className: "r text-[15px]"
+  }, "\xB1 ", d.nodesMain)), React.createElement("tr", null, React.createElement("td", {
+    className: "text-slate-500"
+  }, "+ node sambungan rumah / meter air (SR)"), React.createElement("td", {
+    className: "r"
+  }, d.nSR)), React.createElement("tr", {
+    className: "font-semibold"
+  }, React.createElement("td", null, "Total node bila semua SR dimodelkan"), React.createElement("td", {
+    className: "r"
+  }, "\xB1 ", d.nodesRec)), d.cur && React.createElement("tr", null, React.createElement("td", {
+    className: "text-slate-500"
+  }, "Node di proyek saat ini: utama / SR"), React.createElement("td", {
+    className: "r"
+  }, d.cur.all - d.cur.sr, " / ", d.cur.sr)))), React.createElement("p", {
+    className: "text-[12px] text-slate-600 leading-snug"
+  }, d.cur && d.cur.all - d.cur.sr < d.nodesMain * 0.6 ? '⚠ Node jaringan utama di proyek masih jauh lebih sedikit dari yang disarankan: tambahkan node di setiap hidran, cabang, perubahan diameter, dan titik tinggi/rendah agar tekanan terhitung teliti.' : d.cur && d.cur.all - d.cur.sr > d.nodesMain * 1.6 ? 'Node jaringan utama lebih banyak dari perlu; tidak salah, tetapi node tanpa fungsi bisa digabung.' : 'Jumlah node jaringan utama sudah sebanding dengan kebutuhan model.', " SR boleh dimodelkan satu per satu (lebih teliti) atau dikelompokkan per gang sebagai satu node berkebutuhan."), React.createElement("p", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Node = titik hitung: tiap HU/SR, tiap cabang, tiap perubahan diameter, titik tertinggi (air valve) & terendah (wash out), serta node antara \xB1 100\u2013200 m pada pipa panjang."), React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    icon: "Check",
+    onClick: applyDemand
+  }, "Terapkan kebutuhan ke node HU & pengaturan SR"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Zap",
+    onClick: () => {
+      set('Qp', round2(d.Qpump));
+      setTab('pompa');
+    }
+  }, "Lanjut hitung daya pompa \u2192")), React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, "Q rata-rata = (\u03A3 jiwa \xD7 L/org/hari) \xD7 (1 + non-domestik) \xF7 (1 \u2212 kehilangan) \xF7 86.400. Nilai acuan perdesaan umumnya 60 L/org/hari (SR boleh lebih tinggi), faktor hari maksimum 1,05\u20131,25 dan jam puncak 1,5\u20132,0; sesuaikan dengan pedoman yang berlaku di daerah Anda."))), tab === 'pompa' && React.createElement("div", {
+    className: "grid grid-cols-1 lg:grid-cols-5 gap-5"
+  }, React.createElement("div", {
+    className: "lg:col-span-2 space-y-3"
+  }, React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, React.createElement(Field, {
+    label: "Debit pompa (L/dtk)",
+    hint: `dari kalkulator air: ${fmt(d.Qpump, 2)}`
+  }, React.createElement(NumField, {
+    id: "calc-Qp",
+    value: c.Qp || round2(d.Qpump),
+    step: 0.1,
+    min: 0.05,
+    onChange: v => set('Qp', Math.max(0.05, v))
+  })), num('swl', 'Muka air statis (m di bawah tanah)', 0.5), num('dd', 'Penurunan saat dipompa (m)', 0.5, 'drawdown uji pompa'), num('ground', 'Elevasi tanah sumur (m)', 1), num('outletH', 'Elevasi inlet tandon / tujuan (m)', 1, 'puncak air masuk tandon'), num('Lp', 'Panjang pipa transmisi (m)', 10), React.createElement(Field, {
+    label: "Pipa"
+  }, React.createElement("div", {
+    className: "flex gap-1"
+  }, React.createElement("select", {
+    id: "calc-mat",
+    className: "tp-field",
+    value: c.mat,
+    onChange: e => set('mat', e.target.value)
+  }, Object.keys(MATERIALS).map(k => React.createElement("option", {
+    key: k,
+    value: k
+  }, k))), React.createElement("select", {
+    id: "calc-dia",
+    className: "tp-field",
+    value: c.dia,
+    onChange: e => set('dia', +e.target.value)
+  }, DIAMETERS.map(x => React.createElement("option", {
+    key: x,
+    value: x
+  }, "\xD8", x))))), num('resid', 'Sisa tekan di ujung (m)', 0.5, '2–5 m ke tandon; ≥ 10 m bila langsung ke jaringan'), num('etaP', 'Efisiensi pompa (ideal)', 0.01, '0,5–0,75', 0.3), num('hours', 'Jam operasi/hari', 1, '', 1), num('tariff', 'Tarif listrik (Rp/kWh)', 10), React.createElement("div", {
+    className: "col-span-2"
+  }, React.createElement(Field, {
+    label: "Sumber listrik"
+  }, React.createElement("select", {
+    id: "calc-phase",
+    className: "tp-field",
+    value: c.phase,
+    onChange: e => set('phase', e.target.value)
+  }, Object.entries(PHASES).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l))))))), React.createElement("div", {
+    className: "lg:col-span-3 space-y-3"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+  }, "Head total (TDH) yang harus diangkat"), React.createElement("table", {
+    className: "tp-table"
+  }, React.createElement("tbody", null, [['Muka air dinamis (statis + penurunan)', `${fmt(pu.dwlDepth, 1)} m di bawah tanah`], ['Beda tinggi tanah sumur → inlet tandon', `${fmt(+c.outletH - +c.ground, 1)} m`], ['Angkatan statis total', `${fmt(pu.staticLift, 1)} m`], [`Gesekan pipa (Hazen-Williams, ${fmt(+c.Lp + pu.setting, 0)} m Ø${c.dia})`, `${fmt(pu.hf, 2)} m`], ['Kehilangan minor (katup, belokan, meter)', `${fmt(pu.minor, 2)} m`], ['Sisa tekan', `${fmt(+c.resid, 1)} m`]].map(([a, b]) => React.createElement("tr", {
+    key: a
+  }, React.createElement("td", {
+    className: "text-slate-500"
+  }, a), React.createElement("td", {
+    className: "r"
+  }, b))), React.createElement("tr", {
+    className: "bg-aqua-50 font-semibold"
+  }, React.createElement("td", null, "Head total kebutuhan (TDH)"), React.createElement("td", {
+    className: "r text-[15px]"
+  }, fmt(pu.H, 1), " m")), React.createElement("tr", null, React.createElement("td", {
+    className: "text-slate-500"
+  }, "Kecepatan di pipa"), React.createElement("td", {
+    className: 'r ' + (pu.v > 2.5 || pu.v < 0.3 ? 'text-red-700 font-semibold' : '')
+  }, fmt(pu.v, 2), " m/dtk ", pu.v > 2.5 ? '(terlalu cepat, besarkan pipa)' : pu.v < 0.3 ? '(terlalu lambat, kecilkan pipa)' : '(baik)')))), React.createElement(PowerTierTable, {
+    tiers: pu.tiers,
+    head: `Pompa harus mampu mengangkat ${fmt(pu.Q, 2)} L/dtk setinggi ± ${fmt(pu.H, 1)} m. Motor terkecil yang masih sanggup: ${fmt(pu.tiers.min.motor, 2)} kW (${pu.tiers.min.hp} HP); yang disarankan: ${fmt(pu.tiers.ideal.motor, 2)} kW (${pu.tiers.ideal.hp} HP).`,
+    pick: "ideal"
+  }), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Check",
+    onClick: toPump,
+    disabled: !project.nodes.some(n => n.type === 'borehole')
+  }, "Terapkan muka air & jam operasi ke sumur bor proyek"))))));
+}
+const GW_LITH = {
+  unknown: {
+    label: 'Belum diketahui (netral)',
+    s: 5,
+    depth: [40, 120],
+    shallow: true
+  },
+  alluvium: {
+    label: 'Aluvium: pasir, kerikil (endapan sungai/pantai)',
+    s: 9,
+    depth: [20, 60],
+    shallow: true
+  },
+  volc_young: {
+    label: 'Endapan vulkanik muda: tuf, lahar, breksi lepas',
+    s: 8,
+    depth: [40, 100],
+    shallow: true
+  },
+  sandstone: {
+    label: 'Batupasir / konglomerat',
+    s: 6,
+    depth: [60, 120]
+  },
+  karst: {
+    label: 'Batugamping / karst (air di rekahan & rongga)',
+    s: 5,
+    depth: [60, 150]
+  },
+  volc_old: {
+    label: 'Vulkanik tua: lava, andesit, breksi padu',
+    s: 4,
+    depth: [60, 150]
+  },
+  clay: {
+    label: 'Batulempung / napal / serpih',
+    s: 2,
+    depth: [80, 150]
+  },
+  crystalline: {
+    label: 'Batuan beku / malihan masif (granit, sekis)',
+    s: 2,
+    depth: [50, 120]
+  }
+};
+const GW_FACTORS = {
+  twi: 'Indeks kebasahan (TWI, akumulasi aliran)',
+  slope: 'Kemiringan lereng',
+  valley: 'Posisi lembah / dataran rendah',
+  stream: 'Jarak ke sungai / alur',
+  ddens: 'Kerapatan aliran (makin jarang makin meresap)',
+  lith: 'Litologi / jenis batuan'
+};
+const GW_DEF_W = {
+  twi: 25,
+  slope: 15,
+  valley: 15,
+  stream: 15,
+  ddens: 10,
+  lith: 20
+};
+const GW_CLASSES = [[7.5, 'Sangat tinggi', '#1a9850'], [6, 'Tinggi', '#91cf60'], [4.5, 'Sedang', '#fee08b'], [3, 'Rendah', '#fc8d59'], [-1, 'Sangat rendah', '#d73027']];
+const gwClass = s => GW_CLASSES.find(c => s >= c[0]) || GW_CLASSES[GW_CLASSES.length - 1];
+const RHO_CLASSES = [[0, 5, 'Lempung jenuh / air payau-asin', 'bukan akuifer tawar', 0], [5, 15, 'Lempung / lanau (akuitar)', 'kedap / sedikit air', 1], [15, 60, 'Pasir halus–sedang jenuh air', 'akuifer baik', 3], [60, 200, 'Pasir kasar, kerikil, vulkanik lapuk jenuh', 'akuifer baik–sedang', 2.5], [200, 1000, 'Batuan agak padu / pasir kering', 'akuifer buruk', 0.5], [1000, 1e9, 'Batuan padu / kering', 'bukan akuifer', 0]];
+const rhoClass = r => RHO_CLASSES.find(c => r >= c[0] && r < c[1]) || RHO_CLASSES[RHO_CLASSES.length - 1];
+function vesInterp(v) {
+  const L = (v.layers || []).filter(l => isFinite(+l[0]) && isFinite(+l[1]) && +l[1] > +l[0] && +l[2] > 0);
+  let aq = 0,
+    top = null,
+    bot = null;
+  const rows = L.map(l => {
+    const c = rhoClass(+l[2]);
+    if (c[4] >= 2.5 && +l[1] > 3) {
+      aq += +l[1] - +l[0];
+      if (top === null) top = +l[0];
+      bot = +l[1];
+    }
+    return {
+      from: +l[0],
+      to: +l[1],
+      rho: +l[2],
+      lith: c[2],
+      aq: c[3],
+      w: c[4]
+    };
+  });
+  const salty = L.some(l => +l[2] < 5);
+  const score = clamp(aq / 4, 0, 10) - (salty ? 1.5 : 0);
+  return {
+    rows,
+    aqThick: aq,
+    aqTop: top,
+    aqBot: bot,
+    salty,
+    score: clamp(score, 0, 10)
+  };
+}
+const wellScore = w => w.dry ? 1.5 : +w.yield >= 2 ? 10 : +w.yield >= 1 ? 8 : +w.yield >= 0.5 ? 6.5 : +w.yield > 0 ? 4.5 : 6;
+const GW_DEFAULTS = {
+  R: 1500,
+  n: 21,
+  lith: 'unknown',
+  rain: 2000,
+  w: GW_DEF_W,
+  wells: [],
+  ves: [],
+  show: {
+    grid: true,
+    osm: true,
+    hydro: false,
+    relief: false,
+    field: true
+  },
+  opacity: 0.55,
+  custom: [],
+  result: null,
+  osm: null
+};
+const gwOf = p => {
+  const g = p.gw || {};
+  return {
+    ...GW_DEFAULTS,
+    ...g,
+    w: {
+      ...GW_DEF_W,
+      ...(g.w || {})
+    },
+    show: {
+      ...GW_DEFAULTS.show,
+      ...(g.show || {})
+    },
+    wells: g.wells || [],
+    ves: g.ves || [],
+    custom: g.custom || []
+  };
+};
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+async function fetchOsmWater(b) {
+  const bb = `${b.s},${b.w},${b.n},${b.e}`;
+  const q = `[out:json][timeout:25];(way["waterway"~"^(river|stream|canal|ditch|drain|brook)$"](${bb});node["natural"="spring"](${bb});node["man_made"="water_well"](${bb});way["natural"="water"](${bb}););out geom;`;
+  let lastErr = null;
+  for (const u of OVERPASS) {
+    try {
+      const r = await fetch(u, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(q),
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      const streams = [],
+        springs = [],
+        wells = [],
+        waters = [];
+      (j.elements || []).forEach(e => {
+        const t = e.tags || {};
+        if (e.type === 'way' && t.waterway && e.geometry) {
+          const g = [];
+          e.geometry.forEach((p, i) => {
+            const q = [+p.lat.toFixed(6), +p.lon.toFixed(6)];
+            const last = g[g.length - 1];
+            if (!last || i === e.geometry.length - 1 || haversine({
+              lat: last[0],
+              lng: last[1]
+            }, {
+              lat: q[0],
+              lng: q[1]
+            }) >= 15) g.push(q);
+          });
+          streams.push({
+            k: t.waterway,
+            name: t.name || '',
+            g
+          });
+        } else if (e.type === 'way' && t.natural === 'water' && e.geometry) waters.push({
+          name: t.name || '',
+          g: e.geometry.map(p => [+p.lat.toFixed(6), +p.lon.toFixed(6)])
+        });else if (e.type === 'node' && t.natural === 'spring') springs.push({
+          lat: e.lat,
+          lng: e.lon,
+          name: t.name || ''
+        });else if (e.type === 'node' && t.man_made === 'water_well') wells.push({
+          lat: e.lat,
+          lng: e.lon,
+          name: t.name || ''
+        });
+      });
+      return {
+        streams,
+        springs,
+        wells,
+        waters,
+        at: Date.now()
+      };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Overpass tidak dapat dihubungi');
+}
+async function runGwAnalysis(gw, center, onStep = () => {}) {
+  const n = clamp(Math.round(gw.n), 11, 31),
+    R = clamp(+gw.R, 300, 5000);
+  const P = makeProjector(center.lat, center.lng);
+  const d = 2 * R / (n - 1);
+  const cells = [];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const ll = P.toLL(-R + i * d, R - j * d);
+    cells.push({
+      i,
+      j,
+      x: -R + i * d,
+      y: R - j * d,
+      lat: +ll.lat.toFixed(6),
+      lng: +ll.lng.toFixed(6)
+    });
+  }
+  onStep('Mengambil elevasi DEM (' + cells.length + ' titik)…');
+  const el = await fetchDem(cells);
+  if (el.some(v => v == null || !isFinite(v))) throw new Error('Data elevasi DEM tidak lengkap.');
+  cells.forEach((c, k) => {
+    c.z = +el[k];
+  });
+  const at = (i, j) => i >= 0 && j >= 0 && i < n && j < n ? cells[j * n + i] : null;
+  cells.forEach(c => {
+    const zx = ((at(c.i + 1, c.j) || c).z - (at(c.i - 1, c.j) || c).z) / ((at(c.i + 1, c.j) ? d : 0) + (at(c.i - 1, c.j) ? d : 0) || d);
+    const zy = ((at(c.i, c.j - 1) || c).z - (at(c.i, c.j + 1) || c).z) / ((at(c.i, c.j - 1) ? d : 0) + (at(c.i, c.j + 1) ? d : 0) || d);
+    c.slope = Math.atan(Math.hypot(zx, zy)) * 180 / Math.PI;
+    let best = null,
+      bd = 0;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      if (!di && !dj) continue;
+      const q = at(c.i + di, c.j + dj);
+      if (!q) continue;
+      const drop = (c.z - q.z) / (d * Math.hypot(di, dj));
+      if (drop > bd) {
+        bd = drop;
+        best = q;
+      }
+    }
+    c.down = best;
+    c.acc = 1;
+  });
+  [...cells].sort((a, b) => b.z - a.z).forEach(c => {
+    if (c.down) c.down.acc += c.acc;
+  });
+  cells.forEach(c => {
+    c.twi = Math.log(c.acc * d / Math.tan(Math.max(c.slope, 0.5) * Math.PI / 180));
+  });
+  const rr = Math.max(1, Math.round(300 / d));
+  cells.forEach(c => {
+    let s = 0,
+      k = 0,
+      mn = Infinity;
+    for (let di = -rr; di <= rr; di++) for (let dj = -rr; dj <= rr; dj++) {
+      const q = at(c.i + di, c.j + dj);
+      if (q) {
+        s += q.z;
+        k++;
+        mn = Math.min(mn, q.z);
+      }
+    }
+    c.rel = c.z - s / k;
+    c.aboveMin = c.z - mn;
+  });
+  let osm = null,
+    osmErr = '';
+  try {
+    onStep('Mengambil sungai, mata air & sumur dari OpenStreetMap…');
+    const b0 = P.toLL(-R - 300, -R - 300),
+      b1 = P.toLL(R + 300, R + 300);
+    osm = await fetchOsmWater({
+      s: b0.lat,
+      w: b0.lng,
+      n: b1.lat,
+      e: b1.lng
+    });
+  } catch (e) {
+    osmErr = 'Data sungai OpenStreetMap tidak dapat diambil (' + e.message + '); faktor sungai tidak dipakai.';
+  }
+  const pts = [];
+  if (osm) osm.streams.forEach(s => {
+    for (let k = 1; k < s.g.length; k++) {
+      const a = P.toXY(s.g[k - 1][0], s.g[k - 1][1]),
+        b = P.toXY(s.g[k][0], s.g[k][1]);
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      const m = Math.max(1, Math.ceil(L / 25));
+      for (let t = 0; t < m; t++) pts.push({
+        x: a.x + (b.x - a.x) * (t + 0.5) / m,
+        y: a.y + (b.y - a.y) * (t + 0.5) / m,
+        L: L / m,
+        big: s.k === 'river' || s.k === 'canal'
+      });
+    }
+  });
+  const hasStreams = pts.length > 0;
+  cells.forEach(c => {
+    let dm = Infinity,
+      len = 0;
+    pts.forEach(p => {
+      const dd = Math.hypot(p.x - c.x, p.y - c.y);
+      if (dd < dm) dm = dd;
+      if (dd <= 500) len += p.L;
+    });
+    c.dStream = dm;
+    c.dd = len / 1000 / (Math.PI * 0.25);
+  });
+  const pct = (key, inv) => {
+    const v = cells.map(c => c[key]).sort((a, b) => a - b);
+    cells.forEach(c => {
+      let lo = 0,
+        hi = v.length;
+      while (lo < hi) {
+        const m = lo + hi >> 1;
+        if (v[m] < c[key]) lo = m + 1;else hi = m;
+      }
+      const p = lo / Math.max(1, v.length - 1);
+      c['f_' + key] = 10 * (inv ? 1 - p : p);
+    });
+  };
+  pct('twi');
+  pct('rel', true);
+  if (hasStreams) pct('dd', true);
+  const lith = GW_LITH[gw.lith] || GW_LITH.unknown;
+  cells.forEach(c => {
+    c.f_slope = c.slope < 2 ? 10 : c.slope < 5 ? 8 : c.slope < 10 ? 6 : c.slope < 15 ? 4 : c.slope < 25 ? 2 : 1;
+    c.f_valley = c.f_rel;
+    c.f_stream = !hasStreams ? null : c.dStream < 100 ? 10 : c.dStream < 250 ? 8 : c.dStream < 500 ? 6 : c.dStream < 1000 ? 4 : 2;
+    c.f_lith = lith.s;
+    c.f_ddens = hasStreams ? c.f_dd : null;
+  });
+  const W = gw.w || GW_DEF_W;
+  const used = Object.keys(GW_FACTORS).filter(k => (+W[k] || 0) > 0 && (k !== 'stream' && k !== 'ddens' || hasStreams));
+  const sw = used.reduce((a, k) => a + +W[k], 0) || 1;
+  const field = [...(gw.wells || []).filter(w => isFinite(+w.lat)).map(w => ({
+    ...P.toXY(+w.lat, +w.lng),
+    s: wellScore(w)
+  })), ...(gw.ves || []).filter(v => isFinite(+v.lat)).map(v => ({
+    ...P.toXY(+v.lat, +v.lng),
+    s: vesInterp(v).score
+  }))];
+  const wt = (gw.wells || []).filter(w => isFinite(+w.lat) && +w.mat > 0).map(w => {
+    const q = P.toXY(+w.lat, +w.lng);
+    let best = null,
+      bd = Infinity;
+    cells.forEach(c => {
+      const dd = Math.hypot(c.x - q.x, c.y - q.y);
+      if (dd < bd) {
+        bd = dd;
+        best = c;
+      }
+    });
+    return {
+      ...q,
+      wtz: (isFinite(+w.elev) && +w.elev ? +w.elev : best.z) - +w.mat
+    };
+  });
+  cells.forEach(c => {
+    const gis = used.reduce((a, k) => a + +W[k] * c['f_' + k], 0) / sw;
+    let fs = 0,
+      fw = 0;
+    field.forEach(f => {
+      const dd = Math.hypot(f.x - c.x, f.y - c.y);
+      if (dd < 800) {
+        const w = Math.pow(1 - dd / 800, 2);
+        fs += w * f.s;
+        fw += w;
+      }
+    });
+    const beta = Math.min(0.6, fw);
+    c.gis = gis;
+    c.score = round2(fw ? (1 - beta) * gis + beta * (fs / fw) : gis);
+    if (wt.length) {
+      let s = 0,
+        ws = 0;
+      wt.forEach(q => {
+        const dd = Math.max(20, Math.hypot(q.x - c.x, q.y - c.y));
+        const w = 1 / (dd * dd);
+        s += w * q.wtz;
+        ws += w;
+      });
+      c.mat = clamp(c.z - s / ws, 0.5, 80);
+      c.matSrc = 'sumur';
+    } else {
+      c.mat = clamp(2 + 0.5 * c.aboveMin + (c.slope > 15 ? 5 : 0), 1, 60);
+      c.matSrc = 'topografi';
+    }
+  });
+  const minSp = Math.max(150, R / 5);
+  const cand = [];
+  [...cells].filter(c => c.i > 0 && c.j > 0 && c.i < n - 1 && c.j < n - 1).sort((a, b) => b.score - a.score).forEach(c => {
+    if (cand.length < 5 && cand.every(q => Math.hypot(q.x - c.x, q.y - c.y) >= minSp)) cand.push(c);
+  });
+  const vesNear = c => (gw.ves || []).map(v => ({
+    v,
+    dd: Math.hypot(P.toXY(+v.lat, +v.lng).x - c.x, P.toXY(+v.lat, +v.lng).y - c.y)
+  })).filter(x => x.dd < 600).sort((a, b) => a.dd - b.dd)[0];
+  const candidates = cand.map((c, k) => {
+    const cls = gwClass(c.score);
+    const vn = vesNear(c);
+    const vi = vn ? vesInterp(vn.v) : null;
+    const shallow = c.mat <= 8 && lith.shallow && c.score >= 5;
+    let dep = vi && vi.aqBot ? [Math.max(10, Math.round(vi.aqTop)), Math.round(vi.aqBot + 6)] : lith.depth;
+    const yieldTxt = c.score >= 7.5 ? '> 2 L/dtk' : c.score >= 6 ? '1–2 L/dtk' : c.score >= 4.5 ? '0,5–1 L/dtk' : '< 0,5 L/dtk';
+    const notes = [];
+    if (hasStreams && c.dStream < 30) notes.push('terlalu dekat alur sungai: geser ≥ 30 m dari tepi (banjir & pencemaran)');
+    if (c.slope > 15) notes.push('lereng curam: perhatikan akses alat bor & longsor');
+    if (vi && vi.salty) notes.push('geolistrik terdekat menunjukkan lapisan sangat konduktif (kemungkinan air payau)');
+    return {
+      id: 'G' + (k + 1),
+      lat: c.lat,
+      lng: c.lng,
+      z: round2(c.z),
+      score: c.score,
+      cls: cls[1],
+      color: cls[2],
+      mat: round2(c.mat),
+      matSrc: c.matSrc,
+      dStream: hasStreams ? Math.round(c.dStream) : null,
+      slope: round2(c.slope),
+      type: shallow ? 'shallow' : 'bore',
+      depth: shallow ? [Math.max(4, Math.ceil(c.mat + 4)), Math.max(8, Math.ceil(c.mat + 10))] : dep,
+      yieldTxt,
+      ves: vn ? `${vn.v.label || 'VES'} (${Math.round(vn.dd)} m)` : '',
+      notes
+    };
+  });
+  const counts = GW_CLASSES.map(cl => cells.filter(c => gwClass(c.score)[1] === cl[1]).length);
+  return {
+    at: Date.now(),
+    center: {
+      lat: center.lat,
+      lng: center.lng
+    },
+    R,
+    n,
+    d: round2(d),
+    lith: gw.lith,
+    cells: cells.map(c => [c.lat, c.lng, Math.round(c.z * 10) / 10, c.score, Math.round(c.mat * 10) / 10, round2(c.slope)]),
+    used,
+    nField: field.length,
+    matSrc: wt.length ? 'sumur' : 'topografi',
+    candidates,
+    counts,
+    osmErr,
+    osmCount: osm ? {
+      streams: osm.streams.length,
+      springs: osm.springs.length,
+      wells: osm.wells.length
+    } : null,
+    osm
+  };
+}
+function gwImage(res) {
+  const n = res.n;
+  const c = document.createElement('canvas');
+  c.width = n;
+  c.height = n;
+  const g = c.getContext('2d');
+  res.cells.forEach((v, k) => {
+    const i = k % n,
+      j = Math.floor(k / n);
+    g.fillStyle = gwClass(v[3])[2];
+    g.fillRect(i, j, 1, 1);
+  });
+  const big = document.createElement('canvas');
+  big.width = n * 12;
+  big.height = n * 12;
+  const bg = big.getContext('2d');
+  bg.imageSmoothingEnabled = true;
+  bg.imageSmoothingQuality = 'high';
+  bg.drawImage(c, 0, 0, big.width, big.height);
+  return big.toDataURL('image/png');
+}
+const gwBounds = res => {
+  const P = makeProjector(res.center.lat, res.center.lng);
+  const h = res.R + res.d / 2;
+  const a = P.toLL(-h, -h),
+    b = P.toLL(h, h);
+  return [[a.lat, a.lng], [b.lat, b.lng]];
+};
+const CUSTOM_KINDS = {
+  wms: 'WMS (url + nama layer)',
+  xyz: 'Tile XYZ ({z}/{x}/{y})',
+  arcgis: 'ArcGIS MapServer (url …/MapServer)',
+  image: 'Gambar / scan peta + koordinat batas',
+  geojson: 'GeoJSON (batas CAT, sungai, dll.)'
+};
+function makeCustomLayer(L, x, pane) {
+  const op = x.opacity ?? 0.7;
+  if (x.kind === 'wms') return L.tileLayer.wms(x.url, {
+    layers: x.layer || '',
+    format: 'image/png',
+    transparent: true,
+    version: x.version || '1.3.0',
+    opacity: op,
+    pane,
+    attribution: x.name
+  });
+  if (x.kind === 'xyz') return L.tileLayer(x.url, {
+    opacity: op,
+    pane,
+    maxNativeZoom: 18,
+    maxZoom: 20,
+    attribution: x.name
+  });
+  if (x.kind === 'arcgis') {
+    const base = String(x.url || '').replace(/\/+$/, '');
+    const Dyn = L.TileLayer.extend({
+      getTileUrl(c) {
+        const tb = this._tileCoordsToNwSe(c),
+          crs = this._map.options.crs;
+        const nw = crs.project(tb[0]),
+          se = crs.project(tb[1]);
+        return `${base}/export?bbox=${[nw.x, se.y, se.x, nw.y].join(',')}&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=true&f=image${x.layer ? '&layers=show:' + x.layer : ''}`;
+      }
+    });
+    return new Dyn('', {
+      opacity: op,
+      pane,
+      maxZoom: 20,
+      attribution: x.name
+    });
+  }
+  if (x.kind === 'image' && x.data && x.bounds) return L.imageOverlay(x.data, [[+x.bounds.s, +x.bounds.w], [+x.bounds.n, +x.bounds.e]], {
+    opacity: op,
+    pane,
+    interactive: false
+  });
+  if (x.kind === 'geojson' && x.data) return L.geoJSON(x.data, {
+    pane,
+    style: () => ({
+      color: x.color || '#7c3aed',
+      weight: 2,
+      opacity: Math.max(op, 0.6),
+      fillOpacity: op * 0.35
+    }),
+    onEachFeature: (f, l) => {
+      const pr = f.properties || {};
+      const k = Object.keys(pr).slice(0, 6);
+      if (k.length) l.bindTooltip(k.map(a => `${a}: ${pr[a]}`).join('<br>'), {
+        sticky: true
+      });
+    }
+  });
+  return null;
+}
+const ESRI_RELIEF = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}';
+const ESRI_HYDRO = 'https://tiles.arcgis.com/tiles/P3ePLMYs2RVChkJx/arcgis/rest/services/Esri_Hydro_Reference_Overlay/MapServer/tile/{z}/{y}/{x}';
+const GW_IMG = new Map();
+function drawGwLayers(L, map, g, gw, onCand) {
+  if (!map.getPane('gw')) {
+    map.createPane('gw').style.zIndex = 350;
+    map.createPane('gwtop').style.zIndex = 455;
+  }
+  if (gw.show.relief) L.tileLayer(ESRI_RELIEF, {
+    pane: 'gw',
+    opacity: 0.5,
+    maxNativeZoom: 13,
+    maxZoom: 20,
+    attribution: 'Relief © Esri'
+  }).addTo(g);
+  if (gw.show.hydro) L.tileLayer(ESRI_HYDRO, {
+    pane: 'gw',
+    maxNativeZoom: 16,
+    maxZoom: 20,
+    attribution: 'Hidrologi © Esri'
+  }).addTo(g);
+  (gw.custom || []).filter(x => x.on !== false).forEach(x => {
+    try {
+      const l = makeCustomLayer(L, x, 'gw');
+      l && l.addTo(g);
+    } catch (e) {}
+  });
+  const res = gw.result;
+  if (res && gw.show.grid) {
+    let img = GW_IMG.get(res.at);
+    if (!img) {
+      img = gwImage(res);
+      GW_IMG.set(res.at, img);
+    }
+    const b = gwBounds(res);
+    L.imageOverlay(img, b, {
+      pane: 'gw',
+      opacity: gw.opacity,
+      interactive: false
+    }).addTo(g);
+    L.rectangle(b, {
+      pane: 'gw',
+      color: '#0d2a31',
+      weight: 1,
+      dashArray: '4 4',
+      fill: false,
+      interactive: false
+    }).addTo(g);
+  }
+  if (gw.osm && gw.show.osm) {
+    gw.osm.waters.forEach(w => L.polygon(w.g, {
+      pane: 'gw',
+      color: '#2b8cbe',
+      weight: 1,
+      fillColor: '#a6cee3',
+      fillOpacity: 0.5,
+      interactive: false
+    }).addTo(g));
+    gw.osm.streams.forEach(s => L.polyline(s.g, {
+      pane: 'gw',
+      color: '#1f78b4',
+      weight: s.k === 'river' ? 3.5 : s.k === 'canal' ? 2.5 : 1.6,
+      opacity: 0.9
+    }).bindTooltip(`${{
+      river: 'Sungai',
+      stream: 'Anak sungai / alur',
+      canal: 'Saluran irigasi',
+      ditch: 'Parit',
+      drain: 'Drainase',
+      brook: 'Alur kecil'
+    }[s.k] || s.k}${s.name ? ': ' + s.name : ''}`, {
+      sticky: true
+    }).addTo(g));
+    gw.osm.springs.forEach(s => L.circleMarker([s.lat, s.lng], {
+      pane: 'gwtop',
+      radius: 6,
+      color: '#0b6e74',
+      fillColor: '#7fd1c9',
+      fillOpacity: 1,
+      weight: 2
+    }).bindTooltip('Mata air' + (s.name ? ': ' + s.name : '') + ' (OSM)').addTo(g));
+    gw.osm.wells.forEach(s => L.circleMarker([s.lat, s.lng], {
+      pane: 'gwtop',
+      radius: 5,
+      color: '#1d4ed8',
+      fillColor: '#fff',
+      fillOpacity: 1,
+      weight: 2
+    }).bindTooltip('Sumur (OSM)' + (s.name ? ': ' + s.name : '')).addTo(g));
+  }
+  if (gw.show.field) {
+    gw.wells.forEach(w => L.circleMarker([+w.lat, +w.lng], {
+      pane: 'gwtop',
+      radius: 7,
+      color: w.dry ? '#b91c1c' : '#1d4ed8',
+      fillColor: '#bfdbfe',
+      fillOpacity: 1,
+      weight: 2.5
+    }).bindTooltip(`<b>${w.label || 'Sumur'}</b><br>kedalaman ${fmt(w.depth, 0)} m · muka air ${fmt(w.mat, 1)} m${+w.yield ? ` · ${fmt(w.yield, 2)} L/dtk` : ''}${w.dry ? '<br>kering saat kemarau' : ''}`).addTo(g));
+    gw.ves.forEach(v => {
+      const vi = vesInterp(v);
+      L.marker([+v.lat, +v.lng], {
+        pane: 'gwtop',
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="width:14px;height:14px;background:#7c3aed;border:2px solid #fff;box-shadow:0 0 0 1px #4c1d95"></div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        })
+      }).bindTooltip(`<b>${v.label || 'VES'}</b> (geolistrik)<br>akuifer ${fmt(vi.aqThick, 0)} m${vi.aqTop != null ? ` · ${fmt(vi.aqTop, 0)}–${fmt(vi.aqBot, 0)} m` : ''}${vi.salty ? '<br>⚠ lapisan sangat konduktif' : ''}`).addTo(g);
+    });
+  }
+  if (res && gw.show.grid) res.candidates.forEach(c => L.marker([c.lat, c.lng], {
+    pane: 'gwtop',
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:${c.color};color:#0d2a31;border:2px solid #0d2a31;border-radius:6px;padding:1px 5px;font:700 11px 'IBM Plex Sans',sans-serif;white-space:nowrap">${c.id} · ${fmt(c.score, 1)}</div><div style="width:2px;height:8px;background:#0d2a31"></div></div>`,
+      iconSize: [0, 0]
+    })
+  }).on('click', () => onCand && onCand(c)).bindTooltip(`${c.id}: potensi ${c.cls.toLowerCase()} · ${c.type === 'shallow' ? 'sumur dangkal' : 'sumur bor'} ${c.depth[0]}–${c.depth[1]} m`).addTo(g));
+}
+function GwPanel({
+  project,
+  setProject,
+  field,
+  embedded,
+  pick,
+  setPick,
+  onClose
+}) {
+  const gw = gwOf(project);
+  const setGw = patch => setProject(p => ({
+    ...p,
+    gw: {
+      ...gwOf(p),
+      ...(typeof patch === 'function' ? patch(gwOf(p)) : patch)
+    }
+  }));
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const [addL, setAddL] = useState(null);
+  const [openVes, setOpenVes] = useState(null);
+  const [sec, setSec] = useState({
+    layers: true,
+    analisis: true,
+    data: false
+  });
+  const res = gw.result;
+  const site = project.meta.lat != null && project.meta.lng != null ? {
+    lat: +project.meta.lat,
+    lng: +project.meta.lng
+  } : null;
+  const centerOf = () => gw.center || site || (LAST_VIEW && LAST_VIEW.c ? {
+    lat: LAST_VIEW.c.lat,
+    lng: LAST_VIEW.c.lng
+  } : project.nodes[0] ? {
+    lat: project.nodes[0].lat,
+    lng: project.nodes[0].lng
+  } : null);
+  const run = async () => {
+    const c = centerOf();
+    if (!c) {
+      setErr('Tentukan pusat analisis: isi lokasi kerja proyek atau klik "Pilih di peta".');
+      return;
+    }
+    setErr('');
+    setBusy('Memulai…');
+    try {
+      const r = await runGwAnalysis(gw, c, setBusy);
+      const {
+        osm,
+        ...rest
+      } = r;
+      setGw({
+        result: rest,
+        ...(osm ? {
+          osm
+        } : {}),
+        show: {
+          ...gw.show,
+          grid: true
+        }
+      });
+      field.setFocus({
+        lat: c.lat,
+        lng: c.lng,
+        t: Date.now()
+      });
+    } catch (e) {
+      setErr('Analisis gagal: ' + e.message + '. Fitur ini membutuhkan internet untuk mengambil elevasi DEM.');
+    }
+    setBusy('');
+  };
+  const loadOsm = async () => {
+    const c = centerOf();
+    if (!c) {
+      setErr('Tentukan pusat area dulu.');
+      return;
+    }
+    setBusy('Mengambil data OSM…');
+    setErr('');
+    try {
+      const P = makeProjector(c.lat, c.lng);
+      const R = +gw.R + 300;
+      const a = P.toLL(-R, -R),
+        b = P.toLL(R, R);
+      const osm = await fetchOsmWater({
+        s: a.lat,
+        w: a.lng,
+        n: b.lat,
+        e: b.lng
+      });
+      setGw({
+        osm,
+        show: {
+          ...gw.show,
+          osm: true
+        }
+      });
+    } catch (e) {
+      setErr('Data OpenStreetMap tidak dapat diambil: ' + e.message);
+    }
+    setBusy('');
+  };
+  const mkBore = c => {
+    const id = field.createPoint({
+      lat: c.lat,
+      lng: c.lng
+    }, 'borehole', {
+      connect: false,
+      chain: false
+    });
+    setProject(p => ({
+      ...p,
+      nodes: p.nodes.map(n => n.id === id ? {
+        ...n,
+        pump: {
+          ...pumpP(n),
+          depth: c.type === 'shallow' ? c.depth[1] : Math.round((c.depth[0] + c.depth[1]) / 2),
+          swl: Math.max(1, Math.round(c.mat)),
+          screen: c.type === 'shallow' ? 3 : 12,
+          casing: c.type === 'shallow' ? 4 : 6
+        }
+      } : n)
+    }));
+    field.setFocus({
+      lat: c.lat,
+      lng: c.lng,
+      t: Date.now()
+    });
+  };
+  const sh = (k, v) => setGw({
+    show: {
+      ...gw.show,
+      [k]: v
+    }
+  });
+  const chk = (k, l, extra) => React.createElement("label", {
+    className: "flex items-start gap-2"
+  }, React.createElement("input", {
+    id: 'gw-sh-' + k,
+    type: "checkbox",
+    className: "mt-0.5",
+    checked: !!gw.show[k],
+    onChange: e => sh(k, e.target.checked)
+  }), React.createElement("span", null, l, extra));
+  const H = ({
+    k,
+    t
+  }) => React.createElement("button", {
+    type: "button",
+    onClick: () => setSec(s => ({
+      ...s,
+      [k]: !s[k]
+    })),
+    className: "w-full flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500 pt-1"
+  }, t, React.createElement(Icon, {
+    name: sec[k] ? 'ChevronUp' : 'ChevronDown',
+    size: 14
+  }));
+  const updW = (i, patch) => setGw(g => ({
+    wells: g.wells.map((w, j) => j === i ? {
+      ...w,
+      ...patch
+    } : w)
+  }));
+  const updV = (i, patch) => setGw(g => ({
+    ves: g.ves.map((w, j) => j === i ? {
+      ...w,
+      ...patch
+    } : w)
+  }));
+  const here = () => field.gps.pos ? {
+    lat: +field.gps.pos.lat.toFixed(6),
+    lng: +field.gps.pos.lng.toFixed(6)
+  } : null;
+  const nf = (id, v, on, w = 'w-16', step = 'any') => React.createElement("input", {
+    id: id,
+    type: "number",
+    step: step,
+    className: `tp-field !py-0.5 !px-1.5 ${w}`,
+    value: v ?? '',
+    onChange: e => on(e.target.value === '' ? '' : +e.target.value)
+  });
+  const body = React.createElement("div", {
+    className: "p-3 space-y-3 text-[12px]"
+  }, busy && React.createElement("div", {
+    className: "rounded-md bg-aqua-50 border border-aqua-200 text-aqua-900 px-2.5 py-1.5 flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "LoaderCircle",
+    size: 14,
+    className: "animate-spin"
+  }), busy), err && React.createElement("div", {
+    className: "rounded-md bg-red-50 border border-red-200 text-red-800 px-2.5 py-1.5"
+  }, err), pick && React.createElement("div", {
+    className: "rounded-md bg-orange-50 border border-orange-200 text-orange-900 px-2.5 py-1.5 flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "MousePointerClick",
+    size: 14
+  }), React.createElement("span", {
+    className: "flex-1"
+  }, "Klik peta untuk ", pick === 'center' ? 'menentukan pusat analisis' : pick === 'well' ? 'menandai sumur existing' : 'menandai titik geolistrik (VES)', "."), React.createElement("button", {
+    type: "button",
+    className: "font-semibold underline",
+    onClick: () => setPick(null)
+  }, "Batal")), React.createElement(H, {
+    k: "layers",
+    t: "Lapisan peta hidrologi & hidrogeologi"
+  }), sec.layers && React.createElement("div", {
+    className: "space-y-1.5"
+  }, chk('grid', 'Peta potensi air tanah (hasil analisis)', res ? '' : ' — belum dianalisis'), res && gw.show.grid && React.createElement("label", {
+    className: "flex items-center gap-2 pl-6 text-slate-600"
+  }, "Transparansi", React.createElement("input", {
+    id: "gw-op",
+    type: "range",
+    min: "0.15",
+    max: "0.9",
+    step: "0.05",
+    value: gw.opacity,
+    onChange: e => setGw({
+      opacity: +e.target.value
+    }),
+    className: "flex-1"
+  })), chk('osm', 'Sungai, mata air & sumur (OpenStreetMap)', gw.osm ? ` — ${gw.osm.streams.length} alur, ${gw.osm.springs.length} mata air, ${gw.osm.wells.length} sumur` : ''), !gw.osm && React.createElement("div", {
+    className: "pl-6"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "Download",
+    onClick: loadOsm,
+    disabled: !!busy
+  }, "Muat data sungai OSM")), chk('hydro', 'Sungai & badan air (Esri Hydro)'), chk('relief', 'Relief bayangan / perbukitan (Esri)'), chk('field', 'Data lapangan (sumur & geolistrik)'), React.createElement("div", {
+    className: "pt-1 space-y-1"
+  }, gw.custom.map((x, i) => React.createElement("div", {
+    key: x.id,
+    className: "flex items-center gap-1.5 rounded border border-line px-2 py-1"
+  }, React.createElement("input", {
+    id: 'gw-c-' + x.id,
+    type: "checkbox",
+    checked: x.on !== false,
+    onChange: e => setGw(g => ({
+      custom: g.custom.map(c => c.id === x.id ? {
+        ...c,
+        on: e.target.checked
+      } : c)
+    }))
+  }), React.createElement("span", {
+    className: "flex-1 min-w-0 truncate",
+    title: x.url || ''
+  }, x.name, React.createElement("span", {
+    className: "text-slate-400"
+  }, " \xB7 ", x.kind)), React.createElement("input", {
+    type: "range",
+    min: "0.1",
+    max: "1",
+    step: "0.1",
+    className: "w-16",
+    title: "Transparansi",
+    value: x.opacity ?? 0.7,
+    onChange: e => setGw(g => ({
+      custom: g.custom.map(c => c.id === x.id ? {
+        ...c,
+        opacity: +e.target.value
+      } : c)
+    }))
+  }), React.createElement("button", {
+    type: "button",
+    title: "Hapus lapisan",
+    className: "text-slate-400 hover:text-red-600",
+    onClick: () => setGw(g => ({
+      custom: g.custom.filter(c => c.id !== x.id)
+    }))
+  }, React.createElement(Icon, {
+    name: "Trash2",
+    size: 14
+  }))))), !addL ? React.createElement(Btn, {
+    variant: "outline",
+    icon: "Layers",
+    onClick: () => setAddL({
+      kind: 'wms',
+      name: '',
+      url: '',
+      layer: '',
+      opacity: 0.7,
+      bounds: {
+        s: '',
+        w: '',
+        n: '',
+        e: ''
+      }
+    })
+  }, "Tambah peta hidrogeologi / CAT sendiri") : React.createElement(CustomLayerForm, {
+    v: addL,
+    setV: setAddL,
+    onCancel: () => setAddL(null),
+    onSave: x => {
+      setGw(g => ({
+        custom: [...g.custom, {
+          ...x,
+          id: uid('gl'),
+          on: true
+        }]
+      }));
+      setAddL(null);
+    }
+  }), React.createElement("p", {
+    className: "text-[11px] text-slate-500 leading-snug"
+  }, "Peta Hidrogeologi Indonesia & Cekungan Air Tanah (CAT) diterbitkan Badan Geologi \u2013 Kementerian ESDM. Tambahkan sebagai layanan WMS/ArcGIS bila Anda punya alamatnya, unggah GeoJSON batas CAT, atau unggah gambar/scan lembar peta lalu isi koordinat batasnya.")), React.createElement(H, {
+    k: "analisis",
+    t: "Analisis potensi titik air tanah"
+  }), sec.analisis && React.createElement("div", {
+    className: "space-y-2"
+  }, React.createElement("div", {
+    className: "grid grid-cols-2 gap-1.5"
+  }, React.createElement(Field, {
+    label: "Pusat area"
+  }, React.createElement("div", {
+    className: "flex gap-1"
+  }, React.createElement("span", {
+    className: "flex-1 truncate text-[11.5px] py-1"
+  }, gw.center ? `${fmt(gw.center.lat, 5)}, ${fmt(gw.center.lng, 5)}` : site ? 'Lokasi kerja proyek' : 'Tengah peta'), React.createElement("button", {
+    type: "button",
+    className: "text-aqua-700 font-semibold",
+    onClick: () => setPick('center')
+  }, "Pilih"), gw.center && React.createElement("button", {
+    type: "button",
+    title: "Kembali ke otomatis",
+    className: "text-slate-400",
+    onClick: () => setGw({
+      center: null
+    })
+  }, "\xD7"))), React.createElement(Field, {
+    label: "Radius analisis"
+  }, React.createElement("select", {
+    id: "gw-r",
+    className: "tp-field !py-1",
+    value: gw.R,
+    onChange: e => setGw({
+      R: +e.target.value
+    })
+  }, [500, 1000, 1500, 2000, 3000, 5000].map(v => React.createElement("option", {
+    key: v,
+    value: v
+  }, v >= 1000 ? fmt(v / 1000, 1) + ' km' : v + ' m')))), React.createElement(Field, {
+    label: "Kerapatan grid"
+  }, React.createElement("select", {
+    id: "gw-n",
+    className: "tp-field !py-1",
+    value: gw.n,
+    onChange: e => setGw({
+      n: +e.target.value
+    })
+  }, [15, 21, 25, 31].map(v => React.createElement("option", {
+    key: v,
+    value: v
+  }, v, " \xD7 ", v, " (", Math.round(2 * gw.R / (v - 1)), " m)")))), React.createElement(Field, {
+    label: "Curah hujan (mm/thn)"
+  }, React.createElement(NumField, {
+    id: "gw-rain",
+    value: gw.rain,
+    step: 100,
+    min: 0,
+    onChange: v => setGw({
+      rain: Math.max(0, v)
+    })
+  })), React.createElement("div", {
+    className: "col-span-2"
+  }, React.createElement(Field, {
+    label: "Litologi dominan (dari peta geologi / pengamatan)"
+  }, React.createElement("select", {
+    id: "gw-lith",
+    className: "tp-field !py-1",
+    value: gw.lith,
+    onChange: e => setGw({
+      lith: e.target.value
+    })
+  }, Object.entries(GW_LITH).map(([k, x]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, x.label)))))), React.createElement("details", null, React.createElement("summary", {
+    className: "cursor-pointer text-slate-600"
+  }, "Bobot faktor (%)"), React.createElement("div", {
+    className: "grid grid-cols-2 gap-x-2 gap-y-1 mt-1"
+  }, Object.entries(GW_FACTORS).map(([k, l]) => React.createElement("label", {
+    key: k,
+    className: "flex items-center justify-between gap-1 text-[11.5px]"
+  }, React.createElement("span", {
+    className: "truncate",
+    title: l
+  }, l.split(' (')[0]), nf('gw-w-' + k, gw.w[k], v => setGw(g => ({
+    w: {
+      ...g.w,
+      [k]: Math.max(0, +v || 0)
+    }
+  })), 'w-14')))), React.createElement("button", {
+    type: "button",
+    className: "text-aqua-700 text-[11.5px] mt-1",
+    onClick: () => setGw({
+      w: GW_DEF_W
+    })
+  }, "Kembalikan bobot bawaan")), React.createElement(Btn, {
+    variant: "primary",
+    icon: "ScanSearch",
+    className: "w-full justify-center",
+    disabled: !!busy,
+    onClick: run
+  }, res ? 'Analisis ulang' : 'Analisis potensi air tanah'), res && React.createElement("div", {
+    className: "space-y-1.5"
+  }, React.createElement("div", {
+    className: "flex h-3 rounded overflow-hidden"
+  }, GW_CLASSES.map((c, i) => React.createElement("div", {
+    key: c[1],
+    title: `${c[1]}: ${res.counts[i]} sel`,
+    style: {
+      background: c[2],
+      flex: res.counts[i] || 0
+    }
+  }))), React.createElement("div", {
+    className: "flex flex-wrap gap-x-2 text-[10.5px] text-slate-600"
+  }, GW_CLASSES.map((c, i) => React.createElement("span", {
+    key: c[1],
+    className: "flex items-center gap-1"
+  }, React.createElement("span", {
+    className: "w-2.5 h-2.5 rounded-sm",
+    style: {
+      background: c[2]
+    }
+  }), c[1], " ", Math.round(100 * res.counts[i] / res.cells.length), "%"))), React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, "Faktor: ", res.used.map(k => GW_FACTORS[k].split(' (')[0].toLowerCase()).join(', '), res.nField ? ` + ${res.nField} data lapangan` : '', " \xB7 grid ", res.n, "\xD7", res.n, " @ ", fmt(res.d, 0), " m \xB7 muka air tanah dari ", res.matSrc === 'sumur' ? 'interpolasi sumur' : 'perkiraan topografi (kasar)', ".", res.osmErr ? ' ' + res.osmErr : ''), React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 pt-1"
+  }, "Titik usulan (urut skor)"), res.candidates.map(c => React.createElement("div", {
+    key: c.id,
+    className: "rounded-md border border-line p-2 space-y-1"
+  }, React.createElement("div", {
+    className: "flex items-center gap-1.5"
+  }, React.createElement("span", {
+    className: "font-bold px-1.5 rounded",
+    style: {
+      background: c.color
+    }
+  }, c.id), React.createElement("b", null, c.cls), React.createElement("span", {
+    className: "text-slate-500"
+  }, "skor ", fmt(c.score, 1), "/10"), React.createElement("span", {
+    className: "flex-1"
+  }), React.createElement("button", {
+    type: "button",
+    className: "text-aqua-700 font-semibold",
+    onClick: () => field.setFocus({
+      lat: c.lat,
+      lng: c.lng,
+      t: Date.now()
+    })
+  }, "Lihat")), React.createElement("div", {
+    className: "text-slate-700 leading-snug"
+  }, React.createElement("b", null, c.type === 'shallow' ? 'Sumur dangkal (gali/pantek)' : 'Sumur bor'), " \xB1 ", c.depth[0], "\u2013", c.depth[1], " m \xB7 muka air \xB1 ", fmt(c.mat, 1), " m \xB7 debit perkiraan ", c.yieldTxt, React.createElement("br", null), React.createElement("span", {
+    className: "text-slate-500"
+  }, "elev ", fmt(c.z, 1), " m \xB7 lereng ", fmt(c.slope, 1), "\xB0", c.dStream != null ? ` · ${c.dStream} m dari alur` : '', c.ves ? ` · VES ${c.ves}` : '', " \xB7 ", fmt(c.lat, 6), ", ", fmt(c.lng, 6))), c.notes.map((t, i) => React.createElement("div", {
+    key: i,
+    className: "text-amber-800"
+  }, "\u26A0 ", t)), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Zap",
+    onClick: () => mkBore(c)
+  }, "Jadikan titik sumur di proyek")))), React.createElement("p", {
+    className: "text-[11px] text-slate-500 leading-snug"
+  }, "Hasil ini ", React.createElement("b", null, "penapisan awal"), " berbasis DEM \xB1 90 m, sungai OSM, dan litologi. Pastikan dengan ", React.createElement("b", null, "survei geolistrik (VES)"), ", pengamatan sumur warga, dan uji pemompaan sebelum mengebor; pengeboran memerlukan izin penggunaan air tanah dari pemerintah daerah/ESDM. Jaga jarak sumur \u2265 10 m dari tangki septik dan sumber pencemar.")), React.createElement(H, {
+    k: "data",
+    t: `Data lapangan (${gw.wells.length} sumur · ${gw.ves.length} geolistrik)`
+  }), sec.data && React.createElement("div", {
+    className: "space-y-2"
+  }, React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "MapPin",
+    onClick: () => setPick('well')
+  }, "Sumur: klik peta"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Crosshair",
+    disabled: !here(),
+    onClick: () => {
+      const h = here();
+      setGw(g => ({
+        wells: [...g.wells, {
+          id: uid('gw'),
+          label: 'SW' + (g.wells.length + 1),
+          ...h,
+          depth: 10,
+          mat: 3,
+          yield: '',
+          dry: false
+        }]
+      }));
+    }
+  }, "Sumur di posisi GPS")), gw.wells.map((w, i) => React.createElement("div", {
+    key: w.id,
+    className: "rounded border border-line p-1.5 space-y-1"
+  }, React.createElement("div", {
+    className: "flex items-center gap-1.5"
+  }, React.createElement("input", {
+    id: 'gw-wl-' + i,
+    className: "tp-field !py-0.5 !px-1.5 w-20 font-semibold",
+    value: w.label || '',
+    onChange: e => updW(i, {
+      label: e.target.value
+    })
+  }), React.createElement("span", {
+    className: "text-slate-400 text-[11px] flex-1 truncate"
+  }, fmt(w.lat, 5), ", ", fmt(w.lng, 5)), React.createElement("button", {
+    type: "button",
+    title: "Hapus",
+    className: "text-slate-400 hover:text-red-600",
+    onClick: () => setGw(g => ({
+      wells: g.wells.filter((_, j) => j !== i)
+    }))
+  }, React.createElement(Icon, {
+    name: "Trash2",
+    size: 14
+  }))), React.createElement("div", {
+    className: "flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px]"
+  }, React.createElement("label", {
+    className: "flex items-center gap-1"
+  }, "Dalam ", nf('gw-wd-' + i, w.depth, v => updW(i, {
+    depth: v
+  }), 'w-14'), " m"), React.createElement("label", {
+    className: "flex items-center gap-1"
+  }, "Muka air ", nf('gw-wm-' + i, w.mat, v => updW(i, {
+    mat: v
+  }), 'w-14'), " m"), React.createElement("label", {
+    className: "flex items-center gap-1"
+  }, "Debit ", nf('gw-wy-' + i, w.yield, v => updW(i, {
+    yield: v
+  }), 'w-14'), " L/dtk"), React.createElement("label", {
+    className: "flex items-center gap-1"
+  }, React.createElement("input", {
+    id: 'gw-wdry-' + i,
+    type: "checkbox",
+    checked: !!w.dry,
+    onChange: e => updW(i, {
+      dry: e.target.checked
+    })
+  }), "kering saat kemarau")))), React.createElement("div", {
+    className: "flex flex-wrap gap-1.5 pt-1"
+  }, React.createElement(Btn, {
+    variant: "outline",
+    icon: "Activity",
+    onClick: () => setPick('ves')
+  }, "Titik geolistrik (VES): klik peta")), gw.ves.map((v, i) => {
+    const vi = vesInterp(v);
+    const op = openVes === v.id;
+    return React.createElement("div", {
+      key: v.id,
+      className: "rounded border border-line p-1.5 space-y-1"
+    }, React.createElement("div", {
+      className: "flex items-center gap-1.5"
+    }, React.createElement("input", {
+      id: 'gw-vl-' + i,
+      className: "tp-field !py-0.5 !px-1.5 w-20 font-semibold",
+      value: v.label || '',
+      onChange: e => updV(i, {
+        label: e.target.value
+      })
+    }), React.createElement("span", {
+      className: "text-[11px] flex-1"
+    }, "akuifer ", React.createElement("b", null, fmt(vi.aqThick, 0), " m"), vi.aqTop != null ? ` (${fmt(vi.aqTop, 0)}–${fmt(vi.aqBot, 0)} m)` : '', vi.salty ? ' · ⚠ konduktif' : ''), React.createElement("button", {
+      type: "button",
+      className: "text-aqua-700 font-semibold",
+      onClick: () => setOpenVes(op ? null : v.id)
+    }, op ? 'Tutup' : 'Lapisan'), React.createElement("button", {
+      type: "button",
+      title: "Hapus",
+      className: "text-slate-400 hover:text-red-600",
+      onClick: () => setGw(g => ({
+        ves: g.ves.filter((_, j) => j !== i)
+      }))
+    }, React.createElement(Icon, {
+      name: "Trash2",
+      size: 14
+    }))), op && React.createElement("div", {
+      className: "space-y-1"
+    }, React.createElement("table", {
+      className: "w-full text-[11px]"
+    }, React.createElement("thead", null, React.createElement("tr", {
+      className: "text-slate-500"
+    }, React.createElement("th", {
+      className: "text-left"
+    }, "Atas (m)"), React.createElement("th", {
+      className: "text-left"
+    }, "Bawah (m)"), React.createElement("th", {
+      className: "text-left"
+    }, "\u03C1 (\u03A9\xB7m)"), React.createElement("th", {
+      className: "text-left"
+    }, "Tafsiran"), React.createElement("th", null))), React.createElement("tbody", null, (v.layers || []).map((l, k) => {
+      const c = rhoClass(+l[2] || 0);
+      const setL = (m, val) => updV(i, {
+        layers: v.layers.map((x, q) => q === k ? x.map((y, r) => r === m ? val : y) : x)
+      });
+      return React.createElement("tr", {
+        key: k
+      }, React.createElement("td", null, nf(`gw-v${i}-${k}-0`, l[0], val => setL(0, val), 'w-12')), React.createElement("td", null, nf(`gw-v${i}-${k}-1`, l[1], val => setL(1, val), 'w-12')), React.createElement("td", null, nf(`gw-v${i}-${k}-2`, l[2], val => setL(2, val), 'w-14')), React.createElement("td", {
+        className: c[4] >= 2.5 ? 'text-green-700' : 'text-slate-600'
+      }, +l[2] > 0 ? `${c[2]} — ${c[3]}` : ''), React.createElement("td", null, React.createElement("button", {
+        type: "button",
+        className: "text-slate-400",
+        onClick: () => updV(i, {
+          layers: v.layers.filter((_, q) => q !== k)
+        })
+      }, "\xD7")));
+    }))), React.createElement("button", {
+      type: "button",
+      className: "text-aqua-700 text-[11.5px] font-semibold",
+      onClick: () => {
+        const L0 = v.layers || [];
+        const last = L0[L0.length - 1];
+        updV(i, {
+          layers: [...L0, [last ? last[1] : 0, last ? +last[1] + 10 : 5, '']]
+        });
+      }
+    }, "+ Tambah lapisan"), React.createElement("p", {
+      className: "text-[10.5px] text-slate-500"
+    }, "Isi hasil inversi data geolistrik (kedalaman & resistivitas sebenarnya). Tafsiran memakai nilai tipikal dan perlu dikonfirmasi ahli geofisika.")));
+  })));
+  if (embedded) return body;
+  return React.createElement("div", {
+    className: "absolute right-3 top-14 z-[600] w-[360px] max-w-[calc(100%-24px)] max-h-[calc(100%-72px)] overflow-y-auto bg-white rounded-lg shadow-xl border border-line"
+  }, React.createElement("div", {
+    className: "sticky top-0 bg-white flex items-center gap-2 px-3 py-2 border-b border-line z-10"
+  }, React.createElement(Icon, {
+    name: "Droplets",
+    size: 16,
+    className: "text-aqua-600"
+  }), React.createElement("span", {
+    className: "font-semibold text-[13px] text-ink flex-1"
+  }, "Air tanah & hidrologi"), React.createElement("button", {
+    type: "button",
+    title: "Tutup panel",
+    onClick: onClose,
+    className: "p-1 rounded hover:bg-slate-100"
+  }, React.createElement(Icon, {
+    name: "X",
+    size: 15
+  }))), body);
+}
+function CustomLayerForm({
+  v,
+  setV,
+  onCancel,
+  onSave
+}) {
+  const set = (k, x) => setV(o => ({
+    ...o,
+    [k]: x
+  }));
+  const [err, setErr] = useState('');
+  const onFile = async e => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setErr('');
+    try {
+      if (v.kind === 'geojson') {
+        const j = JSON.parse(await f.text());
+        if (!j || !(j.type === 'FeatureCollection' || j.type === 'Feature' || j.coordinates)) throw new Error('Bukan GeoJSON.');
+        set('data', j);
+        if (!v.name) set('name', f.name.replace(/\.\w+$/, ''));
+      } else {
+        const r = await resizeImage(f, 2400, 0.8);
+        set('data', r.data);
+        if (!v.name) set('name', f.name.replace(/\.\w+$/, ''));
+      }
+    } catch (er) {
+      setErr('Berkas tidak dapat dibaca: ' + er.message);
+    }
+  };
+  const ok = v.name && (['wms', 'xyz', 'arcgis'].includes(v.kind) ? /^https:\/\//.test(v.url || '') && (v.kind !== 'wms' || v.layer) : v.data && (v.kind !== 'image' || ['s', 'w', 'n', 'e'].every(k => v.bounds[k] !== '' && isFinite(+v.bounds[k]))));
+  return React.createElement("div", {
+    className: "rounded-md border border-aqua-200 bg-aqua-50/40 p-2 space-y-1.5"
+  }, React.createElement("select", {
+    id: "gl-kind",
+    className: "tp-field !py-1",
+    value: v.kind,
+    onChange: e => setV(o => ({
+      ...o,
+      kind: e.target.value,
+      data: null
+    }))
+  }, Object.entries(CUSTOM_KINDS).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l))), React.createElement("input", {
+    id: "gl-name",
+    className: "tp-field !py-1",
+    placeholder: "Nama lapisan, mis. Peta Hidrogeologi lembar Bandung",
+    value: v.name,
+    onChange: e => set('name', e.target.value)
+  }), ['wms', 'xyz', 'arcgis'].includes(v.kind) && React.createElement("input", {
+    id: "gl-url",
+    className: "tp-field !py-1",
+    placeholder: v.kind === 'wms' ? 'https://…/wms' : v.kind === 'xyz' ? 'https://…/{z}/{x}/{y}.png' : 'https://…/arcgis/rest/services/…/MapServer',
+    value: v.url,
+    onChange: e => set('url', e.target.value.trim())
+  }), ['wms', 'arcgis'].includes(v.kind) && React.createElement("input", {
+    id: "gl-layer",
+    className: "tp-field !py-1",
+    placeholder: v.kind === 'wms' ? 'Nama layer (wajib), mis. 0 atau hidrogeologi' : 'Nomor layer (opsional), mis. 0,2',
+    value: v.layer,
+    onChange: e => set('layer', e.target.value.trim())
+  }), ['image', 'geojson'].includes(v.kind) && React.createElement("input", {
+    id: "gl-file",
+    type: "file",
+    accept: v.kind === 'geojson' ? '.geojson,.json,application/json' : 'image/*',
+    onChange: onFile,
+    className: "text-[11.5px]"
+  }), v.kind === 'image' && React.createElement("div", {
+    className: "grid grid-cols-2 gap-1"
+  }, [['n', 'Lintang utara (N)'], ['s', 'Lintang selatan (S)'], ['w', 'Bujur barat (W)'], ['e', 'Bujur timur (E)']].map(([k, l]) => React.createElement("input", {
+    key: k,
+    id: 'gl-b-' + k,
+    className: "tp-field !py-1",
+    placeholder: l,
+    value: v.bounds[k],
+    onChange: e => setV(o => ({
+      ...o,
+      bounds: {
+        ...o.bounds,
+        [k]: e.target.value.trim()
+      }
+    }))
+  })), React.createElement("p", {
+    className: "col-span-2 text-[10.5px] text-slate-500"
+  }, "Koordinat desimal batas gambar (sudut peta), mis. N \u22126,75 \xB7 S \u22127,00 \xB7 W 107,50 \xB7 E 107,75. Lintang selatan bernilai negatif.")), err && React.createElement("p", {
+    className: "text-red-700"
+  }, err), React.createElement("div", {
+    className: "flex gap-1.5"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    disabled: !ok,
+    onClick: () => onSave(v)
+  }, "Tambahkan"), React.createElement(Btn, {
+    variant: "outline",
+    onClick: onCancel
+  }, "Batal")));
 }
 const STD_DEFAULT = [{
   code: 'SNI 7509:2011',
@@ -6809,7 +8767,8 @@ const boreSpec = (n, pr) => {
     motor: pr.motor,
     phase: pp.phase,
     casing: +pp.casing || 6,
-    cableL: pr.setting + 30
+    cableL: pr.setting + 30,
+    tiers: pr.tiers
   });
 };
 function pumpItems(n, pr) {
@@ -7324,6 +9283,23 @@ function LeafletMap(props) {
   useEffect(() => {
     if (props.focus && mapRef.current) mapRef.current.setView([props.focus.lat, props.focus.lng], Math.max(mapRef.current.getZoom(), 17));
   }, [props.focus]);
+  const gwLayerRef = useRef(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (gwLayerRef.current) {
+      gwLayerRef.current.remove();
+      gwLayerRef.current = null;
+    }
+    if (!props.gw) return;
+    const g = L.layerGroup().addTo(map);
+    gwLayerRef.current = g;
+    try {
+      drawGwLayers(L, map, g, props.gw, c => propsRef.current.onGwCand && propsRef.current.onGwCand(c));
+    } catch (e) {
+      console.warn(e);
+    }
+  }, [props.gw]);
   useEffect(() => {
     const g = trackRef.current;
     if (!g) return;
@@ -8562,6 +10538,10 @@ function MapWorkspace({
   const [fitSignal, setFitSignal] = useState(0);
   const [listTab, setListTab] = useState('nodes');
   const [cursor, setCursor] = useState(null);
+  const [gwOpen, setGwOpen] = useState(false);
+  const [gwPick, setGwPick] = useState(null);
+  const gwData = useMemo(() => gwOf(project), [project.gw]);
+  const gwActive = gwOpen || !!gwData.result || gwData.custom.length > 0 || gwData.wells.length > 0 || gwData.ves.length > 0;
   const newType = prefs.type;
   const placingStruct = newType.startsWith('st:');
   const makePipe = (p, from, to, path) => ({
@@ -8579,6 +10559,51 @@ function MapWorkspace({
   const llr = ll => [+(+ll.lat).toFixed(7), +(+ll.lng).toFixed(7)];
   const pipeExists = (p, a, b) => p.pipes.some(x => x.from === a && x.to === b || x.from === b && x.to === a);
   const onMapClick = ll => {
+    if (gwPick) {
+      const pt = {
+        lat: +(+ll.lat).toFixed(6),
+        lng: +(+ll.lng).toFixed(6)
+      };
+      setProject(p => {
+        const g = gwOf(p);
+        if (gwPick === 'center') return {
+          ...p,
+          gw: {
+            ...g,
+            center: pt
+          }
+        };
+        if (gwPick === 'well') return {
+          ...p,
+          gw: {
+            ...g,
+            wells: [...g.wells, {
+              id: uid('gw'),
+              label: 'SW' + (g.wells.length + 1),
+              ...pt,
+              depth: 10,
+              mat: 3,
+              yield: '',
+              dry: false
+            }]
+          }
+        };
+        return {
+          ...p,
+          gw: {
+            ...g,
+            ves: [...g.ves, {
+              id: uid('gv'),
+              label: 'VES-' + (g.ves.length + 1),
+              ...pt,
+              layers: [[0, 2, ''], [2, 10, ''], [10, 30, ''], [30, 60, '']]
+            }]
+          }
+        };
+      });
+      setGwPick(null);
+      return;
+    }
     if ((tool === 'node' || tool === 'draw') && placingStruct) {
       const id = createPoint(ll, newType, {});
       setSelection({
@@ -9132,6 +11157,12 @@ function MapWorkspace({
       onPipeClick(id);
       if (mobile && tool === 'select') setSheet('edit');
     },
+    gw: gwActive ? gwData : null,
+    onGwCand: c => field.setFocus({
+      lat: c.lat,
+      lng: c.lng,
+      t: Date.now()
+    }),
     onNodeDrag: onNodeDrag,
     onStructClick: id => {
       onStructClick(id);
@@ -9141,11 +11172,12 @@ function MapWorkspace({
     onCursor: mobile ? undefined : setCursor
   });
   if (mobile) {
-    const navs = [['gps', 'GPS', 'Satellite'], ['add', 'Tambah', 'CirclePlus'], ['edit', 'Edit', 'PencilRuler'], ['list', 'Daftar', 'Table'], ['view', 'Tampilan', 'Layers']];
+    const navs = [['gps', 'GPS', 'Satellite'], ['add', 'Tambah', 'CirclePlus'], ['edit', 'Edit', 'PencilRuler'], ['gw', 'Air tanah', 'Droplets'], ['list', 'Daftar', 'Table'], ['view', 'Tampilan', 'Layers']];
     const titles = {
       gps: 'GPS Tracker',
       add: 'Tambah titik',
       edit: 'Edit',
+      gw: 'Air tanah & hidrologi',
       list: 'Daftar data',
       view: 'Tampilan peta'
     };
@@ -9216,7 +11248,17 @@ function MapWorkspace({
       className: "text-[12px] text-slate-500"
     }, "Pilih jenis titik, lalu ketuk peta dengan alat ", React.createElement("b", null, "Gambar"), " (tersambung pipa) atau ", React.createElement("b", null, "Tambah"), " (titik lepas). Untuk menandai di posisi Anda sendiri, pakai tab GPS.")), sheet === 'edit' && React.createElement("div", {
       className: "p-4"
-    }, inspectorJsx), sheet === 'list' && React.createElement(React.Fragment, null, listTabsJsx, listJsx), sheet === 'view' && React.createElement("div", {
+    }, inspectorJsx), sheet === 'gw' && React.createElement(GwPanel, {
+      embedded: true,
+      project: project,
+      setProject: setProject,
+      field: field,
+      pick: gwPick,
+      setPick: v => {
+        setGwPick(v);
+        if (v) setSheet(null);
+      }
+    }), sheet === 'list' && React.createElement(React.Fragment, null, listTabsJsx, listJsx), sheet === 'view' && React.createElement("div", {
       className: "p-4 space-y-4"
     }, viewJsx, React.createElement(Legend, {
       mode: colorMode,
@@ -9295,7 +11337,25 @@ function MapWorkspace({
     setProject: setProject,
     field: field,
     onOpenImport: () => field.openCoord('gpx')
-  })), React.createElement("aside", {
+  }), engine === 'leaflet' && (gwOpen ? React.createElement(GwPanel, {
+    project: project,
+    setProject: setProject,
+    field: field,
+    pick: gwPick,
+    setPick: setGwPick,
+    onClose: () => {
+      setGwOpen(false);
+      setGwPick(null);
+    }
+  }) : React.createElement("button", {
+    type: "button",
+    onClick: () => setGwOpen(true),
+    className: "absolute right-3 top-14 z-[600] flex items-center gap-2 bg-white border border-line rounded-full pl-3 pr-4 py-2 shadow-lg text-[13px] font-semibold text-ink"
+  }, React.createElement(Icon, {
+    name: "Droplets",
+    size: 16,
+    className: "text-aqua-600"
+  }), "Air tanah & hidrologi"))), React.createElement("aside", {
     className: "lg:w-[340px] shrink-0 bg-white border-t lg:border-t-0 lg:border-l border-line flex flex-col min-h-0"
   }, React.createElement("div", {
     className: "p-4 border-b border-line overflow-y-auto max-h-[62%]"
@@ -10266,7 +12326,12 @@ function PumpCard({
     className: "text-slate-500"
   }, a), React.createElement("td", {
     className: "r font-mono"
-  }, b))))), React.createElement(PumpSpecTable, {
+  }, b))))), pr.tiers && React.createElement(PowerTierTable, {
+    tiers: pr.tiers,
+    pick: pp.motorTier || 'auto',
+    onPick: v => set('motorTier', v === 'auto' ? '' : v),
+    head: `Air harus diangkat ${fmt(pr.Qd, 2)} L/dtk setinggi TDH ${fmt(pr.TDHreq, 1)} m = angkatan statis ${fmt(pr.staticLift, 1)} m (muka air dinamis → ${pr.mode === 'trans' ? 'inlet reservoir' : 'titik layanan kritis'}) + gesekan transmisi ${fmt(pr.pathHf, 1)} m + riser & kepala sumur ${fmt(pr.riserHf, 1)} m. Motor terpasang: ${fmt(pr.motor, 2)} kW (${hpOf(pr.motor)} HP).`
+  }), React.createElement(PumpSpecTable, {
     spec: boreSpec(node, pr)
   }))));
 }
@@ -10482,6 +12547,15 @@ function FiltConfig({
       }, w)), pp && pp.spec && React.createElement(PumpSpecTable, {
         spec: pp.spec,
         title: `Spesifikasi pompa ${cfg.place === 'after' ? 'booster' : 'umpan filter'} (untuk pengadaan)`
+      }), pp && React.createElement(PowerTierTable, {
+        tiers: motorTiers({
+          Qls: pp.Q / 3.6,
+          H: pp.H,
+          etaP: pp.eff,
+          hours: pp.hours,
+          phase: pc.phase || 'auto'
+        }),
+        title: `Kebutuhan daya pompa ${cfg.place === 'after' ? 'booster' : 'umpan'}: minimal · ideal · maksimal`
       }));
     })(), React.createElement("div", null, React.createElement("div", {
       className: "text-[11.5px] text-slate-500 mb-1"
@@ -23109,6 +25183,18 @@ function PhotoReport({
   })));
 }
 const KB = [{
+  k: 'air tanah potensi sumur bor dangkal titik lokasi geohidrologi hidrogeologi peta cat cekungan geolistrik ves',
+  t: 'Pemetaan potensi titik air tanah',
+  a: 'Di tab **Peta** buka panel **Air tanah & hidrologi**. Pilih pusat area, radius, dan litologi dominan, lalu tekan **Analisis potensi air tanah**. Aplikasi menggabungkan lereng, indeks kebasahan (TWI), posisi lembah dari DEM, jarak & kerapatan sungai OpenStreetMap, serta litologi menjadi peta kelas potensi dan 5 titik usulan (sumur dangkal atau sumur bor beserta perkiraan kedalaman). Masukkan **sumur warga** dan hasil **geolistrik (VES)** di *Data lapangan* agar hasil lebih akurat. Peta hidrogeologi/CAT Badan Geologi bisa ditambahkan sebagai WMS/ArcGIS, GeoJSON, atau gambar scan. Hasilnya penapisan awal: tetap wajib survei geolistrik dan uji pompa.'
+}, {
+  k: 'kalkulator kebutuhan air debit liter detik jumlah node hidran sr penduduk proyeksi',
+  t: 'Kalkulator kebutuhan air & jumlah node',
+  a: 'Tombol **Kalkulator** di bilah atas: isi jumlah penduduk, pertumbuhan, umur rencana, pola layanan (SR/HU), kehilangan air & faktor puncak. Hasilnya debit rata-rata, hari maksimum (kapasitas sumber), jam puncak (desain pipa), debit pompa, jumlah sumur, volume reservoir, jumlah SR/HU, serta jumlah node jaringan utama yang disarankan dibanding node proyek saat ini.'
+}, {
+  k: 'hp kw daya pompa minimal ideal maksimal motor angkat sumur head',
+  t: 'Daya pompa minimal / ideal / maksimal',
+  a: 'Tab **Olah Air** (dan Kalkulator → Daya pompa) menampilkan kebutuhan motor tiga tingkat: **Minimal** (head pas, efisiensi 70%, tanpa cadangan), **Ideal** (head +10%, faktor layanan 1,15) dan **Maksimal** (head +25%, debit +10%). Tiap tingkat menampilkan kW & HP standar, arus, energi, dan biaya listrik. Pilih motor yang dipasang di kartu sumur bor.'
+}, {
   k: 'aerator aerasi nampan tray cascade tangga spray semprot difuser blower besi mangan oksidasi',
   t: 'Sistem aerator',
   a: 'Aerator dipakai bila air mengandung **besi/mangan/amonia**, CO₂ atau bau H₂S. Aktifkan unit *Aerasi* di rangkaian pengolahan (tab **Olah Air**), lalu pilih jenisnya: **nampan bertingkat** (paling umum, tanpa listrik), **tangga/cascade** (beton, perawatan mudah), **semprot** (butuh tekanan 5–10 m) atau **difuser + blower** (bak tertutup, butuh listrik). Gambar DED aerator muncul di tab **DED → Sumber & pengolahan air**.'
@@ -27430,6 +29516,7 @@ function App({
   const [savedAt, setSavedAt] = useState(null);
   const [printMode, setPrintMode] = useState(null);
   const [dialog, setDialog] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
   const fileRef = useRef(null);
@@ -28730,6 +30817,11 @@ function App({
     className: "w-px h-6 bg-white/15 mx-1"
   }), React.createElement(Btn, {
     variant: "dark",
+    icon: "Calculator",
+    onClick: () => setCalcOpen(true),
+    title: "Kalkulator kebutuhan air, jumlah node & daya pompa"
+  }, "Kalkulator"), React.createElement(Btn, {
+    variant: "dark",
     icon: "FileText",
     onClick: () => setPrintMode('report')
   }, "Cetak laporan"), React.createElement(Btn, {
@@ -29072,7 +31164,7 @@ function App({
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
+  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
     key: i,
     type: "button",
     disabled: dis,
@@ -29099,6 +31191,11 @@ function App({
     field: field,
     setSelection: setSelection,
     toast: setToast
+  }), calcOpen && React.createElement(CalcDialog, {
+    project: project,
+    setProject: setProject,
+    hyd: hyd,
+    onClose: () => setCalcOpen(false)
   }), dialog && React.createElement(ProjectDialog, {
     project: project,
     setProject: setProject,
