@@ -29,6 +29,22 @@ Ukuran tandon bisa dipilih dari 300 sampai 10.000 L, dengan 1 sampai 6 unit. Gam
 
 Bila menara dihubungkan ke node reservoir, aplikasi menghitung tinggi menara minimum agar sisa tekanan ≥ 10 mka.
 
+## Urutan tanda tangan elektronik
+1. **Surveyor & penggambar** menandatangani lebih dulu. Keduanya boleh orang yang sama; centang *Surveyor dan penggambar orang yang sama*. Bila orangnya bukan pemilik proyek, tekan *Simpan penunjukan & minta tanda tangan*.
+2. Tombol **Ajukan untuk diperiksa** baru aktif bila tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.
+3. **Pemeriksa**, lalu **penyetuju**. Pemeriksa tidak bisa menandatangani bila tanda tangan perencana tidak berlaku.
+
+Tanda tangan surveyor & penggambar tercetak di kop gambar (DISURVEI / DIGAMBAR) dan di lembar pengesahan laporan.
+
+## Profil petugas
+- **Cara membuka:** tombol **Profil** di bilah atas (di HP: menu → *Profil saya*). Tanda kuning muncul bila profil belum lengkap.
+- **Isi profil:**
+  - nama lengkap, alamat tinggal, nomor WhatsApp (tautan chat otomatis), asal PMI, keahlian, nomor anggota;
+  - riwayat penugasan pipanisasi (tahun, lokasi, proyek, peran, panjang pipa, jiwa terlayani);
+  - foto profil dan CV (PDF/DOC/DOCX/JPG, maks. 700 KB).
+- **Untuk admin:** *Kelola pengguna → Lihat profil*, termasuk mengunduh CV.
+- **Penyimpanan (mode daring):** profil di koleksi `profiles`, CV di `userFiles`. Keduanya hanya bisa dibaca pemilik dan admin; **perbarui `firestore.rules` di Firebase Console**.
+
 ## Tampak depan & belakang menara air (tab DED)
 Setiap menara air mendapat lembar tambahan **Tampak depan & belakang**:
 - **Tampak depan:** sisi akses tangga & katup outlet, tempat papan nama/logo.

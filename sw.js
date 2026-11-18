@@ -1,5 +1,5 @@
 // Service worker TirtaPlan Studio: aplikasi tetap terbuka tanpa sinyal di lapangan.
-const APP = 'tirtaplan-app-v24';
+const APP = 'tirtaplan-app-v25';
 const TILES = 'tirtaplan-tiles-v1';
 const MAX_TILES = 3000;
 const SHELL = ['./', './index.html', './auth-config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];

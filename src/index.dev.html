@@ -4448,12 +4448,12 @@ function TitleBlock({ meta, title, scaleText, sheetNo, sheetTotal, legend, std }
     {std && <g>{L(186)}{lab(186, 'ACUAN STANDAR')}{wrapText(std, 52).slice(0, 2).map((l, i) => <text key={i} x={x + 2} y={193.6 + i * 2.6} fontSize={1.55}>{l}</text>)}</g>}
     {L(200)}{lab(200, 'PELAKSANA / PERENCANA')}{ml(wrapText(meta.orgName || meta.consultant || '-', 46).slice(0, 2), 206.6, 1.75, 600)}
     {L(213)}
-    {[['DISURVEI', meta.surveyedBy], ['DIGAMBAR', meta.drawnBy], ['DIPERIKSA', meta.checkedName ? `${meta.checkedName} · ${meta.checkedBy || 'Staf LPASL'}` : (meta.checkedBy || 'Staf LPASL')], ['DISETUJUI', meta.approvedName ? `${meta.approvedName} · ${meta.approvedBy || 'Kepala LPASL'}` : (meta.approvedBy || 'Kepala LPASL')]].map(([k, v], i) => { const y = 213 + i * 12; return <g key={k}>
+    {[['DISURVEI', meta.surveyedSigName || meta.surveyedBy], ['DIGAMBAR', meta.drawnSigName || meta.drawnBy], ['DIPERIKSA', meta.checkedName ? `${meta.checkedName} · ${meta.checkedBy || 'Staf LPASL'}` : (meta.checkedBy || 'Staf LPASL')], ['DISETUJUI', meta.approvedName ? `${meta.approvedName} · ${meta.approvedBy || 'Kepala LPASL'}` : (meta.approvedBy || 'Kepala LPASL')]].map(([k, v], i) => { const y = 213 + i * 12; return <g key={k}>
       <line x1={x + 22} x2={x + 22} y1={y} y2={y + 12} stroke="#000" strokeWidth={0.25} />
       <text x={x + 2} y={y + 4.5} fontSize={1.9} fontWeight={600}>{k}</text>
       <text x={x + 23.5} y={y + 10.6} fontSize={1.9} fontWeight={600}>{String(v || '').slice(0, 34)}</text>
-      {(k === 'DIPERIKSA' && meta.checkedSig) || (k === 'DISETUJUI' && meta.approvedSig) ? <g><image href={k === 'DIPERIKSA' ? meta.checkedSig : meta.approvedSig} x={FRAME.x1 - 30} y={y + 0.4} width={28} height={7} preserveAspectRatio="xMaxYMid meet" />
-        <text x={FRAME.x1 - 2} y={y + 11} fontSize={1.3} fill="#444" textAnchor="end">{k === 'DIPERIKSA' ? meta.checkedDate : meta.approvedDate}</text></g>
+      {({ DISURVEI: meta.surveyedSig, DIGAMBAR: meta.drawnSig, DIPERIKSA: meta.checkedSig, DISETUJUI: meta.approvedSig })[k] ? <g><image href={({ DISURVEI: meta.surveyedSig, DIGAMBAR: meta.drawnSig, DIPERIKSA: meta.checkedSig, DISETUJUI: meta.approvedSig })[k]} x={FRAME.x1 - 30} y={y + 0.4} width={28} height={7} preserveAspectRatio="xMaxYMid meet" />
+        <text x={FRAME.x1 - 2} y={y + 11} fontSize={1.3} fill="#444" textAnchor="end">{({ DISURVEI: meta.surveyedDate, DIGAMBAR: meta.drawnDate, DIPERIKSA: meta.checkedDate, DISETUJUI: meta.approvedDate })[k]}</text></g>
         : <text x={FRAME.x1 - 2} y={y + 3.6} fontSize={1.5} fill="#666" textAnchor="end">paraf / ttd</text>}
       <line x1={x + 23.5} x2={FRAME.x1 - 2} y1={y + 7.4} y2={y + 7.4} stroke="#999" strokeWidth={0.15} strokeDasharray="0.8 0.6" />
       {i < 3 && <line x1={x} x2={FRAME.x1} y1={y + 12} y2={y + 12} stroke="#000" strokeWidth={0.25} />}</g>; })}
@@ -6662,6 +6662,8 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'tanda tangan surveyor penggambar drafter urutan esign ajukan tidak bisa', t: 'Urutan tanda tangan elektronik', a: 'Urutannya: **1) surveyor & penggambar** (boleh orang yang sama) → **2) pemeriksa** → **3) penyetuju**. Buka *Status & review*, pilih surveyor/penggambar, lalu masing-masing menekan *Tanda tangani*. Bila bukan Anda sendiri, tekan *Simpan penunjukan & minta tanda tangan* agar mereka mendapat notifikasi. Tombol *Ajukan untuk diperiksa* baru aktif setelah tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.' },
+  { k: 'profil petugas pengguna foto cv whatsapp alamat asal pmi riwayat penugasan', t: 'Profil petugas', a: 'Tekan **Profil** di bilah atas (di HP: menu → *Profil saya*). Isi nama lengkap, alamat tinggal, nomor WhatsApp, asal PMI, keahlian, riwayat penugasan pipanisasi (bisa diambil dari proyek di aplikasi), unggah foto profil dan CV (PDF/DOC/JPG maks. 700 KB). Admin melihatnya di *Kelola pengguna → Lihat profil*. Alamat, WhatsApp, dan CV hanya bisa dilihat pemilik dan admin.' },
   { k: 'debit sumber mata air sungai ukur ember stopwatch pelampung v-notch kapasitas jiwa orang berapa', t: 'Mengukur debit sumber & kapasitas jiwa', a: 'Buka **Kalkulator → Debit sumber air & kapasitas jiwa**. Pilih metode: ember + stopwatch (mata air kecil), pelampung (sungai/saluran: lebar × dalam × kecepatan), ambang V-notch/persegi, current meter, debit uji pompa, volume embung/bendungan, atau air hujan. Isi faktor debit andalan (ukur di puncak kemarau) dan porsi yang boleh diambil. Hasilnya debit (L/dtk), volume (m³/hari), kecepatan aliran, jumlah jiwa/KK/SR/HU yang bisa dilayani, rekomendasi, serta tombol integrasi: hubungkan ke node sumber, buat reservoir/broncaptering/hidran, ubah pipa transmisi, atau tambah bendung & intake ke RAB.' },
   { k: 'profil elevasi grafik titik tertinggi terendah jalur pipa air valve wash out', t: 'Profil elevasi jalur pipa', a: 'Di tab **Peta** tekan **Profil elevasi**. Pilih ujung jalur; grafik menampilkan muka tanah, garis tekanan, titik **tertinggi** dan **terendah**, serta titik tinggi/rendah lokal yang belum diberi air valve/wash out. Arahkan kursor ke grafik untuk melihat lokasinya di peta. Tombol **Profil tanah detail dari DEM** mengambil elevasi tiap ± 10 m sepanjang pipa.' },
   { k: 'paket sumur bor all-in biaya harga per meter lump sum', t: 'Paket sumur bor all-in', a: 'Kartu sumur bor (tab **Olah Air**) menampilkan estimasi paket all-in: survei geolistrik, izin, mobilisasi rig, pengeboran & konstruksi sumur, logging, uji pompa & lab, pompa/panel/kabel/riser, kepala sumur, rumah pompa, listrik/PLTS, plus cadangan 10% — termasuk harga per meter. Pilih *Satu paket all-in* agar RAB memuat satu item lump sum.' },
@@ -7206,7 +7208,7 @@ const USER_STATUS = { pending: ['Menunggu persetujuan', 's-low'], approved: ['Ak
 function makeLocalAuth() {
   const read = () => { try { return JSON.parse(localStorage.getItem(LOCAL_USERS) || '[]'); } catch (e) { return []; } };
   const write = (u) => localStorage.setItem(LOCAL_USERS, JSON.stringify(u));
-  const pub = (u) => u ? { uid: u.uid, email: u.email, name: u.name, role: u.role, org: u.org, phone: u.phone, status: u.status, admin: !!u.admin, review: u.review || null, createdAt: u.createdAt } : null;
+  const pub = (u) => u ? { uid: u.uid, email: u.email, name: u.name, role: u.role, org: u.org, phone: u.phone, status: u.status, admin: !!u.admin, review: u.review || null, profile: u.profile || null, createdAt: u.createdAt } : null;
   const session = (id) => localStorage.setItem(LOCAL_SESSION, JSON.stringify({ uid: id, exp: Date.now() + 30 * 864e5 }));
   let listener = null;
   const emit = () => { let s = null; try { s = JSON.parse(localStorage.getItem(LOCAL_SESSION) || 'null'); } catch (e) {} const u = s && s.exp > Date.now() ? read().find(x => x.uid === s.uid) : null; listener && listener(pub(u)); };
@@ -7232,6 +7234,10 @@ function makeLocalAuth() {
     async setStatus(id, status) { write(read().map(u => u.uid === id ? { ...u, status } : u)); },
     async setAdmin(id, admin) { write(read().map(u => u.uid === id ? { ...u, admin, status: admin ? 'approved' : u.status } : u)); },
     async setReview(id, review) { write(read().map(u => u.uid === id ? { ...u, review } : u)); },
+    async getUser(id) { return pub(read().find(u => u.uid === id)); },
+    async setProfile(id, profile) { write(read().map(u => u.uid === id ? { ...u, profile, name: profile.fullName || u.name, phone: profile.wa || u.phone } : u)); emit(); },
+    async putCv(id, rec) { await photoDB.put('cv:' + id, rec); },
+    async getCv(id) { return await photoDB.get('cv:' + id); },
     async remove(id) { write(read().filter(u => u.uid !== id)); },
     async adminSetPassword(id, pw) { const h = await hashPw(pw); write(read().map(u => u.uid === id ? { ...u, ...h } : u)); },
   };
@@ -7287,9 +7293,16 @@ async function makeFirebaseAuth() {
     async resendVerify() { if (auth.currentUser) await auth.currentUser.sendEmailVerification().catch(e => { throw new Error(fbErr(e)); }); },
     async listUsers() { if (auth.currentUser) { await auth.currentUser.reload().catch(() => {}); await auth.currentUser.getIdToken(true).catch(() => {}); }
       const q = await db.collection('users').get().catch(e => { throw new Error(fbErr(e)); });
-      return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, status: isAdm(x.email) ? 'approved' : x.status, admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
+      const pm = {}; if (auth.currentUser && isAdm(auth.currentUser.email)) { const pq = await db.collection('profiles').get().catch(() => null); if (pq) pq.docs.forEach(d => { pm[d.id] = d.data().profile; }); }
+      return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, profile: pm[d.id] || null, status: isAdm(x.email) ? 'approved' : x.status, admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
     async setStatus(id, status) { await db.collection('users').doc(id).update({ status }).catch(e => { throw new Error(fbErr(e)); }); },
     async setReview(id, review) { await db.collection('users').doc(id).update({ review }).catch(e => { throw new Error(fbErr(e)); }); },
+    async getUser(id) { const d = await db.collection('users').doc(id).get().catch(e => { throw new Error(fbErr(e)); }); if (!d.exists) return null; const x = d.data();
+      const pr = await db.collection('profiles').doc(id).get().catch(() => null); return { uid: id, ...x, profile: pr && pr.exists ? pr.data().profile : null, createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; },
+    async setProfile(id, profile) { await db.collection('profiles').doc(id).set({ profile, ownerUid: id, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(e => { throw new Error(fbErr(e)); });
+      if (profile.fullName) await db.collection('users').doc(id).update({ name: profile.fullName }).catch(() => {}); },
+    async putCv(id, rec) { await db.collection('userFiles').doc(id).set({ ...rec, ownerUid: id }).catch(e => { throw new Error(fbErr(e)); }); },
+    async getCv(id) { const d = await db.collection('userFiles').doc(id).get().catch(e => { throw new Error(fbErr(e)); }); return d.exists ? d.data() : null; },
     async remove(id) { await db.collection('users').doc(id).delete().catch(e => { throw new Error(fbErr(e)); }); },
   };
 }
@@ -7367,7 +7380,95 @@ function PendingScreen({ user, api }) {
     </div>
   </div></AuthShell>;
 }
-function UserAdminDialog({ api, me, onClose }) {
+/* =====================================================================
+   PROFIL PETUGAS / PENGGUNA: data diri, asal PMI, riwayat penugasan pipanisasi, foto & CV
+   Profil disimpan di dokumen pengguna (users/{uid}.profile); berkas CV disimpan terpisah (userFiles/{uid}) atau di perangkat (mode lokal).
+   ===================================================================== */
+const ASSIGN_ROLES = ['Surveyor / juru ukur', 'Penggambar (drafter)', 'Perencana / desainer', 'Koordinator lapangan', 'Pengawas pembangunan', 'Pemeriksa (Staf LPASL)', 'Penyetuju (Kepala LPASL)', 'Relawan / tenaga teknis', 'Lainnya'];
+const CV_MAX = 700 * 1024;
+const PROFILE_REQ = [['fullName', 'nama lengkap'], ['address', 'alamat'], ['wa', 'nomor WhatsApp'], ['pmi', 'asal PMI'], ['photo', 'foto profil']];
+const profileMissing = (pf) => PROFILE_REQ.filter(([k]) => !(pf && String(pf[k] || '').trim())).map(x => x[1]);
+const waLink = (wa) => { let d = String(wa || '').replace(/\D/g, ''); if (d.startsWith('0')) d = '62' + d.slice(1); return d ? 'https://wa.me/' + d : ''; };
+const readDataUrl = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+function Avatar({ src, name, size = 36 }) {
+  const ini = String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  return src ? <img src={src} alt={'Foto ' + (name || '')} style={{ width: size, height: size }} className="rounded-full object-cover border border-line shrink-0" />
+    : <span style={{ width: size, height: size, fontSize: size * 0.38 }} className="rounded-full bg-aqua-100 text-aqua-800 font-bold inline-flex items-center justify-center shrink-0">{ini}</span>;
+}
+function ProfileDialog({ api, me, targetUid, onClose, onSaved, projects = [] }) {
+  const own = targetUid === me.uid; const canEdit = own; const [u, setU] = useState(null); const [pf, setPf] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(''); const [saved, setSaved] = useState(false);
+  const photoRef = useRef(null), cvRef = useRef(null);
+  useEffect(() => { (async () => { try { const x = api.getUser ? await api.getUser(targetUid) : null; setU(x || { uid: targetUid }); setPf({ fullName: x?.name || '', address: '', wa: x?.phone || '', pmi: x?.org || '', history: [], ...(x?.profile || {}) }); } catch (e) { setErr(e.message); setU({ uid: targetUid }); setPf({ history: [] }); } })(); }, [targetUid]);
+  if (!pf) return <div className="fixed inset-0 z-[2100] bg-black/40 flex items-center justify-center" onClick={onClose}><div className="bg-white rounded-lg p-6 text-[13px]">Memuat profil…</div></div>;
+  const set = (k, v) => { setPf(o => ({ ...o, [k]: v })); setSaved(false); };
+  const hist = pf.history || []; const updH = (i, patch) => set('history', hist.map((h, j) => j === i ? { ...h, ...patch } : h));
+  const onPhoto = async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { const r = await resizeImage(f, 320, 0.82); set('photo', r.data); } catch (er) { setErr(er.message); } };
+  const onCv = async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr('');
+    if (f.size > CV_MAX) { setErr(`Ukuran CV ${fmt(f.size / 1024, 0)} KB melebihi batas ${CV_MAX / 1024} KB. Kompres PDF (mis. "Save as reduced size") atau kirim versi ringkas.`); return; }
+    setBusy('Mengunggah CV…'); try { const data = await readDataUrl(f); const meta = { name: f.name, type: f.type || 'application/octet-stream', size: f.size, at: Date.now() };
+      await api.putCv(targetUid, { ...meta, data }); set('cv', meta); } catch (er) { setErr('CV gagal diunggah: ' + er.message); } setBusy(''); };
+  const openCv = async () => { setBusy('Mengambil CV…'); setErr(''); try { const r = await api.getCv(targetUid); if (!r || !r.data) throw new Error('CV belum tersedia'); const a = document.createElement('a'); a.href = r.data; a.download = r.name || 'CV'; document.body.appendChild(a); a.click(); a.remove(); }
+    catch (er) { setErr(er.message); } setBusy(''); };
+  const save = async () => { setErr(''); if (!String(pf.fullName || '').trim()) { setErr('Nama lengkap wajib diisi.'); return; } setBusy('Menyimpan…');
+    try { const clean = { ...pf, wa: String(pf.wa || '').replace(/[^\d+]/g, ''), history: hist.filter(h => h.location || h.project || h.year), updatedAt: Date.now() }; await api.setProfile(targetUid, clean); setPf(clean); setSaved(true); onSaved && onSaved(clean); }
+    catch (er) { setErr('Gagal menyimpan: ' + er.message); } setBusy(''); };
+  const miss = profileMissing(pf); const inp = (k, label, ph, type = 'text') => <Field label={label}><input id={'pf-' + k} type={type} className="tp-field" value={pf[k] || ''} placeholder={ph} disabled={!canEdit} onChange={e => set(k, e.target.value)} /></Field>;
+  return <div className="fixed inset-0 z-[2100] bg-black/40 flex items-center justify-center p-3" onClick={onClose}>
+    <div className="bg-white rounded-lg w-full max-w-3xl max-h-[94vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-line"><Icon name="IdCard" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">{own ? 'Profil saya' : `Profil petugas: ${pf.fullName || u?.name || u?.email || ''}`}</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="p-5 overflow-y-auto space-y-4 text-[13px]">
+        {own && miss.length > 0 && <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">Lengkapi profil Anda: {miss.join(', ')}. Profil dipakai admin untuk mengenal petugas dan menugaskan pekerjaan.</div>}
+        {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
+        {busy && <div className="rounded-md bg-aqua-50 border border-aqua-200 text-aqua-900 px-3 py-2">{busy}</div>}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col items-center gap-2 shrink-0"><Avatar src={pf.photo} name={pf.fullName || u?.name} size={112} />
+            {canEdit && <><Btn variant="outline" icon="Camera" onClick={() => photoRef.current?.click()}>{pf.photo ? 'Ganti foto' : 'Unggah foto'}</Btn><input ref={photoRef} id="pf-photo" type="file" accept="image/*" className="hidden" onChange={onPhoto} /></>}
+            <div className="text-[11.5px] text-slate-500 text-center">{u?.email}<br />{u?.role || ''}{u?.status ? ` · ${(USER_STATUS[u.status] || [u.status])[0]}` : ''}</div></div>
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="sm:col-span-2">{inp('fullName', 'Nama lengkap (sesuai KTP)', 'mis. Budi Santoso')}</div>
+            <div className="sm:col-span-2"><Field label="Alamat tinggal"><textarea id="pf-address" className="tp-field h-16" value={pf.address || ''} disabled={!canEdit} placeholder="Jalan, RT/RW, desa/kelurahan, kecamatan, kabupaten/kota, provinsi" onChange={e => set('address', e.target.value)} /></Field></div>
+            <Field label="No. WhatsApp" hint={pf.wa ? <a className="text-aqua-700 underline" href={waLink(pf.wa)} target="_blank" rel="noopener noreferrer">Buka chat WhatsApp</a> : 'mis. 0812xxxxxxx'}>
+              <input id="pf-wa" type="tel" inputMode="tel" className="tp-field" value={pf.wa || ''} disabled={!canEdit} onChange={e => set('wa', e.target.value)} placeholder="08…" /></Field>
+            <Field label="Asal PMI"><input id="pf-pmi" list="pf-pmi-list" className="tp-field" value={pf.pmi || ''} disabled={!canEdit} placeholder="mis. PMI Kabupaten Bandung" onChange={e => set('pmi', e.target.value)} />
+              <datalist id="pf-pmi-list"><option value="PMI Pusat (Markas Pusat)" />{PROVINCES.map(p => <option key={p[0]} value={'PMI Provinsi ' + p[1]} />)}</datalist></Field>
+            {inp('skill', 'Keahlian / sertifikasi (opsional)', 'mis. survei GPS, AutoCAD, SKT pelaksana perpipaan')}
+            {inp('nik', 'Nomor anggota / relawan PMI (opsional)', '')}
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Riwayat penugasan pipanisasi ({hist.length})</div>
+            {canEdit && <div className="flex gap-1.5">
+              {projects.length > 0 && <select id="pf-from-proj" className="tp-field !py-1 !w-auto !text-[12px]" value="" onChange={e => { const p = projects.find(x => x.id === e.target.value); if (p) set('history', [...hist, { id: uid('h'), year: String(new Date(p.updatedAt || Date.now()).getFullYear()), location: p.location || '', project: p.name || '', role: ASSIGN_ROLES[2], note: '' }]); }}>
+                <option value="">+ dari proyek di aplikasi…</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+              <Btn variant="outline" icon="CirclePlus" onClick={() => set('history', [...hist, { id: uid('h'), year: String(new Date().getFullYear()), location: '', project: '', role: ASSIGN_ROLES[0], len: '', people: '', note: '' }])}>Tambah riwayat</Btn></div>}</div>
+          {hist.length === 0 ? <p className="text-slate-500">Belum ada riwayat penugasan.</p> :
+            <div className="overflow-x-auto"><table className="tp-table"><thead><tr><th>Tahun</th><th>Lokasi (desa/kab.)</th><th>Proyek / kegiatan</th><th>Peran</th><th className="r">Pipa (m)</th><th className="r">Jiwa</th><th>Keterangan</th>{canEdit && <th />}</tr></thead><tbody>
+              {hist.map((h, i) => canEdit ? <tr key={h.id || i}>
+                <td><input id={`pf-h${i}-year`} className="tp-field !py-0.5 !w-16" value={h.year || ''} onChange={e => updH(i, { year: e.target.value })} /></td>
+                <td><input id={`pf-h${i}-loc`} className="tp-field !py-0.5 min-w-[120px]" value={h.location || ''} onChange={e => updH(i, { location: e.target.value })} /></td>
+                <td><input id={`pf-h${i}-proj`} className="tp-field !py-0.5 min-w-[140px]" value={h.project || ''} onChange={e => updH(i, { project: e.target.value })} /></td>
+                <td><select id={`pf-h${i}-role`} className="tp-field !py-0.5" value={h.role || ''} onChange={e => updH(i, { role: e.target.value })}>{ASSIGN_ROLES.map(r => <option key={r} value={r}>{r}</option>)}</select></td>
+                <td><input id={`pf-h${i}-len`} type="number" className="tp-field !py-0.5 !w-20" value={h.len || ''} onChange={e => updH(i, { len: e.target.value })} /></td>
+                <td><input id={`pf-h${i}-ppl`} type="number" className="tp-field !py-0.5 !w-20" value={h.people || ''} onChange={e => updH(i, { people: e.target.value })} /></td>
+                <td><input id={`pf-h${i}-note`} className="tp-field !py-0.5 min-w-[120px]" value={h.note || ''} onChange={e => updH(i, { note: e.target.value })} /></td>
+                <td><button type="button" title="Hapus riwayat" className="text-slate-400 hover:text-red-600" onClick={() => set('history', hist.filter((_, j) => j !== i))}><Icon name="Trash2" size={14} /></button></td></tr>
+                : <tr key={h.id || i}><td>{h.year}</td><td>{h.location}</td><td>{h.project}</td><td>{h.role}</td><td className="r">{h.len ? fmt(+h.len, 0) : ''}</td><td className="r">{h.people ? fmt(+h.people, 0) : ''}</td><td>{h.note}</td></tr>)}</tbody></table></div>}
+          {hist.length > 0 && <p className="text-[11.5px] text-slate-500">Total: {hist.length} penugasan · {fmt(hist.reduce((a, h) => a + (+h.len || 0), 0), 0)} m pipa · {fmt(hist.reduce((a, h) => a + (+h.people || 0), 0), 0)} jiwa terlayani.</p>}
+        </div>
+        <div className="rounded-md border border-line p-3 flex flex-wrap items-center gap-2">
+          <Icon name="FileText" size={18} className="text-aqua-600" /><div className="flex-1 min-w-[180px]"><div className="font-semibold">Curriculum vitae (CV)</div>
+            <div className="text-[12px] text-slate-500">{pf.cv ? `${pf.cv.name} · ${fmt(pf.cv.size / 1024, 0)} KB · ${dtTxt(pf.cv.at)}` : 'Belum diunggah'} · PDF/DOC/DOCX/JPG, maks. {CV_MAX / 1024} KB</div></div>
+          {pf.cv && <Btn variant="outline" icon="Download" onClick={openCv}>Unduh / lihat CV</Btn>}
+          {canEdit && <><Btn variant="outline" icon="Upload" onClick={() => cvRef.current?.click()}>{pf.cv ? 'Ganti CV' : 'Unggah CV'}</Btn><input ref={cvRef} id="pf-cv" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,application/pdf" className="hidden" onChange={onCv} /></>}
+        </div>
+        {pf.updatedAt && <p className="text-[11.5px] text-slate-500">Terakhir diperbarui {dtTxt(pf.updatedAt)}.</p>}
+      </div>
+      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-line">{saved && <span className="text-green-700 text-[12.5px] mr-auto">✓ Profil tersimpan</span>}
+        <Btn variant="outline" onClick={onClose}>Tutup</Btn>{canEdit && <Btn variant="primary" icon="Save" disabled={!!busy} onClick={save}>Simpan profil</Btn>}</div>
+    </div></div>;
+}
+
+function UserAdminDialog({ api, me, onClose, onProfile }) {
   const [users, setUsers] = useState(null); const [err, setErr] = useState(''); const [pwFor, setPwFor] = useState(null); const [pw, setPw] = useState('');
   const load = async () => { try { setErr(''); const u = await api.listUsers(); setUsers(u.sort((a, b) => (a.status === 'pending' ? -1 : 0) - (b.status === 'pending' ? -1 : 0) || (b.createdAt || 0) - (a.createdAt || 0))); } catch (e) { setErr(e.message); setUsers([]); } };
   useEffect(() => { load(); }, []);
@@ -7383,8 +7484,10 @@ function UserAdminDialog({ api, me, onClose }) {
         {err && <div className="rounded-md bg-red-50 text-red-800 px-3 py-2">{err}</div>}
         {!users && <p className="text-slate-500">Memuat…</p>}
         {users && users.map(u => <div key={u.uid} className="rounded-lg border border-line p-3 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[200px]"><div className="font-semibold">{u.name} {u.admin && <span className="pill s-src ml-1">admin</span>} {u.uid === me.uid && <span className="pill s-idle ml-1">Anda</span>}</div>
-            <div className="text-[12px] text-slate-500">{[u.email, u.role, u.org, u.phone].filter(Boolean).join(' · ')}</div>
+          <Avatar src={u.profile?.photo} name={u.profile?.fullName || u.name} size={40} />
+          <div className="flex-1 min-w-[200px]"><div className="font-semibold">{u.profile?.fullName || u.name} {u.admin && <span className="pill s-src ml-1">admin</span>} {u.uid === me.uid && <span className="pill s-idle ml-1">Anda</span>}</div>
+            <div className="text-[12px] text-slate-500">{[u.email, u.role, u.profile?.pmi || u.org, u.profile?.wa || u.phone].filter(Boolean).join(' · ')}</div>
+            {onProfile && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline" onClick={() => onProfile(u.uid)}>Lihat profil{u.profile ? ` · ${(u.profile.history || []).length} riwayat penugasan${u.profile.cv ? ' · CV' : ''}` : ' (belum diisi)'}</button>}
             {u.createdAt > 0 && <div className="text-[11px] text-slate-400">Daftar {new Date(u.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}</div>
           <span className={'pill ' + (USER_STATUS[u.status] || USER_STATUS.pending)[1]}>{(USER_STATUS[u.status] || USER_STATUS.pending)[0]}</span>
           {api.setReview && u.status === 'approved' && <div className="flex items-center gap-3 text-[12px] rounded-md bg-ground px-2 py-1" title="Hak dalam alur review proyek">
@@ -7484,7 +7587,7 @@ function makeCloudStore(api) {
           if (baseRev !== undefined && cur && (cur.rev || 0) !== baseRev) { const e = new Error('conflict'); e.conflict = { by: cur.updatedByName, at: ms(cur.updatedAt), rev: cur.rev || 0 }; throw e; }
           const rev = (cur?.rev || 0) + 1;
           tx.set(mRef, { name: p.meta.name || 'Tanpa nama', location: p.meta.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName || '', ownerEmail: c.ownerEmail || '',
-            status: c.status || 'draft', checkerUid: c.reviewers?.checker?.uid || '', approverUid: c.reviewers?.approver?.uid || '', rev, nodes: p.nodes.length, pipes: p.pipes.length, size: bytes, checkedName: p.meta.checkedName || '', approvedName: p.meta.approvedName || '',
+            status: c.status || 'draft', checkerUid: c.reviewers?.checker?.uid || '', approverUid: c.reviewers?.approver?.uid || '', surveyorUid: c.reviewers?.surveyor?.uid || '', drafterUid: c.reviewers?.drafter?.uid || '', rev, nodes: p.nodes.length, pipes: p.pipes.length, size: bytes, checkedName: p.meta.checkedName || '', approvedName: p.meta.approvedName || '',
             updatedByUid: user.uid, updatedByName: user.name || user.email, updatedAt: FS.FieldValue.serverTimestamp(), createdAt: cur?.createdAt || FS.FieldValue.serverTimestamp() });
           tx.set(dRef, { ownerUid: c.ownerUid, rev, fmt: pk.fmt, ...(pk.bytes ? { data: FS.Blob.fromUint8Array(pk.bytes) } : { text: pk.text }) });
           return { rev };
@@ -7559,21 +7662,33 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
 function ReviewDialog({ project, user, api, onAct, onClose }) {
   const c = project.cloud || {}; const S = PSTATUS[c.status] || PSTATUS.draft; const [note, setNote] = useState(''); const [err, setErr] = useState('');
   const isOwner = c.ownerUid === user.uid; const staf = /staf/i.test(user.role || ''); const rv = c.reviewers || {};
-  const [users, setUsers] = useState(null); const [sel, setSel] = useState({ checker: rv.checker || null, approver: rv.approver || null }); const [signing, setSigning] = useState(null); const [cur, setCur] = useState(null);
+  const meU = { uid: user.uid, email: user.email, name: user.name || user.email, role: user.role || '' };
+  const [users, setUsers] = useState(null); const [sel, setSel] = useState({ checker: rv.checker || null, approver: rv.approver || null, surveyor: rv.surveyor || (isOwner ? meU : null), drafter: rv.drafter || (isOwner ? meU : null), same: rv.same !== undefined ? rv.same : true }); const [signing, setSigning] = useState(null); const [cur, setCur] = useState(null);
   useEffect(() => { (api && api.listUsers ? api.listUsers() : Promise.resolve([])).then(l => setUsers(l.filter(u => u.status === 'approved'))).catch(() => setUsers([])); }, []);
   useEffect(() => { contentHash(project).then(setCur); }, [project]);
   const isChecker = rv.checker && rv.checker.uid === user.uid, isApprover = rv.approver && rv.approver.uid === user.uid;
   const canAssign = (isOwner || user.admin) && ['draft', 'revisi'].includes(c.status || 'draft');
-  const canCheck = c.status === 'review' && (isChecker || (user.admin && !rv.checker));
+  const planSign = (role) => [...(c.signs || [])].reverse().find(x => x.role === role); const planOk = (role) => { const x = planSign(role); return !!(x && cur && x.hash === cur); };
+  const planDone = planOk('surveyor') && planOk('drafter');
+  const isSurv = sel.surveyor && sel.surveyor.uid === user.uid, isDraf = (sel.same ? sel.surveyor : sel.drafter)?.uid === user.uid;
+  const canPlanSign = ['draft', 'revisi'].includes(c.status || 'draft') && (isSurv || isDraf);
+  const canCheck = c.status === 'review' && planDone && (isChecker || (user.admin && !rv.checker));
   const canApprove = c.status === 'checked' && (isApprover || (user.admin && !staf && !rv.approver));
   const canRevise = ['review', 'checked'].includes(c.status) && (isChecker || isApprover || user.admin);
   const pick = (role, id) => { const u = (users || []).find(x => x.uid === id); setSel(s => ({ ...s, [role]: u ? { uid: u.uid, email: u.email, name: u.name || u.email, role: u.role || '' } : null })); };
-  const submit = () => { if (!sel.checker || !sel.approver) { setErr('Pilih pemeriksa dan penyetuju terlebih dulu.'); return; } onAct('review', note.trim(), { reviewers: sel }); setNote(''); setErr(''); };
+  const revOut = () => ({ ...sel, drafter: sel.same ? sel.surveyor : sel.drafter });
+  const submit = () => { if (!sel.checker || !sel.approver) { setErr('Pilih pemeriksa dan penyetuju terlebih dulu.'); return; }
+    if (!planDone) { setErr('Dokumen harus ditandatangani surveyor dan penggambar terlebih dulu (dan isinya belum berubah sejak ditandatangani).'); return; }
+    onAct('review', note.trim(), { reviewers: revOut() }); setNote(''); setErr(''); };
   const revise = () => { if (!note.trim()) { setErr('Tulis catatan alasannya terlebih dulu.'); return; } onAct('revisi', note.trim()); setNote(''); setErr(''); };
   const signs = c.signs || []; const lastSign = (role) => [...signs].reverse().find(x => x.role === role);
   const steps = ['draft', 'review', 'checked', 'approved'];
   const [showAll, setShowAll] = useState(false); const anyRights = (users || []).some(u => u.review && (u.review.check || u.review.approve));
   const eligible = (role) => (users || []).filter(u => showAll || !anyRights || !!u.review?.[role === 'checker' ? 'check' : 'approve']);
+  const pickAny = (role, id) => { const u = id === user.uid ? meU : (users || []).find(x => x.uid === id); setSel(s => ({ ...s, [role]: u ? { uid: u.uid, email: u.email, name: u.name || u.email, role: u.role || '' } : null })); };
+  const pSel = (role, label) => <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pickAny(role, e.target.value)} disabled={!canAssign}>
+    <option value="">Pilih pengguna</option>{sel[role] && !(users || []).some(u => u.uid === sel[role].uid) && <option value={sel[role].uid}>{sel[role].name}</option>}
+    {(users || []).map(u => <option key={u.uid} value={u.uid}>{u.name || u.email}{u.role ? ` · ${u.role}` : ''}</option>)}</select></Field>;
   const uSel = (role, label) => <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pick(role, e.target.value)} disabled={!canAssign}>
     <option value="">{users === null ? 'Memuat daftar pengguna…' : eligible(role).length ? 'Pilih pengguna' : 'Belum ada pengguna dengan hak ini'}</option>
     {sel[role] && !eligible(role).some(u => u.uid === sel[role].uid) && <option value={sel[role].uid}>{sel[role].name}</option>}
@@ -7590,16 +7705,30 @@ function ReviewDialog({ project, user, api, onAct, onClose }) {
         <div className="flex items-center gap-1 flex-wrap">{steps.map((s, i) => { const reached = steps.indexOf(c.status === 'revisi' ? 'draft' : (c.status || 'draft')) >= i; return <Fragment key={s}>
           <span className={'pill ' + (reached ? PSTATUS[s][1] : 's-idle opacity-50')}>{PSTATUS[s][0]}</span>{i < steps.length - 1 && <Icon name="ArrowRight" size={13} className="text-slate-400" />}</Fragment>; })}</div>
         <div>Status saat ini: <span className={'pill ' + S[1]}>{S[0]}</span></div>
+        <div className="rounded-md border border-line p-3 space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Langkah 1 · Tanda tangan perencana (wajib sebelum diperiksa)</div>
+          <label className="flex items-center gap-2 text-[12.5px]"><input id="rv-same" type="checkbox" checked={!!sel.same} disabled={!canAssign} onChange={e => setSel(s => ({ ...s, same: e.target.checked }))} />Surveyor dan penggambar orang yang sama</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{pSel('surveyor', sel.same ? 'Surveyor & penggambar' : 'Surveyor')}{!sel.same && pSel('drafter', 'Penggambar (drafter)')}</div>
+          <table className="tp-table"><tbody>{sigRow('surveyor', 'Tanda tangan surveyor')}{sigRow('drafter', 'Tanda tangan penggambar')}</tbody></table>
+          {canAssign && !planDone && (sel.surveyor?.uid !== user.uid || (!sel.same && sel.drafter?.uid !== user.uid)) && sel.surveyor && (sel.same || sel.drafter) &&
+            <Btn variant="outline" icon="Send" onClick={() => { onAct('assign', '', { reviewers: revOut() }); }}>Simpan penunjukan & minta tanda tangan</Btn>}
+          {canPlanSign && <div className="flex flex-wrap gap-2">
+            {sel.same ? (isSurv && <Btn variant="primary" icon="FileSignature" onClick={() => setSigning('plan:both')}>Tanda tangani sebagai surveyor & penggambar</Btn>)
+              : <>{isSurv && <Btn variant="primary" icon="FileSignature" onClick={() => setSigning('plan:surveyor')}>Tanda tangani sebagai surveyor</Btn>}{isDraf && <Btn variant="primary" icon="FileSignature" onClick={() => setSigning('plan:drafter')}>Tanda tangani sebagai penggambar</Btn>}</>}</div>}
+          {!planDone && <p className="text-[12px] text-amber-700">{planSign('surveyor') || planSign('drafter') ? 'Tanda tangan perencana belum lengkap atau isi proyek berubah setelah ditandatangani — tanda tangani ulang.' : 'Belum ditandatangani surveyor & penggambar. Pemeriksa dan penyetuju baru bisa menandatangani setelah langkah ini.'}</p>}
+        </div>
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Langkah 2 · Pemeriksa & penyetuju</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{uSel('checker', `Pemeriksa (${project.meta.checkedBy || 'Staf LPASL'})`)}{uSel('approver', `Penyetuju (${project.meta.approvedBy || 'Kepala LPASL'})`)}</div>
         {users && users.length > 0 && canAssign && <p className="text-[11.5px] text-slate-500">{anyRights ? 'Daftar hanya berisi pengguna yang diberi hak pemeriksa/penyetuju oleh admin.' : 'Admin belum menetapkan hak pemeriksa/penyetuju, jadi semua pengguna aktif ditampilkan.'}
           {anyRights && user.admin && <label className="ml-2 inline-flex items-center gap-1"><input id="rv-showall" type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />tampilkan semua (admin)</label>}</p>}
         {users && !users.length && canAssign && <p className="text-[12px] text-amber-700">Daftar pengguna tidak dapat dimuat (periksa aturan firestore.rules terbaru).</p>}
         <table className="tp-table"><tbody>{sigRow('checker', 'Tanda tangan pemeriksa')}{sigRow('approver', 'Tanda tangan penyetuju')}</tbody></table>
+        {c.status === 'review' && !planDone && <p className="text-[12px] text-red-700">Tanda tangan surveyor/penggambar tidak berlaku (isi berubah). Kembalikan untuk revisi agar ditandatangani ulang.</p>}
         {(canAssign || canCheck || canApprove || canRevise || (user.admin && c.status === 'approved')) ? <div className="space-y-2">
           <Field label="Catatan (wajib bila dikembalikan untuk revisi)"><textarea id="rv-note" className="tp-field h-20" value={note} onChange={e => { setNote(e.target.value); setErr(''); }} placeholder="mis. Periksa ulang diameter pipa P4; tekanan di HU1 kurang." /></Field>
           {err && <p className="text-red-700">{err}</p>}
           <div className="flex flex-wrap gap-2">
-            {canAssign && <Btn variant="primary" icon="Send" onClick={submit}>Ajukan untuk diperiksa</Btn>}
+            {canAssign && <Btn variant="primary" icon="Send" disabled={!planDone} onClick={submit} title={planDone ? '' : 'Tunggu tanda tangan surveyor & penggambar'}>Ajukan untuk diperiksa</Btn>}
             {canCheck && <Btn variant="primary" icon="FileSignature" onClick={() => setSigning('checker')}>Periksa & tanda tangani</Btn>}
             {canApprove && <Btn variant="primary" icon="FileSignature" onClick={() => setSigning('approver')}>Setujui & tanda tangani</Btn>}
             {canRevise && <Btn variant="danger" onClick={revise}>Kembalikan untuk revisi</Btn>}
@@ -7614,7 +7743,10 @@ function ReviewDialog({ project, user, api, onAct, onClose }) {
               {r.note && <div className="mt-1 text-[12.5px]">{r.note}</div>}</li>)}</ol>}</div>
       </div>
     </div>
-    {signing && <SignPad user={user} project={project} roleLabel={signing === 'checker' ? 'Pemeriksa' : 'Penyetuju'} onCancel={() => setSigning(null)}
+    {signing && String(signing).startsWith('plan:') && <SignPad user={user} project={project} roleLabel={signing === 'plan:both' ? 'Surveyor & penggambar' : signing === 'plan:surveyor' ? 'Surveyor' : 'Penggambar'} onCancel={() => setSigning(null)}
+      onSign={async ({ sig, hash }) => { const base = { sig, hash, uid: user.uid, name: user.name || user.email, email: user.email, at: Date.now() }; const roles = signing === 'plan:both' ? ['surveyor', 'drafter'] : [signing.slice(5)];
+        await onAct('sign', note.trim(), { reviewers: revOut(), signs: roles.map(r => ({ ...base, role: r })) }); setSigning(null); setNote(''); }} />}
+    {signing && !String(signing).startsWith('plan:') && <SignPad user={user} project={project} roleLabel={signing === 'checker' ? 'Pemeriksa' : 'Penyetuju'} onCancel={() => setSigning(null)}
       onSign={async ({ sig, hash }) => { await onAct(signing === 'checker' ? 'checked' : 'approved', note.trim(), { sign: { role: signing, sig, hash, uid: user.uid, name: user.name || user.email, email: user.email, at: Date.now() } }); setSigning(null); setNote(''); }} />}
   </div>;
 }
@@ -7708,7 +7840,7 @@ function NotifyCenter({ inbox, user, onOpenItem, onClose }) {
 }
 // Sidik dokumen: isi desain yang ditandatangani (tanpa status/tanda tangan & data lapangan non-desain)
 async function contentHash(p) {
-  const m = { ...p.meta }; ['checkedName', 'checkedDate', 'approvedName', 'approvedDate', 'checkedSig', 'approvedSig'].forEach(k => delete m[k]);
+  const m = { ...p.meta }; ['checkedName', 'checkedDate', 'approvedName', 'approvedDate', 'checkedSig', 'approvedSig', 'surveyedSig', 'surveyedSigName', 'surveyedDate', 'drawnSig', 'drawnSigName', 'drawnDate'].forEach(k => delete m[k]);
   const dd = p.dedDraw && ((p.dedDraw.sheets || []).length || Object.values(p.dedDraw.marks || {}).some(v => v && v.length)) ? { dedDraw: { sheets: p.dedDraw.sheets, marks: p.dedDraw.marks } } : {};
   return sha256Hex(JSON.stringify({ meta: m, nodes: p.nodes, pipes: p.pipes, structures: p.structures, treatments: p.treatments, settings: p.settings, prices: p.prices, rabEdits: p.rabEdits, shs: p.shs, ...dd }));
 }
@@ -7746,7 +7878,7 @@ function SignPad({ user, roleLabel, project, onSign, onCancel }) {
         <input ref={fileRef} id="sig-file" type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={upload} /></div>
       <label className="flex items-center gap-2 text-[12px] text-slate-600"><input id="sig-rmbg" type="checkbox" checked={rmBg} onChange={e => setRmBg(e.target.checked)} />Hapus latar putih otomatis (untuk foto/scan tanda tangan di kertas putih)</label>
       {upErr && <p className="text-[12px] text-red-700">{upErr}</p>}
-      <label className="flex items-start gap-2 text-[12.5px]"><input id="sig-agree" type="checkbox" className="mt-0.5" checked={agree} onChange={e => setAgree(e.target.checked)} /><span>Saya menyatakan telah {/setuju/i.test(roleLabel) ? 'menyetujui' : 'memeriksa'} dokumen perencanaan ini. Tanda tangan dicatat bersama waktu dan sidik dokumen (SHA-256); bila isi proyek diubah, tanda tangan otomatis batal.</span></label>
+      <label className="flex items-start gap-2 text-[12.5px]"><input id="sig-agree" type="checkbox" className="mt-0.5" checked={agree} onChange={e => setAgree(e.target.checked)} /><span>Saya menyatakan telah {/setuju/i.test(roleLabel) ? 'menyetujui' : /periksa/i.test(roleLabel) ? 'memeriksa' : /survey/i.test(roleLabel) && /gambar/i.test(roleLabel) ? 'melakukan survei dan menggambar' : /survey/i.test(roleLabel) ? 'melakukan survei lapangan untuk' : 'menggambar'} dokumen perencanaan ini. Tanda tangan dicatat bersama waktu dan sidik dokumen (SHA-256); bila isi proyek diubah, tanda tangan otomatis batal.</span></label>
       <p className="text-[11px] text-slate-500">Gambar tanda tangan disimpan di perangkat ini untuk dipakai lagi berikutnya. Catatan: ini tanda tangan elektronik internal aplikasi, bukan Tanda Tangan Elektronik tersertifikasi (BSrE/PSrE).</p>
       <div className="flex justify-end gap-2"><Btn variant="outline" onClick={onCancel}>Batal</Btn><Btn variant="primary" icon="FileSignature" disabled={empty || !agree || busy} onClick={go}>{busy ? 'Menandatangani…' : 'Tanda tangani'}</Btn></div>
     </div></div>;
@@ -7757,7 +7889,7 @@ function SignReport({ project }) {
     <td style={{ height: '20mm', textAlign: 'center' }}>{s ? <img src={s.sig} alt="ttd" style={{ maxHeight: '18mm', maxWidth: '50mm' }} /> : ''}</td><td>{s ? dtTxt(s.at) : ''}</td>
     <td style={{ fontFamily: 'monospace', fontSize: '7pt' }}>{s ? `${s.hash.slice(0, 16)}… ${cur ? (cur === s.hash ? '✓ sesuai' : '✗ isi berubah') : ''}` : ''}</td></tr>; };
   return <><h3>Lembar pengesahan</h3><table><thead><tr><th>Peran</th><th>Nama</th><th>Tanda tangan</th><th>Waktu</th><th>Sidik dokumen (SHA-256)</th></tr></thead>
-    <tbody>{row('checker', `Diperiksa (${project.meta.checkedBy || 'Staf LPASL'})`)}{row('approver', `Disetujui (${project.meta.approvedBy || 'Kepala LPASL'})`)}</tbody></table>
+    <tbody>{row('surveyor', 'Disurvei (surveyor)')}{row('drafter', 'Digambar (drafter)')}{row('checker', `Diperiksa (${project.meta.checkedBy || 'Staf LPASL'})`)}{row('approver', `Disetujui (${project.meta.approvedBy || 'Kepala LPASL'})`)}</tbody></table>
     <p style={{ fontSize: '8pt', color: '#555' }}>Tanda tangan elektronik internal aplikasi WASH PMI (bukan TTE tersertifikasi BSrE). Sidik dokumen menunjukkan isi desain tidak berubah sejak ditandatangani.</p></>;
 }
 function ConflictDialog({ info, canOverwrite, onCloud, onMine, onCopy, onClose }) {
@@ -7793,7 +7925,7 @@ function App({ user, api }) {
   const setProject = useCallback((upd, opts = {}) => {
     setProjectRaw(prev => { let next = typeof upd === 'function' ? upd(prev) : upd; if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current);
       if (next !== prev && !opts.system && next.cloud && ['checked', 'approved'].includes(next.cloud.status) && Object.keys(next).some(k => k !== 'ded' ? next[k] !== prev[k] : Object.keys(next.ded).some(j => j !== 'sheet' && next.ded[j] !== prev.ded[j]))) {
-        const who = officerRef.current; next = { ...next, meta: { ...next.meta, checkedName: '', checkedDate: '', approvedName: '', approvedDate: '', checkedSig: '', approvedSig: '' },
+        const who = officerRef.current; next = { ...next, meta: { ...next.meta, checkedName: '', checkedDate: '', approvedName: '', approvedDate: '', checkedSig: '', approvedSig: '', surveyedSig: '', surveyedSigName: '', surveyedDate: '', drawnSig: '', drawnSigName: '', drawnDate: '' },
           cloud: { ...next.cloud, status: 'draft', signs: [], reviews: [...(next.cloud.reviews || []), { at: Date.now(), by: who ? { uid: who.id, name: who.name, role: who.role } : null, from: next.cloud.status, to: 'draft', note: 'Isi proyek diubah setelah ' + (next.cloud.status === 'approved' ? 'disetujui' : 'diperiksa') + '; perlu diajukan ulang.' }] } }; }
       if (next !== prev) { history.current.push(prev); if (history.current.length > 60) history.current.shift(); } return next; });
     setHistLen(history.current.length + 1);
@@ -7828,7 +7960,8 @@ function App({ user, api }) {
   const setOfficerId = useCallback((id) => { setOfficerIdS(id || ''); try { localStorage.setItem(OFFICER_KEY, id || ''); } catch (e) {} }, []);
   const officer = (project.team || []).find(t => t.id === officerId) || null; officerRef.current = officer;
   const [pickOfficer, setPickOfficer] = useState(null);
-  const [userAdmin, setUserAdmin] = useState(false);
+  const [userAdmin, setUserAdmin] = useState(false); const [profileOf, setProfileOf] = useState(null); const [myProfile, setMyProfile] = useState(undefined);
+  useEffect(() => { if (api.getUser) api.getUser(user.uid).then(x => setMyProfile(x?.profile || null)).catch(() => setMyProfile(null)); }, [user.uid]);
   useEffect(() => { if (!user) return;
     const m = { id: user.uid, name: user.name || user.email, role: user.role || OFFICER_ROLES[0], org: user.org || '', phone: user.phone || '', idno: '', email: user.email };
     setProject(p => { const t = p.team || []; const ex = t.find(x => x.id === m.id); return ex ? p : { ...p, team: [...t, m] }; }, { noStamp: true, system: true });
@@ -7984,7 +8117,7 @@ function App({ user, api }) {
   // ---- Simpan otomatis ke perangkat & sinkron ke cloud ----
   const pushCloud = useCallback(async (p, opts = {}) => {
     if (!store) return; const id = p.cloud.id;
-    const rvw = p.cloud.reviewers || {}; const isRv = [rvw.checker?.uid, rvw.approver?.uid].includes(user.uid);
+    const rvw = p.cloud.reviewers || {}; const isRv = [rvw.checker?.uid, rvw.approver?.uid, rvw.surveyor?.uid, rvw.drafter?.uid].includes(user.uid);
     if (p.cloud.ownerUid !== user.uid && !user.admin && !isRv) { if (id === projectRef.current.cloud.id) setSync({ state: 'readonly' }); return; }
     if (!navigator.onLine) { if (id === projectRef.current.cloud.id) setSync({ state: 'offline' }); return; }
     const str = JSON.stringify(p); if (id === projectRef.current.cloud.id) setSync({ state: 'saving' });
@@ -8055,16 +8188,24 @@ function App({ user, api }) {
   const reviewAct = (to, note, extra = {}) => {
     const p0 = projectRef.current; const c0 = p0.cloud; const me = { uid: user.uid, name: user.name || user.email, email: user.email };
     setProject(p => { const c = p.cloud; const meta = { ...p.meta }; let signs = [...(c.signs || [])]; const reviewers = extra.reviewers || c.reviewers || null;
+      if (to === 'assign') return { ...p, cloud: { ...c, reviewers } };
+      if (to === 'sign') { (extra.signs || []).forEach(sg => { const pre = sg.role === 'surveyor' ? 'surveyed' : 'drawn'; meta[pre + 'Sig'] = sg.sig; meta[pre + 'SigName'] = sg.name; meta[pre + 'Date'] = todayStr(); signs = [...signs.filter(x => x.role !== sg.role), sg]; });
+        return { ...p, meta, cloud: { ...c, reviewers, signs, reviews: [...(c.reviews || []), { at: Date.now(), by: { uid: user.uid, name: user.name || user.email, role: user.role || '' }, from: c.status || 'draft', to: c.status || 'draft', note: note || ('Ditandatangani sebagai ' + (extra.signs || []).map(x => x.role === 'surveyor' ? 'surveyor' : 'penggambar').join(' & ')), signed: true }] } }; }
+      const keepPlan = (arr) => arr.filter(x => x.role === 'surveyor' || x.role === 'drafter');
       if (to === 'checked') { meta.checkedName = user.name || user.email; meta.checkedDate = todayStr(); if (extra.sign) meta.checkedSig = extra.sign.sig; }
       if (to === 'approved') { meta.approvedName = user.name || user.email; meta.approvedDate = todayStr(); if (extra.sign) meta.approvedSig = extra.sign.sig; }
       if (to === 'revisi' || to === 'draft' || to === 'review') { meta.approvedName = ''; meta.approvedDate = ''; meta.approvedSig = ''; signs = signs.filter(x => x.role !== 'approver');
-        if (to !== 'review' && (to === 'revisi' || c.status === 'approved')) { meta.checkedName = ''; meta.checkedDate = ''; meta.checkedSig = ''; signs = []; }
-        if (to === 'review') { meta.checkedName = ''; meta.checkedDate = ''; meta.checkedSig = ''; signs = []; } }
+        if (to !== 'review' && (to === 'revisi' || c.status === 'approved')) { meta.checkedName = ''; meta.checkedDate = ''; meta.checkedSig = ''; signs = keepPlan(signs); }
+        if (to === 'review') { meta.checkedName = ''; meta.checkedDate = ''; meta.checkedSig = ''; signs = keepPlan(signs); } }
       if (extra.sign) signs.push(extra.sign);
       return { ...p, meta, cloud: { ...c, status: to, reviewers, signs, reviews: [...(c.reviews || []), { at: Date.now(), by: { uid: user.uid, name: user.name || user.email, role: user.role || '' }, from: c.status || 'draft', to, note, signed: !!extra.sign }] } }; }, { noStamp: true, system: true });
     // Notifikasi otomatis ke orang berikutnya dalam alur
     const rv = extra.reviewers || c0.reviewers || {}; const owner = { uid: c0.ownerUid, email: c0.ownerEmail, name: c0.ownerName }; const nm = p0.meta.name || 'Proyek'; const pid = c0.id;
     const N = (to2, title, body, kind) => sendNotify(api, { to: to2.filter(Boolean), title, body, kind, projectId: pid, from: me }).then(r => { if (r.inbox || r.email || r.push) setToast(`Notifikasi terkirim ke ${to2.filter(Boolean).map(x => x.name || x.email).join(', ')}`); }).catch(() => {});
+    if (to === 'assign') { const tg = [rv.surveyor, rv.drafter].filter(x => x && x.uid && x.uid !== user.uid); const uniq = tg.filter((x, i) => tg.findIndex(y => y.uid === x.uid) === i);
+      if (uniq.length) N(uniq, `Tanda tangani: ${nm}`, `${me.name} menunjuk Anda sebagai ${rv.surveyor?.uid === rv.drafter?.uid ? 'surveyor & penggambar' : 'surveyor/penggambar'} "${nm}". Buka proyek → Status & review → tanda tangani.`, 'review'); return; }
+    if (to === 'sign') { const others = [rv.surveyor, rv.drafter, owner].filter(x => x && x.uid && x.uid !== user.uid); const uniq = others.filter((x, i) => others.findIndex(y => y.uid === x.uid) === i);
+      if (uniq.length) N(uniq, `Ditandatangani: ${nm}`, `${me.name} menandatangani "${nm}" sebagai ${(extra.signs || []).map(x => x.role === 'surveyor' ? 'surveyor' : 'penggambar').join(' & ')}.`, 'info'); return; }
     if (to === 'review' && rv.checker) N([rv.checker], `Periksa proyek: ${nm}`, `${me.name} mengajukan "${nm}" untuk diperiksa dan ditandatangani.${note ? ' Catatan: ' + note : ''}`, 'review');
     if (to === 'checked') { if (rv.approver) N([rv.approver], `Persetujuan proyek: ${nm}`, `"${nm}" sudah diperiksa dan ditandatangani ${me.name}. Mohon diperiksa dan disetujui.`, 'checked'); N([owner], `Proyek diperiksa: ${nm}`, `${me.name} sudah menandatangani pemeriksaan "${nm}"; diteruskan ke ${rv.approver?.name || 'penyetuju'}.`, 'info'); }
     if (to === 'approved') N([owner, rv.checker], `Proyek disetujui: ${nm}`, `"${nm}" sudah disetujui dan ditandatangani ${me.name}.`, 'approved');
@@ -8149,6 +8290,8 @@ function App({ user, api }) {
           <button type="button" id="bell-d" onClick={() => setNotifOpen(true)} title="Notifikasi" className="relative inline-flex items-center rounded-md px-2.5 py-1.5 text-slate-200 hover:bg-white/10 border border-white/10"><Icon name="Bell" size={16} />
             {inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10.5px] font-bold flex items-center justify-center px-1">{inbox.unread + (user.admin ? pendU.pend.length : 0)}</span>}</button>
           {user.admin && <Btn variant="dark" icon="UserRound" onClick={() => setUserAdmin(true)} title="Setujui pendaftar & atur akses">Kelola pengguna{pendU.pend.length ? ` (${pendU.pend.length})` : ''}</Btn>}
+          <button type="button" id="my-profile" onClick={() => setProfileOf(user.uid)} title="Profil saya" className="relative flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10">
+            <Avatar src={myProfile?.photo} name={myProfile?.fullName || user.name} size={22} />Profil{myProfile !== undefined && profileMissing(myProfile).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400" title="Profil belum lengkap" />}</button>
           <Btn variant="dark" icon="X" onClick={logout} title={`Keluar (${user.email})`}>Keluar</Btn>
           <button type="button" onClick={() => setPickOfficer({ then: null })} className="flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10" title="Ganti petugas di perangkat ini">
             <Icon name="UserRound" size={15} />{officer ? <span className="max-w-[160px] truncate">{officer.name}</span> : <span className="text-amber-300">Pilih petugas</span>}</button>
@@ -8218,12 +8361,14 @@ function App({ user, api }) {
       </div></div>}
     {libOpen && <ProjectLibrary user={user} store={store} currentId={project.cloud.id} onClose={() => setLibOpen(false)} onOpen={openProject}
       onNew={(k) => newProject(k === 'example' ? createExampleProject() : createEmptyProject(), k === 'example' ? undefined : 'Proyek baru')} onDuplicate={duplicateProject} onDelete={deleteProject} onImport={() => { setLibOpen(false); fileRef.current.click(); }} />}
-    {reviewOpen && <ReviewDialog project={project} user={user} api={api} onClose={() => setReviewOpen(false)} onAct={(to, note, extra) => { reviewAct(to, note, extra); setToast(`Status proyek: ${PSTATUS[to][0]}`); }} />}
+    {reviewOpen && <ReviewDialog project={project} user={user} api={api} onClose={() => setReviewOpen(false)} onAct={(to, note, extra) => { reviewAct(to, note, extra); setToast(to === 'sign' ? 'Tanda tangan tersimpan' : to === 'assign' ? 'Penunjukan disimpan' : `Status proyek: ${PSTATUS[to][0]}`); setTimeout(() => { if (store) pushCloud(projectRef.current); }, 400); }} />}
     {conflict && <ConflictDialog info={conflict} canOverwrite={conflict.project.cloud.ownerUid === user.uid || user.admin} onClose={() => setConflict(null)}
       onCloud={async () => { try { const r = await store.load(conflict.project.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(r.project.cloud.id, { rev: r.rev, dirty: false }); if (conflict.project.cloud.id === projectRef.current.cloud.id) switchTo(r.project); setConflict(null); setSync({ state: 'saved', at: new Date() }); } catch (e) { setToast(e.message); } }}
       onMine={async () => { const p = conflict.project; setConflict(null); await pushCloud(p, { overwrite: true }); }}
       onCopy={async () => { const mine = conflict.project; setConflict(null); try { const r = await store.load(mine.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(r.project.cloud.id, { rev: r.rev, dirty: false }); } catch (e) {} newProject(mine, mine.meta.name + ' (versi saya)'); }} />}
-    {userAdmin && <UserAdminDialog api={api} me={user} onClose={() => setUserAdmin(false)} />}
+    {userAdmin && <UserAdminDialog api={api} me={user} onClose={() => setUserAdmin(false)} onProfile={id => setProfileOf(id)} />}
+    {profileOf && <ProfileDialog api={api} me={user} targetUid={profileOf} onClose={() => setProfileOf(null)} onSaved={pf => { if (profileOf === user.uid) setMyProfile(pf); }}
+      projects={profileOf === user.uid ? localLib.list(user.uid).filter(x => x.ownerUid === user.uid || !x.ownerUid) : []} />}
     {deviceDlg && <DeviceDialog onClose={() => setDeviceDlg(false)} install={installEvt ? install : null} shareData={shareData} />}
     {menuOpen && <div className="fixed inset-0 z-[1900] bg-black/40" onClick={() => setMenuOpen(false)}>
       <div className="absolute right-0 top-0 bottom-0 w-[86%] max-w-[340px] bg-white overflow-y-auto" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }} onClick={e => e.stopPropagation()}>
@@ -8248,6 +8393,7 @@ function App({ user, api }) {
           ['Download', 'Unduh .json', saveFile],
           ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []),
           ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)],
+          ['IdCard', 'Profil saya', () => setProfileOf(user.uid)],
           ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []),
           ['Building2', 'Data proyek', () => setDialog(true)],
           ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)],
