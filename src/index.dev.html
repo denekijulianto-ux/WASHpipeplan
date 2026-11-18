@@ -1018,7 +1018,7 @@ function computeBoQ(project, hyd) {
 //   items[] item tambahan {id, sec, desc, vol, unit}, sections[] bagian tambahan {id, title}, titles{sid} judul bagian.
 function buildRAB(project, boq) {
   const P = project.prices || {}; const E = project.rabEdits || {};
-  const H = E.hidden || {}, DS = E.desc || {}, VO = E.vol || {}, UN = E.unit || {}, TT = E.titles || {}, TI = E.tier || {}; const tAll = TIERS[E.tierAll] ? E.tierAll : 'ideal';
+  const H = E.hidden || {}, DS = E.desc || {}, VO = E.vol || {}, UN = E.unit || {}, TT = E.titles || {}, TI = E.tier || {}, PK = E.pack || {}; const tAll = TIERS[E.tierAll] ? E.tierAll : 'ideal';
   // Urutan harga: diisi manual > item SHS tertaut > harga bawaan × faktor IKK provinsi
   const sh = shsOf(project); const F = shsFactor(sh); const shsMap = Object.fromEntries((sh.items || []).map(x => [x.code, x]));
   const mk = (sid) => (key, desc, vol, unit, def) => {
@@ -1028,7 +1028,7 @@ function buildRAB(project, boq) {
     if (spec && tier !== 'ideal' && /^pipe\|/.test(key)) desc = desc.replace(/^Pipa .*? Ø/, 'Pipa ' + spec[tier].s.split(/[,(]/)[0].trim() + ' Ø');
     const base = base0 && tf !== 1 ? Math.max(100, Math.round(base0 * tf / 100) * 100) : base0;
     const price = P[key] !== undefined ? +P[key] : base; const psrc = P[key] !== undefined ? 'manual' : link ? 'shs' : F !== 1 ? 'ikk' : 'default';
-    return { key, ek, shsCode: link ? link.code : null, psrc, base, base0, spec, tier, specText: spec ? spec[tier].s : '', desc: DS[ek] ?? desc, autoDesc: desc, vol: v, autoVol, unit: UN[ek] ?? unit, autoUnit: unit, price, def, amount: v * price,
+    const uu = UN[ek] ?? unit; return { key, ek, shsCode: link ? link.code : null, psrc, base, base0, spec, tier, specText: spec ? spec[tier].s : '', pack: PK[ek] !== undefined ? PK[ek] : packOf(key, DS[ek] ?? desc, uu, v), autoPack: packOf(key, DS[ek] ?? desc, uu, v), edPack: PK[ek] !== undefined, desc: DS[ek] ?? desc, autoDesc: desc, vol: v, autoVol, unit: UN[ek] ?? unit, autoUnit: unit, price, def, amount: v * price,
       edDesc: DS[ek] !== undefined, edVol: VO[ek] !== undefined && VO[ek] !== '', edUnit: UN[ek] !== undefined, hidden: !!H[ek] };
   };
   const L = boq.totalLength;
@@ -1059,7 +1059,7 @@ function buildRAB(project, boq) {
   (E.items || []).forEach(ci => {
     const sc = sections.find(x => x.sid === ci.sec) || sections.find(x => x.custom) || sections[0]; const key = 'cu|' + ci.id;
     const v = round2(+ci.vol || 0); const price = P[key] !== undefined ? +P[key] : 0;
-    sc.items.push({ key, ek: sc.sid + '::' + key, desc: ci.desc || '', autoDesc: ci.desc, vol: v, autoVol: v, unit: ci.unit || '', price, def: 0, amount: v * price, custom: true, cid: ci.id });
+    sc.items.push({ key, ek: sc.sid + '::' + key, desc: ci.desc || '', autoDesc: ci.desc, vol: v, autoVol: v, unit: ci.unit || '', pack: ci.pack !== undefined ? ci.pack : packOf(key, ci.desc, ci.unit, v), price, def: 0, amount: v * price, custom: true, cid: ci.id });
   });
   sections.forEach((x, i) => { x.code = roman(i + 1); x.hiddenItems = x.items.filter(it => it.hidden); x.items = x.items.filter(it => !it.hidden); x.subtotal = x.items.reduce((a, it) => a + it.amount, 0); });
   const total = sections.reduce((a, x) => a + x.subtotal, 0);
@@ -1945,6 +1945,42 @@ function pumpAllin(n, pr) { const det = [...pumpItems(n, pr), ...pumpExtras(n, p
   return { det, sub, cont, total: sub + cont, perM: (sub + cont) / Math.max(1, pp.depth), groups }; }
 function allinItem(n, pr) { const pp = pumpP(n); const a = pumpAllin(n, pr); const sp = boreSpec(n, pr);
   return ['pump|allin', `Paket sumur bor all-in ${n.label}: survei geolistrik & izin, mobilisasi rig, bor Ø${pp.casing + 4}" sampai ${fmt(pp.depth, 0)} m, casing & saringan Ø${pp.casing}", gravel pack, sanitary seal, logging, uji pompa & lab, pompa submersible ${sp.pumpDia}" ${fmt(pr.motor, 2)} kW (${hpOf(pr.motor)} HP) ${sp.ph} fasa, panel, kabel, riser, kepala sumur, rumah pompa${pp.solar ? ', PLTS' : ', sambungan listrik'}, termasuk cadangan 10%`, 1, 'paket', r500(a.total)]; }
+
+/* ---------- 4t. KEMASAN / QTY PEMBELIAN material RAB (roll, batang, zak, karung, lembar, pcs) ---------- */
+// Panjang kemasan pipa (m): HDPE gulungan ≤ Ø63 100 m, Ø75–Ø110 50 m, ≥ Ø125 batang 6 m; PVC batang 4 m; GI batang 6 m; PE fleksibel gulungan 100 m
+const PIPE_PACK = (mat, d) => mat === 'HDPE' ? (d <= 63 ? [100, 'roll'] : d <= 110 ? [50, 'roll'] : [6, 'batang']) : mat === 'PVC' ? [4, 'batang'] : mat === 'GIP' ? [6, 'batang'] : [100, 'roll'];
+// Komposisi per m³ beton (perkiraan AHSP/SNI 7394): semen kg, pasir m³, kerikil m³
+const MIX = { 100: [247, 0.62, 0.74], 125: [276, 0.59, 0.75], 175: [326, 0.54, 0.76], 225: [371, 0.50, 0.78], 250: [384, 0.49, 0.77], 300: [413, 0.49, 0.76], 350: [439, 0.47, 0.76] };
+const REBAR_KG = { 8: 0.395, 10: 0.617, 12: 0.888, 13: 1.042, 16: 1.578, 19: 2.226, 22: 2.984 };
+const nf1 = (v) => fmt(v, v < 10 ? 1 : 0); const cz = (kg) => Math.max(1, Math.ceil(kg / 50 - 0.05));
+function packOf(key, desc, unit, vol) {
+  const k = String(key || ''), d = String(desc || ''), v = +vol || 0; if (v <= 0) return '';
+  const p = k.split('|');
+  const pipe = (mat, dia) => { const [L, nm] = PIPE_PACK(mat, dia); return `${Math.ceil(v / L - 1e-6)} ${nm} (@ ${L} m)`; };
+  if (p[0] === 'pipe') return pipe(p[1], +p[2]);
+  if (p[0] === 'pump' && p[1] === 'riser') return pipe(/HDPE/.test(d) ? 'HDPE' : /PVC/.test(d) ? 'PVC' : 'GIP', +(d.match(/Ø\s?(\d+)/) || [])[1] || 50);
+  if (p[0] === 'pump' && p[1] === 'cable' || /^kabel/i.test(d)) { const L = v > 60 ? 100 : 50; return `${Math.ceil(v / L - 1e-6)} roll (@ ${L} m) atau potong ${fmt(Math.ceil(v), 0)} m`; }
+  if (/galian|urugan tanah|mobilisasi|pengukuran|uji |flushing|dokumentasi|upah|smkk|perizinan|survei|logging|pengeboran|pembersihan/i.test(d)) return '';
+  const km = d.match(/K-?\s?(\d{3})/i); const lk = /lantai kerja/i.test(d);
+  if (/beton/i.test(d) && unit === 'm³') { const kk = lk ? 100 : km ? +km[1] : 225; const m = MIX[kk] || MIX[Object.keys(MIX).map(Number).reduce((a, b) => Math.abs(b - kk) < Math.abs(a - kk) ? b : a)];
+    return `semen ${(cz(m[0] * v))} zak (50 kg) · pasir ${nf1(m[1] * v)} m³ · kerikil/split ${nf1(m[2] * v)} m³`; }
+  if (/pembesian|besi|bjts|bjtp|tulangan/i.test(d) && unit === 'kg') { const dm = +(d.match(/D(\d{1,2})/) || [])[1] || 13; const w = (REBAR_KG[dm] || 1.042) * 12;
+    return `± ${Math.ceil(v / w)} batang D${dm} (12 m, ${fmt(w, 1)} kg) · kawat bendrat ± ${Math.ceil(v * 0.015)} kg`; }
+  if (/bekisting|multiplek/i.test(d) && unit === 'm²') return `± ${Math.ceil(v / 2.98 * 1.1)} lembar multiplek 1,22 × 2,44 m (+ kayu kaso)`;
+  if (/plester/i.test(d) && unit === 'm²') { const r = /1:2/.test(d) ? [10.22, 0.020] : /1:3/.test(d) ? [7.78, 0.023] : [6.24, 0.024]; const ac = /acian/i.test(d) ? 3.25 : 0;
+    return `semen ${(cz((r[0] + ac) * v))} zak (50 kg) · pasir pasang ${nf1(r[1] * v)} m³`; }
+  if (/pasangan batu/i.test(d) && unit === 'm³') return `batu kali ${nf1(1.2 * v)} m³ · semen ${(cz(163 * v))} zak · pasir ${nf1(0.52 * v)} m³`;
+  if (/pasangan bata|bata/i.test(d) && unit === 'm²') return `bata merah ± ${Math.ceil(70 * v)} bh · semen ${(cz(11.5 * v))} zak · pasir ${nf1(0.043 * v)} m³`;
+  if (/pasir silika|media|karbon aktif|greensand|zeolit|alumina|resin|kerikil penyangga/i.test(d) && unit === 'kg') return `± ${Math.ceil(v / 25)} sak (@ 25 kg)`;
+  if (/pasir.*(silika|saringan|gradasi)|kerikil.*(gradasi|filter|dicuci|kuarsa)|filter kerikil/i.test(d) && unit === 'm³') return `± ${Math.ceil(v * 1600 / 25)} sak (@ 25 kg) ≈ ${nf1(v)} m³`;
+  if (/pasir|urugan|kerikil|split|batu/i.test(d) && unit === 'm³') return v >= 3 ? `± ${Math.ceil(v / 6)} truk dump (± 6 m³)` : v >= 1 ? `± ${Math.ceil(v / 1.5)} mobil bak/pick-up (± 1,5 m³) atau ${Math.ceil(v * 35)} karung` : `± ${Math.ceil(v * 35)} karung (± 40 kg)`;
+  if (/karbon aktif|media|pasir|kerikil/i.test(d) && unit === 'kg') return `± ${Math.ceil(v / 25)} sak (@ 25 kg)`;
+  if (['bh', 'buah', 'pcs'].includes(unit)) return `${Math.ceil(v)} pcs`;
+  if (['unit', 'set', 'paket', 'titik', 'modul', 'SR', 'KK'].includes(unit)) return `${Math.ceil(v)} ${unit}`;
+  if (unit === "m'" && /pipa/i.test(d)) { const mat = /HDPE/.test(d) ? 'HDPE' : /PVC/.test(d) ? 'PVC' : /GI/.test(d) ? 'GIP' : 'PVC'; return pipe(mat, +(d.match(/Ø\s?(\d+)/) || [])[1] || 50); }
+  if (unit === 'ls') return '1 paket';
+  return '';
+}
 
 /* ---------- 4y. ACUAN STANDAR (SNI) & PEMERIKSAAN KRITERIA DESAIN ---------- */
 // verify: judul/tahun edisi belum dicocokkan dengan dokumen resmi di aplikasi; periksa di katalog BSN (bsn.go.id) atau salinan resmi.
@@ -4382,11 +4418,11 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
       <Icon name="Info" size={15} /><span className="flex-1 min-w-[240px]">Mode edit: ubah uraian, volume, dan satuan langsung di tabel; <b>Tambah item</b> di tiap bagian; ikon tempat sampah menghapus item. Ikon <Icon name="RotateCcw" size={12} className="inline" /> mengembalikan nilai otomatis. Volume yang diubah tidak lagi ikut berubah saat desain berubah.</span>
       {nEd > 0 && (confirmReset ? <><Btn variant="danger" onClick={() => { setProject(p => ({ ...p, rabEdits: {} })); setConfirmReset(false); }}>Ya, kembalikan semua</Btn><Btn variant="outline" onClick={() => setConfirmReset(false)}>Batal</Btn></>
         : <Btn variant="outline" icon="RotateCcw" onClick={() => setConfirmReset(true)}>Kembalikan semua item ke otomatis</Btn>)}</div>}
-    <table className="tp-table"><thead><tr><th className="w-10">No</th><th>Uraian pekerjaan</th><th className="r">Volume</th><th>Sat.</th><th className="r w-44">Harga satuan (Rp)</th><th className="r">Jumlah harga (Rp)</th>{edit && <th className="w-10" />}</tr></thead>
+    <table className="tp-table"><thead><tr><th className="w-10">No</th><th>Uraian pekerjaan</th><th className="r">Volume</th><th>Sat.</th><th className="min-w-[150px]">Kemasan / qty beli</th><th className="r w-44">Harga satuan (Rp)</th><th className="r">Jumlah harga (Rp)</th>{edit && <th className="w-10" />}</tr></thead>
       <tbody>
         {rab.sections.map(sec => <Fragment key={sec.sid}>
           <tr className="bg-ground"><td className="font-semibold">{sec.code}</td>
-            <td className="font-semibold" colSpan={4}>{edit ? <div className="flex items-center gap-1.5"><input id={'rab-t-' + sec.sid} className="tp-field font-semibold !py-1" value={sec.title}
+            <td className="font-semibold" colSpan={5}>{edit ? <div className="flex items-center gap-1.5"><input id={'rab-t-' + sec.sid} className="tp-field font-semibold !py-1" value={sec.title}
                 onChange={e => sec.custom ? setE(x => ({ ...x, sections: x.sections.map(c => c.id === sec.csId ? { ...c, title: e.target.value } : c) })) : setMap('titles', sec.sid, e.target.value)} />
               {!sec.custom && <Reset on={sec.title !== sec.autoTitle} title="Kembalikan judul otomatis" onClick={() => setMap('titles', sec.sid, undefined)} />}</div> : sec.title}</td>
             <td className="r font-semibold">{fmt(sec.subtotal, 0)}</td>
@@ -4403,22 +4439,24 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
               : <span title={it.edVol ? `Volume otomatis: ${fmt(it.autoVol, 2)}` : undefined}>{fmt(it.vol, 2)}</span>}</td>
             <td>{edit ? <div className="flex items-center gap-1"><input id={'rab-u-' + it.ek} className="tp-field !py-1 !w-16" value={it.unit} onChange={e => it.custom ? updCustom(it.cid, { unit: e.target.value }) : setMap('unit', it.ek, e.target.value)} />
                 {!it.custom && <Reset on={it.edUnit} title="Kembalikan satuan otomatis" onClick={() => setMap('unit', it.ek, undefined)} />}</div> : it.unit}</td>
+            <td className="whitespace-normal text-[11.5px] text-slate-600 min-w-[150px]">{edit ? <div className="flex items-start gap-1"><textarea id={'rab-p-' + it.ek} rows={1} className="tp-field !py-1 !text-[11.5px] resize-y" value={it.pack || ''} placeholder="mis. 2 roll (@ 100 m)"
+                onChange={e => it.custom ? updCustom(it.cid, { pack: e.target.value }) : setMap('pack', it.ek, e.target.value)} />{!it.custom && <Reset on={it.edPack} title="Kembalikan kemasan otomatis" onClick={() => setMap('pack', it.ek, undefined)} />}</div> : it.pack}</td>
             <td className="r py-1"><PriceField id={'price-' + sec.sid + '-' + it.key} value={it.price} edited={project.prices[it.key] !== undefined} onChange={v => setPrice(it.key, v)} />
               {(it.shsCode || (edit && hasShs)) && <button type="button" onClick={() => setShsPick(it)} title={it.shsCode ? `Harga SHS ${it.shsCode}` : 'Tautkan ke item SHS'} className={'mt-0.5 text-[10.5px] font-semibold rounded px-1.5 ' + (it.shsCode ? 'bg-aqua-50 text-aqua-800 border border-aqua-200' : 'text-slate-500 border border-dashed border-slate-300')}>{it.shsCode ? 'SHS ' + it.shsCode.slice(-14) : '+ SHS'}</button>}</td>
             <td className="r">{fmt(it.amount, 0)}</td>
             {edit && <td><Btn variant="ghost" icon="Trash2" title={it.custom ? 'Hapus item tambahan' : 'Hapus item dari RAB (bisa ditampilkan kembali)'} onClick={() => removeItem(it)} /></td>}
           </tr>)}
-          {edit && <tr><td /><td colSpan={6} className="py-1.5"><div className="flex flex-wrap items-center gap-3">
+          {edit && <tr><td /><td colSpan={7} className="py-1.5"><div className="flex flex-wrap items-center gap-3">
             <button type="button" className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-aqua-700 hover:underline" onClick={() => addItem(sec.sid)}><Icon name="CirclePlus" size={14} />Tambah item di bagian {sec.code}</button>
             {sec.hiddenItems.length > 0 && <button type="button" className="text-[12.5px] text-slate-500 hover:underline" onClick={() => setShowHidden(h => ({ ...h, [sec.sid]: !h[sec.sid] }))}>{sec.hiddenItems.length} item dihapus {showHidden[sec.sid] ? '▴' : '▾'}</button>}</div>
             {showHidden[sec.sid] && <div className="mt-1.5 space-y-1">{sec.hiddenItems.map(h => <div key={h.ek} className="flex items-center gap-2 text-[12.5px] text-slate-500"><span className="line-through flex-1">{h.desc}</span>
               <button type="button" className="font-semibold text-aqua-700 hover:underline shrink-0" onClick={() => setMap('hidden', h.ek, undefined)}>Tampilkan kembali</button></div>)}</div>}</td></tr>}
         </Fragment>)}
-        {edit && <tr><td /><td colSpan={6} className="py-2"><Btn variant="outline" icon="CirclePlus" onClick={addSection}>Tambah bagian pekerjaan</Btn></td></tr>}
-        <tr><td /><td colSpan={4} className="text-right font-semibold">JUMLAH</td><td className="r font-semibold">{fmt(rab.total, 0)}</td>{edit && <td />}</tr>
-        <tr><td /><td colSpan={4} className="text-right">PPN {s.ppnPct}%</td><td className="r">{fmt(rab.ppn, 0)}</td>{edit && <td />}</tr>
-        <tr><td /><td colSpan={4} className="text-right font-semibold">TOTAL</td><td className="r font-semibold">{fmt(rab.grand, 0)}</td>{edit && <td />}</tr>
-        <tr className="bg-aqua-50"><td /><td colSpan={4} className="text-right font-bold text-aqua-800">DIBULATKAN</td><td className="r font-bold text-aqua-800 text-[14px]">{fmt(rab.rounded, 0)}</td>{edit && <td />}</tr>
+        {edit && <tr><td /><td colSpan={7} className="py-2"><Btn variant="outline" icon="CirclePlus" onClick={addSection}>Tambah bagian pekerjaan</Btn></td></tr>}
+        <tr><td /><td colSpan={5} className="text-right font-semibold">JUMLAH</td><td className="r font-semibold">{fmt(rab.total, 0)}</td>{edit && <td />}</tr>
+        <tr><td /><td colSpan={5} className="text-right">PPN {s.ppnPct}%</td><td className="r">{fmt(rab.ppn, 0)}</td>{edit && <td />}</tr>
+        <tr><td /><td colSpan={5} className="text-right font-semibold">TOTAL</td><td className="r font-semibold">{fmt(rab.grand, 0)}</td>{edit && <td />}</tr>
+        <tr className="bg-aqua-50"><td /><td colSpan={5} className="text-right font-bold text-aqua-800">DIBULATKAN</td><td className="r font-bold text-aqua-800 text-[14px]">{fmt(rab.rounded, 0)}</td>{edit && <td />}</tr>
       </tbody></table>
     <div className="px-4 py-3 text-[13px] border-t border-line"><span className="text-slate-500">Terbilang: </span><i className="font-medium">{terbilang(rab.rounded)}</i></div>
     <div className="px-4 pb-1 text-[12px] text-slate-500">Tingkat spesifikasi: <b>Minimal</b> = mutu terendah yang masih layak, <b>Ideal</b> = rekomendasi (harga bawaan), <b>Maksimal</b> = mutu premium/umur pakai terpanjang. Harga satuan otomatis menyesuaikan tingkat (kecuali harga yang diisi manual).</div>
@@ -5599,6 +5637,123 @@ function SheetAerator({ project, t, d, sheetNo, sheetTotal }) {
   </Sheet>;
 }
 
+/* ---------- Gambar DED: detail visual fitting & aksesoris jaringan ---------- */
+// Setiap gambar digambar di kotak lokal 0..64 × 0..56 (mm kertas), skala tidak tertera (ilustratif)
+const FT = { pipe: '#e2e6ea', body: '#5b7fa6', body2: '#7e9cbf', red: '#c8102e', brass: '#d4a73c', conc: 'url(#pat-concrete)', stroke: '#1f2937' };
+const fs = (o = {}) => ({ stroke: FT.stroke, strokeWidth: 0.3, ...o });
+const PipeH = ({ x1, x2, y, d = 6 }) => <rect x={Math.min(x1, x2)} y={y - d / 2} width={Math.abs(x2 - x1)} height={d} fill={FT.pipe} {...fs()} />;
+const PipeV = ({ y1, y2, x, d = 6 }) => <rect x={x - d / 2} y={Math.min(y1, y2)} width={d} height={Math.abs(y2 - y1)} fill={FT.pipe} {...fs()} />;
+const Flange = ({ x, y, h = 12, w = 1.8 }) => <g><rect x={x - w / 2} y={y - h / 2} width={w} height={h} fill={FT.body2} {...fs()} />{[-h / 2 + 1.6, h / 2 - 1.6].map((dy, i) => <circle key={i} cx={x} cy={y + dy} r={0.45} fill="#fff" {...fs({ strokeWidth: 0.15 })} />)}</g>;
+const Lbl = ({ x, y, t, tx, ty, anchor = 'start' }) => <g><line x1={x} y1={y} x2={tx} y2={ty} stroke="#444" strokeWidth={0.15} /><circle cx={x} cy={y} r={0.35} fill="#444" /><text x={tx + (anchor === 'start' ? 0.6 : -0.6)} y={ty + 0.6} fontSize={1.5} textAnchor={anchor} fill="#222">{t}</text></g>;
+const Flow = ({ x1, x2, y }) => <path d={`M${x1} ${y} L${x2} ${y}`} stroke="#0b4fa8" strokeWidth={0.5} fill="none" markerEnd="url(#arr)" />;
+const FIT_DRAW = {
+  gv: { t: 'Katup sorong (gate valve) flens', sym: 'gate_valve', kind: 'gv', key: 'fit|gv', d: () => <g>
+    <PipeH x1={2} x2={20} y={38} /><PipeH x1={44} x2={62} y={38} /><Flange x={20} y={38} /><Flange x={44} y={38} />
+    <path d="M21 31 L43 31 L43 45 L21 45 Z" fill={FT.body} {...fs()} /><path d="M26 31 L38 31 L36 20 L28 20 Z" fill={FT.body} {...fs()} />
+    <rect x={31.3} y={9} width={1.4} height={11} fill="#9ca3af" {...fs({ strokeWidth: 0.2 })} /><ellipse cx={32} cy={9} rx={9} ry={2.2} fill="none" stroke={FT.red} strokeWidth={1.1} />
+    <Lbl x={32} y={9} tx={46} ty={6} t="Roda tangan" /><Lbl x={32} y={16} tx={46} ty={12} t="Spindel (stem SS)" /><Lbl x={36} y={25} tx={50} ty={18} t="Bonnet" /><Lbl x={40} y={42} tx={48} ty={52} t="Badan ductile iron" /><Lbl x={20} y={33} tx={4} ty={24} t="Flens PN16" anchor="start" />
+    <Flow x1={4} x2={14} y={46} /></g> },
+  av: { t: 'Katup udara (air valve) + tee & stop kran', sym: 'air_valve', kind: 'av', key: 'fit|av', d: () => <g>
+    <PipeH x1={2} x2={62} y={46} d={7} /><PipeV x={32} y1={42.5} y2={30} d={4.5} />
+    <path d="M28 30 L36 30 L36 26 L28 26 Z" fill={FT.brass} {...fs()} /><rect x={36} y={27} width={6} height={1.2} fill={FT.red} {...fs({ strokeWidth: 0.2 })} />
+    <path d="M27 26 L37 26 L37 14 Q37 9 32 9 Q27 9 27 14 Z" fill={FT.body} {...fs()} /><rect x={30.5} y={5.5} width={3} height={3.5} fill="#9ca3af" {...fs()} />
+    {[0, 1, 2].map(i => <path key={i} d={`M${30 + i * 2} 5 q-1 -2 0 -3.5`} stroke="#94a3b8" strokeWidth={0.3} fill="none" />)}
+    <Lbl x={32} y={14} tx={44} ty={12} t="Badan air valve (double orifice)" /><Lbl x={28} y={28} tx={8} ty={24} t="Stop kran / ball valve" anchor="start" /><Lbl x={32} y={6} tx={44} ty={5} t="Lubang buang udara" /><Lbl x={32} y={44} tx={44} ty={38} t="Tee pada pipa utama (titik tertinggi)" />
+    <Flow x1={4} x2={14} y={53} /></g> },
+  wo: { t: 'Penguras (wash out) + katup & pipa buang', sym: 'wash_out', kind: 'wo', key: 'fit|wo', d: () => <g>
+    <PipeH x1={2} x2={62} y={16} d={7} /><PipeV x={32} y1={19.5} y2={28} d={5} /><path d="M27 28 L37 28 L37 36 L27 36 Z" fill={FT.body} {...fs()} /><rect x={31.3} y={36} width={1.4} height={4} fill="#9ca3af" {...fs()} /><ellipse cx={32} cy={41} rx={5} ry={1.2} fill="none" stroke={FT.red} strokeWidth={0.9} />
+    <path d="M37 32 L56 32 L56 50" fill="none" stroke={FT.stroke} strokeWidth={4.6} strokeLinejoin="round" /><path d="M37 32 L56 32 L56 50" fill="none" stroke={FT.pipe} strokeWidth={4} strokeLinejoin="round" />
+    <path d="M50 50 L62 50 L62 55 L50 55 Z" fill="#d6ebf8" {...fs({ strokeWidth: 0.2 })} /><text x={56} y={54} fontSize={1.4} textAnchor="middle">saluran / sumur resapan</text>
+    <Lbl x={32} y={18} tx={8} ty={8} t="Tee pada titik terendah" anchor="start" /><Lbl x={27} y={32} tx={4} ty={40} t="Gate valve penguras" anchor="start" /><Lbl x={46} y={32} tx={44} ty={26} t="Pipa buang" /></g> },
+  tee: { t: 'Tee (percabangan) sama / reduksi', sym: 'junction', kind: 'tee', key: 'fit|tee', d: () => <g>
+    <PipeH x1={4} x2={60} y={36} d={8} /><PipeV x={32} y1={32} y2={10} d={8} />
+    {[[14, 36, 'h'], [50, 36, 'h'], [32, 18, 'v']].map(([x, y, o], i) => o === 'h' ? <rect key={i} x={x - 3} y={y - 5} width={6} height={10} fill={FT.body2} {...fs()} /> : <rect key={i} x={x - 5} y={y - 3} width={10} height={6} fill={FT.body2} {...fs()} />)}
+    <Lbl x={14} y={31} tx={4} ty={24} t="Ujung sambungan (butt fusion / socket)" anchor="start" /><Lbl x={32} y={36} tx={40} ty={50} t="Badan tee" /><text x={32} y={8} fontSize={1.5} textAnchor="middle">cabang</text>
+    <Flow x1={6} x2={16} y={44} /></g> },
+  bend: { t: 'Bend / elbow 90° · 45° · 22,5° · 11,25°', sym: 'bend', kind: 'bend', key: 'fit|bend', d: () => <g>
+    <path d="M4 44 L18 44 Q30 44 30 32 L30 18" fill="none" stroke={FT.stroke} strokeWidth={7.2} /><path d="M4 44 L18 44 Q30 44 30 32 L30 18" fill="none" stroke={FT.pipe} strokeWidth={6.4} />
+    <path d="M38 44 L48 44 L58 34" fill="none" stroke={FT.stroke} strokeWidth={7.2} strokeLinejoin="round" /><path d="M38 44 L48 44 L58 34" fill="none" stroke={FT.pipe} strokeWidth={6.4} strokeLinejoin="round" />
+    <text x={20} y={53} fontSize={1.7} textAnchor="middle" fontWeight={700}>90°</text><text x={50} y={53} fontSize={1.7} textAnchor="middle" fontWeight={700}>45°</text>
+    <Lbl x={27} y={38} tx={36} ty={20} t="Jari-jari belokan" /><text x={32} y={8} fontSize={1.45} textAnchor="middle">Pipa HDPE/PE fleksibel boleh dilengkungkan</text><text x={32} y={10.5} fontSize={1.45} textAnchor="middle">tanpa bend bila jari-jari ≥ 25 × Ø pipa</text></g> },
+  reducer: { t: 'Reducer (peralihan diameter)', sym: 'junction', kind: 'reducer', key: 'fit|reducer', d: () => <g>
+    <PipeH x1={4} x2={24} y={32} d={12} /><path d="M24 26 L40 29 L40 35 L24 38 Z" fill={FT.body2} {...fs()} /><PipeH x1={40} x2={60} y={32} d={6} />
+    <Lbl x={14} y={26} tx={6} ty={16} t="Ø besar (hulu)" anchor="start" /><Lbl x={32} y={29} tx={30} ty={14} t="Reducer konsentris" /><Lbl x={50} y={29} tx={46} ty={22} t="Ø kecil (hilir)" />
+    <Flow x1={6} x2={16} y={44} /></g> },
+  endcap: { t: 'End cap / dop (ujung pipa)', sym: 'junction', kind: 'endcap', key: 'fit|endcap', d: () => <g>
+    <PipeH x1={6} x2={40} y={32} d={8} /><path d="M40 27 L46 27 Q50 27 50 32 Q50 37 46 37 L40 37 Z" fill={FT.body2} {...fs()} />
+    <Lbl x={46} y={30} tx={50} ty={20} t="Dop / end cap" /><text x={32} y={48} fontSize={1.45} textAnchor="middle">Ujung buntu wajib diberi thrust block</text></g> },
+  thrust: { t: 'Thrust block beton (penahan dorongan)', sym: 'bend', kind: 'thrust', key: 'fit|thrust', d: () => <g>
+    <rect x={0} y={4} width={64} height={50} fill="url(#pat-soil)" opacity={0.35} />
+    <path d="M4 40 L20 40 Q30 40 30 30 L30 8" fill="none" stroke={FT.stroke} strokeWidth={7.2} /><path d="M4 40 L20 40 Q30 40 30 30 L30 8" fill="none" stroke={FT.pipe} strokeWidth={6.4} />
+    <path d="M22 44 L38 44 L42 30 L36 22 L33 34 Q30 44 22 44 Z" fill={FT.conc} {...fs()} />
+    <path d="M24 32 L40 48" stroke={FT.red} strokeWidth={0.6} markerEnd="url(#arr)" /><text x={42} y={52} fontSize={1.45} fill={FT.red}>arah gaya dorong</text>
+    <Lbl x={38} y={36} tx={46} ty={26} t="Beton K-175 menempel tanah asli" /></g> },
+  box: { t: 'Box pengaman katup (potongan)', sym: 'gate_valve', kind: 'box', key: 'fit|box', d: () => <g>
+    <rect x={0} y={12} width={64} height={42} fill="url(#pat-soil)" opacity={0.35} /><line x1={0} x2={64} y1={12} y2={12} stroke="#5b4421" strokeWidth={0.5} />
+    <path d="M14 10 L50 10 L50 50 L46 50 L46 14 L18 14 L18 50 L14 50 Z" fill="#c9785b" {...fs()} /><rect x={14} y={50} width={36} height={3} fill={FT.conc} {...fs()} />
+    <rect x={13} y={8} width={38} height={2} fill="#6b7280" {...fs()} /><PipeH x1={0} x2={64} y={42} d={5} /><path d="M27 37 L37 37 L37 47 L27 47 Z" fill={FT.body} {...fs()} /><rect x={31.3} y={30} width={1.4} height={7} fill="#9ca3af" {...fs()} />
+    <Lbl x={30} y={9} tx={40} ty={4} t="Tutup pelat besi + gembok" /><Lbl x={16} y={30} tx={2} ty={22} t="Pasangan bata diplester" anchor="start" /><Lbl x={36} y={51} tx={50} ty={56} t="Dasar beton + lubang resap" /></g> },
+  check: { t: 'Katup searah (check valve / swing)', sym: 'check', kind: null, key: 'fit|check', d: () => <g>
+    <PipeH x1={2} x2={20} y={32} /><PipeH x1={44} x2={62} y={32} /><Flange x={20} y={32} /><Flange x={44} y={32} />
+    <path d="M21 24 L43 24 L43 40 L21 40 Z" fill={FT.body} {...fs()} /><path d="M30 24 L36 37" stroke="#f1f5f9" strokeWidth={1.2} /><circle cx={30} cy={24.5} r={0.8} fill="#f1f5f9" />
+    <Lbl x={33} y={30} tx={40} ty={14} t="Klep ayun (mencegah aliran balik)" /><Flow x1={6} x2={16} y={44} /><text x={32} y={50} fontSize={1.45} textAnchor="middle">Dipasang setelah pompa & di paket meter air</text></g> },
+  meter: { t: 'Meter air + stop kran + check valve (SR)', sym: 'sr', kind: null, key: 'sr|met', d: () => <g>
+    <PipeH x1={2} x2={62} y={34} d={3.5} /><rect x={8} y={30} width={6} height={8} fill={FT.brass} {...fs()} /><rect x={9.5} y={26} width={3} height={1} fill={FT.red} {...fs({ strokeWidth: 0.2 })} /><line x1={11} x2={11} y1={27} y2={30} stroke="#555" strokeWidth={0.4} />
+    <rect x={22} y={28} width={18} height={12} rx={2} fill={FT.body} {...fs()} /><circle cx={31} cy={29} r={5.5} fill="#f8fafc" {...fs()} /><text x={31} y={30} fontSize={1.4} textAnchor="middle">0 0 1 2 3</text>
+    <rect x={46} y={30} width={6} height={8} fill={FT.brass} {...fs()} /><path d="M47 31 L51 37" stroke="#555" strokeWidth={0.4} />
+    <Lbl x={11} y={26} tx={4} ty={16} t="Stop kran" anchor="start" /><Lbl x={31} y={24} tx={26} ty={12} t="Meter air kelas B/C" /><Lbl x={49} y={30} tx={46} ty={20} t="Check valve" />
+    <Flow x1={6} x2={16} y={46} /><text x={32} y={52} fontSize={1.45} textAnchor="middle">Dalam box meter di batas pekarangan</text></g> },
+  saddle: { t: 'Clamp saddle (sadel sadap) untuk SR', sym: 'sr', kind: null, key: 'sr|sad', d: () => <g>
+    <circle cx={32} cy={36} r={12} fill={FT.pipe} {...fs()} /><text x={32} y={37} fontSize={1.5} textAnchor="middle">pipa distribusi</text>
+    <path d="M18.5 36 A13.5 13.5 0 0 1 45.5 36 L42.5 36 A10.5 10.5 0 0 0 21.5 36 Z" fill={FT.body2} {...fs()} /><path d="M19 37 A13 13 0 0 0 45 37" fill="none" stroke={FT.body2} strokeWidth={1.4} />
+    <rect x={18} y={34} width={3} height={4} fill="#9ca3af" {...fs()} /><rect x={43} y={34} width={3} height={4} fill="#9ca3af" {...fs()} /><PipeV x={32} y1={22.5} y2={10} d={3.5} /><rect x={29} y={12} width={6} height={4} fill={FT.brass} {...fs()} />
+    <Lbl x={44} y={30} tx={50} ty={22} t="Sadel klem + baut" /><Lbl x={32} y={14} tx={40} ty={8} t="Ball valve korporasi" /><text x={32} y={6} fontSize={1.45} textAnchor="middle">→ pipa dinas Ø20 ke meter air</text></g> },
+  ballv: { t: 'Ball valve / stop kran (≤ 2")', sym: 'gate_valve', kind: null, key: 'fit|ball', d: () => <g>
+    <PipeH x1={4} x2={24} y={34} d={5} /><PipeH x1={40} x2={60} y={34} d={5} /><path d="M22 28 L42 28 L42 40 L22 40 Z" fill={FT.brass} {...fs()} /><circle cx={32} cy={34} r={4} fill="#e5e7eb" {...fs({ strokeWidth: 0.2 })} />
+    <rect x={31} y={22} width={2} height={6} fill="#6b7280" {...fs()} /><rect x={32} y={21} width={18} height={2.2} rx={1} fill={FT.red} {...fs()} />
+    <Lbl x={44} y={22} tx={50} ty={14} t="Tuas ¼ putaran" /><Lbl x={32} y={38} tx={36} ty={48} t="Bola kuningan / SS" /><Flow x1={6} x2={16} y={44} /></g> },
+  coupler: { t: 'Sambungan pipa (socket / coupler / union)', sym: 'junction', kind: null, key: 'fit|coup', d: () => <g>
+    <PipeH x1={4} x2={30} y={24} d={7} /><PipeH x1={34} x2={60} y={24} d={7} /><rect x={24} y={19} width={16} height={10} rx={1} fill={FT.body2} {...fs()} />
+    <PipeH x1={4} x2={28} y={44} d={7} /><PipeH x1={36} x2={60} y={44} d={7} /><rect x={26} y={39} width={3} height={10} fill={FT.body2} {...fs()} /><rect x={35} y={39} width={3} height={10} fill={FT.body2} {...fs()} /><rect x={29} y={40} width={6} height={8} fill={FT.body} {...fs()} />
+    <Lbl x={32} y={19} tx={40} ty={10} t="Socket / coupler kompresi" /><Lbl x={32} y={48} tx={40} ty={55} t="Stub flange + flens (HDPE ↔ katup)" /></g> },
+  tap: { t: 'Kran umum (hidran umum)', sym: 'hydrant', kind: 'hu', key: 'fit|hu', d: () => <g>
+    <PipeV x={20} y1={50} y2={22} d={4} /><PipeH x1={18} x2={44} y={22} d={4} /><path d="M44 19 L50 19 L50 26 L47 26 L47 30 L45 30 L45 25 L44 25 Z" fill={FT.brass} {...fs()} /><rect x={45} y={15} width={6} height={1.5} fill={FT.red} {...fs()} /><line x1={48} x2={48} y1={16.5} y2={19} stroke="#555" strokeWidth={0.5} />
+    {[0, 1, 2].map(i => <line key={i} x1={46} x2={46 + (i - 1) * 0.8} y1={31 + i * 2} y2={33 + i * 2} stroke="#0b4fa8" strokeWidth={0.5} />)}
+    <rect x={10} y={46} width={44} height={6} fill={FT.conc} {...fs()} />
+    <Lbl x={47} y={16} tx={52} ty={8} t={'Kran kuningan ½"–2½"'} /><Lbl x={20} y={36} tx={4} ty={30} t="Pipa GI dari bak HU" anchor="start" /><Lbl x={40} y={49} tx={44} ty={56} t="Lantai cuci + saluran buang" /></g> },
+};
+const FIT_ORDER = ['gv', 'av', 'wo', 'tee', 'bend', 'reducer', 'endcap', 'thrust', 'box', 'check', 'meter', 'saddle', 'ballv', 'coupler', 'tap'];
+function fitUsage(boq) {
+  const use = {}; (boq.fittings || []).forEach(f => { (use[f.kind] = use[f.kind] || []).push([f.desc.replace(/^[^Ø]*/, '') || f.desc, f.qty, f.unit]); });
+  if (boq.sr) boq.sr.items.forEach(([k, desc, q, u]) => { if (/sr\|sad/.test(k)) (use.saddle = use.saddle || []).push([desc.match(/Ø\d+ × Ø\d+ mm/)?.[0] || desc, q, u]); if (/sr\|met/.test(k)) (use.meter = use.meter || []).push([desc.match(/meter air [^ ]+/)?.[0] || desc, q, u]); });
+  if (boq.pumps.length) use.check = [['setelah pompa sumur bor', boq.pumps.length, 'bh']];
+  return use;
+}
+function fitSheetsList(project, boq) {
+  const use = fitUsage(boq); const all = !!project.ded.fitAll;
+  const keys = FIT_ORDER.filter(k => all || (use[k] && use[k].length) || (k === 'thrust' && use.thrust) || (k === 'coupler' && boq.pipeGroups.length) || (k === 'ballv' && boq.sr));
+  const pages = []; for (let i = 0; i < keys.length; i += 8) pages.push(keys.slice(i, i + 8)); return { pages, use };
+}
+function SheetFittings({ project, boq, keys, use, page, pages, sheetNo, sheetTotal }) {
+  const cw = 78.5, ch = 136, x0 = 17, y0 = 13;
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'sr'])} title={`DETAIL FITTING & AKSESORIS ${pages > 1 ? `(${page}/${pages})` : ''}`} scaleText="Tanpa skala" sheetNo={sheetNo} sheetTotal={sheetTotal}
+    legend={noteLegend([[FT.body, 'Badan katup (ductile iron)'], [FT.brass, 'Kuningan'], [FT.pipe, 'Pipa'], ['url(#pat-concrete)', 'Beton']],
+      ['1. Gambar ilustratif tanpa skala; ukuran sesuai', '    daftar "dipakai di proyek" & spesifikasi RAB.', '2. Katup & fitting PN10–PN16 sesuai tekanan kerja.', '3. Semua katup di dalam box pengaman.', '4. Belokan, tee, dop & katup pada pipa kaku', '    diberi thrust block beton K-175.', '5. Air valve di titik tertinggi, wash out di titik', '    terendah jalur pipa (lihat profil).', '6. Simbol di kotak kanan atas = simbol di denah.'])}>
+    {keys.map((k, i) => { const F = FIT_DRAW[k]; const cx = x0 + (i % 4) * cw, cy = y0 + Math.floor(i / 4) * ch; const sp = specOf(F.key, F.t, 'bh'); const u = use[k] || [];
+      return <g key={k}>
+        <rect x={cx} y={cy} width={cw - 2} height={ch - 2} fill="none" stroke="#000" strokeWidth={0.25} />
+        <rect x={cx} y={cy} width={cw - 2} height={6} fill="#0d2a31" /><text x={cx + 2} y={cy + 4.2} fontSize={2} fontWeight={700} fill="#fff">{String.fromCharCode(65 + i)}. {F.t.toUpperCase().slice(0, 44)}</text>
+        <g transform={`translate(${cx + 6} ${cy + 8})`}>{F.d()}</g>
+        <rect x={cx + cw - 15} y={cy + 8} width={11} height={8} fill="#fff" stroke="#94a3b8" strokeWidth={0.2} /><DrawSym o={{ x: cx + cw - 9.5, y: cy + 12, sym: F.sym, s: 0.9, c: '#000' }} /><text x={cx + cw - 9.5} y={cy + 18.4} fontSize={1.2} textAnchor="middle" fill="#64748b">simbol denah</text>
+        <g fontSize={1.55}><text x={cx + 2} y={cy + 72} fontWeight={700}>Spesifikasi (ideal):</text>
+          {wrapText(sp ? sp.ideal.s : '-', 58).slice(0, 3).map((l, j) => <text key={j} x={cx + 2} y={cy + 75 + j * 2.3}>{l}</text>)}
+          <text x={cx + 2} y={cy + 85} fontWeight={700}>Dipakai di proyek:</text>
+          {u.length ? u.slice(0, 8).map((r, j) => <text key={j} x={cx + 2} y={cy + 88 + j * 2.4}>• {String(r[0]).slice(0, 40)}  —  {fmt(r[1], 0)} {r[2]}</text>) : <text x={cx + 2} y={cy + 88} fill="#64748b">— (belum dipakai di jaringan ini)</text>}
+          {u.length > 8 && <text x={cx + 2} y={cy + 88 + 8 * 2.4} fill="#64748b">… {u.length - 8} ukuran lain (lihat RAB)</text>}</g>
+      </g>; })}
+  </Sheet>;
+}
+
 /* ---------- Gambar DED broncaptering bentuk V ---------- */
 function BcvPlan({ g, ox, oy, w, h, k, S }) {
   const { Wb, Wf, Dc, tw, tf, Lb, Bb, tb, yB0, yB1, p } = g; const dOff = p.ditch ? (+p.ditchOff || 1.5) : 0;
@@ -6195,6 +6350,8 @@ function SheetHousehold({ project, t, d, sheetNo, sheetTotal }) {
 // Daftar lembar tambahan (sumur bor & pengolahan) untuk DED dan cetak
 function extraSheets(project, hyd, boq) {
   const out = [{ key: 'std', label: 'Kriteria desain & SNI', sub: 'acuan standar', icon: 'BookCheck', group: 'Jaringan distribusi', render: (no, tot) => <SheetStd project={project} hyd={hyd} boq={boq} sheetNo={no} sheetTotal={tot} /> }];
+  if (project.ded.fitSheet !== false) { const fl = fitSheetsList(project, boq); fl.pages.forEach((keys, i) => out.push({ key: 'fit:' + i, label: 'Detail fitting & aksesoris', sub: fl.pages.length > 1 ? `lembar ${i + 1}/${fl.pages.length}` : `${keys.length} jenis`, icon: 'Wrench', group: 'Jaringan distribusi',
+    render: (no, tot) => <SheetFittings project={project} boq={boq} keys={keys} use={fl.use} page={i + 1} pages={fl.pages.length} sheetNo={no} sheetTotal={tot} /> })); }
   boq.structures.forEach(x => { out.push({ key: 'st:' + x.st.id, label: x.st.label, sub: STRUCT_TYPES[x.st.type].label.split(' (')[0], icon: x.st.type === 'tower' ? 'TowerControl' : 'Building2', group: 'Bangunan pelengkap',
     render: (no, tot) => x.st.type === 'tower' ? <SheetTower project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bc_v' ? <SheetBroncapV project={project} s={x} sheetNo={no} sheetTotal={tot} /> : <SheetStructure project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
     if (x.st.type === 'tower') out.push({ key: 'sv:' + x.st.id, label: x.st.label, sub: 'Tampak depan & belakang', icon: 'TowerControl', group: 'Bangunan pelengkap', render: (no, tot) => <SheetTowerViews project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
@@ -6583,7 +6740,9 @@ function DedWorkspace({ locked = false, project, setProject, hyd, boq, onPrint }
           : <><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Opsi gambar jaringan</div>
             <Field label="Jalur potongan memanjang"><select id="ded-lsend" className="tp-field" value={ded.lsEnd || path?.endId || ''} onChange={e => setDed('lsEnd', e.target.value)}>{ends.map(n => <option key={n.id} value={n.id}>{path?.points[0].node.label || 'R'} → {n.label}</option>)}</select></Field>
             <Field label="Interval patok STA (m)"><select id="ded-sta" className="tp-field" value={project.settings.staInterval} onChange={e => setProject(p => ({ ...p, settings: { ...p.settings, staInterval: +e.target.value } }))}>{[0, 25, 50, 100, 200].map(v => <option key={v} value={v}>{v === 0 ? 'Hanya titik node' : v + ' m'}</option>)}</select></Field>
-            <Field label="Diameter potongan melintang"><select id="ded-cs" className="tp-field" value={ded.csDiameter || ''} onChange={e => setDed('csDiameter', +e.target.value)}><option value="">Terbesar ({boq.pipeGroups.length ? Math.max(...boq.pipeGroups.map(g => g.diameter)) : '-'} mm)</option>{[...new Set(boq.pipeGroups.map(g => g.diameter))].map(d => <option key={d} value={d}>Ø{d} mm</option>)}</select></Field></>}
+            <Field label="Diameter potongan melintang"><select id="ded-cs" className="tp-field" value={ded.csDiameter || ''} onChange={e => setDed('csDiameter', +e.target.value)}><option value="">Terbesar ({boq.pipeGroups.length ? Math.max(...boq.pipeGroups.map(g => g.diameter)) : '-'} mm)</option>{[...new Set(boq.pipeGroups.map(g => g.diameter))].map(d => <option key={d} value={d}>Ø{d} mm</option>)}</select></Field>
+            <label className="flex items-center gap-2 text-[12.5px]"><input id="ded-fitsheet" type="checkbox" checked={ded.fitSheet !== false} onChange={e => setDed('fitSheet', e.target.checked)} />Lembar detail fitting & aksesoris (gambar visual)</label>
+            {ded.fitSheet !== false && <label className="flex items-center gap-2 text-[12.5px] pl-5"><input id="ded-fitall" type="checkbox" checked={!!ded.fitAll} onChange={e => setDed('fitAll', e.target.checked)} />Tampilkan semua jenis (bukan hanya yang dipakai)</label>}</>}
       </div>
       <div className="space-y-2 border-t border-line pt-3">
         <Field label="Ukuran kertas cetak"><div className="flex rounded-md border border-line overflow-hidden text-[12px]">{['A3', 'A4'].map(p => <button key={p} type="button" onClick={() => setDed('paper', p)} className={`flex-1 py-1.5 ${ded.paper === p ? 'bg-deep text-white' : 'bg-white text-slate-600'}`}>{p} lanskap</button>)}</div></Field>
@@ -6699,6 +6858,8 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'kemasan qty beli roll batang zak semen sak karung lembar pcs rab', t: 'Kolom kemasan / qty beli di RAB', a: 'Tabel RAB punya kolom **Kemasan / qty beli** yang mengubah volume menjadi jumlah barang yang dibeli: pipa HDPE per roll (Ø ≤ 63: 100 m, Ø75–110: 50 m, ≥ Ø125 batang 6 m), PVC batang 4 m, GI batang 6 m, beton → zak semen 50 kg + pasir + kerikil, besi → batang 12 m + kawat bendrat, bekisting → lembar multiplek, plester → zak semen + pasir, media filter → sak 25 kg, fitting → pcs. Di mode *Edit item RAB* isinya bisa diubah per item. Kolom ikut tercetak.' },
+  { k: 'gambar fitting gate valve air valve wash out reducer tee bend detail visual ded', t: 'Gambar detail fitting & aksesoris', a: 'Tab **DED** → grup *Jaringan distribusi* → **Detail fitting & aksesoris**: gambar visual gate valve, air valve, wash out, tee, bend, reducer, dop, thrust block, box katup, check valve, meter air, sadel SR, ball valve, sambungan, dan kran umum — lengkap dengan simbol denah, spesifikasi, dan ukuran/jumlah yang dipakai di proyek. Di *Opsi gambar jaringan* bisa memilih tampilkan semua jenis atau hanya yang dipakai.' },
   { k: 'selubung pendingin flow inducer sleeve shroud pompa zona saringan motor panas pasir', t: 'Selubung pendingin pompa (flow inducer sleeve)', a: 'Tab **Olah Air** → kartu sumur bor: isi **Kedalaman pompa**, lalu atur **Selubung pendingin**: *Otomatis* (dipasang bila pompa berada di zona saringan), *Selalu pasang*, atau *Tidak dipasang*. Ukuran dipilih otomatis (bisa diganti) beserta bahan PVC/SS304; aplikasi menghitung kecepatan air pendingin (min. 0,08 m/dtk motor 4", 0,16 m/dtk motor 6"), panjang selubung, memasukkannya ke RAB, spesifikasi pompa, dan gambar DED sumur bor.' },
   { k: 'tidak bisa pilih petugas terkunci gembok ganti petugas tim proyek milik orang lain', t: 'Petugas terkunci di proyek orang lain', a: 'Hanya **pemilik proyek** dan **admin** yang dapat memilih/mengubah petugas: petugas di perangkat, tim petugas, nama Disurvei/Digambar/Pemeriksa/Penyetuju di kop, dan penunjukan di *Status & review*. Bila Anda membuka proyek milik orang lain, bagian itu terkunci (ikon gembok). Untuk mengerjakannya sendiri, pakai *Simpan sebagai salinan saya*, atau minta pemilik/admin menunjuk Anda.' },
   { k: 'tanda tangan surveyor penggambar drafter urutan esign ajukan tidak bisa', t: 'Urutan tanda tangan elektronik', a: 'Urutannya: **1) surveyor & penggambar** (boleh orang yang sama) → **2) pemeriksa** → **3) penyetuju**. Buka *Status & review*, pilih surveyor/penggambar, lalu masing-masing menekan *Tanda tangani*. Bila bukan Anda sendiri, tekan *Simpan penunjukan & minta tanda tangan* agar mereka mendapat notifikasi. Tombol *Ajukan untuk diperiksa* baru aktif setelah tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.' },
@@ -6903,13 +7064,13 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
       <p style={{ fontSize: '8.5pt' }}><i>Kualitas air olahan adalah perkiraan berdasarkan efisiensi tipikal unit; wajib dikonfirmasi dengan uji laboratorium.</i></p></>}
     <h2>5. Rencana Anggaran Biaya</h2>
     <p style={{ fontSize: '9pt' }}>Acuan harga: Standar Harga Satuan Provinsi {rab.shs.name} tahun {rab.shs.year}{rab.shs.n ? ` (${rab.shs.n} item SHS${rab.shs.source ? ', ' + rab.shs.source : ''})` : ''}; harga bawaan disesuaikan dengan IKK {fmt(rab.shs.ikk, 1)} (faktor × {fmt(rab.shs.factor, 3)} terhadap Jawa Barat).</p>
-    <table><thead><tr><th>No</th><th>Uraian pekerjaan</th><th>Volume</th><th>Sat.</th><th>Harga satuan (Rp)</th><th>Jumlah (Rp)</th></tr></thead>
-      <tbody>{rab.sections.map(sec => <Fragment key={sec.code}><tr className="sect"><td>{sec.code}</td><td colSpan={4}>{sec.title}</td><td className="r">{fmt(sec.subtotal, 0)}</td></tr>
-        {sec.items.map((it, i) => <tr key={it.key}><td>{i + 1}</td><td>{it.desc}{it.spec && <div style={{ fontSize: '7.5pt', color: '#444' }}>Spek {TIERS[it.tier].toLowerCase()}: {it.specText}</div>}</td><td className="r">{fmt(it.vol, 2)}</td><td>{it.unit}</td><td className="r">{fmt(it.price, 0)}</td><td className="r">{fmt(it.amount, 0)}</td></tr>)}</Fragment>)}
-        <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>JUMLAH</td><td className="r">{fmt(rab.total, 0)}</td></tr>
-        <tr><td /><td colSpan={4} style={{ textAlign: 'right' }}>PPN {s.ppnPct}%</td><td className="r">{fmt(rab.ppn, 0)}</td></tr>
-        <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>TOTAL</td><td className="r">{fmt(rab.grand, 0)}</td></tr>
-        <tr className="tot"><td /><td colSpan={4} style={{ textAlign: 'right' }}>DIBULATKAN</td><td className="r">{fmt(rab.rounded, 0)}</td></tr></tbody></table>
+    <table><thead><tr><th>No</th><th>Uraian pekerjaan</th><th>Volume</th><th>Sat.</th><th>Kemasan / qty beli</th><th>Harga satuan (Rp)</th><th>Jumlah (Rp)</th></tr></thead>
+      <tbody>{rab.sections.map(sec => <Fragment key={sec.code}><tr className="sect"><td>{sec.code}</td><td colSpan={5}>{sec.title}</td><td className="r">{fmt(sec.subtotal, 0)}</td></tr>
+        {sec.items.map((it, i) => <tr key={it.key}><td>{i + 1}</td><td>{it.desc}{it.spec && <div style={{ fontSize: '7.5pt', color: '#444' }}>Spek {TIERS[it.tier].toLowerCase()}: {it.specText}</div>}</td><td className="r">{fmt(it.vol, 2)}</td><td>{it.unit}</td><td style={{ fontSize: '7.5pt' }}>{it.pack}</td><td className="r">{fmt(it.price, 0)}</td><td className="r">{fmt(it.amount, 0)}</td></tr>)}</Fragment>)}
+        <tr className="tot"><td /><td colSpan={5} style={{ textAlign: 'right' }}>JUMLAH</td><td className="r">{fmt(rab.total, 0)}</td></tr>
+        <tr><td /><td colSpan={5} style={{ textAlign: 'right' }}>PPN {s.ppnPct}%</td><td className="r">{fmt(rab.ppn, 0)}</td></tr>
+        <tr className="tot"><td /><td colSpan={5} style={{ textAlign: 'right' }}>TOTAL</td><td className="r">{fmt(rab.grand, 0)}</td></tr>
+        <tr className="tot"><td /><td colSpan={5} style={{ textAlign: 'right' }}>DIBULATKAN</td><td className="r">{fmt(rab.rounded, 0)}</td></tr></tbody></table>
     <p><i>Terbilang: {terbilang(rab.rounded)}</i></p>
     {rab.sections.some(x => x.items.some(it => it.spec)) && <><h3>Lampiran: rekomendasi spesifikasi bahan (minimal · ideal · maksimal)</h3>
       <table style={{ fontSize: '7.5pt' }}><thead><tr><th>No</th><th>Item</th><th>Minimal</th><th>Ideal</th><th>Maksimal</th><th>Dipakai</th></tr></thead>

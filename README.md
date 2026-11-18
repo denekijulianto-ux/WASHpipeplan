@@ -94,6 +94,33 @@ Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD 
 - **Interaksi:** kursor di grafik menandai lokasi di peta; klik untuk memusatkan peta.
 - **Detail DEM:** tombol *Profil tanah detail dari DEM* mengambil elevasi tiap ± 10 m sepanjang pipa.
 
+## Kolom kemasan / qty beli (tab BoQ & RAB)
+Setiap item RAB mendapat kolom **Kemasan / qty beli** yang mengubah volume menjadi jumlah barang yang dibeli:
+
+| Material | Kemasan |
+|---|---|
+| Pipa HDPE | roll 100 m (Ø ≤ 63), roll 50 m (Ø75–110), batang 6 m (≥ Ø125) |
+| Pipa PVC | batang 4 m |
+| Pipa GI | batang 6 m |
+| Pipa PE fleksibel | roll 100 m |
+| Kabel | roll 50/100 m |
+| Beton (per mutu K-100 … K-350, perkiraan AHSP) | zak semen 50 kg + m³ pasir + m³ kerikil |
+| Plester / pasangan bata / pasangan batu | zak semen + pasir (+ bata/batu) |
+| Besi tulangan | batang 12 m + kawat bendrat |
+| Bekisting | lembar multiplek 1,22 × 2,44 m |
+| Pasir / urugan | truk dump, mobil bak, atau karung |
+| Media filter | sak 25 kg |
+| Fitting & katup | pcs / unit / set |
+
+Di mode *Edit item RAB* isi kolom bisa diubah per item (tombol ↺ untuk kembali ke otomatis). Kolom ini ikut tercetak di laporan.
+
+## Detail visual fitting & aksesoris (tab DED)
+Lembar **Detail fitting & aksesoris** (grup *Jaringan distribusi*) menampilkan gambar visual berlabel untuk:
+- gate valve, air valve (+ stop kran), wash out, tee, bend, reducer, dop;
+- thrust block, box pengaman katup, check valve, meter air SR, clamp saddle, ball valve, sambungan socket/stub flange, kran umum.
+
+Tiap gambar dilengkapi simbol denah, spesifikasi (ideal), dan daftar ukuran/jumlah yang dipakai di proyek. Di *Opsi gambar jaringan* lembar ini bisa dimatikan atau diatur untuk menampilkan semua jenis.
+
 ## Kedalaman pompa & selubung pendingin (tab Olah Air → kartu sumur bor)
 - **Kedalaman pompa (m bmt):** 0 = otomatis, yaitu 1 m di atas saringan. Isi angka untuk memasang pompa lebih dalam.
 - **Selubung pendingin (flow inducer sleeve):**
