@@ -29,6 +29,15 @@ Ukuran tandon bisa dipilih dari 300 sampai 10.000 L, dengan 1 sampai 6 unit. Gam
 
 Bila menara dihubungkan ke node reservoir, aplikasi menghitung tinggi menara minimum agar sisa tekanan ≥ 10 mka.
 
+## Hak mengatur petugas
+Hanya **pemilik proyek** dan **admin** yang dapat memilih/mengubah orang yang bertugas pada sebuah proyek:
+- petugas aktif di perangkat;
+- daftar tim petugas;
+- nama Disurvei / Digambar / Pemeriksa / Penyetuju di data proyek dan kop gambar;
+- penunjukan surveyor, penggambar, pemeriksa, dan penyetuju di *Status & review*.
+
+Pengguna lain yang membuka proyek itu melihat bagian tersebut terkunci (ikon gembok). Di sisi cloud, aturan `firestore.rules` (fungsi `sameCrew`) menolak perubahan penunjukan oleh selain pemilik/admin.
+
 ## Urutan tanda tangan elektronik
 1. **Surveyor & penggambar** menandatangani lebih dulu. Keduanya boleh orang yang sama; centang *Surveyor dan penggambar orang yang sama*. Bila orangnya bukan pemilik proyek, tekan *Simpan penunjukan & minta tanda tangan*.
 2. Tombol **Ajukan untuk diperiksa** baru aktif bila tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.

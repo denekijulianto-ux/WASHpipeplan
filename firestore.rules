@@ -8,6 +8,13 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.auth.token.email in ['denekijulianto@gmail.com', 'eki_julianto@pmi.or.id'];
     }
+    // Penunjukan petugas (pemeriksa, penyetuju, surveyor, penggambar) tidak berubah — hanya pemilik/admin yang boleh mengubahnya
+    function sameCrew() {
+      return request.resource.data.get('checkerUid', '') == resource.data.get('checkerUid', '')
+        && request.resource.data.get('approverUid', '') == resource.data.get('approverUid', '')
+        && request.resource.data.get('surveyorUid', '') == resource.data.get('surveyorUid', '')
+        && request.resource.data.get('drafterUid', '') == resource.data.get('drafterUid', '');
+    }
     function approved() {
       return isAdmin() || (request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved');
@@ -33,19 +40,18 @@ service cloud.firestore {
       allow read: if approved();
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid
         && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']));
-      // Pemilik (status tetap / belum disetujui), admin, atau pemeriksa & penyetuju yang ditunjuk (hanya langkahnya)
+      // Pemilik (status tetap / belum disetujui), admin, atau petugas yang ditunjuk (hanya langkahnya, tanpa mengubah penunjukan)
       allow update: if approved()
         && request.resource.data.ownerUid == resource.data.ownerUid
         && (isAdmin()
           || (resource.data.ownerUid == request.auth.uid
               && (request.resource.data.status == resource.data.status || !(request.resource.data.status in ['checked', 'approved'])))
-          || (resource.data.checkerUid == request.auth.uid && request.resource.data.checkerUid == resource.data.checkerUid
-              && request.resource.data.approverUid == resource.data.approverUid && request.resource.data.status in ['review', 'checked', 'revisi'])
-          || ((resource.data.surveyorUid == request.auth.uid || resource.data.drafterUid == request.auth.uid)
-              && request.resource.data.status == resource.data.status && resource.data.status in ['draft', 'revisi']
-              && request.resource.data.surveyorUid == resource.data.surveyorUid && request.resource.data.drafterUid == resource.data.drafterUid)
-          || (resource.data.approverUid == request.auth.uid && request.resource.data.checkerUid == resource.data.checkerUid
-              && request.resource.data.approverUid == resource.data.approverUid && request.resource.data.status in ['review', 'checked', 'approved', 'revisi']));
+          || (resource.data.get('checkerUid', '') == request.auth.uid && sameCrew()
+              && request.resource.data.status in ['review', 'checked', 'revisi'])
+          || ((resource.data.get('surveyorUid', '') == request.auth.uid || resource.data.get('drafterUid', '') == request.auth.uid) && sameCrew()
+              && request.resource.data.status == resource.data.status && resource.data.status in ['draft', 'revisi'])
+          || (resource.data.get('approverUid', '') == request.auth.uid && sameCrew()
+              && request.resource.data.status in ['review', 'checked', 'approved', 'revisi']));
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
     // Isi lengkap proyek (terkompresi)

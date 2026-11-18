@@ -25703,6 +25703,7 @@ function StdEditor({
   }, "Acuan yang dicentang tampil di kotak \"Acuan standar\" kop gambar sesuai jenis lembar dan di lembar Kriteria desain & SNI."));
 }
 function DedWorkspace({
+  locked = false,
   project,
   setProject,
   hyd,
@@ -26069,10 +26070,12 @@ function DedWorkspace({
     className: "space-y-2 mt-2"
   }, [['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Jabatan pemeriksa'], ['approvedBy', 'Jabatan penyetuju'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) => React.createElement(Field, {
     key: k,
-    label: l
+    label: l,
+    hint: locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k) ? 'Terkunci: hanya pemilik proyek / admin' : undefined
   }, React.createElement("input", {
     id: 'meta-' + k,
     className: "tp-field",
+    disabled: locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k),
     value: project.meta[k] || '',
     onChange: e => setMeta(k, e.target.value)
   })))))), React.createElement("div", {
@@ -26483,6 +26486,10 @@ function PhotoReport({
   })));
 }
 const KB = [{
+  k: 'tidak bisa pilih petugas terkunci gembok ganti petugas tim proyek milik orang lain',
+  t: 'Petugas terkunci di proyek orang lain',
+  a: 'Hanya **pemilik proyek** dan **admin** yang dapat memilih/mengubah petugas: petugas di perangkat, tim petugas, nama Disurvei/Digambar/Pemeriksa/Penyetuju di kop, dan penunjukan di *Status & review*. Bila Anda membuka proyek milik orang lain, bagian itu terkunci (ikon gembok). Untuk mengerjakannya sendiri, pakai *Simpan sebagai salinan saya*, atau minta pemilik/admin menunjuk Anda.'
+}, {
   k: 'tanda tangan surveyor penggambar drafter urutan esign ajukan tidak bisa',
   t: 'Urutan tanda tangan elektronik',
   a: 'Urutannya: **1) surveyor & penggambar** (boleh orang yang sama) → **2) pemeriksa** → **3) penyetuju**. Buka *Status & review*, pilih surveyor/penggambar, lalu masing-masing menekan *Tanda tangani*. Bila bukan Anda sendiri, tekan *Simpan penunjukan & minta tanda tangan* agar mereka mendapat notifikasi. Tombol *Ajukan untuk diperiksa* baru aktif setelah tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.'
@@ -27635,6 +27642,8 @@ function SiteField({
   }, msg));
 }
 function ProjectDialog({
+  locked = false,
+  ownerName = '',
   project,
   setProject,
   onClose,
@@ -27789,17 +27798,27 @@ function ProjectDialog({
     key: k,
     className: span === 2 ? 'sm:col-span-2' : ''
   }, React.createElement(Field, {
-    label: l
+    label: l,
+    hint: locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k) ? 'Terkunci: hanya pemilik proyek / admin' : undefined
   }, React.createElement("input", {
     id: 'dlg-' + k,
     className: "tp-field",
+    disabled: locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k),
     value: project.meta[k] || '',
     onChange: e => setMeta(k, e.target.value)
-  })), k === 'surveyedBy' && surveyors.length > 0 && React.createElement("button", {
+  })), k === 'surveyedBy' && surveyors.length > 0 && !locked && React.createElement("button", {
     type: "button",
     className: "text-[12px] font-semibold text-aqua-700 hover:underline mt-1",
     onClick: () => setMeta('surveyedBy', surveyors.join(', '))
-  }, "Isi dari tim: ", surveyors.join(', '))))), tab === 'team' && React.createElement(React.Fragment, null, React.createElement("p", {
+  }, "Isi dari tim: ", surveyors.join(', '))))), tab === 'team' && React.createElement("fieldset", {
+    disabled: locked,
+    className: locked ? 'opacity-70 space-y-3' : 'space-y-3'
+  }, locked && React.createElement("p", {
+    className: "rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "Lock",
+    size: 14
+  }), "Tim petugas hanya bisa diubah dan dipilih oleh pemilik proyek", ownerName ? ` (${ownerName})` : '', " atau admin."), React.createElement("p", {
     className: "text-slate-600"
   }, "Daftar petugas yang terlibat. Di setiap HP atau laptop, pilih siapa yang sedang bertugas; data yang dicatat dari perangkat itu akan diberi nama petugas tersebut."), React.createElement(Field, {
     label: "Petugas di perangkat ini"
@@ -31485,7 +31504,21 @@ function App({
     gps.stop();
     await api.signOut();
   };
+  const lockMsg = () => setToast(`Hanya pemilik proyek (${project.cloud?.ownerName || 'pemilik'}) dan admin yang dapat memilih/mengubah petugas.`);
+  const openOfficer = (then = null) => {
+    if (readOnly) {
+      lockMsg();
+      return;
+    }
+    setPickOfficer({
+      then
+    });
+  };
   const requireOfficer = fn => {
+    if (readOnly) {
+      lockMsg();
+      return;
+    }
     if (officerRef.current) fn();else setPickOfficer({
       then: fn
     });
@@ -31978,9 +32011,7 @@ function App({
     takePhoto,
     openPhoto: setOpenPh,
     officer,
-    pickOfficer: () => setPickOfficer({
-      then: () => {}
-    }),
+    pickOfficer: () => openOfficer(() => {}),
     mobile,
     elevStatus,
     prefs,
@@ -32305,13 +32336,18 @@ function App({
       name: user.name || user.email,
       email: user.email
     };
+    const mgr = !store || c0.ownerUid === user.uid || user.admin;
+    if (to === 'assign' && !mgr) {
+      setToast('Hanya pemilik proyek dan admin yang dapat menunjuk petugas.');
+      return;
+    }
     setProject(p => {
       const c = p.cloud;
       const meta = {
         ...p.meta
       };
       let signs = [...(c.signs || [])];
-      const reviewers = extra.reviewers || c.reviewers || null;
+      const reviewers = (mgr ? extra.reviewers : null) || c.reviewers || null;
       if (to === 'assign') return {
         ...p,
         cloud: {
@@ -32699,12 +32735,13 @@ function App({
     title: `Keluar (${user.email})`
   }, "Keluar"), React.createElement("button", {
     type: "button",
-    onClick: () => setPickOfficer({
-      then: null
-    }),
-    className: "flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10",
-    title: "Ganti petugas di perangkat ini"
-  }, React.createElement(Icon, {
+    onClick: () => openOfficer(null),
+    className: `flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10 ${readOnly ? 'opacity-60' : ''}`,
+    title: readOnly ? 'Terkunci: hanya pemilik proyek & admin yang dapat memilih petugas' : 'Ganti petugas di perangkat ini'
+  }, readOnly && React.createElement(Icon, {
+    name: "Lock",
+    size: 13
+  }), React.createElement(Icon, {
     name: "UserRound",
     size: 15
   }), officer ? React.createElement("span", {
@@ -32851,6 +32888,7 @@ function App({
     boq: boq,
     rab: rab
   }), tab === 'ded' && React.createElement(DedWorkspace, {
+    locked: readOnly,
     project: project,
     setProject: setProject,
     hyd: hyd,
@@ -33103,9 +33141,7 @@ function App({
     type: "button",
     onClick: () => {
       setMenuOpen(false);
-      setPickOfficer({
-        then: null
-      });
+      openOfficer(null);
     },
     className: "w-full flex items-center gap-2.5 rounded-md bg-ground px-3 py-2.5 text-left"
   }, React.createElement(Icon, {
@@ -33153,6 +33189,8 @@ function App({
     hyd: hyd,
     onClose: () => setCalcOpen(false)
   }), dialog && React.createElement(ProjectDialog, {
+    locked: readOnly,
+    ownerName: project.cloud?.ownerName,
     project: project,
     setProject: setProject,
     onClose: () => setDialog(false),
@@ -33277,7 +33315,7 @@ function App({
       system: true
     }),
     onClose: () => setOpenPh(null)
-  }), pickOfficer && React.createElement(OfficerPicker, {
+  }), pickOfficer && !readOnly && React.createElement(OfficerPicker, {
     project: project,
     setProject: setProject,
     officerId: officerId,

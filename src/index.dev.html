@@ -6486,7 +6486,7 @@ function StdEditor({ project, setProject }) {
     <p className="text-[11px] text-slate-500">Acuan yang dicentang tampil di kotak "Acuan standar" kop gambar sesuai jenis lembar dan di lembar Kriteria desain & SNI.</p>
   </div>;
 }
-function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
+function DedWorkspace({ locked = false, project, setProject, hyd, boq, onPrint }) {
   const ded = project.ded; const setDed = (k, v) => setProject(p => ({ ...p, ded: { ...p.ded, [k]: v } }));
   const setMeta = (k, v) => setProject(p => ({ ...p, meta: { ...p.meta, [k]: v } }));
   const [addType, setAddType] = useState('reservoir');
@@ -6560,7 +6560,7 @@ function DedWorkspace({ project, setProject, hyd, boq, onPrint }) {
       <details className="border-t border-line pt-3">
         <summary className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer">Kop gambar</summary>
         <div className="space-y-2 mt-2">{[['name', 'Nama proyek'], ['location', 'Lokasi'], ['owner', 'Pemilik / instansi'], ['fiscal', 'Sumber dana / tahun'], ['consultant', 'Konsultan perencana'], ['drawnBy', 'Digambar'], ['checkedBy', 'Jabatan pemeriksa'], ['approvedBy', 'Jabatan penyetuju'], ['drawingCode', 'Kode gambar'], ['date', 'Tanggal']].map(([k, l]) =>
-          <Field key={k} label={l}><input id={'meta-' + k} className="tp-field" value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>)}</div>
+          <Field key={k} label={l} hint={locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k) ? 'Terkunci: hanya pemilik proyek / admin' : undefined}><input id={'meta-' + k} className="tp-field" disabled={locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k)} value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>)}</div>
       </details>
     </aside>
     <div className="flex-1 lg:overflow-auto p-3 lg:p-6 min-w-0 bg-[#dfe6e4] shrink-0 lg:shrink">
@@ -6662,6 +6662,7 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'tidak bisa pilih petugas terkunci gembok ganti petugas tim proyek milik orang lain', t: 'Petugas terkunci di proyek orang lain', a: 'Hanya **pemilik proyek** dan **admin** yang dapat memilih/mengubah petugas: petugas di perangkat, tim petugas, nama Disurvei/Digambar/Pemeriksa/Penyetuju di kop, dan penunjukan di *Status & review*. Bila Anda membuka proyek milik orang lain, bagian itu terkunci (ikon gembok). Untuk mengerjakannya sendiri, pakai *Simpan sebagai salinan saya*, atau minta pemilik/admin menunjuk Anda.' },
   { k: 'tanda tangan surveyor penggambar drafter urutan esign ajukan tidak bisa', t: 'Urutan tanda tangan elektronik', a: 'Urutannya: **1) surveyor & penggambar** (boleh orang yang sama) → **2) pemeriksa** → **3) penyetuju**. Buka *Status & review*, pilih surveyor/penggambar, lalu masing-masing menekan *Tanda tangani*. Bila bukan Anda sendiri, tekan *Simpan penunjukan & minta tanda tangan* agar mereka mendapat notifikasi. Tombol *Ajukan untuk diperiksa* baru aktif setelah tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.' },
   { k: 'profil petugas pengguna foto alamat asal pmi riwayat penugasan', t: 'Profil petugas', a: 'Tekan **Profil** di bilah atas (di HP: menu → *Profil saya*). Unggah foto profil, lalu isi nama lengkap, alamat saat ini, asal PMI, dan riwayat penugasan pipanisasi (bisa diambil dari proyek di aplikasi). Admin melihatnya di *Kelola pengguna → Lihat profil*. Profil hanya bisa dilihat pemiliknya dan admin.' },
   { k: 'debit sumber mata air sungai ukur ember stopwatch pelampung v-notch kapasitas jiwa orang berapa', t: 'Mengukur debit sumber & kapasitas jiwa', a: 'Buka **Kalkulator → Debit sumber air & kapasitas jiwa**. Pilih metode: ember + stopwatch (mata air kecil), pelampung (sungai/saluran: lebar × dalam × kecepatan), ambang V-notch/persegi, current meter, debit uji pompa, volume embung/bendungan, atau air hujan. Isi faktor debit andalan (ukur di puncak kemarau) dan porsi yang boleh diambil. Hasilnya debit (L/dtk), volume (m³/hari), kecepatan aliran, jumlah jiwa/KK/SR/HU yang bisa dilayani, rekomendasi, serta tombol integrasi: hubungkan ke node sumber, buat reservoir/broncaptering/hidran, ubah pipa transmisi, atau tambah bendung & intake ke RAB.' },
@@ -6967,7 +6968,7 @@ function SiteField({ project, setMeta, gps }) {
     {msg && <div className="text-[12px] text-slate-600">{msg}</div>}
   </div>;
 }
-function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId, initialTab, gps }) {
+function ProjectDialog({ locked = false, ownerName = '', project, setProject, onClose, officerId, setOfficerId, initialTab, gps }) {
   const setMeta = (k, v) => setProject(p => ({ ...p, meta: { ...p.meta, [k]: v } }), { noStamp: true });
   const setTeam = (fn) => setProject(p => ({ ...p, team: fn(p.team || []) }), { noStamp: true, system: true });
   const [tab, setTab] = useState(initialTab || 'org');
@@ -7000,10 +7001,11 @@ function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId, 
         {tab === 'proj' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SiteField project={project} setMeta={setMeta} gps={gps} />
           {[['name', 'Nama proyek', 2], ['location', 'Lokasi', 2], ['owner', 'Pemilik / instansi', 1], ['fiscal', 'Sumber dana / tahun', 1], ['drawingCode', 'Kode gambar', 1], ['date', 'Tanggal', 1], ['surveyedBy', 'Disurvei oleh', 1], ['drawnBy', 'Digambar oleh', 1], ['checkedBy', 'Jabatan pemeriksa', 1], ['approvedBy', 'Jabatan penyetuju', 1]].map(([k, l, span]) =>
-            <div key={k} className={span === 2 ? 'sm:col-span-2' : ''}><Field label={l}><input id={'dlg-' + k} className="tp-field" value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>
-              {k === 'surveyedBy' && surveyors.length > 0 && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline mt-1" onClick={() => setMeta('surveyedBy', surveyors.join(', '))}>Isi dari tim: {surveyors.join(', ')}</button>}</div>)}
+            <div key={k} className={span === 2 ? 'sm:col-span-2' : ''}><Field label={l} hint={locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k) ? 'Terkunci: hanya pemilik proyek / admin' : undefined}><input id={'dlg-' + k} className="tp-field" disabled={locked && ['surveyedBy', 'drawnBy', 'checkedBy', 'approvedBy'].includes(k)} value={project.meta[k] || ''} onChange={e => setMeta(k, e.target.value)} /></Field>
+              {k === 'surveyedBy' && surveyors.length > 0 && !locked && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline mt-1" onClick={() => setMeta('surveyedBy', surveyors.join(', '))}>Isi dari tim: {surveyors.join(', ')}</button>}</div>)}
         </div>}
-        {tab === 'team' && <>
+        {tab === 'team' && <fieldset disabled={locked} className={locked ? 'opacity-70 space-y-3' : 'space-y-3'}>
+          {locked && <p className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 flex items-center gap-2"><Icon name="Lock" size={14} />Tim petugas hanya bisa diubah dan dipilih oleh pemilik proyek{ownerName ? ` (${ownerName})` : ''} atau admin.</p>}
           <p className="text-slate-600">Daftar petugas yang terlibat. Di setiap HP atau laptop, pilih siapa yang sedang bertugas; data yang dicatat dari perangkat itu akan diberi nama petugas tersebut.</p>
           <Field label="Petugas di perangkat ini"><select id="dlg-officer" className="tp-field" value={officerId || ''} onChange={e => setOfficerId(e.target.value)}><option value="">Belum dipilih</option>{team.map(t => <option key={t.id} value={t.id}>{t.name}{t.role ? ' · ' + t.role : ''}</option>)}</select></Field>
           {team.map((m, i) => <div key={m.id} className="rounded-lg border border-line p-3 space-y-2">
@@ -7011,7 +7013,7 @@ function ProjectDialog({ project, setProject, onClose, officerId, setOfficerId, 
               <Btn variant="ghost" icon="Trash2" title="Hapus dari tim" onClick={() => { setTeam(t => t.filter(x => x.id !== m.id)); if (m.id === officerId) setOfficerId(''); }} /></div>
             <MemberFields m={m} idp={'tm-' + i} onChange={v => setTeam(t => t.map(x => x.id === m.id ? v : x))} /></div>)}
           <Btn variant="outline" icon="CirclePlus" onClick={() => setTeam(t => [...t, { id: uid('u'), name: 'Petugas baru', role: OFFICER_ROLES[0], org: '', phone: '', idno: '' }])}>Tambah petugas</Btn>
-        </>}
+        </fieldset>}
       </div>
       <div className="px-5 py-3 border-t border-line flex justify-end"><Btn variant="primary" onClick={onClose}>Selesai</Btn></div>
     </div>
@@ -7945,7 +7947,9 @@ function App({ user, api }) {
     if (!officerId || officerId === user.uid || !(project.team || []).some(t => t.id === officerId)) setOfficerId(user.uid);
   }, [user && user.uid]);
   const logout = async () => { stopRec(); gps.stop(); await api.signOut(); };
-  const requireOfficer = (fn) => { if (officerRef.current) fn(); else setPickOfficer({ then: fn }); };
+  const lockMsg = () => setToast(`Hanya pemilik proyek (${project.cloud?.ownerName || 'pemilik'}) dan admin yang dapat memilih/mengubah petugas.`);
+  const openOfficer = (then = null) => { if (readOnly) { lockMsg(); return; } setPickOfficer({ then }); };
+  const requireOfficer = (fn) => { if (readOnly) { lockMsg(); return; } if (officerRef.current) fn(); else setPickOfficer({ then: fn }); };
   const [menuOpen, setMenuOpen] = useState(false); const [assistOpen, setAssistOpen] = useState(false);
   const inbox = useInbox(api, user); const pendU = usePendingUsers(api, user); const [notifOpen, setNotifOpen] = useState(false); const [logoutAsk, setLogoutAsk] = useState(false);
   const [deviceDlg, setDeviceDlg] = useState(false);
@@ -8085,7 +8089,7 @@ function App({ user, api }) {
     setToast(made.length > 1 ? `${made.length} foto ditambahkan` : `Foto disimpan${made[0].lat == null ? ' (tanpa koordinat: aktifkan GPS atau kaitkan ke titik)' : ''}`);
     if (made.length === 1) setOpenPh(made[0]);
   };
-  const field = { takePhoto, openPhoto: setOpenPh, officer, pickOfficer: () => setPickOfficer({ then: () => {} }), mobile, elevStatus, prefs, setPrefs, activeNode, setActiveNode, createPoint, pending, setPending, takePending, gps, rec, startRec, stopRec, markHere, follow, setFollow, focus, setFocus, openCoord: setCoordTab, openDed };
+  const field = { takePhoto, openPhoto: setOpenPh, officer, pickOfficer: () => openOfficer(() => {}), mobile, elevStatus, prefs, setPrefs, activeNode, setActiveNode, createPoint, pending, setPending, takePending, gps, rec, startRec, stopRec, markHere, follow, setFollow, focus, setFocus, openCoord: setCoordTab, openDed };
 
   const hyd = useMemo(() => computeHydraulics(project), [project]);
   const boq = useMemo(() => computeBoQ(project, hyd), [project, hyd]);
@@ -8164,7 +8168,9 @@ function App({ user, api }) {
   const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
   const reviewAct = (to, note, extra = {}) => {
     const p0 = projectRef.current; const c0 = p0.cloud; const me = { uid: user.uid, name: user.name || user.email, email: user.email };
-    setProject(p => { const c = p.cloud; const meta = { ...p.meta }; let signs = [...(c.signs || [])]; const reviewers = extra.reviewers || c.reviewers || null;
+    const mgr = !store || c0.ownerUid === user.uid || user.admin;
+    if (to === 'assign' && !mgr) { setToast('Hanya pemilik proyek dan admin yang dapat menunjuk petugas.'); return; }
+    setProject(p => { const c = p.cloud; const meta = { ...p.meta }; let signs = [...(c.signs || [])]; const reviewers = (mgr ? extra.reviewers : null) || c.reviewers || null;
       if (to === 'assign') return { ...p, cloud: { ...c, reviewers } };
       if (to === 'sign') { (extra.signs || []).forEach(sg => { const pre = sg.role === 'surveyor' ? 'surveyed' : 'drawn'; meta[pre + 'Sig'] = sg.sig; meta[pre + 'SigName'] = sg.name; meta[pre + 'Date'] = todayStr(); signs = [...signs.filter(x => x.role !== sg.role), sg]; });
         return { ...p, meta, cloud: { ...c, reviewers, signs, reviews: [...(c.reviews || []), { at: Date.now(), by: { uid: user.uid, name: user.name || user.email, role: user.role || '' }, from: c.status || 'draft', to: c.status || 'draft', note: note || ('Ditandatangani sebagai ' + (extra.signs || []).map(x => x.role === 'surveyor' ? 'surveyor' : 'penggambar').join(' & ')), signed: true }] } }; }
@@ -8270,7 +8276,7 @@ function App({ user, api }) {
           <button type="button" id="my-profile" onClick={() => setProfileOf(user.uid)} title="Profil saya" className="relative flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10">
             <Avatar src={myProfile?.photo} name={myProfile?.fullName || user.name} size={22} />Profil{myProfile !== undefined && profileMissing(myProfile).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400" title="Profil belum lengkap" />}</button>
           <Btn variant="dark" icon="X" onClick={logout} title={`Keluar (${user.email})`}>Keluar</Btn>
-          <button type="button" onClick={() => setPickOfficer({ then: null })} className="flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10" title="Ganti petugas di perangkat ini">
+          <button type="button" onClick={() => openOfficer(null)} className={`flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[12.5px] hover:bg-white/10 ${readOnly ? 'opacity-60' : ''}`} title={readOnly ? 'Terkunci: hanya pemilik proyek & admin yang dapat memilih petugas' : 'Ganti petugas di perangkat ini'}>{readOnly && <Icon name="Lock" size={13} />}
             <Icon name="UserRound" size={15} />{officer ? <span className="max-w-[160px] truncate">{officer.name}</span> : <span className="text-amber-300">Pilih petugas</span>}</button>
           <div className="flex flex-wrap items-center gap-1">
             <Btn variant="dark" icon="FolderOpen" onClick={() => setLibOpen(true)} title="Daftar berkas kerja / proyek">Proyek</Btn>
@@ -8308,7 +8314,7 @@ function App({ user, api }) {
           openDedSheet={(key) => { setProject(p => ({ ...p, ded: { ...p.ded, sheet: key } })); setTab('ded'); }}
           goMapBorehole={() => { setPrefs(p => ({ ...p, type: 'borehole' })); setTab('map'); setToast('Pilih alat Gambar pipa, ketuk lokasi sumur bor, lalu sambungkan ke reservoir'); }} />}
         {tab === 'boq' && <BoqWorkspace project={project} setProject={setProject} boq={boq} rab={rab} />}
-        {tab === 'ded' && <DedWorkspace project={project} setProject={setProject} hyd={hyd} boq={boq} onPrint={setPrintMode} />}
+        {tab === 'ded' && <DedWorkspace locked={readOnly} project={project} setProject={setProject} hyd={hyd} boq={boq} onPrint={setPrintMode} />}
       </main>
       <footer className="shrink-0 bg-white border-t border-line px-4 py-1.5 hidden lg:flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-slate-600 num">
         <span className="flex items-center gap-1.5"><Icon name="Spline" size={13} />{project.nodes.length} node · {project.pipes.length} pipa · {fmt(hyd.totalLength, 1)} m</span>
@@ -8355,7 +8361,7 @@ function App({ user, api }) {
           <div className="flex items-center gap-2.5 px-1 text-[12.5px]"><Icon name="CircleUserRound" size={19} className="text-slate-500" />
             <span className="flex-1 min-w-0"><span className="block font-semibold truncate">{user.name || user.email}{user.admin ? ' · admin' : ''}</span><span className="block text-slate-500 truncate">{user.email}</span></span>
             <button type="button" onClick={() => { setMenuOpen(false); setLogoutAsk(true); }} className="shrink-0 inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-[12.5px] font-semibold text-red-700"><Icon name="LogOut" size={14} />Keluar</button></div>
-          <button type="button" onClick={() => { setMenuOpen(false); setPickOfficer({ then: null }); }} className="w-full flex items-center gap-2.5 rounded-md bg-ground px-3 py-2.5 text-left">
+          <button type="button" onClick={() => { setMenuOpen(false); openOfficer(null); }} className="w-full flex items-center gap-2.5 rounded-md bg-ground px-3 py-2.5 text-left">
             <Icon name="UserRound" size={19} className="text-aqua-700" /><span className="flex-1 min-w-0"><span className="block text-[11px] text-slate-500">Petugas di perangkat ini</span>
             <span className="block text-[14px] font-semibold truncate">{officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih'}</span></span><span className="text-[12px] font-semibold text-aqua-700">Ganti</span></button>
         </div>
@@ -8384,7 +8390,7 @@ function App({ user, api }) {
       </div></div>}
     {coordTab && <CoordDialog tab={coordTab} setTab={setCoordTab} onClose={() => setCoordTab(null)} project={project} setProject={setProject} field={field} setSelection={setSelection} toast={setToast} />}
     {calcOpen && <CalcDialog project={project} setProject={setProject} hyd={hyd} onClose={() => setCalcOpen(false)} />}
-    {dialog && <ProjectDialog project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
+    {dialog && <ProjectDialog locked={readOnly} ownerName={project.cloud?.ownerName} project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
     <input ref={camRef} id="photo-cam" type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFiles} />
     <input ref={galRef} id="photo-gal" type="file" accept="image/*" multiple className="hidden" onChange={onPhotoFiles} />
     {assistOpen ? <AssistantPanel project={project} hyd={hyd} rab={rab} onClose={() => setAssistOpen(false)} />
@@ -8405,7 +8411,7 @@ function App({ user, api }) {
         <div className="flex justify-end gap-2"><Btn variant="outline" onClick={() => setLogoutAsk(false)}>Batal</Btn><Btn variant="danger" icon="LogOut" onClick={() => { setLogoutAsk(false); logout(); }}>Keluar</Btn></div>
       </div></div>}
     {openPh && <PhotoDialog ph={openPh} project={project} setProject={(fn) => setProject(fn, { system: true })} onClose={() => setOpenPh(null)} />}
-    {pickOfficer && <OfficerPicker project={project} setProject={setProject} officerId={officerId} onCancel={() => setPickOfficer(null)}
+    {pickOfficer && !readOnly && <OfficerPicker project={project} setProject={setProject} officerId={officerId} onCancel={() => setPickOfficer(null)}
       onPick={(m) => { setOfficerId(m.id); officerRef.current = m; const fn = pickOfficer.then; setPickOfficer(null); setToast(`Petugas aktif: ${m.name}`); fn && fn(); }} />}
     {confirm && <ConfirmDialog text={confirm.text} onNo={() => setConfirm(null)} onYes={() => { confirm.yes(); setConfirm(null); }} />}
     {toast && <div className="fixed bottom-20 lg:bottom-12 max-w-[92vw] text-center left-1/2 -translate-x-1/2 z-[2200] bg-deep text-white text-[13px] rounded-md px-4 py-2 shadow-lg">{toast}</div>}
