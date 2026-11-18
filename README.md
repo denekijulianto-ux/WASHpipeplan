@@ -37,6 +37,41 @@ Pipa tidak harus lurus dari node ke node:
 
 Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD (HDPE) atau 20×OD (PE). Lengkung yang lebih tajam, dan setiap belokan pipa PVC/GIP, otomatis dihitung sebagai fitting bend di BoQ. Panjang pipa dihitung mengikuti lengkungannya.
 
+## Debit sumber air & kapasitas jiwa (Kalkulator → tab "Debit sumber air")
+- **Metode pengukuran:**
+  - volumetrik (ember + stopwatch, beberapa percobaan);
+  - pelampung (lebar × dalam × waktu tempuh);
+  - ambang V-notch / persegi;
+  - current meter;
+  - debit uji pompa;
+  - volume embung/bendungan (tampungan, aliran masuk, penguapan, lama kemarau);
+  - penampungan air hujan.
+- **Penyesuaian:** faktor debit andalan (musim pengukuran) dan porsi yang boleh diambil.
+- **Hasil:**
+  - debit terukur / andalan / boleh diambil (L/dtk), volume (m³/hari), kecepatan aliran;
+  - jumlah jiwa, KK, SR, dan hidran yang bisa dilayani pada beberapa standar kebutuhan;
+  - rekomendasi: cukup/kurang dibanding proyeksi kebutuhan, bangunan penangkap, diameter pipa transmisi, volume reservoir, dan cek bisa gravitasi.
+- **Integrasi:**
+  - hubungkan ke node sumber; Analisis Hidrolis memperingatkan bila kebutuhan melebihi kapasitas sumber;
+  - buat reservoir sesuai volume, broncaptering / broncaptering V, dan hidran umum;
+  - ubah diameter pipa dari sumber;
+  - tambahkan bendung & intake (sungai) atau intake embung ke RAB.
+
+## Profil elevasi di peta (tab Peta → "Profil elevasi")
+- **Grafik:** muka tanah dan garis tekanan dari sumber ke node ujung yang dipilih.
+- **Penanda:** titik tertinggi & terendah, serta titik tinggi/rendah lokal yang belum diberi air valve / wash out.
+- **Interaksi:** kursor di grafik menandai lokasi di peta; klik untuk memusatkan peta.
+- **Detail DEM:** tombol *Profil tanah detail dari DEM* mengambil elevasi tiap ± 10 m sepanjang pipa.
+
+## Paket sumur bor all-in (tab Olah Air → kartu sumur bor)
+- **Isi estimasi biaya** (dengan cadangan 10% dan harga per meter kedalaman):
+  - survei geolistrik, izin, dan mobilisasi rig;
+  - pengeboran & konstruksi sumur, logging, uji pompa & laboratorium;
+  - pompa, panel, kabel, dan riser;
+  - kepala sumur & rumah pompa;
+  - sambungan listrik atau PLTS.
+- **Masuk RAB:** pilih *rincian per item* atau *satu paket all-in (lump sum)*.
+
 ## Air tanah & hidrologi (tab Peta → panel "Air tanah & hidrologi")
 - **Lapisan peta:**
   - sungai, mata air & sumur dari OpenStreetMap (Overpass);
