@@ -1761,7 +1761,10 @@ const PUMP_DEFAULTS = {
   tariff: 1444.7,
   solar: false,
   psh: 4.0,
-  phase: 'auto'
+  phase: 'auto',
+  sleeve: 'auto',
+  sleeveSize: 'auto',
+  sleeveMat: 'pvc'
 };
 const pumpP = n => ({
   ...PUMP_DEFAULTS,
@@ -2092,7 +2095,11 @@ function computeHydraulics(project) {
       ref: b.id,
       text: `Debit pompa ${b.label} ${fmt(Q, 2)} L/dtk melebihi debit aman sumur ${fmt(pp.yield, 2)} L/dtk (hasil uji pemompaan). Tambah jam operasi, tambah sumur, atau kecilkan pompa.`
     });
-    if (wg.inScreen) pumpWarn.push({
+    if (wg.inScreen && !sleeveOf(pp, {
+      ...wg,
+      Q,
+      motor: en.motor
+    }, Q * 3.6 <= 16 && en.motor <= 7.5 ? 4 : Q * 3.6 <= 60 ? 6 : 8).on) pumpWarn.push({
       level: 'low',
       ref: b.id,
       text: `Pompa ${b.label} dipasang pada ${fmt(wg.setting, 1)} m, di dalam zona saringan (mulai ${fmt(wg.screenTop, 1)} m): wajib pakai selubung pendingin (flow inducer sleeve) agar motor tetap dingin dan pasir tidak terisap; atau perpanjang pipa buta (blind casing) supaya saringan dimulai lebih dalam.`
@@ -2843,6 +2850,7 @@ function specOf(key, desc, unit) {
   if (p[0] === 'pump') {
     if (p[1] === 'allin') return tierSpec('Material & pompa standar lokal (casing PVC AW, saringan slot gergaji, impeller plastik), uji pompa 8 jam', 'Sesuai rincian ideal: casing PVC tebal/baja, saringan slot mesin, pompa SS304, uji pompa 24 jam, logging & uji lab', 'Saringan SS wire-wrap, pompa full SS316, panel VFD, uji pompa 72 jam, monitoring muka air', [0.8, 1, 1.35]);
     if (['ves', 'rig', 'log', 'lab', 'izin', 'elec'].includes(p[1])) return null;
+    if (p[1] === 'sleeve') return tierSpec('Pipa PVC AW + tutup PVC, klem baja galvanis', 'Pipa PVC tebal SDR 17 + tutup PVC/SS, klem SS304, sil karet, centralizer', 'Pipa & tutup stainless SS304 + klem SS316, centralizer', [0.8, 1, 2.6]);
     if (p[1] === 'unit') return tierSpec('Pompa merek lokal, impeller Noryl/plastik teknik, motor rewindable, garansi 1 tahun', 'Impeller & diffuser SS304, motor submersible IP68 isolasi kelas F, kurva uji ISO 9906, garansi 2 tahun', 'Seluruh bagian basah SS316, motor efisiensi tinggi + sensor suhu, garansi 3 tahun', [0.7, 1, 1.5]);
     if (p[1] === 'panel') return tierSpec('Panel MCB + kontaktor + TOR (1 fasa: kapasitor)', 'Panel + WLC/elektroda level, proteksi dry-run, phase failure, volt/ampere meter, arrester', 'Panel + soft starter / VFD, kWh meter, telemetri GSM, box SS IP65', [0.65, 1, 1.9]);
     if (p[1] === 'cable') return tierSpec('Kabel NYY ukuran sesuai hitungan', 'Kabel submersible pipih H07RN-F / NYFGbY sesuai hitungan, sambungan resin kit', 'Kabel submersible 1 tingkat lebih besar (rugi tegangan < 2%) + kabel ground', [0.85, 1, 1.35]);
@@ -2908,6 +2916,38 @@ const PHASES = {
   1: '1 fasa 220 V / 50 Hz',
   3: '3 fasa 380 V / 50 Hz'
 };
+const SLEEVES = [['4', 'Pipa 4" (OD 114 mm)', 0.114, 0.105], ['5', 'Pipa 5" (OD 140 mm)', 0.140, 0.131], ['6', 'Pipa 6" (OD 165 mm)', 0.165, 0.155], ['8', 'Pipa 8" (OD 216 mm)', 0.216, 0.203], ['10', 'Pipa 10" (OD 267 mm)', 0.267, 0.252]];
+const SLEEVE_MAT = {
+  pvc: 'PVC tebal (SDR 17)',
+  ss304: 'Stainless steel SS304'
+};
+const motorOD = pumpDia => pumpDia === 4 ? 0.098 : pumpDia === 6 ? 0.143 : 0.19;
+function sleeveOf(pp, pr, pumpDia) {
+  const inScreen = !!pr.inScreen;
+  const on = pp.sleeve === 'yes' || pp.sleeve !== 'no' && inScreen;
+  const Dm = motorOD(pumpDia),
+    Dc = (+pp.casing || 6) * 0.0254;
+  const auto = SLEEVES.find(x => x[3] >= Dm + 0.02 && x[2] <= Dc - 0.01);
+  const sz = pp.sleeveSize !== 'auto' ? SLEEVES.find(x => x[0] === String(pp.sleeveSize)) || auto : auto;
+  const L = round2(clamp(1.2 + 0.1 * (pr.motor || 1), 1.2, 3.2));
+  const Q = (pr.Q || 0) / 1000;
+  const v = sz ? Q / (Math.PI / 4 * (sz[3] * sz[3] - Dm * Dm)) : null;
+  const need = pumpDia === 4 ? 0.08 : 0.16;
+  const fits = !!sz && sz[2] <= Dc - 0.005 && sz[3] > Dm + 0.005;
+  return {
+    on,
+    inScreen,
+    sz,
+    auto,
+    L,
+    v,
+    need,
+    fits,
+    Dm,
+    Dc,
+    mat: SLEEVE_MAT[pp.sleeveMat] ? pp.sleeveMat : 'pvc'
+  };
+}
 function pumpSpec({
   kind = 'sub',
   Qls,
@@ -2918,7 +2958,8 @@ function pumpSpec({
   cableL = 0,
   typeLabel = '',
   ptype = '',
-  tiers = null
+  tiers = null,
+  sleeve = null
 }) {
   const Qh = Qls * 3.6;
   const ph = phase === 'auto' ? motor <= 2.2 ? 1 : 3 : +phase;
@@ -2929,7 +2970,7 @@ function pumpSpec({
   const kva = motor / (pf * em);
   const outD = Math.sqrt(4 * Math.max(Qls, 0.05) / 1000 / (Math.PI * 1.8)) * 1000;
   const out = STD_INCH.find(s => s[0] >= outD) || STD_INCH[STD_INCH.length - 1];
-  const pumpDia = kind === 'sub' ? Qh <= 8 && motor <= 4 ? 4 : Qh <= 45 ? 6 : 8 : null;
+  const pumpDia = kind === 'sub' ? Qh <= 16 && motor <= 7.5 ? 4 : Qh <= 60 ? 6 : 8 : null;
   const stageH = kind === 'sub' ? pumpDia === 4 ? 5 : pumpDia === 6 ? 9 : 14 : ptype === 'multistage' || ptype === 'booster' ? 8 : 0;
   const stages = stageH ? Math.max(1, Math.ceil(H / stageH)) : 1;
   const rho = 0.0178;
@@ -2945,18 +2986,22 @@ function pumpSpec({
   const warn = [];
   let cool = null;
   if (kind === 'sub') {
-    if (casing <= pumpDia) warn.push(`Pompa ${pumpDia}" tidak muat di casing ${casing}" — perbesar casing minimal ${pumpDia + 2}" atau kurangi debit per pompa (mis. 2 sumur / 2 pompa lebih kecil).`);else {
-      const Dm = pumpDia === 4 ? 0.095 : pumpDia === 6 ? 0.14 : 0.19,
+    if (casing <= pumpDia) warn.push(`Pompa ${pumpDia}" tidak muat di casing ${casing}" — perbesar casing minimal ${pumpDia + 2}" atau kurangi debit per pompa (mis. 2 sumur / 2 pompa lebih kecil).`);else if (sleeve && sleeve.on) {
+      cool = sleeve.v;
+      if (!sleeve.sz || !sleeve.fits) warn.push(`Selubung pendingin tidak muat: casing ${casing}" terlalu sempit untuk pompa ${pumpDia}" + selubung. Perbesar casing atau pakai pompa lebih kecil.`);else if (cool < sleeve.need) warn.push(`Dengan selubung ${sleeve.sz[1]}, kecepatan air pendingin ${fmt(cool, 2)} m/dtk masih < ${sleeve.need} m/dtk: pilih selubung lebih kecil.`);else if (cool > 3) warn.push(`Kecepatan di dalam selubung ${fmt(cool, 2)} m/dtk terlalu tinggi (> 3 m/dtk): pilih selubung lebih besar.`);
+    } else {
+      const Dm = motorOD(pumpDia),
         Dc = casing * 0.0254 * 0.95;
       const ann = Math.PI / 4 * (Dc * Dc - Dm * Dm);
       cool = ann > 0 ? Qls / 1000 / ann : 0;
       const need = pumpDia === 4 ? 0.08 : 0.16;
       if (ann > 0 && cool < need) warn.push(`Kecepatan air pendingin motor ${fmt(cool, 2)} m/dtk < ${need} m/dtk: pasang selubung pendingin (flow inducer sleeve).`);
+      if (sleeve && sleeve.inScreen) warn.push('Pompa berada di zona saringan tanpa selubung pendingin: motor bisa panas & pasir mudah terisap. Aktifkan selubung pendingin.');
     }
   }
   if (vDrop > 3) warn.push(`Rugi tegangan kabel ${fmt(vDrop, 1)}% > 3%: perbesar penampang kabel.`);
   if (ph === 1 && motor > 2.2) warn.push('Motor > 2,2 kW dengan listrik 1 fasa jarang tersedia: gunakan 3 fasa atau VFD 1→3 fasa.');
-  const rows = [['Jenis pompa', kind === 'sub' ? `Submersible sumur dalam ${pumpDia}", ${stages} tingkat (stage)` : `${typeLabel || 'Pompa permukaan'}${stages > 1 ? `, ± ${stages} tingkat` : ''}`], ['Titik kerja (duty point)', `Q ${fmt(Qls, 2)} L/dtk = ${fmt(Qh, 2)} m³/jam = ${fmt(Qls * 60, 0)} L/mnt · H ${fmt(H, 1)} m`], ['Head tutup (shut-off) min.', `± ${fmt(H * 1.3, 0)} m (titik kerja di 70–120% BEP)`], ['Daya motor', `${fmt(motor, 2)} kW (${hpOf(motor)} HP), 2 kutub ± 2900 rpm, kerja kontinu S1`], ...(tiers ? [['Motor minimal · ideal · maksimal', ['min', 'ideal', 'max'].map(k => `${fmt(tiers[k].motor, 2)} kW / ${tiers[k].hp} HP`).join(' · ')]] : []), ['Sumber listrik', `${ph} fasa ${V} V / 50 Hz · arus nominal ± ${fmt(I, 1)} A · ${fmt(kva, 1)} kVA`], ['Ukuran keluaran (outlet)', `${out[1]} (DN${out[0]}), kecepatan ± ${fmt(Qls / 1000 / (Math.PI / 4 * Math.pow(out[0] / 1000, 2)), 2)} m/dtk`], kind === 'sub' ? ['Pemasangan', `casing ≥ ${pumpDia + 2}", terendam ≥ 3 m di bawah muka air dinamis${cool ? `; aliran pendingin motor ${fmt(cool, 2)} m/dtk` : ''}`] : ['Hisap', ptype === 'jet' ? 'tinggi hisap ≤ 8 m (jet)' : 'tinggi hisap ≤ 6 m atau posisi tergenang (flooded); NPSHa > NPSHr + 0,5 m'], ['Bahan (rekomendasi ideal)', kind === 'sub' ? 'impeller & diffuser SS304, poros SS, motor IP68 isolasi kelas F' : 'rumah besi cor epoxy / SS304, impeller SS, mechanical seal karbon–keramik'], ['Kabel daya', `${ph === 1 ? 3 : 4} × ${cab[0]} mm² ${kind === 'sub' ? 'kabel submersible' : 'NYY'}, panjang ± ${fmt(L, 0)} m, rugi tegangan ${fmt(vDrop, 1)}%`], ['Starter & proteksi', `${starter}; MCB/MCCB ${mcb} A, proteksi beban lebih, dry-run (elektroda level)${ph === 3 ? ', phase failure' : ''}, arrester, grounding ≤ 5 Ω`], ['Genset cadangan (opsional)', `≥ ${genset} kVA`], ['Standar uji', 'kurva performa ISO 9906 (grade 2B); motor IEC 60034; sertifikat pabrik & garansi']];
+  const rows = [['Jenis pompa', kind === 'sub' ? `Submersible sumur dalam ${pumpDia}", ${stages} tingkat (stage)` : `${typeLabel || 'Pompa permukaan'}${stages > 1 ? `, ± ${stages} tingkat` : ''}`], ['Titik kerja (duty point)', `Q ${fmt(Qls, 2)} L/dtk = ${fmt(Qh, 2)} m³/jam = ${fmt(Qls * 60, 0)} L/mnt · H ${fmt(H, 1)} m`], ['Head tutup (shut-off) min.', `± ${fmt(H * 1.3, 0)} m (titik kerja di 70–120% BEP)`], ['Daya motor', `${fmt(motor, 2)} kW (${hpOf(motor)} HP), 2 kutub ± 2900 rpm, kerja kontinu S1`], ...(tiers ? [['Motor minimal · ideal · maksimal', ['min', 'ideal', 'max'].map(k => `${fmt(tiers[k].motor, 2)} kW / ${tiers[k].hp} HP`).join(' · ')]] : []), ['Sumber listrik', `${ph} fasa ${V} V / 50 Hz · arus nominal ± ${fmt(I, 1)} A · ${fmt(kva, 1)} kVA`], ['Ukuran keluaran (outlet)', `${out[1]} (DN${out[0]}), kecepatan ± ${fmt(Qls / 1000 / (Math.PI / 4 * Math.pow(out[0] / 1000, 2)), 2)} m/dtk`], kind === 'sub' ? ['Pemasangan', `casing ≥ ${pumpDia + 2}", terendam ≥ 3 m di bawah muka air dinamis${cool ? `; aliran pendingin motor ${fmt(cool, 2)} m/dtk` : ''}`] : null, kind === 'sub' ? sleeve && sleeve.on && sleeve.sz ? ['Selubung pendingin', `${SLEEVE_MAT[sleeve.mat]} ${sleeve.sz[1]}, panjang ± ${fmt(sleeve.L, 1)} m (dari atas lubang hisap s/d 0,3–0,5 m di bawah motor), tutup atas rapat + lubang udara Ø6 mm, centralizer`] : null : ['Hisap', ptype === 'jet' ? 'tinggi hisap ≤ 8 m (jet)' : 'tinggi hisap ≤ 6 m atau posisi tergenang (flooded); NPSHa > NPSHr + 0,5 m'], ['Bahan (rekomendasi ideal)', kind === 'sub' ? 'impeller & diffuser SS304, poros SS, motor IP68 isolasi kelas F' : 'rumah besi cor epoxy / SS304, impeller SS, mechanical seal karbon–keramik'], ['Kabel daya', `${ph === 1 ? 3 : 4} × ${cab[0]} mm² ${kind === 'sub' ? 'kabel submersible' : 'NYY'}, panjang ± ${fmt(L, 0)} m, rugi tegangan ${fmt(vDrop, 1)}%`], ['Starter & proteksi', `${starter}; MCB/MCCB ${mcb} A, proteksi beban lebih, dry-run (elektroda level)${ph === 3 ? ', phase failure' : ''}, arrester, grounding ≤ 5 Ω`], ['Genset cadangan (opsional)', `≥ ${genset} kVA`], ['Standar uji', 'kurva performa ISO 9906 (grade 2B); motor IEC 60034; sertifikat pabrik & garansi']].filter(Boolean);
   return {
     rows,
     warn,
@@ -9827,6 +9872,11 @@ function designTreatment(t, project, hyd) {
     handled
   };
 }
+const borePumpDia = pr => {
+  const Qh = (pr.Q || 0) * 3.6;
+  return Qh <= 16 && (pr.motor || 0) <= 7.5 ? 4 : Qh <= 60 ? 6 : 8;
+};
+const boreSleeve = (n, pr) => sleeveOf(pumpP(n), pr, borePumpDia(pr));
 const boreSpec = (n, pr) => {
   const pp = pumpP(n);
   return pumpSpec({
@@ -9837,7 +9887,8 @@ const boreSpec = (n, pr) => {
     phase: pp.phase,
     casing: +pp.casing || 6,
     cableL: pr.setting + 30,
-    tiers: pr.tiers
+    tiers: pr.tiers,
+    sleeve: boreSleeve(n, pr)
   });
 };
 function pumpItems(n, pr) {
@@ -9851,6 +9902,8 @@ function pumpItems(n, pr) {
   const gravel = Math.PI / 4 * (Db * Db - Dc * Dc) * (pp.screen + 6);
   const grout = Math.PI / 4 * (Db * Db - Dc * Dc) * 6;
   const it = [['pump|drill', `Pengeboran sumur Ø${cs + 4}" (lubang bor) sampai ${fmt(pp.depth, 0)} m`, pp.depth, "m'", r500(650000 * k)], ['pump|casing', `Pipa jambang (casing) PVC/baja Ø${cs}"`, blind + 3, "m'", r500(350000 * k)], ['pump|screen', `Pipa saringan (screen) Ø${cs}" slot 1 mm`, pp.screen, "m'", r500(700000 * k)], ['pump|gravel', 'Kerikil pembalut (gravel pack) 2–5 mm', gravel, 'm³', 900000], ['pump|grout', 'Penyekat semen/bentonit (sanitary seal) 0–6 m', grout, 'm³', 2500000], ['pump|dev', 'Pembersihan/pengembangan sumur, uji pemompaan & uji kualitas air', 1, 'ls', 9000000], ['pump|unit|' + pr.motor, `Pompa submersible ${sp.pumpDia}" ${sp.stages} stage, Q ${fmt(pr.Q, 2)} L/dtk (${fmt(pr.Q * 3.6, 1)} m³/jam), H ${fmt(pr.Hd, 0)} m, motor ${fmt(pr.motor, 2)} kW ${sp.ph} fasa ${sp.V} V, outlet ${sp.out[1]}`, 1, 'unit', r500(6000000 + 7000000 * pr.motor)], ['pump|panel|' + pr.motor, `Panel kontrol & proteksi pompa ${fmt(pr.motor, 2)} kW: ${sp.starter.toLowerCase()}, MCB ${sp.mcb} A, level switch/dry-run${sp.ph === 3 ? ', phase failure' : ''}, arrester`, 1, 'unit', r500(3500000 + 1200000 * pr.motor)], ['pump|cable', `Kabel listrik pompa submersible ${sp.ph === 1 ? 3 : 4} × ${sp.cab[0]} mm² (rugi tegangan ${fmt(sp.vDrop, 1)}%)`, Math.ceil(pr.setting + 30), "m'", r500(12000 + 8000 * sp.cab[0] * (sp.ph === 1 ? 1 : 1.33))], ['pump|riser|' + pp.riserDia, `Pipa naik (riser) ${pp.riserMat} Ø${pp.riserDia} mm`, Math.ceil(pr.riserL), "m'", defPipePrice(pp.riserMat, pp.riserDia)], ['pump|head', 'Kepala sumur: katup searah, katup sorong, meter air, manometer, katup udara', 1, 'set', 6500000], ['pump|house', 'Rumah pompa & pagar pengaman (3 × 3 m)', 1, 'ls', 25000000]];
+  const sl = boreSleeve(n, pr);
+  if (sl.on && sl.sz) it.push(['pump|sleeve', `Selubung pendingin pompa (flow inducer sleeve) ${SLEEVE_MAT[sl.mat]} ${sl.sz[1]} panjang ± ${fmt(sl.L, 1)} m, tutup atas + sil karet, klem SS, 3 centralizer`, 1, 'set', r500((sl.mat === 'ss304' ? 3500000 : 900000) + (sl.mat === 'ss304' ? 900000 : 220000) * sl.L * (sl.sz[2] / 0.14))]);
   if (pp.solar) it.push(['pump|solar', `PLTS pompa ${fmt(pr.kWp, 1)} kWp (${pr.panels} panel 550 Wp, inverter/VFD surya, rangka)`, pr.kWp, 'kWp', 15000000]);
   return it;
 }
@@ -13398,14 +13451,58 @@ function PumpCard({
     value: d
   }, d, "\"")))), num('swl', 'Muka air statis (m bmt)', 0.5, 0, 'bmt = di bawah muka tanah'), num('dd', 'Penurunan muka air (m)', 0.5, 0, 'drawdown saat dipompa'), num('yield', 'Debit aman sumur (L/dtk)', 0.1, 0.1, 'dari uji pemompaan'), num('screen', 'Panjang saringan (m)', 1, 1), React.createElement(Field, {
     label: "Kedalaman pompa (m bmt)",
-    hint: `0 = otomatis (${fmt(pr.autoSetting, 1)} m, 1 m di atas saringan). Saringan mulai ${fmt(pr.screenTop, 1)} m; muka air dinamis ${fmt(pp.swl + pp.dd, 1)} m → terendam ${fmt(pr.submergence, 1)} m.${pr.inScreen ? ' ⚠ Pompa berada di zona saringan: wajib pakai selubung pendingin (shroud) atau perpanjang pipa buta.' : ''}`
+    hint: `0 = otomatis (${fmt(pr.autoSetting, 1)} m, 1 m di atas saringan). Saringan mulai ${fmt(pr.screenTop, 1)} m; muka air dinamis ${fmt(pp.swl + pp.dd, 1)} m → terendam ${fmt(pr.submergence, 1)} m.${pr.inScreen ? ' Pompa di zona saringan → perlu selubung pendingin (atur di bawah).' : ''}`
   }, React.createElement(NumField, {
     id: `pp-${node.id}-setManual`,
     value: pp.setManual || 0,
     step: 1,
     min: 0,
     onChange: v => set('setManual', Math.max(0, v))
-  })), num('hours', 'Jam operasi per hari', 1, 1), num('peak', 'Faktor jam puncak', 0.05, 1), React.createElement(Field, {
+  })), (() => {
+    const sl = boreSleeve(node, pr);
+    return React.createElement("div", {
+      className: "col-span-2 rounded-md border border-line p-2 space-y-1.5"
+    }, React.createElement(Field, {
+      label: "Selubung pendingin (flow inducer sleeve)"
+    }, React.createElement("select", {
+      id: `pp-${node.id}-sleeve`,
+      className: "tp-field",
+      value: pp.sleeve || 'auto',
+      onChange: e => set('sleeve', e.target.value)
+    }, React.createElement("option", {
+      value: "auto"
+    }, "Otomatis: pasang bila pompa di zona saringan", pr.inScreen ? ' (sekarang: dipasang)' : ' (sekarang: tidak perlu)'), React.createElement("option", {
+      value: "yes"
+    }, "Selalu pasang"), React.createElement("option", {
+      value: "no"
+    }, "Tidak dipasang"))), sl.on && React.createElement("div", {
+      className: "grid grid-cols-2 gap-2"
+    }, React.createElement(Field, {
+      label: "Ukuran selubung"
+    }, React.createElement("select", {
+      id: `pp-${node.id}-sleeveSize`,
+      className: "tp-field",
+      value: pp.sleeveSize || 'auto',
+      onChange: e => set('sleeveSize', e.target.value)
+    }, React.createElement("option", {
+      value: "auto"
+    }, "Otomatis", sl.auto ? ` (${sl.auto[1]})` : ' (tidak ada yang muat)'), SLEEVES.map(x => React.createElement("option", {
+      key: x[0],
+      value: x[0]
+    }, x[1])))), React.createElement(Field, {
+      label: "Bahan"
+    }, React.createElement("select", {
+      id: `pp-${node.id}-sleeveMat`,
+      className: "tp-field",
+      value: sl.mat,
+      onChange: e => set('sleeveMat', e.target.value)
+    }, Object.entries(SLEEVE_MAT).map(([k, l]) => React.createElement("option", {
+      key: k,
+      value: k
+    }, l)))), React.createElement("p", {
+      className: 'col-span-2 text-[11.5px] ' + (!sl.sz || !sl.fits || sl.v < sl.need || sl.v > 3 ? 'text-red-700' : 'text-slate-600')
+    }, sl.sz ? `Motor Ø${fmt(sl.Dm * 1000, 0)} mm di dalam selubung Ø dalam ${fmt(sl.sz[3] * 1000, 0)} mm (casing Ø ${fmt(sl.Dc * 1000, 0)} mm) → kecepatan air pendingin ${fmt(sl.v, 2)} m/dtk (min ${sl.need}, maks 3). Panjang ± ${fmt(sl.L, 1)} m. ${sl.fits ? 'Masuk RAB & gambar DED.' : 'Selubung tidak muat di casing!'}` : 'Tidak ada ukuran selubung yang muat di casing ini: perbesar casing atau pakai pompa lebih kecil.')));
+  })(), num('hours', 'Jam operasi per hari', 1, 1), num('peak', 'Faktor jam puncak', 0.05, 1), React.createElement(Field, {
     label: "Pipa riser"
   }, React.createElement("select", {
     id: `pp-${node.id}-riser`,
@@ -19731,7 +19828,45 @@ function SheetBorehole({
     height: 1.2,
     fill: "#fff",
     opacity: 0.5
-  }), React.createElement("line", {
+  }), (() => {
+    const sl = boreSleeve(node, pr);
+    return sl.on && sl.sz ? React.createElement("g", null, React.createElement("rect", {
+      x: cx - 5.6,
+      y: Y(pr.setting) + 4.6,
+      width: 8.8,
+      height: 11.4,
+      fill: "none",
+      stroke: "#7c3aed",
+      strokeWidth: 0.45
+    }), React.createElement("line", {
+      x1: cx - 5.6,
+      x2: cx + 3.2,
+      y1: Y(pr.setting) + 4.6,
+      y2: Y(pr.setting) + 4.6,
+      stroke: "#7c3aed",
+      strokeWidth: 0.9
+    }), React.createElement("line", {
+      x1: cx - 5.6,
+      x2: cx - Rb - 3,
+      y1: Y(pr.setting) + 12,
+      y2: Y(pr.setting) + 12,
+      stroke: "#000",
+      strokeWidth: 0.15
+    }), React.createElement(HaloText, {
+      x: cx - Rb - 4,
+      y: Y(pr.setting) + 11.2,
+      fontSize: 1.6,
+      textAnchor: "end",
+      fill: "#5b21b6",
+      fontWeight: 700
+    }, "Selubung pendingin ", sl.sz[1].replace('Pipa ', '')), React.createElement(HaloText, {
+      x: cx - Rb - 4,
+      y: Y(pr.setting) + 13.6,
+      fontSize: 1.45,
+      textAnchor: "end",
+      fill: "#5b21b6"
+    }, SLEEVE_MAT[sl.mat], " \xB7 \xB1 ", fmt(sl.L, 1), " m \xB7 v ", fmt(sl.v, 2), " m/dtk")) : null;
+  })(), React.createElement("line", {
     x1: cx + 2,
     x2: cx + Rb + 3,
     y1: Y(pr.setting) + 5,
@@ -26486,6 +26621,10 @@ function PhotoReport({
   })));
 }
 const KB = [{
+  k: 'selubung pendingin flow inducer sleeve shroud pompa zona saringan motor panas pasir',
+  t: 'Selubung pendingin pompa (flow inducer sleeve)',
+  a: 'Tab **Olah Air** → kartu sumur bor: isi **Kedalaman pompa**, lalu atur **Selubung pendingin**: *Otomatis* (dipasang bila pompa berada di zona saringan), *Selalu pasang*, atau *Tidak dipasang*. Ukuran dipilih otomatis (bisa diganti) beserta bahan PVC/SS304; aplikasi menghitung kecepatan air pendingin (min. 0,08 m/dtk motor 4", 0,16 m/dtk motor 6"), panjang selubung, memasukkannya ke RAB, spesifikasi pompa, dan gambar DED sumur bor.'
+}, {
   k: 'tidak bisa pilih petugas terkunci gembok ganti petugas tim proyek milik orang lain',
   t: 'Petugas terkunci di proyek orang lain',
   a: 'Hanya **pemilik proyek** dan **admin** yang dapat memilih/mengubah petugas: petugas di perangkat, tim petugas, nama Disurvei/Digambar/Pemeriksa/Penyetuju di kop, dan penunjukan di *Status & review*. Bila Anda membuka proyek milik orang lain, bagian itu terkunci (ikon gembok). Untuk mengerjakannya sendiri, pakai *Simpan sebagai salinan saya*, atau minta pemilik/admin menunjuk Anda.'

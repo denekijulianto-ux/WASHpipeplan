@@ -94,6 +94,15 @@ Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD 
 - **Interaksi:** kursor di grafik menandai lokasi di peta; klik untuk memusatkan peta.
 - **Detail DEM:** tombol *Profil tanah detail dari DEM* mengambil elevasi tiap ± 10 m sepanjang pipa.
 
+## Kedalaman pompa & selubung pendingin (tab Olah Air → kartu sumur bor)
+- **Kedalaman pompa (m bmt):** 0 = otomatis, yaitu 1 m di atas saringan. Isi angka untuk memasang pompa lebih dalam.
+- **Selubung pendingin (flow inducer sleeve):**
+  - mode *Otomatis* (dipasang bila pompa berada di zona saringan), *Selalu pasang*, atau *Tidak dipasang*;
+  - ukuran pipa selubung dipilih otomatis (muat di casing, lebih besar dari motor) dan bisa diganti; bahan PVC tebal atau SS304.
+- **Hitungan:** kecepatan air pendingin di sela motor–selubung (min. 0,08 m/dtk untuk motor 4", 0,16 m/dtk untuk motor 6", maks. 3 m/dtk) dan panjang selubung.
+- **Ikut ke:** RAB (item "Selubung pendingin pompa"), tabel spesifikasi pompa, dan gambar DED sumur bor.
+- **Diameter pompa:** pompa 4" dipakai sampai ± 16 m³/jam dan motor ≤ 7,5 kW. Pompa 6" butuh casing ≥ 8".
+
 ## Paket sumur bor all-in (tab Olah Air → kartu sumur bor)
 - **Isi estimasi biaya** (dengan cadangan 10% dan harga per meter kedalaman):
   - survei geolistrik, izin, dan mobilisasi rig;
