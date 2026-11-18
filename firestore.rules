@@ -60,10 +60,10 @@ service cloud.firestore {
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
       allow update: if approved() && request.resource.data.ownerUid == resource.data.ownerUid
         && (resource.data.ownerUid == request.auth.uid || isAdmin()
-          || get(/databases/$(database)/documents/projects/$(pid)).data.checkerUid == request.auth.uid
-          || get(/databases/$(database)/documents/projects/$(pid)).data.approverUid == request.auth.uid
-          || get(/databases/$(database)/documents/projects/$(pid)).data.surveyorUid == request.auth.uid
-          || get(/databases/$(database)/documents/projects/$(pid)).data.drafterUid == request.auth.uid);
+          || get(/databases/$(database)/documents/projects/$(pid)).data.get('checkerUid', '') == request.auth.uid
+          || get(/databases/$(database)/documents/projects/$(pid)).data.get('approverUid', '') == request.auth.uid
+          || get(/databases/$(database)/documents/projects/$(pid)).data.get('surveyorUid', '') == request.auth.uid
+          || get(/databases/$(database)/documents/projects/$(pid)).data.get('drafterUid', '') == request.auth.uid);
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
     // Foto asesmen (resolusi penuh): anggota yang disetujui boleh melihat; hanya pengunggah/admin yang boleh mengubah/menghapus
