@@ -63,6 +63,7 @@
   .tp-table tr.clickable:hover td { background: #ecf7f7; cursor: pointer; }
   .tp-table tr.active td { background: #cfeced; }
   .tp-table td.r, .tp-table th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .rab-table td { vertical-align: top; } .rab-table td.r { white-space: nowrap; } .rab-table .tp-field { min-width: 0; }
   .pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .s-ok { background: #dcfce7; color: #166534; }
   .s-low { background: #fef9c3; color: #854d0e; }
@@ -15531,6 +15532,7 @@ function RabTable({
   const hasShs = (shsOf(project).items || []).length > 0;
   const s = project.settings;
   const E = project.rabEdits || {};
+  const narrow = useMedia('(max-width: 767px)');
   const [edit, setEdit] = useState(false);
   const [showHidden, setShowHidden] = useState({});
   const [confirmReset, setConfirmReset] = useState(false);
@@ -15678,28 +15680,120 @@ function RabTable({
     variant: "outline",
     icon: "RotateCcw",
     onClick: () => setConfirmReset(true)
-  }, "Kembalikan semua item ke otomatis"))), React.createElement("table", {
-    className: "tp-table"
-  }, React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", {
-    className: "w-10"
-  }, "No"), React.createElement("th", null, "Uraian pekerjaan"), React.createElement("th", {
+  }, "Kembalikan semua item ke otomatis"))), narrow && !edit ? React.createElement("div", {
+    className: "divide-y divide-line"
+  }, rab.sections.map(sec => React.createElement("div", {
+    key: sec.sid
+  }, React.createElement("div", {
+    className: "flex items-start gap-2 bg-ground px-3 py-2 font-semibold text-[13px]"
+  }, React.createElement("span", null, sec.code), React.createElement("span", {
+    className: "flex-1"
+  }, sec.title), React.createElement("span", {
+    className: "num whitespace-nowrap"
+  }, fmt(sec.subtotal, 0))), sec.items.map((it, i) => React.createElement("div", {
+    key: it.ek,
+    className: "px-3 py-2.5 space-y-1.5 border-t border-line"
+  }, React.createElement("div", {
+    className: "text-[13px]"
+  }, React.createElement("span", {
+    className: "text-slate-400 mr-1"
+  }, i + 1, "."), it.desc, (it.edDesc || it.edVol || it.edUnit) && React.createElement("span", {
+    className: "pill s-low ml-1.5 !text-[10px]"
+  }, "diubah")), it.spec && React.createElement(TierPick, {
+    it: it,
+    onPick: k => setMap('tier', it.ek, k === rab.tierAll ? undefined : k),
+    manual: project.prices[it.key] !== undefined
+  }), React.createElement("div", {
+    className: "text-[12px] text-slate-600"
+  }, React.createElement("b", {
+    className: "num"
+  }, fmt(it.vol, 2), " ", it.unit), it.pack ? React.createElement(React.Fragment, null, " \xB7 ", it.pack) : null), React.createElement("div", {
+    className: "flex items-end gap-2"
+  }, React.createElement("div", {
+    className: "flex-1"
+  }, React.createElement("div", {
+    className: "text-[10.5px] uppercase tracking-wide text-slate-500"
+  }, "Harga satuan (Rp)"), React.createElement(PriceField, {
+    id: 'pricem-' + sec.sid + '-' + it.key,
+    value: it.price,
+    edited: project.prices[it.key] !== undefined,
+    onChange: v => setPrice(it.key, v)
+  })), React.createElement("div", {
+    className: "text-right"
+  }, React.createElement("div", {
+    className: "text-[10.5px] uppercase tracking-wide text-slate-500"
+  }, "Jumlah (Rp)"), React.createElement("div", {
+    className: "num font-semibold text-[14px] py-1.5"
+  }, fmt(it.amount, 0)))))))), React.createElement("div", {
+    className: "px-3 py-2 space-y-1 text-[13px]"
+  }, [['JUMLAH', rab.total], [`PPN ${s.ppnPct}%`, rab.ppn], ['TOTAL', rab.grand]].map(([l, v]) => React.createElement("div", {
+    key: l,
+    className: "flex justify-between"
+  }, React.createElement("span", null, l), React.createElement("span", {
+    className: "num font-semibold"
+  }, fmt(v, 0)))), React.createElement("div", {
+    className: "flex justify-between bg-aqua-50 rounded px-2 py-1.5 font-bold text-aqua-800"
+  }, React.createElement("span", null, "DIBULATKAN"), React.createElement("span", {
+    className: "num"
+  }, fmt(rab.rounded, 0))))) : React.createElement("table", {
+    className: "tp-table rab-table",
+    style: {
+      tableLayout: 'fixed',
+      width: '100%',
+      minWidth: 880
+    }
+  }, React.createElement("colgroup", null, React.createElement("col", {
+    style: {
+      width: 34
+    }
+  }), React.createElement("col", null), React.createElement("col", {
+    style: {
+      width: edit ? 130 : 84
+    }
+  }), React.createElement("col", {
+    style: {
+      width: edit ? 78 : 48
+    }
+  }), React.createElement("col", {
+    style: {
+      width: '17%'
+    }
+  }), React.createElement("col", {
+    style: {
+      width: 128
+    }
+  }), React.createElement("col", {
+    style: {
+      width: 132
+    }
+  }), edit && React.createElement("col", {
+    style: {
+      width: 48
+    }
+  })), React.createElement("thead", null, React.createElement("tr", null, React.createElement("th", null, "No"), React.createElement("th", null, "Uraian pekerjaan"), React.createElement("th", {
     className: "r"
   }, "Volume"), React.createElement("th", null, "Sat."), React.createElement("th", {
-    className: "min-w-[150px]"
+    style: {
+      whiteSpace: 'normal'
+    }
   }, "Kemasan / qty beli"), React.createElement("th", {
-    className: "r w-44"
+    className: "r",
+    style: {
+      whiteSpace: 'normal'
+    }
   }, "Harga satuan (Rp)"), React.createElement("th", {
-    className: "r"
-  }, "Jumlah harga (Rp)"), edit && React.createElement("th", {
-    className: "w-10"
-  }))), React.createElement("tbody", null, rab.sections.map(sec => React.createElement(Fragment, {
+    className: "r",
+    style: {
+      whiteSpace: 'normal'
+    }
+  }, "Jumlah harga (Rp)"), edit && React.createElement("th", null))), React.createElement("tbody", null, rab.sections.map(sec => React.createElement(Fragment, {
     key: sec.sid
   }, React.createElement("tr", {
     className: "bg-ground"
   }, React.createElement("td", {
     className: "font-semibold"
   }, sec.code), React.createElement("td", {
-    className: "font-semibold",
+    className: "font-semibold whitespace-normal",
     colSpan: 5
   }, edit ? React.createElement("div", {
     className: "flex items-center gap-1.5"
@@ -15730,7 +15824,7 @@ function RabTable({
   }, React.createElement("td", {
     className: "text-slate-500 align-top pt-2"
   }, i + 1), React.createElement("td", {
-    className: "whitespace-normal min-w-[280px]"
+    className: "whitespace-normal break-words"
   }, edit ? React.createElement("div", {
     className: "flex items-start gap-1.5"
   }, React.createElement("textarea", {
@@ -15787,7 +15881,7 @@ function RabTable({
     title: "Kembalikan satuan otomatis",
     onClick: () => setMap('unit', it.ek, undefined)
   })) : it.unit), React.createElement("td", {
-    className: "whitespace-normal text-[11.5px] text-slate-600 min-w-[150px]"
+    className: "whitespace-normal break-words text-[11.5px] text-slate-600"
   }, edit ? React.createElement("div", {
     className: "flex items-start gap-1"
   }, React.createElement("textarea", {

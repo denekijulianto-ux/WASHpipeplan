@@ -63,6 +63,7 @@
   .tp-table tr.clickable:hover td { background: #ecf7f7; cursor: pointer; }
   .tp-table tr.active td { background: #cfeced; }
   .tp-table td.r, .tp-table th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .rab-table td { vertical-align: top; } .rab-table td.r { white-space: nowrap; } .rab-table .tp-field { min-width: 0; }
   .pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .s-ok { background: #dcfce7; color: #166534; }
   .s-low { background: #fef9c3; color: #854d0e; }
@@ -4395,7 +4396,7 @@ function TierPick({ it, onPick, manual }) {
 }
 function RabTable({ project, setProject, rab, setPrice, nEdited }) {
   const [shsPick, setShsPick] = useState(null); const hasShs = (shsOf(project).items || []).length > 0;
-  const s = project.settings; const E = project.rabEdits || {};
+  const s = project.settings; const E = project.rabEdits || {}; const narrow = useMedia('(max-width: 767px)');
   const [edit, setEdit] = useState(false); const [showHidden, setShowHidden] = useState({}); const [confirmReset, setConfirmReset] = useState(false);
   const setE = (fn) => setProject(p => ({ ...p, rabEdits: fn({ hidden: {}, desc: {}, vol: {}, unit: {}, items: [], sections: [], titles: {}, ...(p.rabEdits || {}) }) }));
   const setMap = (m, k, v) => setE(e => { const x = { ...e[m] }; if (v === undefined) delete x[k]; else x[k] = v; return { ...e, [m]: x }; });
@@ -4418,18 +4419,34 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
       <Icon name="Info" size={15} /><span className="flex-1 min-w-[240px]">Mode edit: ubah uraian, volume, dan satuan langsung di tabel; <b>Tambah item</b> di tiap bagian; ikon tempat sampah menghapus item. Ikon <Icon name="RotateCcw" size={12} className="inline" /> mengembalikan nilai otomatis. Volume yang diubah tidak lagi ikut berubah saat desain berubah.</span>
       {nEd > 0 && (confirmReset ? <><Btn variant="danger" onClick={() => { setProject(p => ({ ...p, rabEdits: {} })); setConfirmReset(false); }}>Ya, kembalikan semua</Btn><Btn variant="outline" onClick={() => setConfirmReset(false)}>Batal</Btn></>
         : <Btn variant="outline" icon="RotateCcw" onClick={() => setConfirmReset(true)}>Kembalikan semua item ke otomatis</Btn>)}</div>}
-    <table className="tp-table"><thead><tr><th className="w-10">No</th><th>Uraian pekerjaan</th><th className="r">Volume</th><th>Sat.</th><th className="min-w-[150px]">Kemasan / qty beli</th><th className="r w-44">Harga satuan (Rp)</th><th className="r">Jumlah harga (Rp)</th>{edit && <th className="w-10" />}</tr></thead>
+    {narrow && !edit ? <div className="divide-y divide-line">
+      {rab.sections.map(sec => <div key={sec.sid}>
+        <div className="flex items-start gap-2 bg-ground px-3 py-2 font-semibold text-[13px]"><span>{sec.code}</span><span className="flex-1">{sec.title}</span><span className="num whitespace-nowrap">{fmt(sec.subtotal, 0)}</span></div>
+        {sec.items.map((it, i) => <div key={it.ek} className="px-3 py-2.5 space-y-1.5 border-t border-line">
+          <div className="text-[13px]"><span className="text-slate-400 mr-1">{i + 1}.</span>{it.desc}{(it.edDesc || it.edVol || it.edUnit) && <span className="pill s-low ml-1.5 !text-[10px]">diubah</span>}</div>
+          {it.spec && <TierPick it={it} onPick={(k) => setMap('tier', it.ek, k === rab.tierAll ? undefined : k)} manual={project.prices[it.key] !== undefined} />}
+          <div className="text-[12px] text-slate-600"><b className="num">{fmt(it.vol, 2)} {it.unit}</b>{it.pack ? <> · {it.pack}</> : null}</div>
+          <div className="flex items-end gap-2"><div className="flex-1"><div className="text-[10.5px] uppercase tracking-wide text-slate-500">Harga satuan (Rp)</div>
+            <PriceField id={'pricem-' + sec.sid + '-' + it.key} value={it.price} edited={project.prices[it.key] !== undefined} onChange={v => setPrice(it.key, v)} /></div>
+            <div className="text-right"><div className="text-[10.5px] uppercase tracking-wide text-slate-500">Jumlah (Rp)</div><div className="num font-semibold text-[14px] py-1.5">{fmt(it.amount, 0)}</div></div></div>
+        </div>)}</div>)}
+      <div className="px-3 py-2 space-y-1 text-[13px]">{[['JUMLAH', rab.total], [`PPN ${s.ppnPct}%`, rab.ppn], ['TOTAL', rab.grand]].map(([l, v]) => <div key={l} className="flex justify-between"><span>{l}</span><span className="num font-semibold">{fmt(v, 0)}</span></div>)}
+        <div className="flex justify-between bg-aqua-50 rounded px-2 py-1.5 font-bold text-aqua-800"><span>DIBULATKAN</span><span className="num">{fmt(rab.rounded, 0)}</span></div></div>
+    </div> :
+    <table className="tp-table rab-table" style={{ tableLayout: 'fixed', width: '100%', minWidth: 880 }}>
+      <colgroup><col style={{ width: 34 }} /><col /><col style={{ width: edit ? 130 : 84 }} /><col style={{ width: edit ? 78 : 48 }} /><col style={{ width: '17%' }} /><col style={{ width: 128 }} /><col style={{ width: 132 }} />{edit && <col style={{ width: 48 }} />}</colgroup>
+      <thead><tr><th>No</th><th>Uraian pekerjaan</th><th className="r">Volume</th><th>Sat.</th><th style={{ whiteSpace: 'normal' }}>Kemasan / qty beli</th><th className="r" style={{ whiteSpace: 'normal' }}>Harga satuan (Rp)</th><th className="r" style={{ whiteSpace: 'normal' }}>Jumlah harga (Rp)</th>{edit && <th />}</tr></thead>
       <tbody>
         {rab.sections.map(sec => <Fragment key={sec.sid}>
           <tr className="bg-ground"><td className="font-semibold">{sec.code}</td>
-            <td className="font-semibold" colSpan={5}>{edit ? <div className="flex items-center gap-1.5"><input id={'rab-t-' + sec.sid} className="tp-field font-semibold !py-1" value={sec.title}
+            <td className="font-semibold whitespace-normal" colSpan={5}>{edit ? <div className="flex items-center gap-1.5"><input id={'rab-t-' + sec.sid} className="tp-field font-semibold !py-1" value={sec.title}
                 onChange={e => sec.custom ? setE(x => ({ ...x, sections: x.sections.map(c => c.id === sec.csId ? { ...c, title: e.target.value } : c) })) : setMap('titles', sec.sid, e.target.value)} />
               {!sec.custom && <Reset on={sec.title !== sec.autoTitle} title="Kembalikan judul otomatis" onClick={() => setMap('titles', sec.sid, undefined)} />}</div> : sec.title}</td>
             <td className="r font-semibold">{fmt(sec.subtotal, 0)}</td>
             {edit && <td>{sec.custom && <Btn variant="ghost" icon="Trash2" title="Hapus bagian ini beserta itemnya" onClick={() => removeSection(sec)} />}</td>}</tr>
           {sec.items.map((it, i) => <tr key={it.ek}>
             <td className="text-slate-500 align-top pt-2">{i + 1}</td>
-            <td className="whitespace-normal min-w-[280px]">{edit ? <div className="flex items-start gap-1.5">
+            <td className="whitespace-normal break-words">{edit ? <div className="flex items-start gap-1.5">
                 <textarea id={'rab-d-' + it.ek} rows={it.desc.length > 70 ? 2 : 1} className="tp-field !py-1 resize-y" value={it.desc} onChange={e => it.custom ? updCustom(it.cid, { desc: e.target.value }) : setMap('desc', it.ek, e.target.value)} />
                 {!it.custom && <Reset on={it.edDesc} title="Kembalikan uraian otomatis" onClick={() => setMap('desc', it.ek, undefined)} />}</div>
               : <>{it.desc}{(it.edDesc || it.edVol || it.edUnit) && <span className="pill s-low ml-1.5 !text-[10px]">diubah</span>}{it.custom && <span className="pill s-src ml-1.5 !text-[10px]">tambahan</span>}</>}
@@ -4439,7 +4456,7 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
               : <span title={it.edVol ? `Volume otomatis: ${fmt(it.autoVol, 2)}` : undefined}>{fmt(it.vol, 2)}</span>}</td>
             <td>{edit ? <div className="flex items-center gap-1"><input id={'rab-u-' + it.ek} className="tp-field !py-1 !w-16" value={it.unit} onChange={e => it.custom ? updCustom(it.cid, { unit: e.target.value }) : setMap('unit', it.ek, e.target.value)} />
                 {!it.custom && <Reset on={it.edUnit} title="Kembalikan satuan otomatis" onClick={() => setMap('unit', it.ek, undefined)} />}</div> : it.unit}</td>
-            <td className="whitespace-normal text-[11.5px] text-slate-600 min-w-[150px]">{edit ? <div className="flex items-start gap-1"><textarea id={'rab-p-' + it.ek} rows={1} className="tp-field !py-1 !text-[11.5px] resize-y" value={it.pack || ''} placeholder="mis. 2 roll (@ 100 m)"
+            <td className="whitespace-normal break-words text-[11.5px] text-slate-600">{edit ? <div className="flex items-start gap-1"><textarea id={'rab-p-' + it.ek} rows={1} className="tp-field !py-1 !text-[11.5px] resize-y" value={it.pack || ''} placeholder="mis. 2 roll (@ 100 m)"
                 onChange={e => it.custom ? updCustom(it.cid, { pack: e.target.value }) : setMap('pack', it.ek, e.target.value)} />{!it.custom && <Reset on={it.edPack} title="Kembalikan kemasan otomatis" onClick={() => setMap('pack', it.ek, undefined)} />}</div> : it.pack}</td>
             <td className="r py-1"><PriceField id={'price-' + sec.sid + '-' + it.key} value={it.price} edited={project.prices[it.key] !== undefined} onChange={v => setPrice(it.key, v)} />
               {(it.shsCode || (edit && hasShs)) && <button type="button" onClick={() => setShsPick(it)} title={it.shsCode ? `Harga SHS ${it.shsCode}` : 'Tautkan ke item SHS'} className={'mt-0.5 text-[10.5px] font-semibold rounded px-1.5 ' + (it.shsCode ? 'bg-aqua-50 text-aqua-800 border border-aqua-200' : 'text-slate-500 border border-dashed border-slate-300')}>{it.shsCode ? 'SHS ' + it.shsCode.slice(-14) : '+ SHS'}</button>}</td>
@@ -4457,7 +4474,7 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
         <tr><td /><td colSpan={5} className="text-right">PPN {s.ppnPct}%</td><td className="r">{fmt(rab.ppn, 0)}</td>{edit && <td />}</tr>
         <tr><td /><td colSpan={5} className="text-right font-semibold">TOTAL</td><td className="r font-semibold">{fmt(rab.grand, 0)}</td>{edit && <td />}</tr>
         <tr className="bg-aqua-50"><td /><td colSpan={5} className="text-right font-bold text-aqua-800">DIBULATKAN</td><td className="r font-bold text-aqua-800 text-[14px]">{fmt(rab.rounded, 0)}</td>{edit && <td />}</tr>
-      </tbody></table>
+      </tbody></table>}
     <div className="px-4 py-3 text-[13px] border-t border-line"><span className="text-slate-500">Terbilang: </span><i className="font-medium">{terbilang(rab.rounded)}</i></div>
     <div className="px-4 pb-1 text-[12px] text-slate-500">Tingkat spesifikasi: <b>Minimal</b> = mutu terendah yang masih layak, <b>Ideal</b> = rekomendasi (harga bawaan), <b>Maksimal</b> = mutu premium/umur pakai terpanjang. Harga satuan otomatis menyesuaikan tingkat (kecuali harga yang diisi manual).</div>
     <div className="px-4 pb-3 text-[12px] text-slate-500">Harga bawaan adalah perkiraan awal. Ganti dengan Harga Satuan Pekerjaan (AHSP/SSH) daerah Anda: sel kuning menandai harga yang sudah diubah. Item berlabel "diubah" memakai uraian/volume/satuan yang diedit manual.</div>
