@@ -1006,6 +1006,7 @@ function computeBoQ(project, hyd) {
     if (st.type === 'tower') { const tf = treat.find(x => x.d.frp && x.d.frp.tower && x.d.frp.tower.id === st.id);
       const g = towerGeom(st, project, tf ? { t: tf.t, frp: tf.d.frp } : null); const q = towerQty(g, hyd.totalDemand); return { st, g, q, items: [...towerItems(st, g, q), ...extraItems(st, g)], minHt: towerMinHt(g, project, hyd) }; }
     if (st.type === 'bc_v') { const g = bcvGeom(st, project); const q = bcvQty(g); return { st, g, q, items: [...bcvItems(st, g, q), ...extraItems(st, g)] }; }
+    if (st.type === 'bridge') { const g = bridgeGeom(st, project); const q = { ...g.q, cap: null, need: null, concrete: (g.q.anchorV || 0) + (g.q.footV || 0) + (g.q.abutV || 0), steel: g.q.steel || 0 }; return { st, g, q, items: bridgeItems(st, g) }; }
     const g = structGeom(st, project); const tk = treat.find(x => x.d.tank && x.d.tank.link && x.d.tank.link.id === st.id);
     const q = structQty(g, hyd.totalDemand); return { st, g, q, items: [...structItems(st, g, q), ...extraItems(st, g)], filterTank: tk ? tk.t : null }; });
   const pumps = project.nodes.filter(n => n.type === 'borehole' && hyd.pumps[n.id]).map(n => { const pr = hyd.pumps[n.id]; const allin = pumpP(n).rabMode === 'allin';
@@ -1098,6 +1099,12 @@ function specOf(key, desc, unit) {
     if (f === 'hu') return tierSpec('Bak pasangan bata + 4 kran kuningan biasa', 'Bak beton bertulang + 4 kran kuningan tebal + meter air', 'Bak beton + kran tutup otomatis (hemat air) SS + meter air + lantai & saluran buang', [0.8, 1, 1.35]);
     if (f === 'box') return tierSpec('Pasangan bata + tutup beton', 'Pasangan bata diplester + tutup pelat besi dicat', 'Beton pracetak + tutup besi tuang (ductile) berengsel & gembok', [0.8, 1, 1.6]);
     if (f === 'thrust') return tierSpec(kTxt(125), kTxt(175), kTxt(225), [0.9, 1, 1.12]);
+  }
+  if (p[0] === 'br') {
+    if (['cable', 'hang'].includes(p[1])) return tierSpec('Wire rope galvanis 6×19 inti serat (FC)', 'Wire rope galvanis 6×19 IWRC kelas 1770, bersertifikat uji tarik', 'Wire rope galvanis kelas 1960 / stainless + sertifikat uji tarik', [0.8, 1, 1.6]);
+    if (['clamp', 'clip', 'turn', 'saddle', 'ubolt'].includes(p[1])) return tierSpec('Baja biasa galvanis elektro', 'Baja tempa galvanis celup panas (hot-dip)', 'Stainless steel SS304 / SS316', [0.75, 1, 1.8]);
+    if (['col', 'steel'].includes(p[1])) return tierSpec('Baja BJ 37 dicat dasar', 'Baja BJ 37 cat zinc chromate + 2 lapis cat akhir', 'Baja galvanis celup panas + cat epoxy', [0.85, 1, 1.3]);
+    if (['casing'].includes(p[1])) return tierSpec('Pipa baja hitam dicat anti karat', 'Pipa GI / baja galvanis', 'Pipa baja galvanis + lapis epoxy / wrapping', [0.8, 1, 1.3]);
   }
   if (p[0] === 'pump') {
     if (p[1] === 'allin') return tierSpec('Material & pompa standar lokal (casing PVC AW, saringan slot gergaji, impeller plastik), uji pompa 8 jam', 'Sesuai rincian ideal: casing PVC tebal/baja, saringan slot mesin, pompa SS304, uji pompa 24 jam, logging & uji lab', 'Saringan SS wire-wrap, pompa full SS316, panel VFD, uji pompa 72 jam, monitoring muka air', [0.8, 1, 1.35]);
@@ -1983,6 +1990,105 @@ function packOf(key, desc, unit, vol) {
   return '';
 }
 
+/* =====================================================================
+   JEMBATAN PIPA / PERLINTASAN: pipa gantung kabel baja (sling), jembatan rangka baja, perlintasan bawah jalan
+   Perhitungan indikatif (kabel parabola, beban mati pipa + air) — wajib diverifikasi ahli struktur.
+   ===================================================================== */
+const BR_MODES = { sling: 'Pipa gantung kabel baja (sling / suspension)', truss: 'Jembatan rangka baja (bentang pendek ≤ 25 m)', road: 'Perlintasan bawah jalan (pipa selubung / casing)' };
+const BR_OBS = { river: 'Sungai', valley: 'Lembah / jurang / tebing', road: 'Jalan raya' };
+// Wire rope 6×19 / 6×36 IWRC kelas 1770 MPa: [Ø mm, beban putus minimum kN] (perkiraan)
+const WIRE_ROPE = [[6, 20], [8, 36], [10, 56], [12, 81], [14, 110], [16, 144], [18, 182], [20, 225], [22, 272], [24, 324], [26, 380], [28, 441], [32, 576], [36, 730], [40, 900]];
+const STEEL_COL = [['Pipa baja Ø4" sch 40', 114.3, 16.1, 20.7, 3.82], ['Pipa baja Ø6" sch 40', 168.3, 28.3, 36.0, 5.67], ['Pipa baja Ø8" sch 40', 219.1, 42.5, 54.2, 7.4], ['Pipa baja Ø10" sch 40', 273.1, 60.3, 76.9, 9.3]];
+const ANGLES = [['L40.40.4', 3.08, 2.42], ['L50.50.5', 4.80, 3.77], ['L60.60.6', 6.91, 5.42], ['L70.70.7', 9.40, 7.38], ['L80.80.8', 12.3, 9.66], ['L90.90.9', 15.5, 12.2], ['L100.100.10', 19.2, 15.0]];
+// Nilai bawaan ada di STRUCT_DEFAULTS.bridge
+function pipeKgm(mat, d) { const D = d / 1000;
+  if (mat === 'GIP') { const od = d <= 50 ? D * 1.2 : D * 1.1, t = d <= 50 ? 0.0032 : d <= 80 ? 0.0036 : 0.0045; return { self: Math.PI * od * t * 7850, water: Math.PI / 4 * Math.pow(od - 2 * t, 2) * 1000, od }; }
+  const sdr = mat === 'PVC' ? 26 : 17, rho = mat === 'PVC' ? 1400 : 955, t = D / sdr; return { self: Math.PI * D * t * rho, water: Math.PI / 4 * Math.pow(D - 2 * t, 2) * 1000, od: D }; }
+function bridgeGeom(st, project) {
+  const p = { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS.bridge, ...(st.params || {}) }; const pipe = p.pipeId && project.pipes.find(x => x.id === p.pipeId);
+  const mat = pipe ? pipe.material : p.mat, dia = pipe ? +pipe.diameter : +p.dia; const L = Math.max(3, +p.L || 30);
+  const zA = +p.gA + +p.hp, zB = +p.gB + +p.hp; const ground = Math.min(+p.gA, +p.gB);
+  const clr = p.obs === 'road' ? +p.zBot + 5.1 : p.obs === 'river' ? +p.zHwl + +p.free : +p.zBot + +p.free;
+  const pw = pipeKgm(mat, dia); const warn = []; const g = { p, type: 'bridge', floor: Math.min(+p.gA, +p.gB), Hw: 0, cap: null, label: st.label, extras: st.extras || [], mode: p.mode, mat, dia, pipe, L, zA, zB, ground, clr, pw, warn, gA: +p.gA, gB: +p.gB };
+  if (p.mode === 'road') {
+    const casing = DIAMETERS.find(x => x >= dia + 50) || dia + 100; const Lc = +p.roadW + 2; const cover = Math.max(0.6, +p.depth);
+    if (cover < 1.0) warn.push('Kedalaman tutup pipa selubung < 1,0 m di bawah permukaan jalan: umumnya minimal 1,0–1,5 m (cek ketentuan pemilik jalan).');
+    return { ...g, casing, Lc, cover, H: cover + 0.6, q: { galian: p.method === 'opencut' ? 0.8 * (cover + 0.3) * Lc : 2 * 1.5 * 1.5 * (cover + 0.5), asp: p.method === 'opencut' ? 1.2 * +p.roadW : 0 } };
+  }
+  if (p.mode === 'truss') {
+    const h = +p.truH > 0 ? +p.truH : Math.max(0.6, round2(L / 12)); const wTr0 = 25; const qk = (pw.self + pw.water + wTr0) * 9.81 / 1000 * 1.3; const M = qk * L * L / 8; const F = M / h;
+    const Areq = F / 2 / 14; const ch = ANGLES.find(a => a[1] >= Areq) || ANGLES[ANGLES.length - 1]; const dg = ANGLES[Math.max(0, Math.min(ANGLES.indexOf(ch) - 2, 2))];
+    const nPanel = Math.max(2, Math.ceil(L / h)); const dl = Math.hypot(L / nPanel, h); const wChord = 4 * L * ch[2]; const wDiag = nPanel * 2 * dl * dg[2] + nPanel * 2 * 0.5 * dg[2] + (nPanel + 1) * 2 * Math.hypot(h, 0.5) * dg[2] * 0.5;
+    const steel = (wChord + wDiag) * 1.08; const defl = 5 * qk * Math.pow(L, 4) / (384 * 200e6 * (2 * ch[1] * 1e-4 * Math.pow(h / 2, 2) * 2)) * 1000;
+    if (L > 25) warn.push(`Bentang ${fmt(L, 1)} m terlalu panjang untuk rangka baja sederhana: pertimbangkan pipa gantung kabel baja (sling).`);
+    if (Math.min(zA, zB) < clr) warn.push(`Dasar rangka (± ${fmt(Math.min(zA, zB) - h, 2)} m) di bawah batas ruang bebas ${fmt(clr, 2)} m: naikkan abutment/pipa.`);
+    const abut = { B: 1.2, Lb: 1.0, Hb: 1.5 }; const abutV = 2 * (abut.B * abut.Lb * abut.Hb);
+    return { ...g, h, ch, dg, nPanel, steel, qk, M, F, defl, abut, top: Math.max(zA, zB) + 0.3, q: { steel, abutV, galian: abutV * 1.6, paint: steel / 7.85 * 0.04 * 1000 / 40 } };
+  }
+  // sling / suspension
+  const f = L / Math.max(6, +p.sagR || 10); const hMin = 0.4; const nC = clamp(Math.round(+p.nCab || 1), 1, 2);
+  const wCab0 = 1.0, wHang = 0.6; const qk = (pw.self + pw.water + wCab0 * nC + wHang) * 9.81 / 1000 * 1.25; // kN/m (beban mati × 1,25)
+  const H = qk * L * L / (8 * f); const T = H * Math.sqrt(1 + Math.pow(4 * f / L, 2)); const Tc = T / nC;
+  const need = Tc * clamp(+p.SF || 4, 2.5, 6); /* kabel utama min. Ø10 mm (ketahanan karat & pemasangan klem) */ const rope = WIRE_ROPE.find(r => r[0] >= 10 && r[1] >= need) || WIRE_ROPE[WIRE_ROPE.length - 1]; const sfAct = rope[1] / Tc;
+  if (rope[1] < need) warn.push(`Tarikan kabel ${fmt(Tc, 1)} kN terlalu besar untuk wire rope Ø${rope[0]} mm: tambah jumlah kabel, perbesar sag, atau pecah bentang.`);
+  const topA = zA + f + hMin, topB = zB + f + hMin; const HtA = topA - +p.gA, HtB = topB - +p.gB;
+  const da = +p.da > 0 ? +p.da : Math.max(3, round2(Math.max(HtA, HtB))); const beta = Math.atan(Math.max(HtA, HtB) / da); const Tb = H / Math.cos(beta); const Tv = H * Math.tan(beta);
+  const V = qk * L / 2 + Tv; const Ht = Math.max(HtA, HtB); let col = null, colCap = 0;
+  const nColT = nC === 2 ? 2 : 1;
+  if (p.towerMat === 'steel') { for (const c of STEEL_COL) { const lam = 1.2 * Ht * 100 / c[4]; const Fa = Math.max(20, 140 * (1 - Math.pow(lam / 180, 2))); const cap = Fa * c[3] * 0.1 * nColT; if (cap >= V * 1.5) { col = c; colCap = cap; break; } }
+    if (!col) { col = STEEL_COL[STEEL_COL.length - 1]; warn.push('Menara terlalu tinggi/berat untuk kolom pipa baja: pakai menara rangka atau beton.'); } }
+  const rc = V > 200 ? 0.3 : 0.25;
+  const footB = round2(Math.max(0.8, Math.ceil(Math.sqrt(V * 1.3 / Math.max(50, +p.soil)) * 10) / 10)); const footT = 0.3, footD = 0.9;
+  const W = Math.max(1.5 * Tv, 1.5 * H / 0.9); const Vc = W / 24; const anH = Math.max(1.0, round2(Math.cbrt(Vc) * 0.9)); const anB = round2(Math.max(1.0, Math.ceil(Math.sqrt(Vc / anH) * 10) / 10));
+  const nH = Math.max(1, Math.floor(L / Math.max(0.8, +p.hSp)) - 1); const sp = L / (nH + 1);
+  let hangL = 0; for (let i = 1; i <= nH; i++) { const x = i * sp / L; hangL += f + hMin - 4 * f * x * (1 - x); }
+  const cabL = L * (1 + 8 / 3 * Math.pow(f / L, 2)) + 2 * Math.hypot(da, Ht) + 2 * 1.5; // + 1,5 m tiap ujung untuk lilitan & klem
+  const pipeMin = Math.min(zA, zB); const sagPipe = 0;
+  if (pipeMin - sagPipe < clr) warn.push(`Pipa (elev. ± ${fmt(pipeMin, 2)} m) di bawah batas ruang bebas ${fmt(clr, 2)} m (${p.obs === 'road' ? 'jalan + 5,1 m' : p.obs === 'river' ? 'muka air banjir + jagaan' : 'dasar + jagaan'}): naikkan dudukan pipa (abutment) di kedua sisi.`);
+  if (mat !== 'GIP') warn.push(`Pipa ${mat} di bentang gantung harus dimasukkan ke pipa selubung GI atau talang baja (tidak kaku & tidak tahan UV); jarak hanger ≤ 1,5 m.`);
+  const spMax = dia <= 50 ? 2.5 : dia <= 90 ? 3.5 : 4.5; if (mat === 'GIP' && sp > spMax) warn.push(`Jarak hanger ${fmt(sp, 2)} m > ${spMax} m untuk pipa GI Ø${dia}: rapatkan hanger.`);
+  const clips = rope[0] <= 16 ? 3 : rope[0] <= 22 ? 4 : 5;
+  return { ...g, f, hMin, nC, qk, H, T, Tc, rope, sfAct, topA, topB, HtA, HtB, Ht, da, beta, Tb, Tv, V, col, colCap, nColT, rc, footB, footT, footD, anB, anH, Vc, nH, sp, hangL, cabL, clips, spMax,
+    q: { cab: cabL * nC, hang: hangL * nC, nH: nH * nC, anchorV: 2 * anB * anB * anH, footV: 2 * nColT * footB * footB * footT, colL: (HtA + HtB) * nColT, galian: 2 * (anB + 0.6) * (anB + 0.6) * (anH + 0.3) + 2 * nColT * (footB + 0.6) * (footB + 0.6) * footD } };
+}
+function bridgeItems(st, g) {
+  const it = []; const add = (k, d, v, u, pr) => it.push([`br|${k}|${st.id}`, d, round2(v), u, pr]); const q = g.q;
+  if (g.mode === 'road') {
+    add('dig', g.p.method === 'opencut' ? 'Galian lintasan jalan (potong aspal), lebar 0,8 m' : 'Galian lubang kerja (pit) boring di kedua sisi jalan', q.galian, 'm³', 125000);
+    if (g.p.method === 'boring') add('bore', `Pengeboran horizontal / pipe jacking bawah jalan Ø${g.casing} mm`, g.Lc, "m'", 1250000);
+    add('casing', `Pipa selubung (casing) baja/GI Ø${g.casing} mm`, g.Lc, "m'", defPipePrice('GIP', g.casing) * 1.3);
+    add('carrier', `Pipa pembawa ${g.mat} Ø${g.dia} mm di dalam selubung + spacer/isolator tiap 2 m`, g.Lc + 1, "m'", defPipePrice(g.mat, g.dia) + 25000);
+    add('seal', 'Penutup ujung selubung (end seal karet) + pipa udara', 2, 'bh', 650000);
+    if (g.p.method === 'opencut') { add('fill', 'Urugan pasir + sirtu dipadatkan per lapis 20 cm', q.galian * 0.9, 'm³', 285000); add('asp', 'Pengembalian perkerasan aspal (lapen/hotmix) & marka', q.asp, 'm²', 450000); }
+    add('mark', 'Patok tanda pipa + papan peringatan di kedua sisi jalan', 2, 'bh', 450000);
+    add('izin', 'Izin pemanfaatan ruang milik jalan (rekomendasi teknis) & pengaturan lalu lintas', 1, 'ls', 3500000);
+    return it;
+  }
+  if (g.mode === 'truss') {
+    add('steel', `Rangka baja siku (batang tepi ${g.ch[0]}, diagonal ${g.dg[0]}) bentang ${fmt(g.L, 1)} m, tinggi ${fmt(g.h, 2)} m, dilas/dibaut`, q.steel, 'kg', 32000);
+    add('paint', 'Cat dasar zinc chromate + 2 lapis cat akhir rangka baja', q.paint, 'm²', 65000);
+    add('dig', 'Galian tanah abutment', q.galian, 'm³', 95000);
+    add('abut', 'Abutment beton bertulang K-225 di kedua sisi + angkur', q.abutV, 'm³', 3400000);
+    add('ubolt', `Klem U-bolt galvanis + bantalan karet untuk pipa Ø${g.dia} (tiap 2 m)`, Math.ceil(g.L / 2) + 1, 'bh', 85000);
+    add('pipe', `Pipa ${g.mat === 'GIP' ? 'GI medium' : g.mat + ' di dalam selubung GI'} Ø${g.dia} mm sepanjang jembatan`, g.L + 2, "m'", defPipePrice('GIP', g.dia));
+    return it;
+  }
+  add('cable', `Kabel baja (wire rope) 6×19 IWRC Ø${g.rope[0]} mm galvanis, kabel utama + backstay`, q.cab, "m'", r500(3000 + 180 * g.rope[0] * g.rope[0]));
+  add('hang', 'Kabel penggantung (hanger) wire rope Ø8 mm galvanis', q.hang + q.nH * 0.6, "m'", 18000);
+  add('clamp', 'Klem kabel (cable clamp) + klem pipa (pipe clamp/U-bolt) per hanger', q.nH, 'set', 125000);
+  add('clip', `Wire rope clip Ø${g.rope[0]} mm (${g.clips} bh per ujung) + thimble`, g.clips * 4 * g.nC, 'bh', r500(15000 + 1200 * g.rope[0]));
+  add('turn', `Turnbuckle / spanskrup Ø${Math.max(16, g.rope[0] + 4)} mm (penyetel tegangan)`, 2 * g.nC, 'bh', r500(150000 + 9000 * g.rope[0]));
+  if (g.p.towerMat === 'steel') add('col', `Menara ${g.col ? g.col[0] : 'baja'} (${g.nColT} kolom per sisi) + pelat dasar & sadel kabel`, q.colL, "m'", r500((g.col ? g.col[2] : 30) * 32000 + 150000));
+  else add('colrc', `Menara kolom beton bertulang K-250 ${fmt(g.rc * 100, 0)}/${fmt(g.rc * 100, 0)} cm + sadel kabel`, q.colL * g.rc * g.rc, 'm³', 4200000);
+  add('saddle', 'Sadel / roller kabel di puncak menara (pelat baja + pin)', 2 * g.nC, 'set', 650000);
+  add('dig', 'Galian tanah pondasi menara & blok angkur', q.galian, 'm³', 95000);
+  add('foot', `Pondasi menara beton bertulang K-225 ${fmt(g.footB, 2)} × ${fmt(g.footB, 2)} × ${fmt(g.footT, 2)} m`, q.footV, 'm³', 3400000);
+  add('anchor', `Blok angkur (deadman) beton K-175 ${fmt(g.anB, 2)} × ${fmt(g.anB, 2)} × ${fmt(g.anH, 2)} m + besi angkur Ø25 berbentuk U`, q.anchorV, 'm³', 2400000);
+  add('pipe', `Pipa ${g.mat === 'GIP' ? 'GI medium' : g.mat + ' di dalam selubung GI'} Ø${g.dia} mm sepanjang bentang`, g.L + 2, "m'", defPipePrice('GIP', g.dia));
+  add('paint', 'Cat anti karat menara & klem', 1, 'ls', r500(1500000 + 40000 * g.L));
+  return it;
+}
+
 /* ---------- 4y. ACUAN STANDAR (SNI) & PEMERIKSAAN KRITERIA DESAIN ---------- */
 // verify: judul/tahun edisi belum dicocokkan dengan dokumen resmi di aplikasi; periksa di katalog BSN (bsn.go.id) atau salinan resmi.
 const STD_DEFAULT = [
@@ -2080,6 +2186,7 @@ const STRUCT_TYPES = {
   bpt:           { label: 'Bak Pelepas Tekan (BPT)',                short: 'BPT', sheet: 'BAK PELEPAS TEKAN' },
   hidran:        { label: 'Hidran Umum (Bak & Kran)',               short: 'HU',  sheet: 'HIDRAN UMUM' },
   tower:         { label: 'Menara Air (Tower Tandon)',              short: 'MA',  sheet: 'MENARA AIR' },
+  bridge:        { label: 'Jembatan Pipa / Perlintasan (sling, rangka, jalan)', short: 'JP', sheet: 'JEMBATAN PIPA' },
 };
 const STRUCT_DEFAULTS = {
   common: { podium: 0, elev: 100, embed: 0.5, tlk: 0.05, mh: 0.6, steelRatio: 110, rebarWall: 'D10-150', rebarSlab: 'D10-150', rebarRoof: 'D10-200' },
@@ -2092,6 +2199,7 @@ const STRUCT_DEFAULTS = {
   tower:         { system: 'steel_pe', tankSize: 2000, tankCount: 2, Ht: 6, col: 0.3, beamB: 0.2, beamH: 0.35, slab: 0.15, colProfile: 'H125.125', braceProfile: 'L70.70.7',
                    L: 2.5, B: 2.5, Hw: 1.5, fb: 0.3, tw: 0.15, tr: 0.12, mh: 0.6, footB: 1.2, footT: 0.3, footD: 1.5, soil: 100, dIn: 50, dOut: 75, dOf: 50, dDr: 50,
                    steelRatio: 130, rebarCol: '8D16, sk. D10-150', rebarBeam: '4D16 + 2D13, sk. D10-150', rebarFoot: 'D13-150 dua arah', needPct: 15, peakFactor: 1.5, embed: 0 },
+  bridge:        { mode: 'sling', obs: 'river', pipeId: '', mat: 'GIP', dia: 50, L: 30, gA: 100, gB: 100, hp: 0.6, zBot: 94, zHwl: 97, free: 1.0, roadW: 7, sagR: 10, hSp: 2.0, nCab: 1, SF: 4, da: 0, towerMat: 'steel', soil: 100, depth: 1.2, method: 'opencut', truH: 0, embed: 0 },
   hidran:        { tapD: 15, podium: 0, L: 1.5, B: 1.0, Hw: 0.9, fb: 0.2, tw: 0.15, tb: 0.15, tr: 0.10, dIn: 32, taps: 4, dOf: 32, dDr: 32, embed: 0.2, mh: 0.5, steelRatio: 95 },
 };
 const TAP_SIZES = { 15: '½"', 20: '¾"', 25: '1"', 32: '1¼"', 40: '1½"', 50: '2"', 75: '2½"' };
@@ -2116,6 +2224,7 @@ const roman = (n) => { let s = ''; for (const [v, c] of [[40, 'XL'], [10, 'X'], 
 function structGeom(st, project) {
   if (st.type === 'tower') return towerGeom(st, project);
   if (st.type === 'bc_v') return bcvGeom(st, project);
+  if (st.type === 'bridge') return bridgeGeom(st, project);
   const p = { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[st.type], ...(st.params || {}) };
   const node = st.nodeId ? project.nodes.find(n => n.id === st.nodeId) : null;
   const L = Math.max(0.4, +p.L || 0), B = Math.max(0.4, +p.B || 0), Hw = Math.max(0.1, +p.Hw || 0), fb = Math.max(0, +p.fb || 0);
@@ -5771,6 +5880,209 @@ function SheetFittings({ project, boq, keys, use, page, pages, sheetNo, sheetTot
   </Sheet>;
 }
 
+/* ---------- Gambar DED jembatan pipa / perlintasan ---------- */
+function BrDetailBox({ x, y, w, h, title, children }) {
+  return <g><rect x={x} y={y} width={w} height={h} fill="none" stroke="#000" strokeWidth={0.25} /><rect x={x} y={y} width={w} height={5.5} fill="#0d2a31" />
+    <text x={x + 2} y={y + 3.9} fontSize={1.9} fontWeight={700} fill="#fff">{title}</text><g transform={`translate(${x} ${y + 6})`}>{children}</g></g>;
+}
+const brNote = (x, y, t, a = 'start', size = 1.5) => <text x={x} y={y} fontSize={size} textAnchor={a} fill="#222">{t}</text>;
+function SheetBridge({ project, s, sheetNo, sheetTotal }) {
+  const { st, g } = s; const p = g.p; const mode = g.mode;
+  const blue = '#0b4fa8', steel = '#5b7fa6', cab = '#7c2d12';
+  // ---------- tampak / potongan utama ----------
+  let xMin, xMax, zMin, zMax;
+  if (mode === 'road') { const half = +p.roadW / 2 + 3; xMin = -half; xMax = half; zMax = +p.zBot + 1.5; zMin = +p.zBot - g.cover - 1.2; }
+  else if (mode === 'truss') { xMin = -3; xMax = g.L + 3; zMax = Math.max(g.zA, g.zB) + 1.5; zMin = Math.min(+p.zBot, g.gA - 1.6, g.gB - 1.6) - 0.5; }
+  else { xMin = -g.da - 2.5; xMax = g.L + g.da + 2.5; zMax = Math.max(g.topA, g.topB) + 1.2; zMin = Math.min(+p.zBot, g.gA - g.anH - 0.6, g.gB - g.anH - 0.6, g.gA - g.footD - 0.4) - 0.5; }
+  const W = xMax - xMin, Hh = zMax - zMin; const S = [20, 25, 30, 40, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000].find(v => W * 1000 / v <= 300 && Hh * 1000 / v <= 112) || 2000; const k = 1000 / S;
+  const ox = 22 + (300 - W * k) / 2, oy = 22 + (112 - Hh * k) / 2; const X = (x) => ox + (x - xMin) * k, Z = (z) => oy + (zMax - z) * k;
+  // profil tanah / rintangan
+  const groundPts = mode === 'road'
+    ? [[xMin, +p.zBot + 0.2], [-p.roadW / 2 - 1.2, +p.zBot + 0.2], [-p.roadW / 2 - 0.9, +p.zBot - 0.4], [-p.roadW / 2 - 0.5, +p.zBot - 0.4], [-p.roadW / 2 - 0.2, +p.zBot], [p.roadW / 2 + 0.2, +p.zBot], [p.roadW / 2 + 0.5, +p.zBot - 0.4], [p.roadW / 2 + 0.9, +p.zBot - 0.4], [p.roadW / 2 + 1.2, +p.zBot + 0.2], [xMax, +p.zBot + 0.2]]
+    : p.obs === 'road' ? [[xMin, g.gA], [0.5, g.gA], [g.L * 0.5 - p.roadW / 2 - 1, +p.zBot], [g.L * 0.5 + p.roadW / 2 + 1, +p.zBot], [g.L - 0.5, g.gB], [xMax, g.gB]]
+      : p.obs === 'valley' ? [[xMin, g.gA], [g.L * 0.08, g.gA], [g.L * 0.5, +p.zBot], [g.L * 0.92, g.gB], [xMax, g.gB]]
+        : [[xMin, g.gA], [g.L * 0.12, g.gA], [g.L * 0.3, +p.zBot + 0.3], [g.L * 0.36, +p.zBot], [g.L * 0.64, +p.zBot], [g.L * 0.7, +p.zBot + 0.3], [g.L * 0.88, g.gB], [xMax, g.gB]];
+  const gPath = groundPts.map(([x, z], i) => `${i ? 'L' : 'M'}${X(x)} ${Z(z)}`).join(' ');
+  const soil = <path d={`${gPath} L${X(xMax)} ${Z(zMin)} L${X(xMin)} ${Z(zMin)} Z`} fill="url(#pat-soil)" stroke="none" opacity={0.55} />;
+  const gLine = <path d={gPath} fill="none" stroke="#5b4421" strokeWidth={0.5} />;
+  const water = p.obs === 'river' && mode !== 'road' ? <g><path d={`M${X(g.L * 0.27)} ${Z(+p.zHwl)} L${X(g.L * 0.73)} ${Z(+p.zHwl)} L${X(g.L * 0.64)} ${Z(+p.zBot)} L${X(g.L * 0.36)} ${Z(+p.zBot)} Z`} fill="#d6ebf8" opacity={0.8} />
+    <line x1={X(g.L * 0.25)} x2={X(g.L * 0.75)} y1={Z(+p.zHwl)} y2={Z(+p.zHwl)} stroke={blue} strokeWidth={0.3} strokeDasharray="1.5 0.8" /><text x={X(g.L * 0.75) + 1} y={Z(+p.zHwl) + 0.6} fontSize={1.6} fill={blue}>MAB (banjir) {elevTxt(+p.zHwl)}</text></g> : null;
+  const clrLine = mode !== 'road' ? <g><line x1={X(g.L * 0.2)} x2={X(g.L * 0.8)} y1={Z(g.clr)} y2={Z(g.clr)} stroke="#c8102e" strokeWidth={0.3} strokeDasharray="2 1" /><text x={X(g.L * 0.2) - 1} y={Z(g.clr) + 0.6} fontSize={1.5} fill="#c8102e" textAnchor="end">batas ruang bebas {elevTxt(g.clr)}</text></g> : null;
+  let main = null;
+  if (mode === 'sling') {
+    const cy = (x) => g.topA + (g.topB - g.topA) * x / g.L - 4 * g.f * x * (g.L - x) / (g.L * g.L); const py = (x) => g.zA + (g.zB - g.zA) * x / g.L;
+    const cabPts = Array.from({ length: 41 }, (_, i) => { const x = g.L * i / 40; return `${X(x)},${Z(cy(x))}`; }).join(' ');
+    const colW = Math.max(0.6, (g.p.towerMat === 'steel' ? (g.col ? g.col[1] / 1000 : 0.17) : g.rc) * k);
+    main = <g>
+      {[[0, g.gA, g.topA], [g.L, g.gB, g.topB]].map(([x, gz, tz], i) => <g key={i}>
+        <rect x={X(x) - g.footB * k / 2} y={Z(gz - g.footD + g.footT)} width={g.footB * k} height={g.footT * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.3} />
+        <rect x={X(x) - colW / 2} y={Z(tz)} width={colW} height={(tz - gz + g.footD - g.footT) * k} fill={g.p.towerMat === 'steel' ? '#cfd6dd' : 'url(#pat-concrete)'} stroke="#000" strokeWidth={0.3} />
+        <path d={`M${X(x) - 1.5} ${Z(tz)} L${X(x) + 1.5} ${Z(tz)} L${X(x)} ${Z(tz) - 1.6} Z`} fill="#000" />
+        <ElevMark x={X(x) + (i ? 2 : -2)} y={Z(tz)} text={`Puncak ${elevTxt(tz)}`} anchor={i ? 'start' : 'end'} /></g>)}
+      {[[-g.da, g.gA, g.topA, 0], [g.L + g.da, g.gB, g.topB, g.L]].map(([x, gz, tz, xt], i) => <g key={'a' + i}>
+        <rect x={X(x) - g.anB * k / 2} y={Z(gz - 0.3)} width={g.anB * k} height={g.anH * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.3} />
+        <line x1={X(xt)} y1={Z(tz)} x2={X(x)} y2={Z(gz - 0.3)} stroke={cab} strokeWidth={0.55} />
+        <text x={X(x)} y={Z(gz - 0.3 - g.anH) + 2.6} fontSize={1.55} textAnchor="middle">Blok angkur {fmt(g.anB, 1)}×{fmt(g.anB, 1)}×{fmt(g.anH, 1)} m</text></g>)}
+      <polyline points={cabPts} fill="none" stroke={cab} strokeWidth={0.7} />
+      {Array.from({ length: g.nH }, (_, i) => { const x = (i + 1) * g.sp; return <line key={i} x1={X(x)} x2={X(x)} y1={Z(cy(x))} y2={Z(py(x))} stroke="#444" strokeWidth={0.18} />; })}
+      <path d={`M${X(-1.6)} ${Z(g.gA - 0.6)} L${X(-0.6)} ${Z(g.zA)} L${X(g.L + 0.6)} ${Z(g.zB)} L${X(g.L + 1.6)} ${Z(g.gB - 0.6)}`} fill="none" stroke={blue} strokeWidth={1.1} strokeLinejoin="round" />
+      <HaloText x={X(g.L / 2)} y={Z(py(g.L / 2)) + 3} fontSize={1.8} textAnchor="middle" fill={blue} fontWeight={700}>Pipa {g.mat === 'GIP' ? 'GI' : g.mat + ' dlm selubung GI'} Ø{g.dia} mm</HaloText>
+      <HaloText x={X(g.L * 0.3)} y={Z(cy(g.L * 0.3)) - 1.5} fontSize={1.7} fill={cab} fontWeight={700}>Kabel utama {g.nC} × wire rope Ø{g.rope[0]} mm</HaloText>
+      <HaloText x={X(g.L * 0.62)} y={Z((cy(g.L * 0.62) + py(g.L * 0.62)) / 2)} fontSize={1.5}>Hanger Ø8 mm @ {fmt(g.sp, 2)} m ({g.nH} bh)</HaloText>
+      <DimLine x1={X(0)} y1={Z(zMin) - 3} x2={X(g.L)} y2={Z(zMin) - 3} size={1.8} text={`Bentang L = ${fmt(g.L, 2)} m`} />
+      <DimLine x1={X(-g.da)} y1={Z(zMin) - 3} x2={X(0)} y2={Z(zMin) - 3} size={1.5} text={fmt(g.da, 2)} />
+      <DimLine x1={X(g.L)} y1={Z(zMin) - 3} x2={X(g.L + g.da)} y2={Z(zMin) - 3} size={1.5} text={fmt(g.da, 2)} />
+      <DimLine x1={X(g.L / 2)} y1={Z((g.topA + g.topB) / 2)} x2={X(g.L / 2)} y2={Z(cy(g.L / 2))} vertical off={0} size={1.6} text={`f = ${fmt(g.f, 2)}`} />
+      <DimLine x1={X(0) - 4} y1={Z(g.topA)} x2={X(0) - 4} y2={Z(g.gA)} vertical size={1.6} text={`${fmt(g.HtA, 2)}`} />
+      <ElevMark x={X(-0.6) - 1} y={Z(g.zA)} text={`Pipa ${elevTxt(g.zA)}`} anchor="end" /><ElevMark x={X(g.L + 0.6) + 1} y={Z(g.zB)} text={`Pipa ${elevTxt(g.zB)}`} />
+    </g>;
+  } else if (mode === 'truss') {
+    const top = (x) => g.zA + (g.zB - g.zA) * x / g.L - 0.08; const n = g.nPanel;
+    main = <g>
+      {[[0, g.gA], [g.L, g.gB]].map(([x, gz], i) => <rect key={i} x={X(x) - (i ? 0 : g.abut.Lb * k)} y={Z(Math.max(gz, top(x) - g.h))} width={g.abut.Lb * k} height={(Math.max(gz, top(x) - g.h) - (gz - 1.2)) * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.3} />)}
+      <path d={`M${X(0)} ${Z(top(0))} L${X(g.L)} ${Z(top(g.L))} M${X(0)} ${Z(top(0) - g.h)} L${X(g.L)} ${Z(top(g.L) - g.h)}`} stroke={steel} strokeWidth={0.9} />
+      {Array.from({ length: n }, (_, i) => { const x1 = g.L * i / n, x2 = g.L * (i + 1) / n; return <g key={i}><line x1={X(x1)} y1={Z(top(x1) - g.h)} x2={X((x1 + x2) / 2)} y2={Z(top((x1 + x2) / 2))} stroke={steel} strokeWidth={0.45} /><line x1={X((x1 + x2) / 2)} y1={Z(top((x1 + x2) / 2))} x2={X(x2)} y2={Z(top(x2) - g.h)} stroke={steel} strokeWidth={0.45} /><line x1={X(x2)} x2={X(x2)} y1={Z(top(x2))} y2={Z(top(x2) - g.h)} stroke={steel} strokeWidth={0.25} /></g>; })}
+      <path d={`M${X(-2)} ${Z(g.gA - 0.6)} L${X(-0.5)} ${Z(g.zA)} L${X(g.L + 0.5)} ${Z(g.zB)} L${X(g.L + 2)} ${Z(g.gB - 0.6)}`} fill="none" stroke={blue} strokeWidth={1.1} strokeLinejoin="round" />
+      <HaloText x={X(g.L / 2)} y={Z(top(g.L / 2)) - 2} fontSize={1.8} textAnchor="middle" fill={blue} fontWeight={700}>Pipa {g.mat === 'GIP' ? 'GI' : g.mat + ' dlm selubung GI'} Ø{g.dia} mm di atas rangka (klem U-bolt @ 2 m)</HaloText>
+      <HaloText x={X(g.L / 2)} y={Z(top(g.L / 2) - g.h) + 3} fontSize={1.6} textAnchor="middle">Rangka baja: tepi {g.ch[0]}, diagonal {g.dg[0]}, tinggi {fmt(g.h, 2)} m</HaloText>
+      <DimLine x1={X(0)} y1={Z(zMin) - 3} x2={X(g.L)} y2={Z(zMin) - 3} size={1.8} text={`Bentang L = ${fmt(g.L, 2)} m`} />
+      <DimLine x1={X(g.L) + 3} y1={Z(top(g.L))} x2={X(g.L) + 3} y2={Z(top(g.L) - g.h)} vertical size={1.5} text={fmt(g.h, 2)} />
+      <ElevMark x={X(-0.5) - 1} y={Z(g.zA)} text={`Pipa ${elevTxt(g.zA)}`} anchor="end" /></g>;
+  } else {
+    const zc = +p.zBot - g.cover - g.casing / 2000; const R = g.casing / 2000 * k, r = g.dia / 2000 * k;
+    main = <g>
+      <rect x={X(-p.roadW / 2)} y={Z(+p.zBot)} width={p.roadW * k} height={Math.max(0.6, 0.25 * k)} fill="#4b5563" />
+      <text x={X(0)} y={Z(+p.zBot) - 1.5} fontSize={1.9} textAnchor="middle" fontWeight={700}>JALAN (lebar {fmt(+p.roadW, 1)} m)</text>
+      <line x1={X(-p.roadW / 2 - 1)} x2={X(p.roadW / 2 + 1)} y1={Z(zc)} y2={Z(zc)} stroke="#999" strokeWidth={0.15} strokeDasharray="2 1" />
+      {p.method === 'opencut' && <rect x={X(-0.4)} y={Z(+p.zBot)} width={0.8 * k} height={(g.cover + 0.3) * k} fill="none" stroke="#7c3aed" strokeWidth={0.3} strokeDasharray="1 0.6" />}
+      {[-1, 1].map(sx => p.method === 'boring' && <rect key={sx} x={X(sx * (p.roadW / 2 + 1.75)) - 0.75 * k} y={Z(+p.zBot + 0.2)} width={1.5 * k} height={(g.cover + 0.7) * k} fill="none" stroke="#7c3aed" strokeWidth={0.3} strokeDasharray="1 0.6" />)}
+      <rect x={X(-g.Lc / 2)} y={Z(zc) - R} width={g.Lc * k} height={2 * R} fill="#cfd6dd" stroke="#000" strokeWidth={0.35} />
+      <rect x={X(-g.Lc / 2 - 0.5)} y={Z(zc) - r} width={(g.Lc + 1) * k} height={2 * r} fill="#9ec5ea" stroke={blue} strokeWidth={0.3} />
+      <HaloText x={X(0)} y={Z(zc) + R + 3} fontSize={1.8} textAnchor="middle" fontWeight={700}>Pipa selubung Ø{g.casing} mm (L = {fmt(g.Lc, 1)} m) berisi pipa {g.mat} Ø{g.dia} mm</HaloText>
+      <DimLine x1={X(0) + 6} y1={Z(+p.zBot)} x2={X(0) + 6} y2={Z(zc + g.casing / 2000)} vertical size={1.6} text={`tutup ${fmt(g.cover, 2)} m`} />
+      <DimLine x1={X(-g.Lc / 2)} y1={Z(zMin) - 3} x2={X(g.Lc / 2)} y2={Z(zMin) - 3} size={1.7} text={`${fmt(g.Lc, 2)} m (lebar jalan + 2 × 1 m)`} />
+      <text x={X(xMin) + 1} y={Z(+p.zBot + 0.2) - 1.5} fontSize={1.5}>{p.method === 'boring' ? 'Pit kerja boring (kedua sisi)' : 'Galian potong aspal (open cut)'}</text></g>;
+  }
+  // ---------- detail ----------
+  const dy = 160, dh = 123; let det = null, rows = [];
+  if (mode === 'sling') {
+    det = <g>
+      <BrDetailBox x={20} y={dy} w={74} h={dh} title="1. PUNCAK MENARA & SADEL KABEL"><g>
+        <rect x={31} y={40} width={10} height={70} fill="#cfd6dd" stroke="#000" strokeWidth={0.3} /><rect x={27} y={36} width={18} height={4} fill="#9ca3af" stroke="#000" strokeWidth={0.3} />
+        <circle cx={36} cy={32} r={4.5} fill="#fff" stroke="#000" strokeWidth={0.35} /><circle cx={36} cy={32} r={0.8} fill="#000" />
+        <path d="M4 52 Q24 30 36 27.5 Q48 30 68 62" fill="none" stroke={cab} strokeWidth={1} />
+        {brNote(4, 49, 'kabel utama (ke bentang)')}{brNote(70, 58, 'backstay', 'end')}{brNote(70, 62, '→ blok angkur', 'end')}
+        <Lbl x={36} y={32} tx={48} ty={20} t="Roller / sadel berlekuk" /><Lbl x={36} y={38} tx={50} ty={42} t="Pelat dudukan + baut" /><Lbl x={36} y={70} tx={50} ty={78} t={g.p.towerMat === 'steel' ? (g.col ? g.col[0] : 'Kolom baja') : 'Kolom beton bertulang'} />
+        {brNote(37, 112, 'Detail tanpa skala', 'middle')}</g></BrDetailBox>
+      <BrDetailBox x={97} y={dy} w={74} h={dh} title="2. PENGGANTUNG (HANGER) & KLEM PIPA"><g>
+        <line x1={4} x2={70} y1={18} y2={18} stroke={cab} strokeWidth={2} /><rect x={33} y={14.5} width={8} height={7} rx={1} fill="#9ca3af" stroke="#000" strokeWidth={0.3} />
+        <line x1={37} x2={37} y1={21.5} y2={80} stroke="#444" strokeWidth={0.8} /><ellipse cx={37} cy={25} rx={2} ry={3} fill="none" stroke="#000" strokeWidth={0.3} />
+        {[30, 34].map(y => <rect key={y} x={35} y={y} width={4} height={2} fill="#6b7280" />)}<ellipse cx={37} cy={77} rx={2} ry={3} fill="none" stroke="#000" strokeWidth={0.3} />
+        <circle cx={37} cy={92} r={8} fill="#9ec5ea" stroke={blue} strokeWidth={0.5} /><path d="M27 92 A10 10 0 0 0 47 92" fill="none" stroke="#374151" strokeWidth={1.1} /><rect x={26} y={80} width={22} height={2} fill="#6b7280" />
+        <Lbl x={37} y={18} tx={50} ty={9} t={`Klem kabel (wire rope Ø${g.rope[0]})`} /><Lbl x={37} y={33} tx={50} ty={36} t="Thimble + 2 klip" /><Lbl x={37} y={55} tx={50} ty={56} t="Hanger wire rope Ø8 mm" /><Lbl x={45} y={95} tx={52} ty={104} t={`U-bolt + karet, pipa Ø${g.dia}`} />
+        {brNote(37, 112, `Jarak hanger @ ${fmt(g.sp, 2)} m`, 'middle')}</g></BrDetailBox>
+      <BrDetailBox x={174} y={dy} w={74} h={dh} title="3. BLOK ANGKUR (DEADMAN)"><g>
+        <rect x={0} y={34} width={74} height={80} fill="url(#pat-soil)" opacity={0.35} /><line x1={0} x2={74} y1={34} y2={34} stroke="#5b4421" strokeWidth={0.5} />
+        <rect x={14} y={42} width={40} height={40} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+        <path d="M30 70 L30 30 Q34 25 38 30 L38 70" fill="none" stroke="#000" strokeWidth={0.9} /><rect x={30} y={22} width={8} height={3} fill="#9ca3af" stroke="#000" strokeWidth={0.2} />
+        <line x1={34} y1={22} x2={66} y2={4} stroke={cab} strokeWidth={1} /><rect x={42} y={14} width={8} height={2.5} transform="rotate(-29 46 15)" fill="#6b7280" />
+        <Lbl x={46} y={15} tx={56} ty={22} t="Turnbuckle" /><Lbl x={60} y={7} tx={62} ty={14} t="Backstay" /><Lbl x={34} y={60} tx={58} ty={92} t="Besi angkur Ø25 bentuk U" /><Lbl x={20} y={50} tx={4} ty={98} t={`Beton K-175 ${fmt(g.anB, 1)}×${fmt(g.anB, 1)}×${fmt(g.anH, 1)} m`} />
+        {brNote(37, 112, `Sudut backstay ± ${fmt(g.beta * 180 / Math.PI, 0)}°`, 'middle')}</g></BrDetailBox></g>;
+    rows = [['Bentang / sag kabel', `${fmt(g.L, 1)} m / ${fmt(g.f, 2)} m (L/${fmt(g.L / g.f, 0)})`], ['Beban (pipa + air + kabel) × 1,25', `${fmt(g.qk, 3)} kN/m`], ['Tarik horizontal H', `${fmt(g.H, 1)} kN`],
+      ['Tarik maks. kabel per kabel', `${fmt(g.Tc, 1)} kN`], ['Wire rope (beban putus)', `${g.nC} × Ø${g.rope[0]} mm (${g.rope[1]} kN)`], ['Faktor keamanan aktual', `${fmt(g.sfAct, 1)} (min ${p.SF})`],
+      ['Tinggi menara A / B', `${fmt(g.HtA, 2)} / ${fmt(g.HtB, 2)} m`], ['Gaya tekan menara', `${fmt(g.V, 1)} kN`], ['Kolom menara', g.p.towerMat === 'steel' ? `${g.nColT} × ${g.col ? g.col[0] : '-'}` : `beton ${fmt(g.rc * 100, 0)}/${fmt(g.rc * 100, 0)} cm`],
+      ['Pondasi menara', `${fmt(g.footB, 2)} × ${fmt(g.footB, 2)} × ${fmt(g.footT, 2)} m`], ['Tarik backstay / angkat', `${fmt(g.Tb, 1)} / ${fmt(g.Tv, 1)} kN`], ['Blok angkur', `${fmt(g.anB, 2)} × ${fmt(g.anB, 2)} × ${fmt(g.anH, 2)} m (${fmt(g.Vc, 2)} m³)`],
+      ['Hanger', `${g.nH} × ${g.nC} bh @ ${fmt(g.sp, 2)} m, total ${fmt(g.hangL * g.nC, 1)} m`], ['Panjang kabel total', `${fmt(g.cabL * g.nC, 1)} m`]];
+  } else if (mode === 'truss') {
+    det = <g>
+      <BrDetailBox x={20} y={dy} w={74} h={dh} title="1. POTONGAN RANGKA"><g>
+        {[[22, 30], [52, 30], [22, 80], [52, 80]].map(([x, y], i) => <path key={i} d={`M${x} ${y} l4 0 l0 1 l-3 0 l0 3 l-1 0 Z`} fill={steel} stroke="#000" strokeWidth={0.2} transform={`rotate(${[0, 90, 270, 180][i]} ${x + 2} ${y + 2})`} />)}
+        <path d="M24 32 L54 82 M54 32 L24 82" stroke={steel} strokeWidth={0.5} /><rect x={22} y={30} width={34} height={54} fill="none" stroke={steel} strokeWidth={0.4} />
+        <circle cx={39} cy={22} r={7} fill="#9ec5ea" stroke={blue} strokeWidth={0.5} /><path d="M30 22 A9 9 0 0 1 48 22" fill="none" stroke="#374151" strokeWidth={1} /><rect x={28} y={29} width={22} height={1.2} fill="#111" />
+        <Lbl x={48} y={18} tx={58} ty={10} t="U-bolt + karet" /><Lbl x={24} y={32} tx={4} ty={98} t={`Batang tepi ${g.ch[0]}`} /><Lbl x={40} y={58} tx={50} ty={98} t={`Diagonal ${g.dg[0]}`} />
+        <DimLine x1={22} y1={88} x2={56} y2={88} size={1.4} text="0,50" /><DimLine x1={60} y1={30} x2={60} y2={84} vertical size={1.4} text={fmt(g.h, 2)} /></g></BrDetailBox>
+      <BrDetailBox x={97} y={dy} w={74} h={dh} title="2. TUMPUAN DI ABUTMENT"><g>
+        <rect x={0} y={50} width={74} height={64} fill="url(#pat-soil)" opacity={0.35} /><rect x={10} y={46} width={40} height={50} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+        <rect x={20} y={42} width={24} height={4} fill="#9ca3af" stroke="#000" strokeWidth={0.3} /><path d="M24 42 L24 52 M40 42 L40 52" stroke="#000" strokeWidth={0.6} /><path d="M30 20 L62 20 L62 42 L30 42 Z" fill="none" stroke={steel} strokeWidth={0.8} />
+        <Lbl x={32} y={44} tx={50} ty={30} t="Pelat landasan + baut angkur" /><Lbl x={20} y={70} tx={52} ty={86} t="Abutment beton K-225" />{brNote(37, 112, 'Satu sisi sendi, sisi lain rol (slot baut)', 'middle')}</g></BrDetailBox>
+      <BrDetailBox x={174} y={dy} w={74} h={dh} title="3. PIPA MASUK TANAH"><g>
+        <rect x={0} y={50} width={74} height={64} fill="url(#pat-soil)" opacity={0.35} /><line x1={0} x2={74} y1={50} y2={50} stroke="#5b4421" strokeWidth={0.5} />
+        <path d="M70 30 L36 30 L22 60 L4 60" fill="none" stroke={blue} strokeWidth={2.2} strokeLinejoin="round" /><path d="M16 56 L30 56 L30 70 L16 70 Z" fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.3} />
+        <Lbl x={36} y={30} tx={44} ty={18} t="Bend 45° + flens" /><Lbl x={22} y={64} tx={36} ty={86} t="Thrust block beton" />{brNote(37, 112, 'Pasang air valve di titik tertinggi jembatan', 'middle')}</g></BrDetailBox></g>;
+    rows = [['Bentang', `${fmt(g.L, 1)} m`], ['Tinggi / lebar rangka', `${fmt(g.h, 2)} / 0,50 m (${g.nPanel} panel)`], ['Beban rencana × 1,3', `${fmt(g.qk, 3)} kN/m`], ['Momen maksimum', `${fmt(g.M, 1)} kNm`],
+      ['Gaya batang tepi', `${fmt(g.F, 1)} kN (2 batang)`], ['Batang tepi / diagonal', `${g.ch[0]} / ${g.dg[0]}`], ['Berat baja', `± ${fmt(g.steel, 0)} kg`], ['Lendutan (perkiraan)', `${fmt(g.defl, 1)} mm (izin L/300 = ${fmt(g.L / 0.3, 0)} mm)`],
+      ['Abutment (per sisi)', `${fmt(g.abut.B, 1)} × ${fmt(g.abut.Lb, 1)} × ${fmt(g.abut.Hb, 1)} m`]];
+  } else {
+    det = <g>
+      <BrDetailBox x={20} y={dy} w={74} h={dh} title="1. UJUNG PIPA SELUBUNG"><g>
+        <rect x={6} y={40} width={44} height={22} fill="#cfd6dd" stroke="#000" strokeWidth={0.35} /><rect x={0} y={46} width={72} height={10} fill="#9ec5ea" stroke={blue} strokeWidth={0.4} />
+        <rect x={48} y={40} width={4} height={22} fill="#111" /><Lbl x={50} y={42} tx={56} ty={30} t="End seal karet + klem" /><Lbl x={26} y={42} tx={20} ty={28} t={`Selubung Ø${g.casing}`} /><Lbl x={62} y={52} tx={58} ty={74} t={`Pipa ${g.mat} Ø${g.dia}`} />
+        {brNote(37, 112, 'Ujung selubung ≥ 1 m di luar badan jalan', 'middle')}</g></BrDetailBox>
+      <BrDetailBox x={97} y={dy} w={74} h={dh} title="2. SPACER / ISOLATOR"><g>
+        <circle cx={37} cy={52} r={26} fill="#cfd6dd" stroke="#000" strokeWidth={0.4} /><circle cx={37} cy={52} r={22} fill="#fff" stroke="#000" strokeWidth={0.2} /><circle cx={37} cy={52} r={13} fill="#9ec5ea" stroke={blue} strokeWidth={0.5} />
+        {[0, 90, 180, 270].map(a => <rect key={a} x={35.5} y={26.5 + 4} width={3} height={8} fill="#f59e0b" transform={`rotate(${a} 37 52)`} />)}
+        <Lbl x={37} y={30} tx={56} ty={18} t="Runner spacer (tiap 2 m)" />{brNote(37, 112, 'Pipa pembawa tidak menyentuh selubung', 'middle')}</g></BrDetailBox>
+      <BrDetailBox x={174} y={dy} w={74} h={dh} title="3. PATOK TANDA PIPA"><g>
+        <rect x={0} y={80} width={74} height={34} fill="url(#pat-soil)" opacity={0.35} /><rect x={34} y={36} width={6} height={56} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.3} />
+        <rect x={20} y={24} width={34} height={14} fill="#fff" stroke="#c8102e" strokeWidth={0.6} /><text x={37} y={30} fontSize={2.2} textAnchor="middle" fontWeight={700} fill="#c8102e">AWAS</text><text x={37} y={34.5} fontSize={1.8} textAnchor="middle" fill="#c8102e">PIPA AIR BERSIH</text>
+        {brNote(37, 112, 'Dipasang di kedua sisi jalan', 'middle')}</g></BrDetailBox></g>;
+    rows = [['Cara pemasangan', p.method === 'boring' ? 'Pengeboran horizontal / pipe jacking' : 'Galian terbuka (potong aspal)'], ['Lebar jalan', `${fmt(+p.roadW, 1)} m`], ['Pipa selubung', `baja/GI Ø${g.casing} mm, L ${fmt(g.Lc, 1)} m`],
+      ['Pipa pembawa', `${g.mat} Ø${g.dia} mm`], ['Kedalaman tutup', `${fmt(g.cover, 2)} m dari permukaan jalan`], ['Perizinan', 'rekomendasi teknis pemilik jalan (Bina Marga / Dinas PU)']];
+  }
+  const notes = mode === 'sling' ? ['1. Kabel baja galvanis 6×19 IWRC, klip & thimble', '    di setiap ujung (klip menghadap ke kabel hidup).', '2. Setel sag dengan turnbuckle setelah pipa berisi air.', '3. Blok angkur di tanah keras, di luar bidang longsor.', '4. Pipa di bentang: GI; HDPE/PVC wajib diselubungi.', '5. Air valve di titik tertinggi, katup sorong di', '    kedua ujung jembatan.', '6. Perhitungan indikatif: wajib dicek ahli struktur.']
+    : mode === 'truss' ? ['1. Baja BJ 37, las E70 / baut A325, dicat anti karat.', '2. Satu tumpuan sendi, satu tumpuan rol.', '3. Abutment di tanah keras, terlindung gerusan.', '4. Air valve di titik tertinggi jembatan.', '5. Perhitungan indikatif: wajib dicek ahli struktur.']
+      : ['1. Koordinasi & izin pemilik jalan sebelum bekerja.', '2. Selubung baja/GI dilapis anti karat.', '3. Urugan dipadatkan per lapis 20 cm, aspal', '    dikembalikan seperti semula.', '4. Katup sorong di kedua sisi perlintasan.', '5. Rambu & pengaturan lalu lintas selama pekerjaan.'];
+  return <Sheet meta={project.meta} std={stdLine(project, ['jaringan', 'bangunan'])} title={`${mode === 'road' ? 'PERLINTASAN JALAN' : 'JEMBATAN PIPA'} ${st.label}`} scaleText={fmtScale(S)} sheetNo={sheetNo} sheetTotal={sheetTotal}
+    legend={noteLegend([['url(#pat-concrete)', 'Beton'], ['#cfd6dd', 'Baja / selubung'], ['#9ec5ea', 'Pipa air'], ['url(#pat-soil)', 'Tanah asli']], notes)}>
+    <text x={22} y={16} fontSize={3} fontWeight={700}>{mode === 'road' ? 'POTONGAN MELINTANG JALAN' : 'TAMPAK SAMPING'} · {BR_MODES[mode].toUpperCase()}{mode !== 'road' ? ` · ${BR_OBS[p.obs].toUpperCase()}` : ''}</text>
+    {soil}{water}{gLine}{clrLine}{main}
+    <ViewTitle x={172} y={150} title={mode === 'road' ? 'POTONGAN MELINTANG' : 'TAMPAK SAMPING'} S={S} />
+    {det}
+    <SvgTable x={250} y={dy} w={80} title="DATA TEKNIS" head={['Uraian', 'Nilai']} cols={[0.48, 0.52]} rh={4.6} fs={1.45} rows={rows.map(r => [r[0], String(r[1]).slice(0, 40)])} />
+    {g.warn.length > 0 && <g>{g.warn.slice(0, 3).map((w, i) => <text key={i} x={252} y={dy + 10 + (rows.length + 1) * 4.6 + 4 + i * 6} fontSize={1.45} fill="#b91c1c">{wrapText('⚠ ' + w, 56).slice(0, 2).map((l, j) => <tspan key={j} x={252} dy={j ? 2 : 0}>{l}</tspan>)}</text>)}</g>}
+  </Sheet>;
+}
+function BridgeEditor({ s, project, setProject, onDelete, onDuplicate }) {
+  const { st, g } = s; const p = g.p; const [confirmDel, setConfirmDel] = useState(false);
+  const upd = (patch) => setProject(pr => ({ ...pr, structures: pr.structures.map(x => x.id === st.id ? { ...x, ...patch } : x) }));
+  const setP = (k, v) => setProject(pr => ({ ...pr, structures: pr.structures.map(x => x.id === st.id ? { ...x, params: { ...x.params, [k]: v } } : x) }));
+  const num = (k, label, step = 0.1, min = 0, hint) => <Field key={k} label={label} hint={hint}><NumField id={`br-${k}`} value={p[k]} step={step} min={min} onChange={v => setP(k, Math.max(min, v))} /></Field>;
+  const sel = (k, label, opts) => <Field key={k} label={label}><select id={`br-${k}`} className="tp-field" value={p[k]} onChange={e => setP(k, isNaN(+e.target.value) || e.target.value === '' ? e.target.value : +e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>;
+  const H = ({ children }) => <div className="text-[11px] font-semibold uppercase tracking-wide text-aqua-700 pt-1">{children}</div>;
+  const pickPipe = (id) => { const pp = project.pipes.find(x => x.id === id); setP('pipeId', id); if (pp) { const hp = project.settings && 0; void hp; } };
+  const R = (l, v) => <><span className="text-slate-500">{l}</span><span className="text-right font-mono num">{v}</span></>;
+  return <div className="space-y-2.5">
+    <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{STRUCT_TYPES.bridge.label}</div>
+      <input id="st-label" className="tp-field !text-[15px] font-semibold mt-1" value={st.label} onChange={e => upd({ label: e.target.value })} /></div>
+    {sel('mode', 'Jenis', Object.entries(BR_MODES))}
+    {p.mode !== 'road' && sel('obs', 'Rintangan yang diseberangi', Object.entries(BR_OBS))}
+    <Field label="Pipa yang melintas" hint="Material & diameter diambil dari pipa di peta; atau isi manual.">
+      <select id="br-pipe" className="tp-field" value={p.pipeId || ''} onChange={e => pickPipe(e.target.value)}><option value="">Isi manual</option>{project.pipes.map(x => <option key={x.id} value={x.id}>{x.label} · {x.material} Ø{x.diameter}</option>)}</select></Field>
+    {!p.pipeId && <div className="grid grid-cols-2 gap-2">{sel('mat', 'Bahan pipa', Object.keys(MATERIALS).map(k => [k, k]))}{sel('dia', 'Diameter', DIAMETERS.map(d => [d, 'Ø' + d]))}</div>}
+    <StructLocFields st={st} setProject={setProject} />
+    {p.mode === 'road' ? <><H>Jalan & pipa selubung</H><div className="grid grid-cols-2 gap-2">
+      {num('roadW', 'Lebar jalan (m)', 0.5, 2)}{num('zBot', 'Elevasi permukaan jalan (m)', 0.1, 0)}{num('depth', 'Kedalaman tutup (m)', 0.1, 0.6, 'umum ≥ 1,0–1,5 m')}{sel('method', 'Cara pemasangan', [['opencut', 'Galian terbuka'], ['boring', 'Boring / jacking']])}</div></>
+      : <><H>Bentang & elevasi (m)</H><div className="grid grid-cols-2 gap-2">
+        {num('L', 'Bentang antar menara/abutment', 0.5, 3)}{num('hp', 'Tinggi pipa di atas tanah tepi', 0.1, 0.2)}
+        {num('gA', 'Elevasi tanah tepi A', 0.1, 0)}{num('gB', 'Elevasi tanah tepi B', 0.1, 0)}
+        {num('zBot', p.obs === 'road' ? 'Elevasi permukaan jalan' : p.obs === 'river' ? 'Elevasi dasar sungai' : 'Elevasi dasar lembah', 0.1, 0)}
+        {p.obs === 'river' && num('zHwl', 'Elevasi muka air banjir', 0.1, 0)}{p.obs !== 'road' && num('free', 'Jagaan di atas banjir/dasar', 0.1, 0)}{p.obs === 'road' && <p className="col-span-2 text-[11.5px] text-slate-500">Ruang bebas jalan diambil 5,1 m di atas permukaan jalan.</p>}</div>
+        {p.mode === 'sling' ? <><H>Kabel & menara</H><div className="grid grid-cols-2 gap-2">
+          {num('sagR', 'Rasio bentang/sag (L/f)', 1, 6, 'umum 8–12')}{num('hSp', 'Jarak hanger (m)', 0.25, 0.8)}{sel('nCab', 'Jumlah kabel utama', [[1, '1 kabel'], [2, '2 kabel (kiri-kanan)']])}{num('SF', 'Faktor keamanan kabel', 0.5, 2.5, 'umum 4–5')}
+          {num('da', 'Jarak angkur dari menara (0 = otomatis)', 0.5, 0)}{sel('towerMat', 'Menara', [['steel', 'Kolom pipa baja'], ['rc', 'Kolom beton bertulang']])}{num('soil', 'Daya dukung tanah (kN/m²)', 10, 50)}</div></>
+          : <><H>Rangka</H><div className="grid grid-cols-2 gap-2">{num('truH', 'Tinggi rangka (m, 0 = L/12)', 0.05, 0)}</div></>}</>}
+    <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
+      {p.mode === 'sling' && <>{R('Sag kabel', `${fmt(g.f, 2)} m`)}{R('Tarik maks. per kabel', `${fmt(g.Tc, 1)} kN`)}{R('Wire rope', `${g.nC} × Ø${g.rope[0]} mm`)}{R('Faktor keamanan', fmt(g.sfAct, 1))}{R('Tinggi menara A/B', `${fmt(g.HtA, 2)} / ${fmt(g.HtB, 2)} m`)}{R('Kolom', p.towerMat === 'steel' ? (g.col ? g.col[0].replace('Pipa baja ', '') : '-') : `${fmt(g.rc * 100, 0)}/${fmt(g.rc * 100, 0)} cm`)}{R('Blok angkur', `${fmt(g.anB, 1)}×${fmt(g.anB, 1)}×${fmt(g.anH, 1)} m`)}{R('Hanger', `${g.nH * g.nC} bh @ ${fmt(g.sp, 2)} m`)}</>}
+      {p.mode === 'truss' && <>{R('Tinggi rangka', `${fmt(g.h, 2)} m`)}{R('Batang tepi', g.ch[0])}{R('Diagonal', g.dg[0])}{R('Berat baja', `${fmt(g.steel, 0)} kg`)}{R('Lendutan', `${fmt(g.defl, 1)} mm`)}</>}
+      {p.mode === 'road' && <>{R('Pipa selubung', `Ø${g.casing} mm`)}{R('Panjang selubung', `${fmt(g.Lc, 1)} m`)}{R('Kedalaman tutup', `${fmt(g.cover, 2)} m`)}</>}
+    </div>
+    {g.warn.map((w, i) => <div key={i} className="rounded bg-amber-50 border border-amber-200 text-amber-900 text-[12px] px-2 py-1">{w}</div>)}
+    <p className="text-[11px] text-slate-500">Perhitungan indikatif (beban mati pipa + air, kabel parabola). Verifikasi oleh ahli struktur dan survei geoteknik sebelum dibangun.</p>
+    <div className="flex gap-2"><Btn icon="FilePlus2" variant="outline" onClick={onDuplicate}>Duplikat</Btn>
+      {confirmDel ? <><Btn variant="danger" icon="Trash2" onClick={onDelete}>Ya, hapus</Btn><Btn variant="outline" onClick={() => setConfirmDel(false)}>Batal</Btn></> : <Btn icon="Trash2" variant="danger" onClick={() => setConfirmDel(true)}>Hapus</Btn>}</div>
+  </div>;
+}
+
 /* ---------- Gambar DED broncaptering bentuk V ---------- */
 function BcvPlan({ g, ox, oy, w, h, k, S }) {
   const { Wb, Wf, Dc, tw, tf, Lb, Bb, tb, yB0, yB1, p } = g; const dOff = p.ditch ? (+p.ditchOff || 1.5) : 0;
@@ -6369,8 +6681,8 @@ function extraSheets(project, hyd, boq) {
   const out = [{ key: 'std', label: 'Kriteria desain & SNI', sub: 'acuan standar', icon: 'BookCheck', group: 'Jaringan distribusi', render: (no, tot) => <SheetStd project={project} hyd={hyd} boq={boq} sheetNo={no} sheetTotal={tot} /> }];
   if (project.ded.fitSheet !== false) { const fl = fitSheetsList(project, boq); fl.pages.forEach((keys, i) => out.push({ key: 'fit:' + i, label: 'Detail fitting & aksesoris', sub: fl.pages.length > 1 ? `lembar ${i + 1}/${fl.pages.length}` : `${keys.length} jenis`, icon: 'Wrench', group: 'Jaringan distribusi',
     render: (no, tot) => <SheetFittings project={project} boq={boq} keys={keys} use={fl.use} page={i + 1} pages={fl.pages.length} sheetNo={no} sheetTotal={tot} /> })); }
-  boq.structures.forEach(x => { out.push({ key: 'st:' + x.st.id, label: x.st.label, sub: STRUCT_TYPES[x.st.type].label.split(' (')[0], icon: x.st.type === 'tower' ? 'TowerControl' : 'Building2', group: 'Bangunan pelengkap',
-    render: (no, tot) => x.st.type === 'tower' ? <SheetTower project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bc_v' ? <SheetBroncapV project={project} s={x} sheetNo={no} sheetTotal={tot} /> : <SheetStructure project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
+  boq.structures.forEach(x => { out.push({ key: 'st:' + x.st.id, label: x.st.label, sub: STRUCT_TYPES[x.st.type].label.split(' (')[0], icon: x.st.type === 'tower' ? 'TowerControl' : x.st.type === 'bridge' ? 'Cable' : 'Building2', group: 'Bangunan pelengkap',
+    render: (no, tot) => x.st.type === 'tower' ? <SheetTower project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bc_v' ? <SheetBroncapV project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bridge' ? <SheetBridge project={project} s={x} sheetNo={no} sheetTotal={tot} /> : <SheetStructure project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
     if (x.st.type === 'tower') out.push({ key: 'sv:' + x.st.id, label: x.st.label, sub: 'Tampak depan & belakang', icon: 'TowerControl', group: 'Bangunan pelengkap', render: (no, tot) => <SheetTowerViews project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
     if ((x.st.extras || []).length) out.push({ key: 'sx:' + x.st.id, label: x.st.label, sub: 'Konstruksi tambahan', icon: 'Boxes', group: 'Bangunan pelengkap', render: (no, tot) => <SheetExtras project={project} s={x} sheetNo={no} sheetTotal={tot} /> }); });
   if (boq.sr) out.push({ key: 'sr', label: 'Sambungan rumah', sub: `${boq.sr.srs.length} SR & meter air`, icon: 'House', group: 'Jaringan distribusi', render: (no, tot) => <SheetSR project={project} hyd={hyd} sr={boq.sr} sheetNo={no} sheetTotal={tot} /> });
@@ -6609,6 +6921,7 @@ function TowerEditor({ s, project, setProject, onDelete, onDuplicate }) {
 }
 function StructureEditor({ s, project, setProject, onDelete, onDuplicate }) {
   if (s.st.type === 'tower') return <TowerEditor s={s} project={project} setProject={setProject} onDelete={onDelete} onDuplicate={onDuplicate} />;
+  if (s.st.type === 'bridge') return <BridgeEditor s={s} project={project} setProject={setProject} onDelete={onDelete} onDuplicate={onDuplicate} />;
   if (s.st.type === 'bc_v') return <BcvEditor s={s} project={project} setProject={setProject} onDelete={onDelete} onDuplicate={onDuplicate} />;
   const { st, g, q } = s; const p = g.p;
   const [confirmDel, setConfirmDel] = useState(false);
@@ -6875,6 +7188,7 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'jembatan pipa sling kabel baja gantung suspension menyeberang sungai lembah tebing jurang jalan raya perlintasan rangka', t: 'Jembatan pipa / perlintasan', a: 'Tab **DED** → pilih bangunan **Jembatan Pipa / Perlintasan** → *Tambah*. Pilih jenis: **pipa gantung kabel baja (sling)** untuk sungai/lembah/tebing lebar, **jembatan rangka baja** untuk bentang ≤ 25 m, atau **perlintasan bawah jalan** (pipa selubung). Isi bentang, elevasi tanah kedua tepi, dasar sungai/jalan, muka air banjir. Aplikasi menghitung sag & tarik kabel, diameter wire rope (faktor keamanan), tinggi menara, kolom, pondasi, blok angkur, jumlah hanger, lalu membuat gambar DED (tampak samping + detail sadel, hanger, angkur) dan item RAB. Hasilnya indikatif — wajib dicek ahli struktur.' },
   { k: 'kemasan qty beli roll batang zak semen sak karung lembar pcs rab', t: 'Kolom kemasan / qty beli di RAB', a: 'Tabel RAB punya kolom **Kemasan / qty beli** yang mengubah volume menjadi jumlah barang yang dibeli: pipa HDPE per roll (Ø ≤ 63: 100 m, Ø75–110: 50 m, ≥ Ø125 batang 6 m), PVC batang 4 m, GI batang 6 m, beton → zak semen 50 kg + pasir + kerikil, besi → batang 12 m + kawat bendrat, bekisting → lembar multiplek, plester → zak semen + pasir, media filter → sak 25 kg, fitting → pcs. Di mode *Edit item RAB* isinya bisa diubah per item. Kolom ikut tercetak.' },
   { k: 'gambar fitting gate valve air valve wash out reducer tee bend detail visual ded', t: 'Gambar detail fitting & aksesoris', a: 'Tab **DED** → grup *Jaringan distribusi* → **Detail fitting & aksesoris**: gambar visual gate valve, air valve, wash out, tee, bend, reducer, dop, thrust block, box katup, check valve, meter air, sadel SR, ball valve, sambungan, dan kran umum — lengkap dengan simbol denah, spesifikasi, dan ukuran/jumlah yang dipakai di proyek. Di *Opsi gambar jaringan* bisa memilih tampilkan semua jenis atau hanya yang dipakai.' },
   { k: 'selubung pendingin flow inducer sleeve shroud pompa zona saringan motor panas pasir', t: 'Selubung pendingin pompa (flow inducer sleeve)', a: 'Tab **Olah Air** → kartu sumur bor: isi **Kedalaman pompa**, lalu atur **Selubung pendingin**: *Otomatis* (dipasang bila pompa berada di zona saringan), *Selalu pasang*, atau *Tidak dipasang*. Ukuran dipilih otomatis (bisa diganti) beserta bahan PVC/SS304; aplikasi menghitung kecepatan air pendingin (min. 0,08 m/dtk motor 4", 0,16 m/dtk motor 6"), panjang selubung, memasukkannya ke RAB, spesifikasi pompa, dan gambar DED sumur bor.' },

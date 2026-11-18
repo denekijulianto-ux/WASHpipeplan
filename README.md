@@ -60,6 +60,18 @@ Setiap menara air mendapat lembar tambahan **Tampak depan & belakang**:
 
 Kedua tampak memuat keterangan finishing (cat rangka baja / plester & cat beton, tandon PE), elevasi, dan ukuran utama.
 
+## Jembatan pipa / perlintasan (tab DED → bangunan "Jembatan Pipa / Perlintasan")
+- **Pipa gantung kabel baja (sling / suspension):** untuk menyeberangi sungai, lembah, tebing, atau jalan raya.
+  - Input: bentang, elevasi tanah kedua tepi, dasar rintangan, muka air banjir (sungai) atau ruang bebas jalan 5,1 m, rasio sag, jarak hanger, jumlah kabel, faktor keamanan.
+  - Dihitung: beban pipa + air, sag & tarik kabel, diameter wire rope 6×19 IWRC (min. Ø10 mm), tinggi menara, kolom pipa baja / beton, pondasi, sudut & tarik backstay, ukuran blok angkur (deadman), jumlah & panjang hanger, panjang kabel, klip, turnbuckle.
+- **Jembatan rangka baja** (bentang ≤ 25 m): tinggi rangka, profil siku batang tepi/diagonal, berat baja, lendutan, abutment.
+- **Perlintasan bawah jalan:** pipa selubung (casing), panjang, kedalaman tutup, cara galian terbuka atau boring, pengembalian aspal, izin.
+- **Pipa yang melintas** bisa dipilih dari peta (bahan & diameter otomatis).
+- **Peringatan:** ruang bebas, pipa non-GI di bentang gantung, jarak hanger, bentang rangka terlalu panjang.
+- **Gambar DED:** tampak samping (profil rintangan, menara, kabel, hanger, pipa, angkur, ukuran) atau potongan jalan, 3 gambar detail (sadel menara, hanger & klem pipa, blok angkur / potongan rangka, tumpuan, pipa masuk tanah / ujung selubung, spacer, patok), dan tabel data teknis.
+- **RAB:** semua item masuk otomatis.
+- **Catatan:** perhitungan indikatif, wajib diverifikasi ahli struktur dan survei geoteknik.
+
 ## Pipa lengkung (HDPE / pipa fleksibel)
 Pipa tidak harus lurus dari node ke node:
 - **Di peta:** pilih pipa, lalu seret titik ⊕ di tengah garis untuk melengkungkannya. Titik belok bisa diseret untuk dipindah atau diklik untuk dihapus.
