@@ -72,6 +72,22 @@ Kedua tampak memuat keterangan finishing (cat rangka baja / plester & cat beton,
 - **RAB:** semua item masuk otomatis.
 - **Catatan:** perhitungan indikatif, wajib diverifikasi ahli struktur dan survei geoteknik.
 
+## Rehabilitasi / renovasi sistem existing
+Untuk desa yang sudah punya jaringan atau bangunan air lama:
+- **Pipa** (pilih pipa di peta → *Status pipa*): Baru, Existing baik (dipakai apa adanya), Existing rehabilitasi, atau Bongkar & ganti baru.
+  - Untuk rehabilitasi: isi jumlah titik bocor, panjang pipa yang diganti, dan panjang pipa terbuka yang perlu diamankan.
+  - Koefisien C pipa lama bisa diisi (pipa tua berkerak) supaya analisis hidrolis lebih realistis.
+  - Pipa existing tidak dihitung lagi sebagai pipa baru, galian, atau fitting.
+- **Node aksesoris** (gate valve, air valve, wash out, hidran, SR): status yang sama; rehabilitasi = servis / perbaikan.
+- **Bangunan** (intake, broncaptering, reservoir, bak pembagi, BPT, hidran, menara air, jembatan pipa) — tab DED → *Kondisi bangunan*:
+  - Asesmen: tingkat kerusakan (ringan/sedang/berat), tahun dibangun, tanggal, asesor, catatan.
+  - **Isi otomatis** menghitung volume pekerjaan perbaikan dari ukuran bangunan dan tingkat kerusakan (kuras, injeksi retak, tambal beton, plester ulang, waterproofing food grade, tutup manhole, perpipaan, katup, ventilasi, tangga, media saringan, area tangkapan, tandon, rangka baja, kabel jembatan, pagar, cat, uji bocor & desinfeksi). Semua volume bisa diubah.
+  - Biaya rehabilitasi dibandingkan dengan biaya bangun baru; peringatan muncul bila kerusakan berat atau biaya > 60% bangun baru.
+  - "Existing baik" = tanpa item RAB.
+- **RAB:** bagian *Rehabilitasi jaringan pipa existing* (bocor, penggantian sebagian, pengamanan pipa terbuka, pembongkaran, servis katup, survei kebocoran, flushing) dan bagian *Rehabilitasi {bangunan}*.
+- **Peta & denah DED:** pipa diberi warna status (abu = existing baik, oranye = rehabilitasi, merah = ganti).
+- **DED:** lembar *Rencana rehabilitasi* per bangunan (data asesmen, foto kondisi dari peta, daftar pekerjaan + kemasan) dan lembar *Rencana rehabilitasi jaringan* (rekap aset existing & pekerjaan).
+
 ## Pipa lengkung (HDPE / pipa fleksibel)
 Pipa tidak harus lurus dari node ke node:
 - **Di peta:** pilih pipa, lalu seret titik ⊕ di tengah garis untuk melengkungkannya. Titik belok bisa diseret untuk dipindah atau diklik untuk dihapus.

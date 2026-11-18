@@ -1948,7 +1948,7 @@ function computeHydraulics(project) {
     const p = pmap[pid];
     const L = lengths[pid];
     const D = +p.diameter || 0;
-    const C = MATERIALS[p.material]?.C || 130;
+    const C = pipeC(p);
     const A = Math.PI * (D / 1000) ** 2 / 4;
     const v = A > 0 ? Qls / 1000 / A : 0;
     const hf = hwLoss(L, Qls, D, C);
@@ -2003,7 +2003,7 @@ function computeHydraulics(project) {
         let h = 0;
         t.pipes.forEach(pid => {
           const p = pmap[pid];
-          h += hwLoss(lengths[pid], Qx, +p.diameter, MATERIALS[p.material]?.C || 130);
+          h += hwLoss(lengths[pid], Qx, +p.diameter, pipeC(p));
         });
         return h + wellGeom(b, Qx).riserHf;
       };
@@ -2118,7 +2118,7 @@ function computeHydraulics(project) {
       v: 0,
       hf: 0,
       hfkm: 0,
-      C: MATERIALS[p.material]?.C || 130,
+      C: pipeC(p),
       status: 'idle',
       up: p.from,
       down: p.to,
@@ -2397,7 +2397,9 @@ function computeBoQ(project, hyd) {
   const nmap = Object.fromEntries(project.nodes.map(n => [n.id, n]));
   const proj = makeProjector(centroid(project.nodes).lat, centroid(project.nodes).lng);
   const gmap = {};
+  const isEx = x => ['ok', 'fix'].includes(assetSt(x));
   project.pipes.forEach(p => {
+    if (isEx(p)) return;
     const k = p.material + '|' + p.diameter;
     gmap[k] = gmap[k] || {
       key: k,
@@ -2497,6 +2499,7 @@ function computeBoQ(project, hyd) {
     const deg = c.length;
     if (!deg) return;
     if (n.type === 'sr') return;
+    if (isEx(n) || c.every(x => isEx(x.p))) return;
     if (n.srTap) {
       const main = c.filter(x => !x.p.service);
       if (main.length <= 2 && c.length - main.length >= 1 && !(main.length === 2 && +main[0].p.diameter !== +main[1].p.diameter)) return;
@@ -2578,7 +2581,7 @@ function computeBoQ(project, hyd) {
   project.pipes.forEach(p => {
     const a = nmap[p.from],
       b = nmap[p.to];
-    if (!a || !b || !(p.path || []).length) return;
+    if (!a || !b || !(p.path || []).length || isEx(p)) return;
     pipeBends(p, a, b, s.bendAngle).forEach(x => {
       if (!x.fitting) return;
       const d = +p.diameter;
@@ -2608,7 +2611,7 @@ function computeBoQ(project, hyd) {
       items: d.items
     };
   });
-  const structures = (project.structures || []).map(st => {
+  const structures0 = (project.structures || []).map(st => {
     if (st.type === 'tower') {
       const tf = treat.find(x => x.d.frp && x.d.frp.tower && x.d.frp.tower.id === st.id);
       const g = towerGeom(st, project, tf ? {
@@ -2672,6 +2675,15 @@ function computeBoQ(project, hyd) {
     };
   });
   const sr = srItems(project, hyd);
+  const structures = structures0.map(x => {
+    const c = x.st.cond;
+    return c === 'fix' || c === 'ok' ? {
+      ...x,
+      newItems: x.items,
+      items: c === 'fix' ? rehabItems(x.st) : []
+    } : x;
+  });
+  const rehab = rehabNetItems(project, hyd);
   return {
     pipeGroups,
     earth,
@@ -2682,7 +2694,8 @@ function computeBoQ(project, hyd) {
     structures,
     pumps,
     treat,
-    sr
+    sr,
+    rehab
   };
 }
 function buildRAB(project, boq) {
@@ -2757,7 +2770,7 @@ function buildRAB(project, boq) {
   };
   const sections = [sec('prep', 'PEKERJAAN PERSIAPAN', [['mob', 'Mobilisasi dan demobilisasi peralatan & tenaga kerja', 1, 'ls', 7500000], ['survey', 'Pengukuran, uitzet trase dan pemasangan bowplank', L, "m'", 3500], ['board', 'Papan nama proyek', 1, 'bh', 750000], ['k3', 'Penerapan SMKK (Sistem Manajemen Keselamatan Konstruksi)', 1, 'ls', 3500000]]), sec('earth', 'PEKERJAAN TANAH', [['dig', 'Galian tanah biasa untuk jalur pipa', boq.earth.galian, 'm³', 95000], ['sand', 'Urugan pasir alas dan penutup pipa, dipadatkan', boq.earth.pasir, 'm³', 285000], ['backfill', 'Urugan tanah kembali, dipadatkan per lapis 20 cm', boq.earth.kembali, 'm³', 48000]]), sec('pipe', 'PENGADAAN & PEMASANGAN PIPA', boq.pipeGroups.map(g => [`pipe|${g.material}|${g.diameter}`, `${pipeName(g.material)} Ø${g.diameter} mm (termasuk waste ${project.settings.wastePct}%)`, g.lengthTotal, "m'", defPipePrice(g.material, g.diameter)])), sec('fit', 'AKSESORIS & FITTING JARINGAN', boq.fittings.map(f => [f.key, f.desc, f.qty, f.unit, f.def, {
     nodes: f.nodes
-  }])), sec('test', 'PENGUJIAN & PENYELESAIAN', [['test', 'Uji tekanan hidrostatis jaringan pipa', L, "m'", 4000], ['flush', 'Flushing dan desinfeksi jaringan pipa', L, "m'", 2500], ['asbuilt', 'Dokumentasi dan gambar purna laksana (as built drawing)', 1, 'ls', 2500000]]), ...boq.structures.map(x => sec('st:' + x.st.id, `BANGUNAN ${x.st.label}: ${STRUCT_TYPES[x.st.type].label.toUpperCase()}`, x.items, {
+  }])), ...(boq.rehab && boq.rehab.items.length ? [sec('rehab', 'REHABILITASI JARINGAN PIPA EXISTING', boq.rehab.items)] : []), sec('test', 'PENGUJIAN & PENYELESAIAN', [['test', 'Uji tekanan hidrostatis jaringan pipa', L, "m'", 4000], ['flush', 'Flushing dan desinfeksi jaringan pipa', L, "m'", 2500], ['asbuilt', 'Dokumentasi dan gambar purna laksana (as built drawing)', 1, 'ls', 2500000]]), ...boq.structures.filter(x => x.st.cond !== 'ok').map(x => sec('st:' + x.st.id, `${x.st.cond === 'fix' ? 'REHABILITASI' : 'BANGUNAN'} ${x.st.label}: ${STRUCT_TYPES[x.st.type].label.toUpperCase()}`, x.items, {
     structId: x.st.id
   })), ...boq.pumps.map(x => sec('pb:' + x.node.id, `${x.allin ? 'PAKET SUMUR BOR ALL-IN' : 'SISTEM POMPA SUMUR BOR'} ${x.node.label}`, x.items, {
     pumpId: x.node.id
@@ -2855,6 +2868,10 @@ function specOf(key, desc, unit) {
     d = String(desc || '');
   if (NO_SPEC.test(d) && !/pipa|pompa|katup|valve/i.test(d.split(' ').slice(0, 2).join(' '))) return null;
   const p = k.split('|');
+  if (p[0] === 'rh') {
+    if (p[1] === 'repl') return specOf(`pipe|${p[2]}|${p[3]}`, `Pipa ${p[2]} Ø${p[3]}`, "m'");
+    if (/^(leak|raise|dism|ndis|survey|flush|clean|dismantle|crack|test|catch|plaster|concrete|slab|steel|paint)$/.test(p[1])) return null;
+  }
   const pipeMat = p[0] === 'pipe' ? p[1] : p[0] === 'pump' && p[1] === 'riser' ? /GIP/.test(d) ? 'GIP' : /HDPE/.test(d) ? 'HDPE' : /PVC/.test(d) ? 'PVC' : 'GIP' : null;
   if (pipeMat === 'HDPE') return tierSpec('HDPE PE80 PN8 (SDR 17), berlabel SNI', 'HDPE PE100 PN10 (SDR 17), SNI 4829.2, sambungan butt fusion', 'HDPE PE100 PN16 (SDR 11), SNI 4829.2 + sertifikat uji pabrik', [0.8, 1, 1.45]);
   if (pipeMat === 'PVC') return tierSpec('PVC AW (≈ PN8 / S-16), sambungan lem', 'PVC PN10 (S-12,5) SNI 06-0084-2002, sambungan karet (RRJ)', 'PVC PN12,5–PN16 (S-10 / S-8) RRJ, SNI', [0.75, 1, 1.4]);
@@ -6598,6 +6615,498 @@ function bridgeItems(st, g) {
   add('pipe', `Pipa ${g.mat === 'GIP' ? 'GI medium' : g.mat + ' di dalam selubung GI'} Ø${g.dia} mm sepanjang bentang`, g.L + 2, "m'", defPipePrice('GIP', g.dia));
   add('paint', 'Cat anti karat menara & klem', 1, 'ls', r500(1500000 + 40000 * g.L));
   return it;
+}
+const ASSET_ST = {
+  new: 'Baru (dibangun)',
+  ok: 'Existing – baik, dipakai apa adanya',
+  fix: 'Existing – rehabilitasi / perbaikan',
+  rep: 'Existing – bongkar & ganti baru'
+};
+const ASSET_SHORT = {
+  new: 'Baru',
+  ok: 'Existing baik',
+  fix: 'Rehabilitasi',
+  rep: 'Ganti baru'
+};
+const ASSET_COLOR = {
+  new: '#ffffff',
+  ok: '#64748b',
+  fix: '#f59e0b',
+  rep: '#dc2626'
+};
+const assetSt = x => x && ASSET_ST[x.status] ? x.status : 'new';
+const pipeC = p => +p.cEx > 0 && ['ok', 'fix'].includes(assetSt(p)) ? +p.cEx : MATERIALS[p.material]?.C || 130;
+const STRUCT_COND = {
+  new: 'Bangunan baru',
+  fix: 'Existing – direhabilitasi',
+  ok: 'Existing – baik, tanpa pekerjaan'
+};
+const DAMAGE = {
+  ringan: 'Rusak ringan (< 30%)',
+  sedang: 'Rusak sedang (30–50%)',
+  berat: 'Rusak berat (> 50%)'
+};
+const REHAB_ITEMS = [['clean', 'Pengurasan & pembersihan lumpur / sedimen + desinfeksi', 'm³', 150000], ['dismantle', 'Pembongkaran bagian rusak & buang puing', 'm³', 250000], ['crack', 'Perbaikan retak struktur: injeksi epoxy / grouting', "m'", 350000], ['concrete', 'Perbaikan beton keropos / tambal mortar non-susut', 'm²', 450000], ['plaster', 'Bongkar plester rusak & plester ulang 1:2 + acian kedap air', 'm²', 145000], ['coat', 'Lapisan kedap air (waterproofing food grade) dinding & lantai dalam', 'm²', 125000], ['slab', 'Bongkar & cor ulang pelat atap / tutup beton bertulang', 'm²', 1250000], ['cover', 'Ganti tutup manhole pelat besi + engsel & gembok', 'bh', 1250000], ['pipe', 'Ganti perpipaan inlet / outlet / peluap / penguras + fitting', 'set', 3500000], ['valve', 'Servis atau ganti katup (gate valve / stop kran)', 'bh', 850000], ['vent', 'Ganti pipa ventilasi leher angsa + kawat kasa', 'bh', 350000], ['ladder', 'Ganti tangga monyet besi galvanis', 'bh', 1500000], ['gravel', 'Ganti media saringan (kerikil, pasir, ijuk) intake / broncaptering', 'm³', 650000], ['catch', 'Perbaikan area tangkapan mata air (pasangan batu, lapisan lempung, saluran pengalih)', 'm²', 350000], ['tank', 'Ganti tandon / tangki air rusak', 'unit', 3500000], ['steel', 'Perbaikan rangka baja: ganti batang berkarat, las & baut', 'kg', 38000], ['rcable', 'Ganti kabel baja / hanger rusak (jembatan pipa)', "m'", 60000], ['rclamp', 'Ganti klem kabel & klem pipa (jembatan pipa)', 'set', 150000], ['fence', 'Perbaikan / pasang pagar pengaman BRC', "m'", 450000], ['paint', 'Pengecatan dinding luar / rangka baja (cat dasar + 2 lapis)', 'm²', 45000], ['test', 'Uji kebocoran 24 jam & desinfeksi setelah rehabilitasi', 'ls', 1500000]];
+const REHAB_MAP = Object.fromEntries(REHAB_ITEMS.map(r => [r[0], r]));
+function structAreas(g) {
+  const L = +g.L || 2,
+    B = +g.B || 2,
+    Hin = +g.Hin || +g.Hw || 1.5;
+  return {
+    Ain: 2 * (L + B) * Hin + L * B,
+    Aout: 2 * (L + B + 0.4) * (Hin + 0.3),
+    Atop: L * B,
+    sludge: L * B * 0.2
+  };
+}
+function rehabSuggest(st, g, level) {
+  const a = structAreas(g);
+  const t = st.type;
+  const r = {};
+  const sev = level === 'berat' ? 3 : level === 'sedang' ? 2 : 1;
+  if (t === 'bridge') {
+    r.rclamp = Math.max(2, Math.round((g.nH || 6) * 0.25 * sev));
+    r.rcable = sev >= 2 ? round2((g.cabL || 30) * (sev === 3 ? 1 : 0.2)) : 0;
+    r.paint = round2(4 * (g.HtA || 4) * sev);
+    r.concrete = sev >= 2 ? 2 : 0;
+    r.test = 0;
+    return r;
+  }
+  if (t === 'tower') {
+    r.steel = sev >= 2 ? round2(40 * sev) : 0;
+    r.paint = round2((g.Ht || 6) * 6 * 1.5);
+    r.tank = sev === 3 ? g.tank?.n || 1 : 0;
+    r.ladder = sev >= 2 ? 1 : 0;
+    r.pipe = 1;
+    r.clean = 0.5;
+    r.test = 1;
+    return r;
+  }
+  r.clean = round2(Math.max(0.3, a.sludge));
+  r.coat = round2(a.Ain * (sev === 1 ? 0.5 : 1));
+  r.plaster = round2(a.Ain * [0, 0.15, 0.4, 0.7][sev]);
+  r.crack = [0, 1, 4, 10][sev];
+  r.concrete = round2(a.Ain * [0, 0, 0.1, 0.25][sev]);
+  r.cover = 1;
+  r.pipe = sev >= 2 ? 1 : 0;
+  r.valve = sev >= 2 ? 1 : 0;
+  r.vent = sev >= 2 ? 1 : 0;
+  r.paint = round2(a.Aout);
+  r.test = 1;
+  if (sev === 3) {
+    r.slab = round2(a.Atop);
+    r.dismantle = round2(a.Atop * 0.15 + 0.3);
+    r.fence = 0;
+  }
+  if (t === 'broncaptering' || t === 'bc_v') {
+    r.gravel = round2((t === 'bc_v' ? (g.Wb + g.Wf) / 2 * g.Dc * (g.gravel || 0.6) : 0.8) * (sev >= 2 ? 1 : 0.5));
+    r.catch = round2((t === 'bc_v' ? (g.Wb + g.Wf) / 2 * g.Dc : 6) * (sev >= 2 ? 0.5 : 0.2));
+  }
+  return r;
+}
+function rehabItems(st) {
+  const r = st.rehab || {};
+  return REHAB_ITEMS.filter(x => +r[x[0]] > 0).map(x => [`rh|${x[0]}|${st.type}`, x[1], +r[x[0]], x[2], x[3]]);
+}
+const NODE_SVC = {
+  gate_valve: ['Servis/perbaikan gate valve', 650000],
+  air_valve: ['Servis/ganti air valve', 1200000],
+  wash_out: ['Servis wash out & katup penguras', 650000],
+  hydrant: ['Perbaikan hidran umum (kran, bak, lantai)', 1500000],
+  sr: ['Ganti/kalibrasi meter air & stop kran SR', 450000]
+};
+function rehabNetItems(project, hyd) {
+  const items = [];
+  const add = (k, d, v, u, pr) => {
+    const ex = items.find(x => x[0] === k);
+    if (ex) ex[2] += v;else items.push([k, d, v, u, pr]);
+  };
+  let exLen = 0;
+  project.pipes.forEach(p => {
+    const st = assetSt(p);
+    const L = hyd.pipes[p.id]?.length || 0;
+    const d = +p.diameter;
+    if (st === 'ok' || st === 'fix') exLen += L;
+    if (st === 'fix') {
+      if (+p.leaks > 0) add(`rh|leak|${d}`, `Perbaikan kebocoran pipa Ø${d} mm: galian lokal, klem reparasi / sambungan, urug kembali`, +p.leaks, 'titik', r500(350000 + 250000 * d / 110));
+      if (+p.replLen > 0) add(`rh|repl|${p.material}|${d}`, `Penggantian sebagian pipa ${pipeName(p.material).replace(/^Pipa /, '')} Ø${d} mm (termasuk galian, pasir & urugan)`, Math.min(+p.replLen, L || +p.replLen), "m'", r500(defPipePrice(p.material, d) + 120000));
+      if (+p.raise > 0) add(`rh|raise|${d}`, `Penurunan/pengamanan pipa terbuka Ø${d} mm (gali ulang ke kedalaman rencana / pelindung beton)`, +p.raise, "m'", r500(90000 + 60000 * d / 110));
+    }
+    if (st === 'rep') add(`rh|dism|${d}`, `Pembongkaran pipa lama Ø${d} mm & angkut`, L, "m'", r500(15000 + 20000 * d / 110));
+  });
+  project.nodes.forEach(n => {
+    const st = assetSt(n);
+    if (st === 'fix' && NODE_SVC[n.type]) add(`rh|svc|${n.type}`, NODE_SVC[n.type][0], 1, n.type === 'sr' ? 'SR' : 'unit', NODE_SVC[n.type][1]);
+    if (st === 'rep' && NODE_SVC[n.type]) add(`rh|ndis|${n.type}`, `Pembongkaran ${NODE_TYPES[n.type].label.toLowerCase()} lama`, 1, 'unit', 200000);
+  });
+  if (exLen > 0) {
+    add('rh|survey', 'Survei kondisi & deteksi kebocoran jaringan existing (step test / pendeteksi bocor)', exLen, "m'", 1500);
+    add('rh|flush', 'Pengurasan (flushing) & desinfeksi jaringan pipa existing', exLen, "m'", 2500);
+  }
+  return {
+    items,
+    exLen
+  };
+}
+function RehabPanel({
+  s,
+  setProject
+}) {
+  const {
+    st,
+    g
+  } = s;
+  const cond = STRUCT_COND[st.cond] ? st.cond : 'new';
+  const as = st.assess || {};
+  const r = st.rehab || {};
+  const upd = patch => setProject(pr => ({
+    ...pr,
+    structures: pr.structures.map(x => x.id === st.id ? {
+      ...x,
+      ...patch
+    } : x)
+  }));
+  const setA = (k, v) => upd({
+    assess: {
+      ...as,
+      [k]: v
+    }
+  });
+  const setR = (k, v) => upd({
+    rehab: {
+      ...r,
+      [k]: v
+    }
+  });
+  const cost = REHAB_ITEMS.reduce((a, x) => a + (+r[x[0]] || 0) * x[3], 0);
+  const newCost = (s.newItems || []).reduce((a, x) => a + x[2] * x[4], 0);
+  const relevant = REHAB_ITEMS.filter(x => st.type === 'bridge' ? ['rcable', 'rclamp', 'paint', 'concrete', 'steel', 'dismantle'].includes(x[0]) : st.type === 'tower' ? !['catch', 'gravel', 'rcable', 'rclamp'].includes(x[0]) : !['rcable', 'rclamp', 'tank', 'steel'].includes(x[0]) && (['broncaptering', 'bc_v'].includes(st.type) || !['catch', 'gravel'].includes(x[0])));
+  return React.createElement("div", {
+    className: 'rounded-md border p-2.5 space-y-2 ' + (cond === 'new' ? 'border-line' : 'border-amber-300 bg-amber-50/40')
+  }, React.createElement(Field, {
+    label: "Kondisi bangunan"
+  }, React.createElement("select", {
+    id: "st-cond",
+    className: "tp-field",
+    value: cond,
+    onChange: e => upd({
+      cond: e.target.value
+    })
+  }, Object.entries(STRUCT_COND).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l)))), cond !== 'new' && React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, React.createElement(Field, {
+    label: "Tingkat kerusakan"
+  }, React.createElement("select", {
+    id: "st-dmg",
+    className: "tp-field",
+    value: as.level || 'ringan',
+    onChange: e => setA('level', e.target.value)
+  }, Object.entries(DAMAGE).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l)))), React.createElement(Field, {
+    label: "Tahun dibangun"
+  }, React.createElement("input", {
+    id: "st-year",
+    className: "tp-field",
+    value: as.year || '',
+    placeholder: "mis. 2009",
+    onChange: e => setA('year', e.target.value)
+  })), React.createElement(Field, {
+    label: "Tanggal asesmen"
+  }, React.createElement("input", {
+    id: "st-adate",
+    type: "date",
+    className: "tp-field",
+    value: as.date || '',
+    onChange: e => setA('date', e.target.value)
+  })), React.createElement(Field, {
+    label: "Asesor"
+  }, React.createElement("input", {
+    id: "st-aby",
+    className: "tp-field",
+    value: as.by || '',
+    onChange: e => setA('by', e.target.value)
+  })), React.createElement("div", {
+    className: "col-span-2"
+  }, React.createElement(Field, {
+    label: "Catatan kondisi"
+  }, React.createElement("textarea", {
+    id: "st-anote",
+    className: "tp-field h-16",
+    value: as.note || '',
+    placeholder: "mis. dinding retak rambut sisi timur, tutup manhole berkarat, pipa penguras bocor, lumpur \xB1 20 cm",
+    onChange: e => setA('note', e.target.value)
+  })))), React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, "Foto asesmen: tab Peta \u2192 pilih bangunan ini \u2192 ambil foto (foto ikut tercetak di lembar rencana rehabilitasi)."), cond === 'fix' && React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-amber-800"
+  }, "Pekerjaan rehabilitasi"), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Wand2",
+    onClick: () => upd({
+      rehab: rehabSuggest(st, g, as.level || 'ringan')
+    })
+  }, "Isi otomatis (", as.level || 'ringan', ")")), React.createElement("div", {
+    className: "space-y-1"
+  }, relevant.map(([k, l, u]) => React.createElement("div", {
+    key: k,
+    className: "flex items-center gap-1.5 text-[12px]"
+  }, React.createElement("span", {
+    className: "flex-1 leading-tight"
+  }, l), React.createElement("div", {
+    className: "w-20"
+  }, React.createElement(NumField, {
+    id: `rh-${k}`,
+    value: r[k] || 0,
+    step: u === 'bh' || u === 'set' || u === 'unit' || u === 'ls' ? 1 : 0.1,
+    min: 0,
+    onChange: v => setR(k, Math.max(0, v))
+  })), React.createElement("span", {
+    className: "w-8 text-slate-500"
+  }, u)))), React.createElement("div", {
+    className: "rounded-md bg-white border border-line px-2.5 py-1.5 text-[12px] grid grid-cols-2 gap-y-0.5"
+  }, React.createElement("span", {
+    className: "text-slate-500"
+  }, "Biaya rehabilitasi (harga bawaan)"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, rp(cost)), newCost > 0 && React.createElement(React.Fragment, null, React.createElement("span", {
+    className: "text-slate-500"
+  }, "Biaya bangun baru (pembanding)"), React.createElement("span", {
+    className: "text-right font-mono num"
+  }, rp(newCost)), React.createElement("span", {
+    className: "text-slate-500"
+  }, "Rasio rehab / baru"), React.createElement("span", {
+    className: 'text-right font-mono num ' + (cost > newCost * 0.6 ? 'text-red-700 font-semibold' : '')
+  }, fmt(cost / newCost * 100, 0), "%"))), (as.level === 'berat' || newCost > 0 && cost > newCost * 0.6) && React.createElement("div", {
+    className: "rounded bg-red-50 border border-red-200 text-red-800 text-[12px] px-2 py-1"
+  }, "Kerusakan berat / biaya rehabilitasi > 60% biaya bangun baru: pertimbangkan membongkar dan membangun baru (pilih \"Bangunan baru\").")), cond === 'ok' && React.createElement("p", {
+    className: "text-[12px] text-slate-600"
+  }, "Bangunan dipakai apa adanya: tidak ada item di RAB (hanya tercatat sebagai aset existing).")));
+}
+function AssetStatusFields({
+  item,
+  upd,
+  kind
+}) {
+  const st = assetSt(item);
+  return React.createElement("div", {
+    className: 'rounded-md border p-2 space-y-2 ' + (st === 'new' ? 'border-line' : 'border-amber-300 bg-amber-50/40')
+  }, React.createElement(Field, {
+    label: kind === 'pipe' ? 'Status pipa' : 'Status aksesoris / node'
+  }, React.createElement("select", {
+    id: `${kind}-status`,
+    className: "tp-field",
+    value: st,
+    onChange: e => upd({
+      status: e.target.value
+    })
+  }, Object.entries(ASSET_ST).map(([k, l]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, l)))), kind === 'pipe' && st !== 'new' && st !== 'rep' && React.createElement(Field, {
+    label: "Koefisien C pipa lama (opsional)",
+    hint: `0 = pakai C pipa baru (${MATERIALS[item.material]?.C}). Pipa tua berkerak: GI ± 80–100, PVC/HDPE ± 120–130.`
+  }, React.createElement(NumField, {
+    id: "pipe-cex",
+    value: item.cEx || 0,
+    step: 5,
+    min: 0,
+    onChange: v => upd({
+      cEx: Math.max(0, v)
+    })
+  })), kind === 'pipe' && st === 'fix' && React.createElement("div", {
+    className: "grid grid-cols-3 gap-2"
+  }, React.createElement(Field, {
+    label: "Titik bocor"
+  }, React.createElement(NumField, {
+    id: "pipe-leaks",
+    value: item.leaks || 0,
+    step: 1,
+    min: 0,
+    onChange: v => upd({
+      leaks: Math.max(0, Math.round(v))
+    })
+  })), React.createElement(Field, {
+    label: "Diganti (m)"
+  }, React.createElement(NumField, {
+    id: "pipe-repl",
+    value: item.replLen || 0,
+    step: 1,
+    min: 0,
+    onChange: v => upd({
+      replLen: Math.max(0, v)
+    })
+  })), React.createElement(Field, {
+    label: "Pipa terbuka (m)"
+  }, React.createElement(NumField, {
+    id: "pipe-raise",
+    value: item.raise || 0,
+    step: 1,
+    min: 0,
+    onChange: v => upd({
+      raise: Math.max(0, v)
+    })
+  }))), st !== 'new' && React.createElement(Field, {
+    label: "Catatan kondisi"
+  }, React.createElement("input", {
+    id: `${kind}-cnote`,
+    className: "tp-field",
+    value: item.condNote || '',
+    placeholder: kind === 'pipe' ? 'mis. pipa GI berkarat, 3 titik bocor di sambungan' : 'mis. katup macet / bocor',
+    onChange: e => upd({
+      condNote: e.target.value
+    })
+  })), st !== 'new' && React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, st === 'ok' ? 'Tidak dihitung sebagai pekerjaan baru di RAB; tetap dihitung di analisis hidrolis.' : st === 'fix' ? 'Hanya pekerjaan perbaikan yang masuk RAB (bagian rehabilitasi jaringan).' : 'Masuk RAB sebagai pekerjaan baru + pembongkaran yang lama.'));
+}
+function SheetRehab({
+  project,
+  s,
+  sheetNo,
+  sheetTotal
+}) {
+  const {
+    st,
+    g
+  } = s;
+  const as = st.assess || {};
+  const items = rehabItems(st);
+  const photos = (project.photos || []).filter(ph => ph.ref && ph.ref.kind === 'struct' && ph.ref.id === st.id && ph.thumb).slice(0, 4);
+  return React.createElement(Sheet, {
+    meta: project.meta,
+    std: stdLine(project, ['bangunan', 'umum']),
+    title: `RENCANA REHABILITASI ${st.label}`,
+    scaleText: "-",
+    sheetNo: sheetNo,
+    sheetTotal: sheetTotal,
+    legend: noteLegend([], ['1. Kosongkan & kuras bangunan sebelum bekerja;', '    sediakan pasokan air sementara bila perlu.', '2. Bongkar bagian rusak sampai beton sehat.', '3. Retak struktur diinjeksi epoxy; retak rambut', '    cukup plester & lapisan kedap air.', '4. Lapisan kedap air food grade untuk ruang air.', '5. Uji kebocoran 24 jam & desinfeksi klorin', '    (50 mg/L, 24 jam) sebelum dipakai lagi.', '6. Volume perkiraan dari asesmen visual;', '    ukur ulang di lapangan.'])
+  }, React.createElement("text", {
+    x: 22,
+    y: 17,
+    fontSize: 3.2,
+    fontWeight: 700
+  }, "RENCANA REHABILITASI \xB7 ", STRUCT_TYPES[st.type].label.toUpperCase(), " ", st.label), React.createElement(SvgTable, {
+    x: 20,
+    y: 24,
+    w: 150,
+    title: "DATA ASESMEN",
+    head: ['Uraian', 'Keterangan'],
+    cols: [0.35, 0.65],
+    left: [1],
+    rh: 4.6,
+    fs: 1.75,
+    rows: [['Kondisi', STRUCT_COND[st.cond] || '-'], ['Tingkat kerusakan', DAMAGE[as.level || 'ringan']], ['Tahun dibangun', as.year || '-'], ['Tanggal asesmen', as.date || '-'], ['Asesor', as.by || '-'], ...wrapText(as.note || '-', 58).slice(0, 5).map((l, i) => [i ? '' : 'Catatan', l])]
+  }), React.createElement(SvgTable, {
+    x: 20,
+    y: 88,
+    w: 308,
+    title: "DAFTAR PEKERJAAN REHABILITASI",
+    head: ['No', 'Uraian pekerjaan', 'Volume', 'Sat.', 'Kemasan / qty beli'],
+    cols: [0.05, 0.53, 0.1, 0.07, 0.25],
+    left: [1, 3, 4],
+    rh: 4.6,
+    fs: 1.75,
+    rows: items.length ? items.map((x, i) => [String(i + 1), x[1].slice(0, 90), fmt(x[2], 2), x[3], packOf(x[0], x[1], x[3], x[2]).slice(0, 44)]) : [['-', 'Belum ada pekerjaan rehabilitasi (isi di editor bangunan)', '', '', '']]
+  }), React.createElement("text", {
+    x: 178,
+    y: 23,
+    fontSize: 2.2,
+    fontWeight: 700
+  }, "FOTO KONDISI EXISTING"), photos.length ? photos.map((ph, i) => {
+    const x = 178 + i % 2 * 76,
+      y = 26 + Math.floor(i / 2) * 31;
+    return React.createElement("g", {
+      key: ph.id
+    }, React.createElement("image", {
+      href: ph.thumb,
+      x: x,
+      y: y,
+      width: 74,
+      height: 26,
+      preserveAspectRatio: "xMidYMid slice"
+    }), React.createElement("rect", {
+      x: x,
+      y: y,
+      width: 74,
+      height: 26,
+      fill: "none",
+      stroke: "#000",
+      strokeWidth: 0.2
+    }), React.createElement("text", {
+      x: x + 1,
+      y: y + 28.6,
+      fontSize: 1.5
+    }, String(ph.caption || PHOTO_CATS[ph.cat] || 'Foto').slice(0, 50)));
+  }) : React.createElement("g", null, React.createElement("rect", {
+    x: 178,
+    y: 26,
+    width: 150,
+    height: 58,
+    fill: "#f8fafc",
+    stroke: "#94a3b8",
+    strokeWidth: 0.2,
+    strokeDasharray: "1.5 1"
+  }), React.createElement("text", {
+    x: 253,
+    y: 56,
+    fontSize: 1.9,
+    textAnchor: "middle",
+    fill: "#64748b"
+  }, "Belum ada foto asesmen untuk bangunan ini")));
+}
+function SheetRehabNet({
+  project,
+  hyd,
+  sheetNo,
+  sheetTotal
+}) {
+  const pipes = project.pipes.filter(p => assetSt(p) !== 'new');
+  const nodes = project.nodes.filter(n => assetSt(n) !== 'new');
+  const net = rehabNetItems(project, hyd);
+  const rows = [...pipes.map(p => [p.label, `${p.material} Ø${p.diameter}`, fmt(hyd.pipes[p.id]?.length, 1), ASSET_SHORT[assetSt(p)], assetSt(p) === 'fix' ? [p.leaks ? `${p.leaks} titik bocor` : '', p.replLen ? `ganti ${p.replLen} m` : '', p.raise ? `amankan ${p.raise} m` : ''].filter(Boolean).join(', ') || '-' : assetSt(p) === 'rep' ? 'bongkar + pasang baru' : 'dipakai', String(p.condNote || '').slice(0, 40)]), ...nodes.map(n => [n.label, NODE_TYPES[n.type].label.split(' / ')[0], '', ASSET_SHORT[assetSt(n)], assetSt(n) === 'fix' ? 'servis / perbaikan' : assetSt(n) === 'rep' ? 'bongkar + pasang baru' : 'dipakai', String(n.condNote || '').slice(0, 40)])];
+  return React.createElement(Sheet, {
+    meta: project.meta,
+    std: stdLine(project, ['jaringan']),
+    title: "RENCANA REHABILITASI JARINGAN",
+    scaleText: "-",
+    sheetNo: sheetNo,
+    sheetTotal: sheetTotal,
+    legend: noteLegend([['#64748b', 'Existing baik'], ['#f59e0b', 'Rehabilitasi'], ['#dc2626', 'Bongkar & ganti'], ['#000000', 'Pipa baru']], ['1. Warna yang sama dipakai di denah jaringan.', '2. Uji tekan & flushing jaringan existing setelah', '    perbaikan, sebelum disambung ke pipa baru.', '3. Titik bocor dicari dengan step test / alat', '    pendeteksi bocor sebelum digali.'])
+  }, React.createElement("text", {
+    x: 22,
+    y: 17,
+    fontSize: 3.2,
+    fontWeight: 700
+  }, "REKAP ASET EXISTING & PEKERJAAN REHABILITASI JARINGAN"), React.createElement(SvgTable, {
+    x: 20,
+    y: 24,
+    w: 308,
+    title: `ASET EXISTING (${pipes.length} pipa · ${nodes.length} node) · panjang pipa existing ${fmt(net.exLen, 0)} m`,
+    head: ['Aset', 'Jenis', 'Panjang (m)', 'Status', 'Tindakan', 'Catatan kondisi'],
+    cols: [0.08, 0.17, 0.09, 0.13, 0.27, 0.26],
+    left: [1, 3, 4, 5],
+    rh: 4.4,
+    fs: 1.7,
+    rows: (rows.length ? rows : [['-', 'Belum ada aset existing ditandai', '', '', '', '']]).slice(0, 26)
+  }), React.createElement(SvgTable, {
+    x: 20,
+    y: Math.min(160, 40 + Math.min(26, Math.max(1, rows.length)) * 4.4),
+    w: 308,
+    title: "PEKERJAAN REHABILITASI JARINGAN",
+    head: ['No', 'Uraian', 'Volume', 'Sat.'],
+    cols: [0.05, 0.7, 0.13, 0.12],
+    left: [1, 3],
+    rh: 4.4,
+    fs: 1.7,
+    rows: net.items.length ? net.items.slice(0, 18).map((x, i) => [String(i + 1), x[1].slice(0, 110), fmt(x[2], 2), x[3]]) : [['-', 'Tidak ada pekerjaan', '', '']]
+  }));
 }
 const STD_DEFAULT = [{
   code: 'SNI 7509:2011',
@@ -10928,10 +11437,11 @@ function LeafletMap(props) {
       const latlngs = pipeLine(p, a, b);
       const sel = selection?.kind === 'pipe' && selection.id === p.id;
       const w = 3 + Math.min(6, p.diameter / 40);
+      const ast = assetSt(p);
       L.polyline(latlngs, {
-        color: '#ffffff',
-        weight: w + (sel ? 7 : 3),
-        opacity: sel ? 1 : 0.75,
+        color: ast === 'new' ? '#ffffff' : ASSET_COLOR[ast],
+        weight: w + (sel ? 7 : ast === 'new' ? 3 : 6),
+        opacity: sel || ast !== 'new' ? 1 : 0.75,
         interactive: false
       }).addTo(group);
       L.polyline(latlngs, {
@@ -13208,7 +13718,11 @@ function NodeInspector({
       lat: +ll.lat.toFixed(7),
       lng: +ll.lng.toFixed(7)
     })
-  })))), node.type === 'sr' && setProject && React.createElement(SrFields, {
+  })))), NODE_SVC[node.type] && React.createElement(AssetStatusFields, {
+    item: node,
+    upd: upd,
+    kind: "node"
+  }), node.type === 'sr' && setProject && React.createElement(SrFields, {
     node: node,
     project: project,
     setProject: setProject,
@@ -13405,7 +13919,11 @@ function PipeInspector({
     className: "text-slate-500"
   }, "Gradien hidrolis"), React.createElement("span", {
     className: "text-right font-mono num"
-  }, fmt(res.hfkm, 2), " m/km")), React.createElement(PipeRoute, {
+  }, fmt(res.hfkm, 2), " m/km")), React.createElement(AssetStatusFields, {
+    item: pipe,
+    upd: upd,
+    kind: "pipe"
+  }), React.createElement(PipeRoute, {
     pipe: pipe,
     nmap: nmap,
     upd: upd,
@@ -16940,7 +17458,7 @@ function SheetLayout({
     }, React.createElement("polyline", {
       points: pp.map(q => q.join(',')).join(' '),
       fill: "none",
-      stroke: "#000",
+      stroke: assetSt(p) === 'new' ? '#000' : ASSET_COLOR[assetSt(p)],
       strokeWidth: 0.3 + p.diameter / 250,
       strokeDasharray: MATERIALS[p.material].dash,
       strokeLinejoin: "round"
@@ -20123,7 +20641,8 @@ function SvgTable({
   cols,
   rh = 4.4,
   fs = 1.85,
-  title
+  title,
+  left = []
 }) {
   const cw = cols.map(c => c * w);
   return React.createElement("g", {
@@ -20146,11 +20665,12 @@ function SvgTable({
       stroke: "#000",
       strokeWidth: 0.18
     }), r.map((c, j) => {
+      const lf = j === 0 || left.includes(j);
       const t = React.createElement("text", {
         key: j,
-        x: j === 0 ? xx + 1.2 : xx + cw[j] - 1.2,
+        x: lf ? xx + 1.2 : xx + cw[j] - 1.2,
         y: y + i * rh + rh * 0.7,
-        textAnchor: j === 0 ? 'start' : 'end',
+        textAnchor: lf ? 'start' : 'end',
         fontWeight: i === 0 ? 700 : 400,
         fill: String(c).startsWith('✗') ? '#b91c1c' : '#000'
       }, c);
@@ -27132,6 +27652,19 @@ function extraSheets(project, hyd, boq) {
         sheetTotal: tot
       })
     });
+    if (x.st.cond === 'fix') out.push({
+      key: 'rh:' + x.st.id,
+      label: x.st.label,
+      sub: 'Rencana rehabilitasi',
+      icon: 'Hammer',
+      group: 'Rehabilitasi existing',
+      render: (no, tot) => React.createElement(SheetRehab, {
+        project: project,
+        s: x,
+        sheetNo: no,
+        sheetTotal: tot
+      })
+    });
     if (x.st.type === 'tower') out.push({
       key: 'sv:' + x.st.id,
       label: x.st.label,
@@ -27158,6 +27691,19 @@ function extraSheets(project, hyd, boq) {
         sheetTotal: tot
       })
     });
+  });
+  if (project.pipes.some(p => assetSt(p) !== 'new') || project.nodes.some(n => assetSt(n) !== 'new')) out.push({
+    key: 'rhnet',
+    label: 'Jaringan existing',
+    sub: 'Rencana rehabilitasi jaringan',
+    icon: 'Hammer',
+    group: 'Rehabilitasi existing',
+    render: (no, tot) => React.createElement(SheetRehabNet, {
+      project: project,
+      hyd: hyd,
+      sheetNo: no,
+      sheetTotal: tot
+    })
   });
   if (boq.sr) out.push({
     key: 'sr',
@@ -28380,7 +28926,15 @@ function TowerEditor({
     onClick: () => setConfirmDel(true)
   }, "Hapus")));
 }
-function StructureEditor({
+function StructureEditor(props) {
+  return React.createElement("div", {
+    className: "space-y-3"
+  }, React.createElement(RehabPanel, {
+    s: props.s,
+    setProject: props.setProject
+  }), React.createElement(StructureEditorMain, props));
+}
+function StructureEditorMain({
   s,
   project,
   setProject,
@@ -29489,6 +30043,10 @@ function PhotoReport({
   })));
 }
 const KB = [{
+  k: 'rehabilitasi renovasi perbaikan existing lama rusak bocor intake reservoir bak broncaptering asesmen kerusakan',
+  t: 'Rehabilitasi / renovasi sistem existing',
+  a: '**Pipa / aksesoris lama:** pilih di peta → *Status*: Existing baik, Existing rehabilitasi (isi titik bocor, panjang diganti, pipa terbuka, C pipa lama), atau Bongkar & ganti. Pipa existing tidak dihitung lagi sebagai pipa baru. **Bangunan lama** (intake, reservoir, bak, BPT, menara, jembatan): tab **DED** → pilih bangunan → *Kondisi bangunan* = Existing direhabilitasi → isi tingkat kerusakan & catatan → **Isi otomatis** volume pekerjaan. RAB memuat bagian *Rehabilitasi*, DED memuat lembar *Rencana rehabilitasi* (foto asesmen diambil dari peta). Bila biaya > 60% bangun baru, pertimbangkan bangun baru.'
+}, {
   k: 'jembatan pipa sling kabel baja gantung suspension menyeberang sungai lembah tebing jurang jalan raya perlintasan rangka',
   t: 'Jembatan pipa / perlintasan',
   a: 'Tab **DED** → pilih bangunan **Jembatan Pipa / Perlintasan** → *Tambah*. Pilih jenis: **pipa gantung kabel baja (sling)** untuk sungai/lembah/tebing lebar, **jembatan rangka baja** untuk bentang ≤ 25 m, atau **perlintasan bawah jalan** (pipa selubung). Isi bentang, elevasi tanah kedua tepi, dasar sungai/jalan, muka air banjir. Aplikasi menghitung sag & tarik kabel, diameter wire rope (faktor keamanan), tinggi menara, kolom, pondasi, blok angkur, jumlah hanger, lalu membuat gambar DED (tampak samping + detail sadel, hanger, angkur) dan item RAB. Hasilnya indikatif — wajib dicek ahli struktur.'
