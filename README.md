@@ -29,6 +29,13 @@ Ukuran tandon bisa dipilih dari 300 sampai 10.000 L, dengan 1 sampai 6 unit. Gam
 
 Bila menara dihubungkan ke node reservoir, aplikasi menghitung tinggi menara minimum agar sisa tekanan ≥ 10 mka.
 
+## Tampak depan & belakang menara air (tab DED)
+Setiap menara air mendapat lembar tambahan **Tampak depan & belakang**:
+- **Tampak depan:** sisi akses tangga & katup outlet, tempat papan nama/logo.
+- **Tampak belakang:** sisi pipa inlet & peluap, berupa cerminan tampak depan.
+
+Kedua tampak memuat keterangan finishing (cat rangka baja / plester & cat beton, tandon PE), elevasi, dan ukuran utama.
+
 ## Pipa lengkung (HDPE / pipa fleksibel)
 Pipa tidak harus lurus dari node ke node:
 - **Di peta:** pilih pipa, lalu seret titik ⊕ di tengah garis untuk melengkungkannya. Titik belok bisa diseret untuk dipindah atau diklik untuk dihapus.

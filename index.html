@@ -18297,8 +18297,13 @@ function TowerElevation({
   w,
   h,
   k,
-  S
+  S,
+  mirror = false,
+  title = 'TAMPAK DEPAN MENARA AIR',
+  facade = false
 }) {
+  const sg = mirror ? -1 : 1;
+  const anc = mirror ? 'end' : 'start';
   const {
     W,
     Ht,
@@ -18315,11 +18320,11 @@ function TowerElevation({
   const zTop = Ht + tankH + (g.rcTank ? 0.5 : 0.35),
     zBot = -footD - g.tlk - 0.3;
   const avail = h - 16;
-  const cx = ox + w / 2 - 6 + ((g.extL || 0) - (g.extR || 0)) * k / 2;
-  const U = u => cx + u * k,
+  const cx = ox + w / 2 + sg * (-6 + ((g.extL || 0) - (g.extR || 0)) * k / 2);
+  const U = u => cx + sg * u * k,
     Z = z => oy + 4 + Math.max(0, (avail - (zTop - zBot) * k) / 2) + (zTop - z) * k;
   const R = (u1, z1, u2, z2, props) => React.createElement("rect", _extends({
-    x: U(Math.min(u1, u2)),
+    x: Math.min(U(u1), U(u2)),
     y: Z(Math.max(z1, z2)),
     width: Math.abs(u2 - u1) * k,
     height: Math.abs(z2 - z1) * k
@@ -18615,19 +18620,21 @@ function TowerElevation({
     angle: 90,
     s: 0.9
   }), React.createElement(HaloText, {
-    x: U(uIn) - 1.2,
+    x: U(uIn) - 1.2 * sg,
     y: Z(Ht * 0.45),
     fontSize: 1.6,
     textAnchor: "middle",
-    transform: `rotate(-90 ${U(uIn) - 1.2} ${Z(Ht * 0.45)})`
+    transform: `rotate(-90 ${U(uIn) - 1.2 * sg} ${Z(Ht * 0.45)})`
   }, "Inlet \xD8", p.dIn, " dari sumber"), React.createElement(HaloText, {
     x: U(uOut + 0.35),
     y: Z(-0.6) + 2.6,
-    fontSize: 1.6
+    fontSize: 1.6,
+    textAnchor: anc
   }, "Outlet \xD8", p.dOut, " \u2192 jaringan"), React.createElement(HaloText, {
-    x: U(uDr) + 1,
+    x: U(uDr) + 1 * sg,
     y: Z(Ht * 0.7),
-    fontSize: 1.6
+    fontSize: 1.6,
+    textAnchor: anc
   }, "Peluap/penguras \xD8", p.dOf), React.createElement(HaloText, {
     x: U(uLad),
     y: Z(0) + 2.6,
@@ -18639,9 +18646,10 @@ function TowerElevation({
     fontSize: 1.6,
     textAnchor: "middle"
   }, g.steel ? `Ikatan silang ${p.braceProfile}` : `Balok ring ${fmt(+p.beamB * 100, 0)}/${fmt(+p.beamH * 100, 0)}`), React.createElement(HaloText, {
-    x: U(-Sx / 2) + colB * k / 2 + 1,
+    x: U(-Sx / 2) + sg * (colB * k / 2 + 1),
     y: Z(Ht * 0.62),
-    fontSize: 1.6
+    fontSize: 1.6,
+    textAnchor: anc
   }, g.steel ? `Kolom ${p.colProfile}` : `Kolom ${fmt(colB * 100, 0)}/${fmt(colB * 100, 0)}`), React.createElement(HaloText, {
     x: U(0),
     y: Z(Ht) + 2.6 + (g.steel ? 0.15 : g.ts + +p.beamH) * k,
@@ -18655,31 +18663,36 @@ function TowerElevation({
   }, "Pondasi ", fmt(footB, 2), "\xD7", fmt(footB, 2)), React.createElement(ElevMark, {
     x: U(uDr + 0.35),
     y: Z(0),
-    text: `MT ${elevTxt(g.ground)}`
+    text: `MT ${elevTxt(g.ground)}`,
+    anchor: anc
   }), React.createElement(ElevMark, {
     x: U(uDr + 0.35),
     y: Z(Ht),
-    text: `Lantai ${elevTxt(g.floorEl)}`
+    text: `Lantai ${elevTxt(g.floorEl)}`,
+    anchor: anc
   }), React.createElement(ElevMark, {
     x: U(uDr + 0.35),
     y: Z(Ht + g.Hw),
     text: `MAT ${elevTxt(g.mat)}`,
+    anchor: anc,
     color: "#0b4fa8"
   }), React.createElement(ElevMark, {
     x: U(uDr + 0.35),
     y: Z(tkTop),
-    text: elevTxt(g.ground + tkTop)
+    text: elevTxt(g.ground + tkTop),
+    anchor: anc
   }), React.createElement(ElevMark, {
     x: U(colsU[1] + footB / 2 + 0.35),
     y: Z(-footD),
     text: elevTxt(g.ground - footD),
-    below: true
+    below: true,
+    anchor: anc
   }), React.createElement(DimLine, {
     x1: U(-soilL),
     y1: Z(Ht),
     x2: U(-soilL),
     y2: Z(0),
-    off: -3,
+    off: -3 * sg,
     vertical: true,
     size: 1.8,
     text: `Ht = ${fmt(Ht, 2)}`
@@ -18688,7 +18701,7 @@ function TowerElevation({
     y1: Z(tkTop),
     x2: U(-soilL),
     y2: Z(Ht),
-    off: -3,
+    off: -3 * sg,
     vertical: true,
     size: 1.6,
     text: fmt(tankH, 2)
@@ -18697,7 +18710,7 @@ function TowerElevation({
     y1: Z(0),
     x2: U(-soilL),
     y2: Z(-footD),
-    off: -3,
+    off: -3 * sg,
     vertical: true,
     size: 1.6,
     text: fmt(footD, 2)
@@ -18706,7 +18719,7 @@ function TowerElevation({
     y1: Z(tkTop),
     x2: U(-soilL),
     y2: Z(-footD),
-    off: -8,
+    off: -8 * sg,
     vertical: true,
     size: 1.8,
     text: fmt(tkTop + footD, 2)
@@ -18726,10 +18739,40 @@ function TowerElevation({
     off: 8.5,
     size: 1.8,
     text: fmt(W, 2)
-  }), React.createElement(ViewTitle, {
+  }), facade && React.createElement("g", null, React.createElement(HaloText, {
+    x: U(0),
+    y: Z(Ht + (g.rcTank ? g.tank.Hin + g.tank.tr : tankH)) - 3.2,
+    fontSize: 1.6,
+    textAnchor: "middle"
+  }, g.rcTank ? 'Dinding bak beton: plester + cat tembok luar warna putih/biru' : 'Tandon PE food grade, tahan UV'), !mirror && React.createElement("g", null, React.createElement("rect", {
+    x: U(-W / 2 + 0.1) - (mirror ? W * k - 0.2 * k : 0),
+    y: Z(Ht * 0.86),
+    width: Math.max(8, (W - 0.2) * k),
+    height: Math.max(3.2, 0.35 * k),
+    fill: "#fff",
+    stroke: "#c8102e",
+    strokeWidth: 0.35
+  }), React.createElement("text", {
+    x: U(0),
+    y: Z(Ht * 0.86) + Math.max(3.2, 0.35 * k) / 2 + 0.6,
+    fontSize: Math.min(1.6, W * k / 22),
+    textAnchor: "middle",
+    fill: "#c8102e",
+    fontWeight: 700
+  }, "PAPAN NAMA / LOGO")), React.createElement(HaloText, {
+    x: U(0),
+    y: Z(Ht * 0.3),
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, g.steel ? 'Rangka baja: cat dasar zinc chromate + 2 lapis cat akhir' : 'Kolom & balok beton: plester aci + cat'), React.createElement(HaloText, {
+    x: U(0),
+    y: Z(0) - 1,
+    fontSize: 1.5,
+    textAnchor: "middle"
+  }, mirror ? 'Sisi belakang: pipa inlet dari sumber & peluap' : 'Sisi depan: akses tangga & katup outlet')), React.createElement(ViewTitle, {
     x: ox + w / 2,
     y: oy + h - 5,
-    title: "TAMPAK DEPAN MENARA AIR",
+    title: title,
     S: S
   }));
 }
@@ -19353,6 +19396,56 @@ function SheetTower({
     x: 250,
     y: 152,
     w: 80
+  }));
+}
+function SheetTowerViews({
+  project,
+  s,
+  sheetNo,
+  sheetTotal
+}) {
+  const {
+    st,
+    g
+  } = s;
+  const zSpan = g.Ht + g.tankH + (g.rcTank ? 0.5 : 0.35) + g.footD + g.tlk + 0.3;
+  const SE = STRUCT_SCALES.find(v => zSpan * 1000 / v + 22 <= 262 && (g.W + 2.6 + (g.extL || 0) + (g.extR || 0)) * 1000 / v + 40 <= 156) || 200;
+  return React.createElement(Sheet, {
+    meta: project.meta,
+    std: stdLine(project, ['menara']),
+    title: `TAMPAK MENARA AIR ${st.label}`,
+    scaleText: fmtScale(SE),
+    sheetNo: sheetNo,
+    sheetTotal: sheetTotal,
+    legend: noteLegend([...(g.steel ? [['#cfd6dd', 'Baja profil (dicat)']] : [['url(#pat-concrete)', 'Beton (plester + cat)']]), ['#eef3f8', g.rcTank ? 'Bak beton' : 'Tandon PE'], ['url(#pat-soil)', 'Tanah asli']], ['1. Tampak depan: sisi akses tangga & katup outlet.', '2. Tampak belakang: sisi pipa inlet & peluap', '    (cerminan tampak depan).', '3. Warna cat mengikuti identitas pemilik;', '    logo/papan nama dipasang di sisi depan.', ...(g.steel ? ['4. Baja dicat zinc chromate + 2 lapis cat akhir.'] : ['4. Beton diplester aci, dicat cat luar.']), '5. Pasang penangkal petir bila menara > 10 m.', '6. Ukuran & elevasi lihat lembar menara air.'])
+  }, React.createElement("line", {
+    x1: 173.5,
+    x2: 173.5,
+    y1: FRAME.y0,
+    y2: FRAME.y1,
+    stroke: "#000",
+    strokeWidth: 0.2
+  }), React.createElement(TowerElevation, {
+    g: g,
+    ox: 17,
+    oy: 10,
+    w: 155,
+    h: 277,
+    k: 1000 / SE,
+    S: SE,
+    facade: true,
+    title: "TAMPAK DEPAN MENARA AIR"
+  }), React.createElement(TowerElevation, {
+    g: g,
+    ox: 175,
+    oy: 10,
+    w: 155,
+    h: 277,
+    k: 1000 / SE,
+    S: SE,
+    facade: true,
+    mirror: true,
+    title: "TAMPAK BELAKANG MENARA AIR"
   }));
 }
 const noteLegend = (items, notes) => (x, y) => React.createElement("g", {
@@ -24036,6 +24129,19 @@ function extraSheets(project, hyd, boq) {
         sheetNo: no,
         sheetTotal: tot
       }) : React.createElement(SheetStructure, {
+        project: project,
+        s: x,
+        sheetNo: no,
+        sheetTotal: tot
+      })
+    });
+    if (x.st.type === 'tower') out.push({
+      key: 'sv:' + x.st.id,
+      label: x.st.label,
+      sub: 'Tampak depan & belakang',
+      icon: 'TowerControl',
+      group: 'Bangunan pelengkap',
+      render: (no, tot) => React.createElement(SheetTowerViews, {
         project: project,
         s: x,
         sheetNo: no,
