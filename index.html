@@ -26487,9 +26487,9 @@ const KB = [{
   t: 'Urutan tanda tangan elektronik',
   a: 'Urutannya: **1) surveyor & penggambar** (boleh orang yang sama) → **2) pemeriksa** → **3) penyetuju**. Buka *Status & review*, pilih surveyor/penggambar, lalu masing-masing menekan *Tanda tangani*. Bila bukan Anda sendiri, tekan *Simpan penunjukan & minta tanda tangan* agar mereka mendapat notifikasi. Tombol *Ajukan untuk diperiksa* baru aktif setelah tanda tangan perencana lengkap dan isi proyek belum berubah sejak ditandatangani.'
 }, {
-  k: 'profil petugas pengguna foto cv whatsapp alamat asal pmi riwayat penugasan',
+  k: 'profil petugas pengguna foto alamat asal pmi riwayat penugasan',
   t: 'Profil petugas',
-  a: 'Tekan **Profil** di bilah atas (di HP: menu → *Profil saya*). Isi nama lengkap, alamat tinggal, nomor WhatsApp, asal PMI, keahlian, riwayat penugasan pipanisasi (bisa diambil dari proyek di aplikasi), unggah foto profil dan CV (PDF/DOC/JPG maks. 700 KB). Admin melihatnya di *Kelola pengguna → Lihat profil*. Alamat, WhatsApp, dan CV hanya bisa dilihat pemilik dan admin.'
+  a: 'Tekan **Profil** di bilah atas (di HP: menu → *Profil saya*). Unggah foto profil, lalu isi nama lengkap, alamat saat ini, asal PMI, dan riwayat penugasan pipanisasi (bisa diambil dari proyek di aplikasi). Admin melihatnya di *Kelola pengguna → Lihat profil*. Profil hanya bisa dilihat pemiliknya dan admin.'
 }, {
   k: 'debit sumber mata air sungai ukur ember stopwatch pelampung v-notch kapasitas jiwa orang berapa',
   t: 'Mengukur debit sumber & kapasitas jiwa',
@@ -28661,16 +28661,9 @@ function makeLocalAuth() {
       write(read().map(u => u.uid === id ? {
         ...u,
         profile,
-        name: profile.fullName || u.name,
-        phone: profile.wa || u.phone
+        name: profile.fullName || u.name
       } : u));
       emit();
-    },
-    async putCv(id, rec) {
-      await photoDB.put('cv:' + id, rec);
-    },
-    async getCv(id) {
-      return await photoDB.get('cv:' + id);
     },
     async remove(id) {
       write(read().filter(u => u.uid !== id));
@@ -28905,20 +28898,6 @@ async function makeFirebaseAuth() {
       if (profile.fullName) await db.collection('users').doc(id).update({
         name: profile.fullName
       }).catch(() => {});
-    },
-    async putCv(id, rec) {
-      await db.collection('userFiles').doc(id).set({
-        ...rec,
-        ownerUid: id
-      }).catch(e => {
-        throw new Error(fbErr(e));
-      });
-    },
-    async getCv(id) {
-      const d = await db.collection('userFiles').doc(id).get().catch(e => {
-        throw new Error(fbErr(e));
-      });
-      return d.exists ? d.data() : null;
     },
     async remove(id) {
       await db.collection('users').doc(id).delete().catch(e => {
@@ -29203,20 +29182,8 @@ function PendingScreen({
   }, "Keluar"))));
 }
 const ASSIGN_ROLES = ['Surveyor / juru ukur', 'Penggambar (drafter)', 'Perencana / desainer', 'Koordinator lapangan', 'Pengawas pembangunan', 'Pemeriksa (Staf LPASL)', 'Penyetuju (Kepala LPASL)', 'Relawan / tenaga teknis', 'Lainnya'];
-const CV_MAX = 700 * 1024;
-const PROFILE_REQ = [['fullName', 'nama lengkap'], ['address', 'alamat'], ['wa', 'nomor WhatsApp'], ['pmi', 'asal PMI'], ['photo', 'foto profil']];
+const PROFILE_REQ = [['fullName', 'nama lengkap'], ['address', 'alamat saat ini'], ['pmi', 'asal PMI'], ['photo', 'foto profil']];
 const profileMissing = pf => PROFILE_REQ.filter(([k]) => !(pf && String(pf[k] || '').trim())).map(x => x[1]);
-const waLink = wa => {
-  let d = String(wa || '').replace(/\D/g, '');
-  if (d.startsWith('0')) d = '62' + d.slice(1);
-  return d ? 'https://wa.me/' + d : '';
-};
-const readDataUrl = f => new Promise((res, rej) => {
-  const r = new FileReader();
-  r.onload = () => res(r.result);
-  r.onerror = () => rej(r.error);
-  r.readAsDataURL(f);
-});
 function Avatar({
   src,
   name,
@@ -29255,8 +29222,7 @@ function ProfileDialog({
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
   const [saved, setSaved] = useState(false);
-  const photoRef = useRef(null),
-    cvRef = useRef(null);
+  const photoRef = useRef(null);
   useEffect(() => {
     (async () => {
       try {
@@ -29267,7 +29233,6 @@ function ProfileDialog({
         setPf({
           fullName: x?.name || '',
           address: '',
-          wa: x?.phone || '',
           pmi: x?.org || '',
           history: [],
           ...(x?.profile || {})
@@ -29312,51 +29277,6 @@ function ProfileDialog({
       setErr(er.message);
     }
   };
-  const onCv = async e => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
-    setErr('');
-    if (f.size > CV_MAX) {
-      setErr(`Ukuran CV ${fmt(f.size / 1024, 0)} KB melebihi batas ${CV_MAX / 1024} KB. Kompres PDF (mis. "Save as reduced size") atau kirim versi ringkas.`);
-      return;
-    }
-    setBusy('Mengunggah CV…');
-    try {
-      const data = await readDataUrl(f);
-      const meta = {
-        name: f.name,
-        type: f.type || 'application/octet-stream',
-        size: f.size,
-        at: Date.now()
-      };
-      await api.putCv(targetUid, {
-        ...meta,
-        data
-      });
-      set('cv', meta);
-    } catch (er) {
-      setErr('CV gagal diunggah: ' + er.message);
-    }
-    setBusy('');
-  };
-  const openCv = async () => {
-    setBusy('Mengambil CV…');
-    setErr('');
-    try {
-      const r = await api.getCv(targetUid);
-      if (!r || !r.data) throw new Error('CV belum tersedia');
-      const a = document.createElement('a');
-      a.href = r.data;
-      a.download = r.name || 'CV';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (er) {
-      setErr(er.message);
-    }
-    setBusy('');
-  };
   const save = async () => {
     setErr('');
     if (!String(pf.fullName || '').trim()) {
@@ -29365,9 +29285,19 @@ function ProfileDialog({
     }
     setBusy('Menyimpan…');
     try {
+      const {
+        wa,
+        cv,
+        skill,
+        nik,
+        ...rest
+      } = pf;
+      void wa;
+      void cv;
+      void skill;
+      void nik;
       const clean = {
-        ...pf,
-        wa: String(pf.wa || '').replace(/[^\d+]/g, ''),
+        ...rest,
         history: hist.filter(h => h.location || h.project || h.year),
         updatedAt: Date.now()
       };
@@ -29446,7 +29376,7 @@ function ProfileDialog({
   }, inp('fullName', 'Nama lengkap (sesuai KTP)', 'mis. Budi Santoso')), React.createElement("div", {
     className: "sm:col-span-2"
   }, React.createElement(Field, {
-    label: "Alamat tinggal"
+    label: "Alamat saat ini"
   }, React.createElement("textarea", {
     id: "pf-address",
     className: "tp-field h-16",
@@ -29454,24 +29384,9 @@ function ProfileDialog({
     disabled: !canEdit,
     placeholder: "Jalan, RT/RW, desa/kelurahan, kecamatan, kabupaten/kota, provinsi",
     onChange: e => set('address', e.target.value)
-  }))), React.createElement(Field, {
-    label: "No. WhatsApp",
-    hint: pf.wa ? React.createElement("a", {
-      className: "text-aqua-700 underline",
-      href: waLink(pf.wa),
-      target: "_blank",
-      rel: "noopener noreferrer"
-    }, "Buka chat WhatsApp") : 'mis. 0812xxxxxxx'
-  }, React.createElement("input", {
-    id: "pf-wa",
-    type: "tel",
-    inputMode: "tel",
-    className: "tp-field",
-    value: pf.wa || '',
-    disabled: !canEdit,
-    onChange: e => set('wa', e.target.value),
-    placeholder: "08\u2026"
-  })), React.createElement(Field, {
+  }))), React.createElement("div", {
+    className: "sm:col-span-2"
+  }, React.createElement(Field, {
     label: "Asal PMI"
   }, React.createElement("input", {
     id: "pf-pmi",
@@ -29488,7 +29403,7 @@ function ProfileDialog({
   }), PROVINCES.map(p => React.createElement("option", {
     key: p[0],
     value: 'PMI Provinsi ' + p[1]
-  })))), inp('skill', 'Keahlian / sertifikasi (opsional)', 'mis. survei GPS, AutoCAD, SKT pelaksana perpipaan'), inp('nik', 'Nomor anggota / relawan PMI (opsional)', ''))), React.createElement("div", {
+  }))))))), React.createElement("div", {
     className: "space-y-1.5"
   }, React.createElement("div", {
     className: "flex items-center justify-between"
@@ -29611,34 +29526,7 @@ function ProfileDialog({
     className: "r"
   }, h.people ? fmt(+h.people, 0) : ''), React.createElement("td", null, h.note)))))), hist.length > 0 && React.createElement("p", {
     className: "text-[11.5px] text-slate-500"
-  }, "Total: ", hist.length, " penugasan \xB7 ", fmt(hist.reduce((a, h) => a + (+h.len || 0), 0), 0), " m pipa \xB7 ", fmt(hist.reduce((a, h) => a + (+h.people || 0), 0), 0), " jiwa terlayani.")), React.createElement("div", {
-    className: "rounded-md border border-line p-3 flex flex-wrap items-center gap-2"
-  }, React.createElement(Icon, {
-    name: "FileText",
-    size: 18,
-    className: "text-aqua-600"
-  }), React.createElement("div", {
-    className: "flex-1 min-w-[180px]"
-  }, React.createElement("div", {
-    className: "font-semibold"
-  }, "Curriculum vitae (CV)"), React.createElement("div", {
-    className: "text-[12px] text-slate-500"
-  }, pf.cv ? `${pf.cv.name} · ${fmt(pf.cv.size / 1024, 0)} KB · ${dtTxt(pf.cv.at)}` : 'Belum diunggah', " \xB7 PDF/DOC/DOCX/JPG, maks. ", CV_MAX / 1024, " KB")), pf.cv && React.createElement(Btn, {
-    variant: "outline",
-    icon: "Download",
-    onClick: openCv
-  }, "Unduh / lihat CV"), canEdit && React.createElement(React.Fragment, null, React.createElement(Btn, {
-    variant: "outline",
-    icon: "Upload",
-    onClick: () => cvRef.current?.click()
-  }, pf.cv ? 'Ganti CV' : 'Unggah CV'), React.createElement("input", {
-    ref: cvRef,
-    id: "pf-cv",
-    type: "file",
-    accept: ".pdf,.doc,.docx,image/jpeg,image/png,application/pdf",
-    className: "hidden",
-    onChange: onCv
-  }))), pf.updatedAt && React.createElement("p", {
+  }, "Total: ", hist.length, " penugasan \xB7 ", fmt(hist.reduce((a, h) => a + (+h.len || 0), 0), 0), " m pipa \xB7 ", fmt(hist.reduce((a, h) => a + (+h.people || 0), 0), 0), " jiwa terlayani.")), pf.updatedAt && React.createElement("p", {
     className: "text-[11.5px] text-slate-500"
   }, "Terakhir diperbarui ", dtTxt(pf.updatedAt), ".")), React.createElement("div", {
     className: "flex items-center justify-end gap-2 px-5 py-3 border-t border-line"
@@ -29735,11 +29623,11 @@ function UserAdminDialog({
     className: "pill s-idle ml-1"
   }, "Anda")), React.createElement("div", {
     className: "text-[12px] text-slate-500"
-  }, [u.email, u.role, u.profile?.pmi || u.org, u.profile?.wa || u.phone].filter(Boolean).join(' · ')), onProfile && React.createElement("button", {
+  }, [u.email, u.role, u.profile?.pmi || u.org, u.phone].filter(Boolean).join(' · ')), onProfile && React.createElement("button", {
     type: "button",
     className: "text-[12px] font-semibold text-aqua-700 hover:underline",
     onClick: () => onProfile(u.uid)
-  }, "Lihat profil", u.profile ? ` · ${(u.profile.history || []).length} riwayat penugasan${u.profile.cv ? ' · CV' : ''}` : ' (belum diisi)'), u.createdAt > 0 && React.createElement("div", {
+  }, "Lihat profil", u.profile ? ` · ${(u.profile.history || []).length} riwayat penugasan` : ' (belum diisi)'), u.createdAt > 0 && React.createElement("div", {
     className: "text-[11px] text-slate-400"
   }, "Daftar ", new Date(u.createdAt).toLocaleString('id-ID', {
     day: '2-digit',

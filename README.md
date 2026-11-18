@@ -39,11 +39,10 @@ Tanda tangan surveyor & penggambar tercetak di kop gambar (DISURVEI / DIGAMBAR) 
 ## Profil petugas
 - **Cara membuka:** tombol **Profil** di bilah atas (di HP: menu → *Profil saya*). Tanda kuning muncul bila profil belum lengkap.
 - **Isi profil:**
-  - nama lengkap, alamat tinggal, nomor WhatsApp (tautan chat otomatis), asal PMI, keahlian, nomor anggota;
-  - riwayat penugasan pipanisasi (tahun, lokasi, proyek, peran, panjang pipa, jiwa terlayani);
-  - foto profil dan CV (PDF/DOC/DOCX/JPG, maks. 700 KB).
-- **Untuk admin:** *Kelola pengguna → Lihat profil*, termasuk mengunduh CV.
-- **Penyimpanan (mode daring):** profil di koleksi `profiles`, CV di `userFiles`. Keduanya hanya bisa dibaca pemilik dan admin; **perbarui `firestore.rules` di Firebase Console**.
+  - foto profil, nama lengkap, alamat saat ini, asal PMI;
+  - riwayat penugasan pipanisasi (tahun, lokasi, proyek, peran, panjang pipa, jiwa terlayani), bisa diambil dari proyek di aplikasi.
+- **Untuk admin:** *Kelola pengguna → Lihat profil*.
+- **Penyimpanan (mode daring):** profil disimpan di koleksi `profiles` dan hanya bisa dibaca pemilik dan admin; **perbarui `firestore.rules` di Firebase Console**.
 
 ## Tampak depan & belakang menara air (tab DED)
 Setiap menara air mendapat lembar tambahan **Tampak depan & belakang**:
