@@ -245,6 +245,15 @@ APP_URL=https://washlywater.github.io/
 ```
 Akses Google Play memakai **service account bawaan Cloud Functions** (tanpa file kunci): lihat §7.5.
 
+### 7.2b Deploy otomatis lewat GitHub Actions (disarankan)
+`.github/workflows/deploy-firebase.yml` menjalankan uji backend lalu `firebase deploy --only firestore:rules,functions`
+setiap kali `firestore.rules`, `functions/**`, atau `.deploy-trigger` berubah di `main` (juga bisa dijalankan manual).
+* Secret repo **FIREBASE_SERVICE_ACCOUNT**: isi JSON kunci service account (peran: *Editor*, *Cloud Functions Admin*,
+  *Secret Manager Admin*, *Service Account User*). Tanpa secret ini alur dilewati.
+* Opsional: secret **MIDTRANS_SERVER_KEY**; variable **MIDTRANS_IS_PRODUCTION**, **NTFY_TOPIC**.
+  Bila Server Key belum ada, secret diisi penanda `NOT_CONFIGURED` (pembayaran web belum aktif).
+* `ADMIN_EMAILS` diambil dari `auth-config.js`; region trigger Firestore dideteksi dari lokasi database.
+
 ### 7.3 Deploy
 ```bash
 cd functions && npm ci && npm test && cd ..

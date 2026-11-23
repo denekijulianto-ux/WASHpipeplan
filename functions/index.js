@@ -21,6 +21,8 @@ const PLAY_PACKAGE_NAME = defineString('PLAY_PACKAGE_NAME', { default: 'com.wash
 const ADMIN_EMAILS = defineString('ADMIN_EMAILS', { description: 'Email admin dipisah koma (sama dengan firestore.rules)' });
 const APP_URL = defineString('APP_URL', { default: 'https://washlywater.github.io/' });
 const NTFY_TOPIC = defineString('NTFY_TOPIC', { default: '' });
+// Trigger Firestore harus berada di region yang sama dengan database Firestore (diisi otomatis oleh alur deploy)
+const FIRESTORE_REGION = defineString('FIRESTORE_REGION', { default: 'asia-southeast2' });
 const RTDN_TOPIC = 'play-billing';
 
 const gauth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/androidpublisher'] });
@@ -83,7 +85,7 @@ exports.billingSweep = onSchedule({ schedule: 'every 6 hours', timeZone: 'Asia/J
 });
 
 // ---- Penghitung proyek cloud per pemilik (dipakai firestore.rules untuk batas paket FREE)
-exports.projectUsage = onDocumentWritten({ document: 'projects/{pid}', secrets: [MIDTRANS_SERVER_KEY] }, async (event) => {
+exports.projectUsage = onDocumentWritten({ document: 'projects/{pid}', region: FIRESTORE_REGION, secrets: [MIDTRANS_SERVER_KEY] }, async (event) => {
   const b = event.data.before.exists ? event.data.before.data() : null, a = event.data.after.exists ? event.data.after.data() : null;
   const owners = new Set([b && b.ownerUid, a && a.ownerUid].filter(Boolean));
   if (b && a && b.ownerUid === a.ownerUid) return; // ubahan biasa, jumlah tidak berubah

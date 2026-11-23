@@ -1,0 +1,64 @@
+# Deploy aturan Firestore + Cloud Functions WASHLY ke Firebase (proyek washpipe-93f48).
+# Butuh secret repo FIREBASE_SERVICE_ACCOUNT (JSON kunci service account). Tanpa secret itu, alur ini dilewati.
+# Opsional: secret MIDTRANS_SERVER_KEY; variable MIDTRANS_IS_PRODUCTION (true/false), NTFY_TOPIC.
+name: Deploy Firebase (rules + functions)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['firestore.rules', 'functions/**', 'firebase.json', '.github/workflows/deploy-firebase.yml', '.deploy-trigger']
+concurrency: { group: firebase-deploy, cancel-in-progress: false }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: washpipe-93f48
+      SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      MIDTRANS_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
+    steps:
+      - name: Periksa kredensial
+        id: cred
+        run: |
+          if [ -z "$SA_JSON" ]; then echo "::notice::Secret FIREBASE_SERVICE_ACCOUNT belum diisi; deploy dilewati."; echo "skip=1" >> "$GITHUB_OUTPUT"; else echo "skip=0" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.cred.outputs.skip == '0'
+      - uses: actions/setup-node@v4
+        if: steps.cred.outputs.skip == '0'
+        with: { node-version: '22' }
+      - name: Kredensial Google & Firebase CLI
+        if: steps.cred.outputs.skip == '0'
+        run: |
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          npm i -g firebase-tools@15.37.0 --no-audit --no-fund
+      - name: Uji unit backend
+        if: steps.cred.outputs.skip == '0'
+        working-directory: functions
+        run: npm ci --no-audit --no-fund && npm test
+      - name: Parameter functions (.env, tidak di-commit)
+        if: steps.cred.outputs.skip == '0'
+        run: |
+          ADMINS=$(node -e "global.window={};require('./auth-config.js');console.log((window.TIRTAPLAN_AUTH.adminEmails||[]).join(','))")
+          LOC=$(firebase firestore:databases:get "(default)" --project "$PROJECT_ID" --json 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log((j.result&&j.result.locationId)||'')}catch(e){console.log('')}})")
+          case "$LOC" in nam5) FREG=us-central1;; eur3) FREG=europe-west1;; "") FREG=asia-southeast2;; *) FREG=$LOC;; esac
+          echo "Lokasi Firestore: ${LOC:-tidak terbaca} -> region trigger: $FREG"
+          {
+            echo "ADMIN_EMAILS=$ADMINS"
+            echo "MIDTRANS_IS_PRODUCTION=${{ vars.MIDTRANS_IS_PRODUCTION || 'false' }}"
+            echo "PLAY_PACKAGE_NAME=com.washly.app"
+            echo "APP_URL=https://washlywater.github.io/"
+            echo "NTFY_TOPIC=${{ vars.NTFY_TOPIC || '' }}"
+            echo "FIRESTORE_REGION=$FREG"
+          } > "functions/.env.$PROJECT_ID"
+      - name: Secret Midtrans
+        if: steps.cred.outputs.skip == '0'
+        run: |
+          if [ -n "$MIDTRANS_KEY" ]; then
+            printf '%s' "$MIDTRANS_KEY" | firebase functions:secrets:set MIDTRANS_SERVER_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
+          elif ! firebase functions:secrets:access MIDTRANS_SERVER_KEY --project "$PROJECT_ID" >/dev/null 2>&1; then
+            echo "::notice::MIDTRANS_SERVER_KEY belum ada; diisi penanda NOT_CONFIGURED (pembayaran web belum aktif)."
+            printf 'NOT_CONFIGURED' | firebase functions:secrets:set MIDTRANS_SERVER_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
+          fi
+      - name: Deploy
+        if: steps.cred.outputs.skip == '0'
+        run: firebase deploy --only firestore:rules,functions --project "$PROJECT_ID" --non-interactive --force
