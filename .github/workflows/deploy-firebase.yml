@@ -84,3 +84,13 @@ jobs:
           firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force || { echo "Mengulang deploy dalam 2 menit…"; sleep 120; firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force; }
           # Hapus image fungsi lama otomatis (hindari biaya penyimpanan kecil yang menumpuk)
           firebase functions:artifacts:setpolicy --location asia-southeast2 --days 7 --project "$PROJECT_ID" --non-interactive --force || true
+      - name: Uji cepat fungsi yang ter-deploy
+        if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
+        run: |
+          B="https://asia-southeast2-$PROJECT_ID.cloudfunctions.net"; FAIL=0
+          chk() { CODE=$(curl -s -o /tmp/r.txt -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d "$3" "$B/$1"); BODY=$(head -c 200 /tmp/r.txt); echo "$1 → HTTP $CODE $BODY"; case " $2 " in *" $CODE "*) ;; *) echo "::error::$1 diharapkan HTTP $2"; FAIL=1;; esac; }
+          chk billingCheckout "401" '{"data":{"planCode":"PRO_MONTHLY"}}'          # tanpa login ditolak
+          chk adminBillingMetrics "401" '{"data":{}}'                              # dasbor admin tanpa login ditolak
+          chk playVerify "401" '{"data":{"purchaseToken":"x"}}'
+          chk midtransWebhook "401" '{"order_id":"FAKE-1","status_code":"200","gross_amount":"125000.00","transaction_status":"settlement","signature_key":"abc"}'  # tanda tangan palsu ditolak
+          exit $FAIL
