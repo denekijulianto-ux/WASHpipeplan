@@ -99,6 +99,8 @@ function validateConfig(input) {
   out.manual = { enabled: !!m.enabled, bankName: str(m.bankName, 60), accountNumber: str(m.accountNumber, 40).replace(/[^0-9 \-]/g, ''), accountName: str(m.accountName, 80),
     qris, instructions: str(m.instructions, 500), hours: num(m.hours == null ? 72 : m.hours, 1, 336, 'manual.hours') };
   if (out.manual.enabled && !((out.manual.bankName && out.manual.accountNumber && out.manual.accountName) || out.manual.qris)) errors.push('Transfer manual aktif: isi rekening (bank, nomor, nama) atau unggah QRIS');
+  out.paymentsPublic = !!out.paymentsPublic; // buka pembayaran online untuk semua (hanya berlaku pada mode Production)
+  out.midtrans = out.midtrans && typeof out.midtrans === 'object' ? { configured: !!out.midtrans.configured, mode: out.midtrans.mode === 'production' ? 'production' : 'sandbox', updatedAt: out.midtrans.updatedAt || null } : null;
   out.version = DEFAULT_CONFIG.version;
   return { ok: errors.length === 0, errors, config: out };
 }

@@ -73,9 +73,18 @@ function makeService(deps) {
 
   /* ---------------- WEB: Midtrans ---------------- */
   // Sandbox: pembayaran bisa "dibayar" dengan simulator publik Midtrans → hanya admin yang boleh mencoba
-  const sandboxGuard = (auth) => { if (deps.midtrans && deps.midtrans.isProduction === false && !isAdmin(auth)) throw new BillingError('failed-precondition', 'Pembayaran online masih dalam uji coba; belum dibuka untuk umum.'); };
+  // Kunci Midtrans: diisi admin di aplikasi (billing_secrets/midtrans, hanya terbaca server) atau Secret Manager (cadangan)
+  let mtCache = null;
+  async function mt() {
+    if (!deps.midtransFactory) return deps.midtrans;
+    if (mtCache && mtCache.at > now() - 30000) return mtCache.client;
+    const d = await col('billing_secrets').doc('midtrans').get(); const x = d.exists ? d.data() : null;
+    const client = x && x.serverKey ? deps.midtransFactory({ serverKey: x.serverKey, signatureKey: x.signatureKey, isProduction: x.mode === 'production' }) : deps.midtrans;
+    mtCache = { at: now(), client }; return client;
+  }
+  const sandboxGuard = async (auth) => { const M = await mt(); if (M && M.isProduction === false && !isAdmin(auth)) throw new BillingError('failed-precondition', 'Pembayaran online masih dalam uji coba; belum dibuka untuk umum.'); return M; };
   async function createCheckout(auth, data = {}) {
-    const uid = needAuth(auth); sandboxGuard(auth); const config = await getConfig();
+    const uid = needAuth(auth); const M = await sandboxGuard(auth); const config = await getConfig();
     const plan = config.plans[String(data.planCode || '')];
     if (!plan || plan.tier !== 'PRO' || !plan.active) throw new BillingError('invalid-argument', 'Paket tidak tersedia.');
     const ud = await col('users').doc(uid).get(); const user = ud.exists ? ud.data() : null;
@@ -92,11 +101,11 @@ function makeService(deps) {
     const subscriptionId = 'web_' + uid;
     const pay = { id: orderId, userId: uid, subscriptionId, provider: 'midtrans', planCode: plan.code, amount, listPrice: plan.price, currency: 'IDR', promoCode,
       status: 'PENDING', method: null, transactionId: null, paidAt: null, refundStatus: null, refundAmount: 0, refundedAt: null, invoiceRef: orderId, createdAt: now(), updatedAt: now() };
-    if (deps.midtrans.isProduction === false) pay.sandbox = true;
+    if (M.isProduction === false) pay.sandbox = true;
     await col('payments').doc(orderId).set(pay);
     let snap;
     try {
-      snap = await deps.midtrans.createSnap({
+      snap = await M.createSnap({
         transaction_details: { order_id: orderId, gross_amount: amount },
         item_details: [{ id: plan.code, price: amount, quantity: 1, name: plan.name.slice(0, 50) }],
         customer_details: { first_name: String(user.name || '').slice(0, 50), email: normEmail(auth.token && auth.token.email || user.email) },
@@ -112,7 +121,7 @@ function makeService(deps) {
 
   // Virtual Account: buat transaksi Core API dan kembalikan nomor VA untuk ditampilkan di aplikasi
   async function createVaCharge(auth, data = {}) {
-    const uid = needAuth(auth); sandboxGuard(auth); const config = await getConfig();
+    const uid = needAuth(auth); const M = await sandboxGuard(auth); const config = await getConfig();
     if (!config.va.enabled) throw new BillingError('failed-precondition', 'Pembayaran Virtual Account belum dibuka.');
     const bank = String(data.bank || '').toLowerCase(); if (!config.va.banks.includes(bank)) throw new BillingError('invalid-argument', 'Bank Virtual Account tidak tersedia.');
     const plan = config.plans[String(data.planCode || '')];
@@ -127,14 +136,14 @@ function makeService(deps) {
     const amount = plan.price; const hours = config.pendingHours;
     const pay = { id: orderId, userId: uid, subscriptionId: 'web_' + uid, provider: 'midtrans', planCode: plan.code, amount, listPrice: plan.price, currency: 'IDR', status: 'PENDING', method: 'va_' + bank,
       transactionId: null, paidAt: null, refundStatus: null, refundAmount: 0, refundedAt: null, invoiceRef: orderId, expiresAt: now() + hours * 36e5, createdAt: now(), updatedAt: now() };
-    if (deps.midtrans.isProduction === false) pay.sandbox = true;
+    if (M.isProduction === false) pay.sandbox = true;
     await col('payments').doc(orderId).set(pay);
     const base = { transaction_details: { order_id: orderId, gross_amount: amount }, item_details: [{ id: plan.code, price: amount, quantity: 1, name: plan.name.slice(0, 50) }],
       customer_details: { first_name: String(user.name || '').slice(0, 50), email: normEmail(auth.token && auth.token.email || user.email) }, custom_expiry: { expiry_duration: hours, unit: 'hour' }, custom_field1: uid };
     const payload = bank === 'mandiri' ? { ...base, payment_type: 'echannel', echannel: { bill_info1: 'Pembayaran', bill_info2: 'WASHLY PRO' } }
       : bank === 'permata' ? { ...base, payment_type: 'permata' } : { ...base, payment_type: 'bank_transfer', bank_transfer: { bank } };
     let r;
-    try { r = await deps.midtrans.charge(payload); }
+    try { r = await M.charge(payload); }
     catch (e) { await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'charge_error', updatedAt: now() }); throw new BillingError('unavailable', 'Virtual Account tidak dapat dibuat saat ini. Coba lagi atau pilih bank lain.'); }
     const va = bank === 'mandiri' ? { billerCode: r.biller_code, billKey: r.bill_key } : { number: r.permata_va_number || (r.va_numbers && r.va_numbers[0] && r.va_numbers[0].va_number) };
     if (!va.number && !va.billKey) { await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'no_va', updatedAt: now() }); throw new BillingError('unavailable', 'Nomor Virtual Account tidak diterima dari bank.'); }
@@ -143,9 +152,9 @@ function makeService(deps) {
     await logEvents([{ type: 'payment_initiated', method: 'va_' + bank }], { userId: uid, subscriptionId: pay.subscriptionId, paymentId: orderId, provider: 'midtrans', planCode: plan.code, amount });
     return { orderId, amount, bank, va, expiresAt: exp };
   }
-  function verifyMidtransSignature(n) {
+  function verifyMidtransSignature(n, M = deps.midtrans) {
     if (!n || !n.order_id || !n.status_code || n.gross_amount == null || !n.signature_key) return false;
-    const keys = (deps.midtrans.signatureKeys && deps.midtrans.signatureKeys.length) ? deps.midtrans.signatureKeys : [deps.midtrans.serverKey];
+    const keys = (M.signatureKeys && M.signatureKeys.length) ? M.signatureKeys : [M.serverKey];
     return keys.some(k => safeEq(crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + k).digest('hex'), String(n.signature_key).toLowerCase()));
   }
 
@@ -191,7 +200,8 @@ function makeService(deps) {
   }
 
   async function handleMidtransNotification(body) {
-    if (!verifyMidtransSignature(body)) throw new BillingError('permission-denied', 'Tanda tangan notifikasi tidak valid');
+    const M = await mt();
+    if (!verifyMidtransSignature(body, M)) throw new BillingError('permission-denied', 'Tanda tangan notifikasi tidak valid');
     const key = `midtrans_${body.order_id}_${body.transaction_status}_${body.status_code}_${body.transaction_id || ''}`.replace(/[^\w-]/g, '_').slice(0, 300);
     const wref = col('webhook_events').doc(key);
     const prev = await wref.get();
@@ -199,7 +209,7 @@ function makeService(deps) {
     const payload = { order_id: body.order_id, transaction_status: body.transaction_status, status_code: body.status_code, gross_amount: body.gross_amount, payment_type: body.payment_type, transaction_id: body.transaction_id, fraud_status: body.fraud_status || null };
     await wref.set({ provider: 'midtrans', eventType: body.transaction_status, payload, payloadHash: sha256(JSON.stringify(body)), status: 'RECEIVED', receivedAt: now(), attempts: (prev.exists ? prev.data().attempts || 0 : 0) + 1 });
     try {
-      const st = await deps.midtrans.getStatus(body.order_id); // sumber kebenaran: API status Midtrans, bukan isi notifikasi
+      const st = await M.getStatus(body.order_id); // sumber kebenaran: API status Midtrans, bukan isi notifikasi
       if (!st || st.order_id !== body.order_id) throw new Error('Status API tidak cocok');
       const r = await applyMidtransStatus(st, 'webhook');
       await wref.update({ status: 'PROCESSED', processedAt: now(), verifiedStatus: st.transaction_status, error: null });
@@ -211,7 +221,7 @@ function makeService(deps) {
     const uid = needAuth(auth); const pd = await col('payments').doc(String(orderId || '')).get();
     if (!pd.exists || (pd.data().userId !== uid && !isAdmin(auth))) throw new BillingError('not-found', 'Tagihan tidak ditemukan.');
     if (pd.data().provider !== 'midtrans') throw new BillingError('invalid-argument', 'Bukan tagihan web.');
-    const st = await deps.midtrans.getStatus(orderId).catch(() => null);
+    const st = await (await mt()).getStatus(orderId).catch(() => null);
     if (!st || st.status_code === '404') return { status: pd.data().status };
     await applyMidtransStatus(st, 'poll');
     return { status: (await col('payments').doc(orderId).get()).data().status };
@@ -367,7 +377,7 @@ function makeService(deps) {
   async function adminSaveConfig(auth, { config, reason } = {}) {
     needAdmin(auth); const v = validateConfig(config); if (!v.ok) throw new BillingError('invalid-argument', v.errors.join('; '));
     const before = await getConfig();
-    await col('billing_config').doc('main').set({ ...v.config, updatedAt: now(), updatedBy: auth.uid });
+    await col('billing_config').doc('main').set({ ...v.config, midtrans: before.midtrans || null, updatedAt: now(), updatedBy: auth.uid });
     await audit(auth, 'config', 'billing_config/main', String(reason || '').slice(0, 300), { before: { enforce: before.enforce, plans: before.plans, freeLimits: before.freeLimits }, after: { enforce: v.config.enforce, plans: v.config.plans, freeLimits: v.config.freeLimits } });
     // Hak akses semua pengguna dihitung ulang (fitur per paket bisa berubah)
     const users = (await col('users').get()).docs; for (const u of users) await recomputeEntitlement(u.id, v.config);
@@ -442,11 +452,38 @@ function makeService(deps) {
     if (after.reject) await notifyUser(after.uid, 'manual_rejected', [String(reason).slice(0, 200)]); else await notifyFor(after.uid, after.events, after.sub);
     return { status: decision === 'approve' ? 'PAID' : 'FAILED', entitlement: ent };
   }
+  async function adminGetMidtrans(auth) {
+    needAdmin(auth); const d = await col('billing_secrets').doc('midtrans').get(); const x = d.exists ? d.data() : null;
+    const hint = (k) => k ? '…' + String(k).slice(-4) : null;
+    return x && x.serverKey ? { configured: true, mode: x.mode, serverKeyHint: hint(x.serverKey), signatureKeyHint: hint(x.signatureKey), updatedAt: x.updatedAt, lastCheck: x.lastCheck || null } : { configured: false };
+  }
+  async function adminSetMidtrans(auth, data = {}) {
+    needAdmin(auth); if (!deps.midtransFactory) throw new BillingError('failed-precondition', 'Server belum mendukung pengaturan Midtrans dari aplikasi.');
+    const mode = data.mode === 'production' ? 'production' : 'sandbox';
+    const serverKey = String(data.serverKey || '').trim(), signatureKey = String(data.signatureKey || '').trim();
+    if (!/^(SB-)?Mid-server-[A-Za-z0-9_-]{8,}$/.test(serverKey)) throw new BillingError('invalid-argument', 'Server Key tidak dikenali. Salin dari Midtrans → Settings → Access Keys → General Credentials → Server Keys (diawali "SB-Mid-server-" untuk Sandbox atau "Mid-server-" untuk Production).');
+    if (mode === 'sandbox' && !serverKey.startsWith('SB-')) throw new BillingError('invalid-argument', 'Mode Sandbox memerlukan Server Key Sandbox (diawali "SB-Mid-server-"). Pastikan Environment di dashboard Midtrans: Sandbox.');
+    if (mode === 'production' && serverKey.startsWith('SB-')) throw new BillingError('invalid-argument', 'Ini Server Key Sandbox. Untuk Production, ganti Environment di dashboard Midtrans ke Production lalu salin Server Key Production.');
+    if (signatureKey && !/^[A-Za-z0-9_-]{10,200}$/.test(signatureKey)) throw new BillingError('invalid-argument', 'Signature Secret Key tidak dikenali. Salin dari baris "Signature Secret Key" (ikon salin).');
+    // Uji ke Midtrans: kunci yang benar menjawab 404 (order uji memang tidak ada), kunci salah menjawab 401
+    const client = deps.midtransFactory({ serverKey, signatureKey, isProduction: mode === 'production' });
+    const ping = await client.ping().catch(e => ({ ok: false, error: String(e.message || e) }));
+    if (!ping.ok) throw new BillingError('failed-precondition', ping.unauthorized ? `Midtrans menolak Server Key ini (401). Pastikan kunci disalin utuh dan dari lingkungan ${mode === 'production' ? 'Production' : 'Sandbox'}.` : 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
+    const t = now();
+    await col('billing_secrets').doc('midtrans').set({ serverKey, signatureKey: signatureKey || null, mode, updatedAt: t, updatedBy: auth.uid, lastCheck: { at: t, ok: true } });
+    // Jangan pernah membuat dokumen konfigurasi setengah jadi (tanpa 'enforce' → pembatasan FREE dianggap mati)
+    const cref = col('billing_config').doc('main'); const cd = await cref.get();
+    if (cd.exists) await cref.set({ midtrans: { configured: true, mode, updatedAt: t } }, { merge: true });
+    else await cref.set({ ...(await getConfig()), enforce: true, midtrans: { configured: true, mode, updatedAt: t }, updatedAt: t, updatedBy: auth.uid });
+    mtCache = null;
+    await audit(auth, 'midtrans_keys', 'billing_secrets/midtrans', 'Kunci Midtrans diperbarui', { mode, serverKeyHint: '…' + serverKey.slice(-4), signature: !!signatureKey });
+    return { ok: true, mode, serverKeyHint: '…' + serverKey.slice(-4), signatureKeyHint: signatureKey ? '…' + signatureKey.slice(-4) : null };
+  }
   async function myAccountId(auth) { return { accountId: accountIdFor(needAuth(auth)) }; }
   async function refreshMe(auth) { const uid = needAuth(auth); return { entitlement: await recomputeEntitlement(uid) }; }
 
   return { BillingError, getConfig, recomputeEntitlement, recountUsage, createCheckout, verifyMidtransSignature, handleMidtransNotification, applyMidtransStatus, refreshOrder, cancelWeb,
-    playVerify, handleRtdn, sweep, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
+    playVerify, handleRtdn, sweep, adminGetMidtrans, adminSetMidtrans, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
 }
 
 module.exports = { makeService, BillingError, accountIdFor, sha256 };

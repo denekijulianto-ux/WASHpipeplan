@@ -2,10 +2,12 @@
 // Klien HTTP untuk Midtrans (Snap + API status) dan Google Play Developer API (subscriptionsv2).
 // Rahasia (server key) hanya dibaca dari Secret Manager di server; tidak pernah dikirim ke aplikasi.
 
-function midtransClient({ serverKey, signatureKey, isProduction, fetchImpl = fetch }) {
+function midtransClient({ serverKey, signatureKey, isProduction, notificationUrl, fetchImpl = fetch }) {
   const snapBase = isProduction ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com';
   const apiBase = isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
-  const headers = () => ({ Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(serverKey + ':').toString('base64') });
+  const headers = () => ({ Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(serverKey + ':').toString('base64'),
+    // alamat notifikasi dikirim per transaksi → tidak perlu diatur di dashboard Midtrans
+    ...(notificationUrl ? { 'X-Override-Notification': notificationUrl } : {}) });
   return {
     serverKey, isProduction: !!isProduction,
     // Midtrans (2026): notifikasi ditandatangani dengan Signature Secret Key; Server Key hanya untuk API. Terima keduanya selama transisi.
@@ -22,6 +24,12 @@ function midtransClient({ serverKey, signatureKey, isProduction, fetchImpl = fet
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !['200', '201'].includes(String(j.status_code))) throw new Error('Midtrans charge ' + r.status + ' ' + (j.status_code || '') + ': ' + (j.status_message || ''));
       return j;
+    },
+    // Uji kunci tanpa membuat transaksi: order acak → 404 bila kunci benar, 401 bila salah
+    async ping() {
+      const r = await fetchImpl(apiBase + '/v2/WASHLY-CEK-' + Date.now() + '/status', { headers: headers() });
+      const j = await r.json().catch(() => ({})); const code = String(j.status_code || r.status);
+      return { ok: code === '404' || code === '200', unauthorized: code === '401' || r.status === 401, code };
     },
     async getStatus(orderId) {
       const r = await fetchImpl(apiBase + '/v2/' + encodeURIComponent(orderId) + '/status', { headers: headers() });

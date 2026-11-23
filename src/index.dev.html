@@ -9173,6 +9173,7 @@ const FEAT_ORDER = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq
 const FEAT_FREE = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print', 'data_export', 'assistant_offline'];
 const BILLING_DEFAULT = {
   enforce: false, currency: 'IDR', graceDays: 3, reminderDays: [7, 1], pendingHours: 24, freeLimits: { cloudProjects: 3 },
+  paymentsPublic: false,
   va: { enabled: true, banks: ['bca', 'bni', 'bri', 'mandiri', 'permata'] },
   manual: { enabled: false, bankName: '', accountNumber: '', accountName: '', qris: '', instructions: '', hours: 72 },
   plans: { FREE: { code: 'FREE', name: 'WASHLY FREE', tier: 'FREE', months: 0, price: 0, active: true },
@@ -9206,7 +9207,10 @@ const Billing = (() => {
 function useBilling() { return React.useSyncExternalStore(Billing.subscribe, Billing.get); }
 const billingAvailable = (api) => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
 // false: belum dibuka · 'admin': uji coba (Sandbox) khusus admin · true/tidak diisi: dibuka untuk semua
-const paymentsOpen = () => { const p = BILLING_CFG.payments; return p === undefined || p === true || (p === 'admin' && !!Billing.get().admin); };
+const paymentsOpen = () => { const p = BILLING_CFG.payments; if (p === undefined || p === true) return true; if (p === false) return false;
+  // 'admin': Midtrans diatur dari aplikasi; admin selalu bisa menguji, pengguna lain hanya saat mode Production & dibuka admin
+  const st = Billing.get(); const c = st.config || {}; const M = c.midtrans;
+  return !!(M && M.configured) && (!!st.admin || (M.mode === 'production' && c.paymentsPublic === true)); };
 const serverOn = () => BILLING_CFG.functions === true || paymentsOpen(); // Cloud Functions sudah di-deploy (dasbor admin, Beri PRO)
 // Transfer bank/QRIS manual (dikonfirmasi admin): hanya di web; aplikasi Android wajib Google Play Billing
 const manualOpen = (cfg) => !IS_NATIVE && serverOn() && !!(cfg && cfg.manual && cfg.manual.enabled);
@@ -9338,7 +9342,9 @@ function useBillingSync(api, user) {
     // Konfigurasi belum ada di server (Cloud Functions belum di-deploy) atau belum terbaca → pakai paket bawaan dan tetap batasi ke FREE
     const noCfg = () => { Billing.set({ config: { ...BILLING_DEFAULT, enforce: BILLING_CFG.enforce !== false }, managed: BILLING_CFG.enforce !== false }); save(); };
     uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; if (!c) { noCfg(); return; }
-      Billing.set({ config: { ...BILLING_DEFAULT, ...c, features: { ...BILLING_DEFAULT.features, ...(c.features || {}) } }, managed: !!c.enforce }); save(); }, noCfg));
+      // 'enforce' tidak ada → ikuti auth-config (bawaan: pembatasan aktif); hanya false eksplisit yang mematikan
+      const enf = c.enforce === undefined ? BILLING_CFG.enforce !== false : !!c.enforce;
+      Billing.set({ config: { ...BILLING_DEFAULT, ...c, enforce: enf, features: { ...BILLING_DEFAULT.features, ...(c.features || {}) } }, managed: enf }); save(); }, noCfg));
     uns.push(db.collection('entitlements').doc(user.uid).onSnapshot(d => { Billing.set({ ent: d.exists ? d.data() : null }); save(); }, () => {}));
     let usageDoc = null, ownCount = 0; const setUsage = () => { Billing.set({ usage: Math.max(usageDoc ?? 0, ownCount) }); save(); };
     uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => { usageDoc = d.exists ? d.data().cloudProjects || 0 : null; setUsage(); }, () => {}));
@@ -9548,7 +9554,13 @@ function AdminBillingDialog({ onClose }) {
   const setPlan = (code, k, v) => setCfg(c => ({ ...c, plans: { ...c.plans, [code]: { ...c.plans[code], [k]: v } } }));
   const saveCfg = async () => { setErr(''); setSaved(''); setBusy('c'); try { const r = await callFn('adminBillingConfig', { config: cfg, reason }); setCfg(r.config); setSaved('Konfigurasi tersimpan & hak akses semua pengguna dihitung ulang.'); } catch (e) { setErr(e.message); } setBusy(''); };
   const c = m && m.current, p = m && m.previous, o = m && m.overview;
-  const tabs = [['overview', 'Pendapatan & pelanggan', 'ChartColumn'], ['manual', 'Konfirmasi transfer', 'Landmark'], ['users', 'Pengguna & langganan', 'Users'], ['config', 'Paket & harga', 'Settings2']];
+  const tabs = [['overview', 'Pendapatan & pelanggan', 'ChartColumn'], ['online', 'Pembayaran online', 'CreditCard'], ['manual', 'Konfirmasi transfer', 'Landmark'], ['users', 'Pengguna & langganan', 'Users'], ['config', 'Paket & harga', 'Settings2']];
+  const [mt, setMt] = useState(null); const [mf, setMf] = useState({ mode: 'sandbox', serverKey: '', signatureKey: '' }); const [mtMsg, setMtMsg] = useState(''); const [testVa, setTestVa] = useState(null);
+  const loadMt = async () => { try { const r = await callFn('adminGetMidtrans'); setMt(r); if (r.mode) setMf(f => ({ ...f, mode: r.mode })); } catch (e) { setErr(e.message); } };
+  useEffect(() => { if (tab === 'online') loadMt(); }, [tab]);
+  const saveMt = async () => { setErr(''); setMtMsg(''); setBusy('mt'); try { const r = await callFn('adminSetMidtrans', mf); setMtMsg(`Terhubung ke Midtrans ${r.mode === 'production' ? 'Production' : 'Sandbox'} ✓ (Server Key ${r.serverKeyHint}${r.signatureKeyHint ? ', Signature Key ' + r.signatureKeyHint : ''}).`); setMf(f => ({ ...f, serverKey: '', signatureKey: '' })); await loadMt(); } catch (e) { setErr(e.message); } setBusy(''); };
+  const testPay = async () => { setErr(''); setBusy('tp'); try { const r = await callFn('billingVaCharge', { planCode: 'PRO_MONTHLY', bank: 'bni' }); setTestVa({ ...r, planCode: 'PRO_MONTHLY', createdAt: Date.now() }); } catch (e) { setErr(e.message); } setBusy(''); };
+  const setPublic = async (on) => { setErr(''); setBusy('pub'); try { const nc = { ...cfg, paymentsPublic: on }; const r = await callFn('adminBillingConfig', { config: nc, reason: on ? 'Buka pembayaran online untuk semua' : 'Tutup pembayaran online untuk umum' }); setCfg(r.config); } catch (e) { setErr(e.message); } setBusy(''); };
   const [mList, setMList] = useState(null); const [mFilter, setMFilter] = useState('PENDING'); const [zoom, setZoom] = useState('');
   const loadMan = async () => { setErr(''); setBusy('man'); try { setMList(await callFn('adminManualList', { status: mFilter })); } catch (e) { setErr(e.message); } setBusy(''); };
   useEffect(() => { if (tab === 'manual') loadMan(); }, [tab, mFilter]);
@@ -9594,6 +9606,30 @@ function AdminBillingDialog({ onClose }) {
                 <li>Churn langganan = langganan berbayar yang berakhir/refund di rentang ÷ langganan berbayar aktif di awal rentang. Persentase di kartu = perubahan dibanding periode sebelumnya yang sama panjang.</li></ul></details>
           </>}
         </>}
+        {tab === 'online' && <div className="space-y-3 max-w-3xl">
+          {testVa && <VaDialog order={testVa} cfg={b.config || BILLING_DEFAULT} onClose={() => setTestVa(null)} />}
+          <div id="mt-status" className={'rounded-lg border p-3 ' + (mt && mt.configured ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200')}>
+            {!mt ? 'Memuat…' : mt.configured ? <><b>Midtrans terhubung · {mt.mode === 'production' ? 'Production (uang sungguhan)' : 'Sandbox (uji coba)'}</b><div className="text-[12px] text-slate-600">Server Key {mt.serverKeyHint} · Signature Key {mt.signatureKeyHint || 'belum diisi'} · diperbarui {mt.updatedAt ? new Date(mt.updatedAt).toLocaleString(LOCALE) : '–'}</div></>
+              : <b>Midtrans belum terhubung. Ikuti 3 langkah di bawah.</b>}</div>
+          {mtMsg && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{mtMsg}</div>}
+          <div className="rounded-lg border border-line bg-white p-3 space-y-2">
+            <b>Hubungkan Midtrans</b>
+            <ol className="list-decimal pl-5 text-[12.5px] text-slate-700 space-y-1">
+              <li>Buka <a className="text-aqua-700 underline" href="https://dashboard.midtrans.com" target="_blank" rel="noopener">dashboard.midtrans.com</a>. Di kiri atas, pilih <b>Environment</b> yang sama dengan pilihan di bawah (mulai dari <b>Sandbox</b>).</li>
+              <li>Menu <b>Settings → Access Keys → General Credentials</b>. Pada baris <b>Signature Secret Key</b> klik ikon salin, tempel ke kolom kedua di bawah.</li>
+              <li>Di bagian <b>Server Keys</b> klik <b>Generate server key</b> (beri nama bebas), salin kunci yang muncul, tempel ke kolom pertama. Lalu klik <b>Simpan & uji koneksi</b>.</li>
+            </ol>
+            <div className="flex gap-4 text-[13px]">{[['sandbox', 'Sandbox (uji coba)'], ['production', 'Production (uang sungguhan)']].map(([k, l]) => <label key={k} className="flex items-center gap-1.5"><input type="radio" name="mt-mode" checked={mf.mode === k} onChange={() => setMf(f => ({ ...f, mode: k }))} />{l}</label>)}</div>
+            <Field label="Server Key"><input id="mt-server" type="password" autoComplete="off" className="tp-field font-mono" value={mf.serverKey} onChange={e => setMf(f => ({ ...f, serverKey: e.target.value }))} placeholder={mf.mode === 'sandbox' ? 'SB-Mid-server-…' : 'Mid-server-…'} /></Field>
+            <Field label="Signature Secret Key"><input id="mt-sig" type="password" autoComplete="off" className="tp-field font-mono" value={mf.signatureKey} onChange={e => setMf(f => ({ ...f, signatureKey: e.target.value }))} placeholder="Mid-server-…" /></Field>
+            <Btn id="mt-save" variant="primary" icon="PlugZap" disabled={busy === 'mt' || !mf.serverKey.trim()} onClick={saveMt}>{busy === 'mt' ? 'Menguji ke Midtrans…' : 'Simpan & uji koneksi'}</Btn>
+            <p className="text-[11.5px] text-slate-500">Kunci disimpan hanya di server WASHLY (tidak bisa dibaca dari aplikasi, termasuk oleh admin) dan alamat notifikasi pembayaran dikirim otomatis ke Midtrans di setiap transaksi.</p></div>
+          {mt && mt.configured && mt.mode === 'sandbox' && <div className="rounded-lg border border-line bg-white p-3 space-y-2"><b>Coba pembayaran (Sandbox)</b>
+            <p className="text-[12.5px] text-slate-600">Membuat Virtual Account BNI uji untuk akun admin. Bayar di <a className="text-aqua-700 underline" href="https://simulator.sandbox.midtrans.com/bni/va/index" target="_blank" rel="noopener">simulator Midtrans</a>: tempel nomor VA → <i>Inquire</i> → <i>Pay</i>. Status di WASHLY berubah otomatis. Transaksi uji tidak dihitung sebagai pendapatan.</p>
+            <Btn id="mt-test" variant="outline" icon="FlaskConical" disabled={busy === 'tp'} onClick={testPay}>{busy === 'tp' ? 'Membuat VA…' : 'Buat VA uji'}</Btn></div>}
+          <div className="rounded-lg border border-line bg-white p-3 space-y-1"><label className="flex items-start gap-2"><input id="mt-public" type="checkbox" className="mt-1" disabled={!(mt && mt.configured && mt.mode === 'production') || busy === 'pub'} checked={!!cfg.paymentsPublic} onChange={e => setPublic(e.target.checked)} />
+            <span><b>Buka pembayaran online untuk semua pengguna</b><br /><span className="text-[12px] text-slate-500">Hanya bisa dinyalakan setelah Midtrans terhubung dalam mode <b>Production</b> (akun Production harus sudah disetujui Midtrans). Pada mode Sandbox, pembayaran hanya untuk admin agar tidak ada yang mendapat PRO gratis lewat simulator.</span></span></label></div>
+        </div>}
         {tab === 'manual' && <div className="space-y-2">
           {zoom && <div className="fixed inset-0 z-[2400] bg-black/70 flex items-center justify-center p-4" onClick={() => setZoom('')}><img src={zoom} alt="Bukti transfer" className="max-h-[90vh] max-w-full rounded" /></div>}
           <div className="flex flex-wrap items-center gap-2"><select className="tp-field !w-auto" value={mFilter} onChange={e => setMFilter(e.target.value)}><option value="PENDING">Menunggu konfirmasi</option><option value="PAID">Sudah dikonfirmasi</option><option value="FAILED">Ditolak</option><option value="EXPIRED">Kedaluwarsa</option><option value="ALL">Semua</option></select>

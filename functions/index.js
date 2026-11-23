@@ -25,6 +25,7 @@ const NTFY_TOPIC = defineString('NTFY_TOPIC', { default: '' });
 // Trigger Firestore harus berada di region yang sama dengan database Firestore (diisi otomatis oleh alur deploy)
 const FIRESTORE_REGION = defineString('FIRESTORE_REGION', { default: 'asia-southeast2' });
 const RTDN_TOPIC = 'play-billing';
+const WEBHOOK_URL = `https://asia-southeast2-${process.env.GCLOUD_PROJECT || 'washpipe-93f48'}.cloudfunctions.net/midtransWebhook`;
 
 const gauth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/androidpublisher'] });
 let svc = null;
@@ -35,7 +36,8 @@ function service() {
     db, now: () => Date.now(), ts: (ms) => admin.firestore.Timestamp.fromMillis(ms), fetch,
     adminEmails: ADMIN_EMAILS.value().split(',').map(s => s.trim()).filter(Boolean),
     appUrl: APP_URL.value(), ntfyTopic: NTFY_TOPIC.value(),
-    midtrans: midtransClient({ serverKey: MIDTRANS_SERVER_KEY.value(), signatureKey: MIDTRANS_SIGNATURE_KEY.value(), isProduction: MIDTRANS_IS_PRODUCTION.value() === 'true' }),
+    midtrans: midtransClient({ serverKey: MIDTRANS_SERVER_KEY.value(), signatureKey: MIDTRANS_SIGNATURE_KEY.value(), isProduction: MIDTRANS_IS_PRODUCTION.value() === 'true', notificationUrl: WEBHOOK_URL }),
+    midtransFactory: (o) => midtransClient({ ...o, notificationUrl: WEBHOOK_URL }),
     play: playClient({ packageName: PLAY_PACKAGE_NAME.value(), getAccessToken: async () => (await (await gauth.getClient()).getAccessToken()).token }),
   });
   return svc;
@@ -64,6 +66,8 @@ exports.adminBillingUsers = onCall(callOpts, wrap(s => s.adminUsers));
 exports.adminBillingUser = onCall(callOpts, wrap(s => s.adminUserDetail));
 exports.adminBillingGrant = onCall(callOpts, wrap(s => s.adminGrant));
 exports.adminBillingRevoke = onCall(callOpts, wrap(s => s.adminRevoke));
+exports.adminGetMidtrans = onCall(callOpts, wrap(s => s.adminGetMidtrans));
+exports.adminSetMidtrans = onCall(callOpts, wrap(s => s.adminSetMidtrans));
 exports.adminBillingConfig = onCall({ ...callOpts, timeoutSeconds: 300 }, wrap(s => s.adminSaveConfig));
 
 // ---- Webhook Midtrans (URL ini diisi di Dashboard Midtrans → Settings → Payment → Notification URL)

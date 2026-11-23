@@ -180,6 +180,20 @@ mencabut pemberian admin. Langganan berbayar **tidak bisa** diubah manual; harus
 **Notifikasi** memakai kotak masuk yang sudah ada (`notifications`, ikon lonceng) plus push ntfy bila `NTFY_TOPIC` diisi
 (pesan umum tanpa data pribadi): aktif, diperpanjang, pengingat perpanjangan, gagal bayar, tenggang, dibatalkan, berakhir, refund.
 
+### Menghubungkan Midtrans dari aplikasi (tanpa GitHub)
+Admin: **Pendapatan → Pembayaran online**. Pilih **Sandbox/Production**, tempel **Server Key** (Settings → Access Keys → General Credentials →
+*Generate server key*) dan **Signature Secret Key**, lalu **Simpan & uji koneksi**.
+* `adminSetMidtrans` memvalidasi format & lingkungan (`SB-Mid-server-` untuk Sandbox), menguji kunci ke API status Midtrans (401 = ditolak),
+  lalu menyimpannya di `billing_secrets/midtrans`. Koleksi ini tidak bisa dibaca atau ditulis dari aplikasi, termasuk oleh admin; audit hanya mencatat 4 digit terakhir.
+  `billing_config/main.midtrans` hanya berisi status publik (`configured`, `mode`).
+* Semua fungsi memakai kunci ini (dengan Secret Manager sebagai cadangan). Setiap transaksi mengirim header `X-Override-Notification`
+  berisi alamat webhook, jadi Notification URL di dashboard tidak wajib diisi.
+* Notifikasi diverifikasi dengan **Signature Secret Key** (aturan Midtrans 2026); Server Key diterima selama masa transisi.
+* **Sandbox:** hanya admin yang boleh membuat transaksi (dijaga server), karena simulator publik bisa "membayar" tanpa uang.
+  Transaksi Sandbox diberi tanda `sandbox: true` dan tidak dihitung pendapatan, MRR, maupun pelanggan.
+* **Production:** setelah terhubung, centang **Buka pembayaran online untuk semua pengguna** (`paymentsPublic`).
+* Uji otomatis: workflow **Uji pembayaran Sandbox** membuat VA atas nama admin, membayarnya di simulator, dan memeriksa PAID + PRO.
+
 ### Virtual Account di dalam aplikasi (Midtrans Core API)
 Saat `payments: true`, tombol beli di web membuka **Pilih metode pembayaran**:
 * **Virtual Account** BCA / BNI / BRI / Mandiri (biller code + bill key) / Permata. `billingVaCharge` memanggil `POST /v2/charge`

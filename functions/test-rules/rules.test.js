@@ -88,3 +88,10 @@ test('bukti transfer: hanya pengirim & admin yang bisa membaca; tidak ada yang b
   await assertFails(setDoc(doc(user('u', 'u@x.org'), 'payment_proofs/T2'), { userId: 'u' }));
   await assertFails(setDoc(doc(user('u', 'u@x.org'), 'payments/T3'), { userId: 'u', provider: 'manual', status: 'PAID' }));
 });
+
+test('kunci Midtrans di billing_secrets tidak terbaca siapa pun dari aplikasi, termasuk admin', async () => {
+  await seed(async db => { await setDoc(doc(db, 'billing_secrets/midtrans'), { serverKey: 'SB-Mid-server-x' }); });
+  await assertFails(getDoc(doc(user('a', ADMIN), 'billing_secrets/midtrans')));
+  await assertFails(setDoc(doc(user('a', ADMIN), 'billing_secrets/midtrans'), { serverKey: 'y' }));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'billing_secrets/midtrans')));
+});
