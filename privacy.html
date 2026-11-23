@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kebijakan Privasi WASHLY</title>
+<style>
+  :root { --navy:#12334A; --blue:#1676C0; --ink:#1b2733; --muted:#5b6b7a; --line:#d9e2ea; --bg:#ffffff; --todo:#b45309; }
+  @media (prefers-color-scheme: dark) { :root { --navy:#9cc8ea; --blue:#6fb6ee; --ink:#e7eef5; --muted:#a8b6c4; --line:#2c3a47; --bg:#0f1a24; --todo:#f5b14c; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:28px 16px 56px; }
+  h1 { color:var(--navy); font-size:1.7rem; margin:0 0 4px; } h2 { color:var(--navy); font-size:1.15rem; margin:28px 0 8px; }
+  .sub { color:var(--muted); margin:0 0 20px; } table { width:100%; border-collapse:collapse; font-size:.95rem; } td,th { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  .todo { color:var(--todo); font-weight:600; } a { color:var(--blue); } li { margin:4px 0; }
+</style>
+</head>
+<body><main>
+<p style="margin:0 0 14px"><a href="index.html">← Kembali ke WASHLY</a></p>
+<h1>Kebijakan Privasi WASHLY</h1>
+<p class="sub">WASHLY — Simplify the Flow. · Berlaku sejak: <span class="todo">[ISI: tanggal terbit]</span> · Versi aplikasi 1.0.0</p>
+
+<p class="todo">DRAF — periksa dan lengkapi bagian bertanda [ISI] sebelum dipakai di Google Play. Dokumen ini disusun dari cara kerja aplikasi saat ini, bukan nasihat hukum.</p>
+
+<h2>1. Pengelola</h2>
+<p>Aplikasi WASHLY (Android: <code>com.washly.app</code>, web: halaman ini) dikelola oleh <span class="todo">[ISI: nama organisasi / pengelola]</span>. Kontak privasi: <span class="todo">[ISI: alamat e-mail kontak]</span>.</p>
+
+<h2>2. Data yang dikumpulkan</h2>
+<table>
+<tr><th>Data</th><th>Untuk apa</th><th>Disimpan di</th></tr>
+<tr><td>Nama, alamat e-mail, kata sandi (terenkripsi oleh Firebase), peran, organisasi, nomor HP (opsional)</td><td>Akun & login, persetujuan akun oleh admin, penunjukan petugas</td><td>Google Firebase Authentication & Cloud Firestore</td></tr>
+<tr><td>Profil petugas: foto profil, alamat saat ini, asal PMI, riwayat penugasan (opsional)</td><td>Dikenali admin & tim saat penugasan; hanya dapat dibaca pemilik dan admin</td><td>Cloud Firestore</td></tr>
+<tr><td>Data proyek: titik & jalur pipa, koordinat GPS, jejak GPS, elevasi, data bangunan, RAB, gambar, foto asesmen (termasuk lokasi foto), tanda tangan elektronik, catatan review</td><td>Fungsi utama perencanaan jaringan air & kerja tim</td><td>Perangkat Anda dan Cloud Firestore (dibagikan ke anggota tim yang disetujui)</td></tr>
+<tr><td>Lokasi presisi perangkat (GPS)</td><td>Hanya saat Anda memakai fitur GPS (tandai titik, rekam jejak, foto). Tidak dikumpulkan di latar belakang.</td><td>Menjadi bagian dari data proyek bila Anda menyimpannya</td></tr>
+<tr><td>Notifikasi dalam aplikasi & laporan jawaban AI</td><td>Alur review, persetujuan akun, laporan jawaban Asisten AI ke admin</td><td>Cloud Firestore</td></tr>
+</table>
+<p>WASHLY tidak memakai iklan, tidak menjual data, dan tidak memakai analitik pihak ketiga.</p>
+
+<h2>3. Layanan pihak ketiga</h2>
+<ul>
+  <li><b>Google Firebase</b> (Authentication, Cloud Firestore) — penyimpanan akun & data proyek.</li>
+  <li><b>Peta</b>: Esri ArcGIS, OpenStreetMap, OpenTopoMap — gambar peta untuk area yang Anda lihat.</li>
+  <li><b>Open-Meteo</b> (elevasi) — koordinat titik dikirim untuk mengambil ketinggian tanah.</li>
+  <li><b>OpenStreetMap Nominatim & Overpass</b> — pencarian lokasi dan data sungai/mata air di sekitar area analisis.</li>
+  <li><b>Anthropic (opsional)</b> — hanya bila Anda mengaktifkan mode AI di Asisten dengan kunci API milik Anda sendiri: pertanyaan dan ringkasan proyek (nama, jumlah titik, peringatan, total RAB) dikirim ke Anthropic. Kunci API hanya disimpan di perangkat Anda.</li>
+  <li><b>ntfy.sh / EmailJS (opsional, bila diaktifkan admin)</b> — notifikasi push/e-mail berisi judul notifikasi dan alamat e-mail penerima. <span class="todo">[ISI: hapus baris ini bila tidak dipakai]</span></li>
+</ul>
+
+<h2>4. Siapa yang dapat melihat data</h2>
+<ul>
+  <li>Proyek dapat dibaca anggota tim yang akunnya telah disetujui admin; yang dapat mengubah hanya pemilik, admin, dan petugas yang ditunjuk.</li>
+  <li>Profil petugas (alamat, foto, riwayat) hanya dapat dibaca pemiliknya dan admin.</li>
+</ul>
+
+<h2>5. Keamanan</h2>
+<p>Semua data dikirim melalui koneksi terenkripsi (HTTPS). Akses data di cloud dibatasi aturan keamanan Firestore. Cadangan otomatis Android untuk aplikasi ini dinonaktifkan.</p>
+
+<h2>6. Penyimpanan & penghapusan data</h2>
+<ul>
+  <li>Data disimpan selama akun aktif atau sampai Anda / admin menghapusnya.</li>
+  <li><b>Hapus akun</b>: di aplikasi, buka <i>Menu → Profil saya → Hapus akun</i>. Akun login, profil, dan notifikasi Anda dihapus; Anda dapat memilih untuk menghapus juga semua proyek & foto yang Anda buat. Bila Anda memilih tidak menghapus proyek, proyek tersebut tetap tersimpan sebagai data kerja tim/organisasi (nama pembuat tetap tercatat pada proyek).</li>
+  <li>Petunjuk & permintaan penghapusan tanpa aplikasi: <a href="hapus-akun.html">hapus-akun.html</a>.</li>
+</ul>
+
+<h2>7. Izin Android</h2>
+<ul>
+  <li><b>Lokasi (presisi & perkiraan)</b> — hanya saat aplikasi dipakai, untuk fitur GPS.</li>
+  <li><b>Internet</b> — login, sinkron cloud, peta.</li>
+  <li>Kamera & berkas dibuka melalui aplikasi kamera / pemilih berkas bawaan Android atas tindakan Anda; WASHLY tidak meminta izin penyimpanan.</li>
+</ul>
+
+<h2>8. Anak-anak</h2>
+<p>WASHLY adalah alat kerja teknis untuk petugas dewasa dan tidak ditujukan untuk anak-anak.</p>
+
+<h2>9. Perubahan</h2>
+<p>Perubahan kebijakan ini akan diumumkan di halaman ini dengan tanggal berlaku yang baru.</p>
+
+<h2>English summary</h2>
+<p>WASHLY collects account data (name, e-mail, role, organisation, optional phone), optional staff profiles, project data including GPS coordinates and photos, and in-app notifications, stored in Google Firebase to provide the app's planning and team features. Location is used only while the app is in use. No ads, no sale of data, no third-party analytics. Optional services (Anthropic AI with the user's own key, notification services) are used only when enabled. Users can delete their account in the app (Menu → Profil saya → Hapus akun) or via <a href="hapus-akun.html">this page</a>. Contact: <span class="todo">[FILL IN: contact e-mail]</span>.</p>
+</main></body>
+</html>

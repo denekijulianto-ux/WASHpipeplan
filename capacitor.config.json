@@ -1,0 +1,15 @@
+{
+  "appId": "com.washly.app",
+  "appName": "WASHLY",
+  "webDir": "www",
+  "android": {
+    "appendUserAgent": "WASHLY-Android",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#ffffff"
+  },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "native", "style": "DARK", "initialViewportFitValueHint": "auto" },
+    "SplashScreen": { "launchShowDuration": 600, "launchAutoHide": true, "launchFadeOutDuration": 250, "backgroundColor": "#ffffff", "androidScaleType": "CENTER_INSIDE", "showSpinner": false }
+  }
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Warna merek WASHLY -->
+    <color name="washly_navy">#12334A</color>
+    <color name="washly_blue">#1676C0</color>
+    <color name="washly_aqua">#27B9D6</color>
+    <color name="washly_lime">#B8DF63</color>
+    <color name="colorPrimary">#1676C0</color>
+    <color name="colorPrimaryDark">#12334A</color>
+    <color name="colorAccent">#27B9D6</color>
+    <color name="splash_background">#FFFFFF</color>
+</resources>

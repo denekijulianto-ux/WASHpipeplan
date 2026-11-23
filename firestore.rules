@@ -26,6 +26,8 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.status == 'pending';
       allow update, delete: if isAdmin();
+      // pengguna boleh menghapus akunnya sendiri (fitur "Hapus akun", wajib Google Play)
+      allow delete: if request.auth != null && request.auth.uid == uid;
       // pengguna boleh memperbarui namanya sendiri (dari profil)
       allow update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']);

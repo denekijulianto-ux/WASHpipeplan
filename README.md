@@ -9,6 +9,13 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - `manifest.webmanifest`, `sw.js`, `icons/`: membuat aplikasi bisa dipasang di HP dan tetap jalan offline.
 - `build.js`, `package.json`: skrip build.
 
+## Aplikasi Android (Google Play)
+WASHLY juga tersedia sebagai aplikasi Android (`com.washly.app`, Capacitor 8). Aplikasinya sama dengan versi web: satu kode sumber, backend Firebase yang sama.
+- Build APK/AAB, penandatanganan, dan cara update: lihat **[ANDROID.md](ANDROID.md)**.
+- Materi Google Play (deskripsi, Data safety, content rating, panduan rilis): lihat **[store-assets/PLAY-STORE.md](store-assets/PLAY-STORE.md)**.
+- Kebijakan privasi: `privacy.html`. Petunjuk hapus akun: `hapus-akun.html`. Keduanya masih draf; lengkapi bagian `[ISI]`.
+- Hapus akun sendiri: *Menu → Profil saya → Hapus akun* (wajib Google Play). Terbitkan ulang `firestore.rules` agar fitur ini berjalan.
+
 ## Sinkron otomatis HP ↔ PC
 - Data yang dipetakan di HP (titik, pipa, jejak GPS, foto, bangunan) tersimpan ke cloud ± 1–2 detik setelah diubah. Bila HP offline, data disimpan di HP dan dikirim begitu ada sinyal.
 - PC yang membuka proyek yang sama memuat perubahan itu **otomatis**, tanpa impor: muncul pesan *"Data terbaru dari HP (nama petugas) dimuat otomatis"*.

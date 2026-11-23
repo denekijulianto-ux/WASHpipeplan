@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WASHLY</string>
+    <string name="title_activity_main">WASHLY</string>
+    <string name="package_name">com.washly.app</string>
+    <string name="custom_url_scheme">com.washly.app</string>
+    <string name="app_tagline">Simplify the Flow.</string>
+</resources>
