@@ -79,4 +79,8 @@ jobs:
           fi
       - name: Deploy Cloud Functions
         if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
-        run: firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force
+        run: |
+          # Deploy 2nd gen pertama kali: izin Eventarc/Pub/Sub kadang butuh beberapa menit; ulangi sekali bila gagal
+          firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force || { echo "Mengulang deploy dalam 2 menit…"; sleep 120; firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force; }
+          # Hapus image fungsi lama otomatis (hindari biaya penyimpanan kecil yang menumpuk)
+          firebase functions:artifacts:setpolicy --location asia-southeast2 --days 7 --project "$PROJECT_ID" --non-interactive --force || true
