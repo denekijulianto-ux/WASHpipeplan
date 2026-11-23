@@ -10,7 +10,7 @@ const FEATURES = {
   calc_basic:           { free: true,      pro: true, id: 'Kalkulator kebutuhan air & jumlah node', en: 'Water demand & node count calculator' },
   pump_basic:           { free: true,      pro: true, id: 'Head, daya & kurva pompa sumur bor', en: 'Borehole pump head, power & curve' },
   boq_cost:             { free: true,      pro: true, id: 'BoQ & RAB umum (volume, harga bawaan, ubah harga satuan)', en: 'General BoQ & cost estimate (quantities, default prices, edit unit prices)' },
-  report_print:         { free: true,      pro: true, id: 'Cetak laporan teknis (tanpa RAB)', en: 'Print technical report (without cost estimate)' },
+  report_preview:       { free: true,      pro: true, id: 'Pratinjau laporan teknis (bertanda air)', en: 'Technical report preview (watermarked)' },
   data_export:          { free: true,      pro: true, id: 'Simpan/muat .json & .gpx', en: 'Save/load .json & .gpx' },
   assistant_offline:    { free: true,      pro: true, id: 'Asisten (basis pengetahuan luring)', en: 'Assistant (offline knowledge base)' },
   cloud_projects:       { free: 'limited', pro: true, id: 'Proyek tersimpan di cloud', en: 'Projects stored in the cloud' },
@@ -19,6 +19,7 @@ const FEATURES = {
   pump_advanced:        { free: false,     pro: true, id: 'Daya pompa min/ideal/maks, spesifikasi pengadaan & paket all-in', en: 'Min/ideal/max pump power, procurement spec & all-in package' },
   treatment_design:     { free: false,     pro: true, id: 'Desain pengolahan air (aerator, filter, membran)', en: 'Water treatment design (aerator, filters, membranes)' },
   rab_advanced:         { free: false,     pro: true, id: 'RAB lanjutan: SHS/IKK provinsi, tingkat spesifikasi, edit item', en: 'Advanced cost estimate: provincial SHS/IKK, spec tiers, item editing' },
+  report_print:         { free: false,     pro: true, id: 'Cetak / PDF laporan teknis', en: 'Print / PDF of the technical report' },
   rab_print:            { free: false,     pro: true, id: 'Cetak RAB', en: 'Print cost estimate' },
   esign:                { free: false,     pro: true, id: 'Review & tanda tangan elektronik', en: 'Review & electronic signatures' },
   custom_logo:          { free: false,     pro: true, id: 'Ganti logo instansi', en: 'Custom organisation logo' },
@@ -31,6 +32,7 @@ const FEATURES = {
   ai_assistant:         { free: false,     pro: true, id: 'Mode AI (Claude) di Asisten', en: 'AI mode (Claude) in the Assistant' },
 };
 
+const FEATURES_REV = 2;
 const DEFAULT_CONFIG = {
   version: 1,
   currency: 'IDR',
@@ -80,6 +82,9 @@ function validateConfig(input) {
   if (!Object.values(plans).some(p => p.tier === 'PRO' && p.active)) errors.push('Minimal satu paket PRO aktif');
   out.plans = plans;
   const feats = {};
+  // Revisi katalog: konfigurasi lama (rev < 2) masih menyimpan report_print gratis → pakai bawaan baru (cetak laporan khusus PRO)
+  const oldRev = (Number(c.featuresRev) || 1) < FEATURES_REV; if (oldRev && out.features) { out.features = { ...out.features }; delete out.features.report_print; }
+  out.featuresRev = FEATURES_REV;
   for (const k of Object.keys(FEATURES)) { const f = (out.features || {})[k] || DEFAULT_CONFIG.features[k];
     feats[k] = { free: f.free === true ? true : f.free === 'limited' ? 'limited' : false, pro: true }; }
   out.features = feats;

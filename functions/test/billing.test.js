@@ -28,10 +28,10 @@ function setup({ enforce = true } = {}) {
   return { db, s, clock, mid, play, pushes, seedUser, auth, midSettle, ent };
 }
 
-test('katalog FREE: dasar saja; cetak RAB, e-sign, logo, kalkulator & RAB lanjutan khusus PRO', () => {
+test('katalog FREE: dasar saja; cetak laporan, cetak RAB, e-sign, logo, kalkulator & RAB lanjutan khusus PRO', () => {
   const f = DEFAULT_CONFIG.features;
-  for (const k of ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print']) assert.equal(f[k].free, true, k);
-  for (const k of ['rab_print', 'esign', 'custom_logo', 'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced', 'ded_print']) assert.equal(f[k].free, false, k);
+  for (const k of ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_preview']) assert.equal(f[k].free, true, k);
+  for (const k of ['rab_print', 'esign', 'custom_logo', 'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced', 'ded_print', 'report_print']) assert.equal(f[k].free, false, k);
   const e = L.resolveEntitlement([], DEFAULT_CONFIG, Date.now()); assert.equal(e.tier, 'FREE'); assert.equal(e.features.esign, false); assert.equal(e.features.calc_basic, true);
 });
 
@@ -386,4 +386,11 @@ test('Webhook: notifikasi uji dari dashboard (order tak dikenal Midtrans) diabai
   const r = await s.handleMidtransNotification({ ...n, signature_key: sign(n) });
   assert.equal(r.ignored, 'unknown transaction');
   assert.equal((await db.collection('webhook_events').get()).docs[0].data().status, 'IGNORED');
+});
+
+test('migrasi katalog: konfigurasi lama dengan cetak laporan gratis → cetak laporan khusus PRO, pratinjau tetap FREE', () => {
+  const old = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); delete old.featuresRev; delete old.features.report_preview; old.features.report_print = { free: true, pro: true };
+  const v = validateConfig(old); assert.equal(v.ok, true); assert.equal(v.config.features.report_print.free, false); assert.equal(v.config.features.report_preview.free, true); assert.equal(v.config.featuresRev, 2);
+  const v2 = JSON.parse(JSON.stringify(v.config)); v2.features.report_print.free = true; assert.equal(validateConfig(v2).config.features.report_print.free, true, 'admin tetap bisa membuka lagi lewat dasbor');
+  const e = L.resolveEntitlement([], v.config, Date.now()); assert.equal(e.features.report_print, false);
 });

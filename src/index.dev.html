@@ -9113,6 +9113,22 @@ function netStrip(p) {
     pipes: p.pipes.map(x => ({ id: x.id, label: x.label, from: x.from, to: x.to, material: x.material, diameter: x.diameter, ...(x.path ? { path: x.path } : {}) })),
     structures: [], photos: [], tracks: [], cloud: { id: p.cloud.id, ownerUid: p.cloud.ownerUid, ownerName: p.cloud.ownerName, status: p.cloud.status, netOnly: true } });
 }
+// Pratinjau laporan untuk paket FREE: dokumen yang sama dengan cetakan, dengan tanda air di seluruh halaman dan tanpa cetak
+const wmSvg = () => { const en = window.WASHLY_LANG === 'en'; return 'url("data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340"><g transform="rotate(-28 300 170)" font-family="Arial,sans-serif" font-weight="700" fill="#0e7490" fill-opacity="0.13" text-anchor="middle"><text x="300" y="160" font-size="30">' + (en ? 'PREVIEW' : 'PRATINJAU') + ' · WASHLY FREE</text><text x="300" y="198" font-size="16">' + (en ? 'Print &amp; PDF only with WASHLY PRO' : 'Cetak &amp; PDF hanya untuk WASHLY PRO') + '</text></g></svg>') + '")'; };
+function ReportPreview({ project, hyd, boq, rab, onClose }) {
+  useEffect(() => { const k = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); Billing.set({ ask: 'report_print' }); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  return <div className="fixed inset-0 z-[2100] bg-black/50 flex flex-col" onClick={onClose}>
+    <div className="bg-deep text-white px-4 py-2.5 flex flex-wrap items-center gap-2" onClick={e => e.stopPropagation()}>
+      <Icon name="FileText" size={17} /><b className="flex-1 min-w-[180px]">Pratinjau laporan teknis <span className="ml-1 rounded-full bg-white/15 border border-white/25 px-2 py-0.5 text-[10.5px]" data-noi18n>FREE</span></b>
+      <span className="text-[12px] text-aqua-100 hidden sm:inline">Tinjau isi laporan di layar. Cetak &amp; PDF tanpa tanda air tersedia di WASHLY PRO.</span>
+      <Btn id="rp-print-pro" variant="primary" icon="Printer" onClick={() => Billing.set({ ask: 'report_print' })}>Cetak laporan · PRO</Btn>
+      <Btn variant="dark" icon="X" onClick={onClose} title="Tutup">Tutup</Btn></div>
+    <div id="report-preview" className="flex-1 overflow-auto p-3 sm:p-6" onClick={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()} style={{ userSelect: 'none' }}>
+      <div className="relative bg-white mx-auto shadow-xl" style={{ width: '210mm', maxWidth: 'none', padding: '14mm 12mm' }}>
+        <PrintRoot mode="report" project={project} hyd={hyd} boq={boq} rab={rab} />
+        <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ backgroundImage: wmSvg(), backgroundRepeat: 'repeat', zIndex: 5 }} />
+      </div></div></div>;
+}
 function NetViewer({ project: full, mobile }) {
   const project = useMemo(() => netStrip(full), [full]); const hyd = useMemo(() => computeHydraulics(project), [project]);
   const [sel, setSel] = useState(null); const [fit, setFit] = useState(1);
@@ -9150,13 +9166,14 @@ const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && wi
 // Label fitur (kuncinya sama dengan functions/src/config.js)
 const FEAT = {
   map_survey: ['Pemetaan, GPS & survei lapangan'], hydraulics: ['Analisis hidrolis jaringan'], calc_basic: ['Kalkulator kebutuhan air & jumlah node'],
-  pump_basic: ['Head, daya & kurva pompa sumur bor'], boq_cost: ['BoQ & RAB umum (volume, harga bawaan, ubah harga satuan)'], report_print: ['Cetak laporan teknis (tanpa RAB)'],
+  pump_basic: ['Head, daya & kurva pompa sumur bor'], boq_cost: ['BoQ & RAB umum (volume, harga bawaan, ubah harga satuan)'], report_preview: ['Pratinjau laporan teknis (bertanda air)'],
   data_export: ['Simpan/muat .json & .gpx'], assistant_offline: ['Asisten (basis pengetahuan luring)'],
   cloud_projects: ['Proyek tersimpan di cloud', 'Paket FREE menyimpan proyek di cloud dengan batas jumlah. PRO tanpa batas (sesuai kapasitas sistem), sehingga semua pekerjaan tim tersinkron antarperangkat.'],
   calc_advanced: ['Kalkulator debit sumber & daya pompa', 'Kalkulator debit sumber air (ember, pelampung, V-notch, uji pompa, embung, air hujan) dan daya pompa sumur bor memakai perhitungan lanjutan.'],
   pump_advanced: ['Daya pompa min/ideal/maks, spesifikasi pengadaan & paket all-in', 'Perbandingan daya motor minimal/ideal/maksimal, tabel spesifikasi pompa untuk pengadaan, dan estimasi paket sumur bor all-in.'],
   treatment_design: ['Desain pengolahan air (aerator, filter, membran)', 'Desain instalasi pengolahan air lengkap: aerator, filter media & FRP, membran, filter rumah tangga, beserta gambar dan RAB-nya.'],
   rab_advanced: ['RAB lanjutan: SHS/IKK provinsi, tingkat spesifikasi, edit item', 'Penyesuaian harga provinsi (IKK), impor & pencocokan SHS resmi, rekomendasi spesifikasi minimal/ideal/maksimal, dan pengeditan item RAB.'],
+  report_print: ['Cetak / PDF laporan teknis', 'Laporan teknis siap cetak / PDF untuk dokumen perencanaan. Di paket FREE, laporan bisa ditinjau di layar dengan tanda air.'],
   rab_print: ['Cetak RAB', 'Rincian RAB siap cetak untuk dokumen anggaran. Di paket FREE, RAB tetap bisa dilihat di aplikasi.'],
   esign: ['Review & tanda tangan elektronik', 'Alur pemeriksaan & persetujuan dengan tanda tangan elektronik yang terikat sidik jari dokumen.'],
   custom_logo: ['Ganti logo instansi', 'Logo instansi Anda tampil di aplikasi, kop setiap lembar gambar, dan sampul laporan.'],
@@ -9168,9 +9185,9 @@ const FEAT = {
   manual_drawing: ['Gambar manual di lembar DED', 'Alat gambar manual untuk menyempurnakan dan menambah lembar DED.'],
   ai_assistant: ['Mode AI (Claude) di Asisten', 'Mode AI menjawab pertanyaan bebas memakai model Claude dengan konteks proyek Anda.'],
 };
-const FEAT_ORDER = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print', 'data_export', 'assistant_offline', 'cloud_projects',
-  'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced', 'rab_print', 'esign', 'custom_logo', 'ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'];
-const FEAT_FREE = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print', 'data_export', 'assistant_offline'];
+const FEAT_ORDER = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_preview', 'data_export', 'assistant_offline', 'cloud_projects',
+  'report_print', 'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced', 'rab_print', 'esign', 'custom_logo', 'ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'];
+const FEAT_FREE = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_preview', 'data_export', 'assistant_offline'];
 const BILLING_DEFAULT = {
   enforce: false, currency: 'IDR', graceDays: 3, reminderDays: [7, 1], pendingHours: 24, freeLimits: { cloudProjects: 3 },
   paymentsPublic: false,
@@ -9344,7 +9361,7 @@ function useBillingSync(api, user) {
     uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; if (!c) { noCfg(); return; }
       // 'enforce' tidak ada → ikuti auth-config (bawaan: pembatasan aktif); hanya false eksplisit yang mematikan
       const enf = c.enforce === undefined ? BILLING_CFG.enforce !== false : !!c.enforce;
-      Billing.set({ config: { ...BILLING_DEFAULT, ...c, enforce: enf, features: { ...BILLING_DEFAULT.features, ...(c.features || {}) } }, managed: enf }); save(); }, noCfg));
+      Billing.set({ config: { ...BILLING_DEFAULT, ...c, enforce: enf, features: { ...BILLING_DEFAULT.features, ...(c.features || {}), ...((Number(c.featuresRev) || 1) < 2 ? { report_print: BILLING_DEFAULT.features.report_print } : {}) } }, managed: enf }); save(); }, noCfg));
     uns.push(db.collection('entitlements').doc(user.uid).onSnapshot(d => { Billing.set({ ent: d.exists ? d.data() : null }); save(); }, () => {}));
     let usageDoc = null, ownCount = 0; const setUsage = () => { Billing.set({ usage: Math.max(usageDoc ?? 0, ownCount) }); save(); };
     uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => { usageDoc = d.exists ? d.data().cloudProjects || 0 : null; setUsage(); }, () => {}));
@@ -9748,7 +9765,7 @@ function App({ user, api }) {
   const [tab, setTab] = useState('map');
   const [selection, setSelection] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
-  const [printMode, setPrintMode] = useState(null);
+  const [printMode, setPrintMode] = useState(null); const [reportPreview, setReportPreview] = useState(false);
   const [dialog, setDialog] = useState(false); const [calcOpen, setCalcOpen] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
@@ -10024,7 +10041,9 @@ function App({ user, api }) {
   const openProject = async (it) => { saveCurrentLocal(); const p = await fetchProject(it); switchTo(p); setLibOpen(false); setToast(`Membuka "${p.meta.name}"`); };
   // Batas proyek cloud paket FREE (ditegakkan juga oleh firestore.rules)
   const netMsg = () => setToast('Proyek milik pengguna lain hanya dapat dilihat jaringan pipanya.');
-  const printAs = (m) => { if (netOnly) { netMsg(); return; } if (m === 'ded' && !Billing.require('ded_print')) return; setPrintMode(m); };
+  const printAs = (m) => { if (netOnly) { netMsg(); return; } if (m === 'ded' && !Billing.require('ded_print')) return;
+    if (m === 'report' && !Billing.has('report_print')) { setReportPreview(true); return; } // FREE: tinjau di layar dengan tanda air, tanpa cetak
+    setPrintMode(m); };
   const newProject = (base, label) => { if (store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
     if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
   const duplicateProject = async (it) => { if (store && it.ownerUid && it.ownerUid !== user.uid && !user.admin) { setToast('Proyek milik pengguna lain tidak dapat disalin.'); return; } const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
@@ -10305,7 +10324,8 @@ function App({ user, api }) {
       <Btn icon="FolderOpen" onClick={async () => { const it = remoteNew; setRemoteNew(null); try { await openProject({ id: it.id, rev: it.rev }); } catch (e) { setToast(e.message || 'Proyek tidak dapat dibuka'); } }}>Buka</Btn>
       <button type="button" className="p-1 text-slate-500" title="Tutup" onClick={() => setRemoteNew(null)}><Icon name="X" size={15} /></button></div>}
     {toast && <div className="fixed bottom-20 lg:bottom-12 max-w-[92vw] text-center left-1/2 -translate-x-1/2 z-[2200] bg-deep text-white text-[13px] rounded-md px-4 py-2 shadow-lg">{toast}</div>}
-    <div id="print-root">{printMode && <PrintRoot mode={printMode} project={project} hyd={hyd} boq={boq} rab={rab} />}</div>
+    {reportPreview && !printMode && <ReportPreview project={project} hyd={hyd} boq={boq} rab={rab} onClose={() => setReportPreview(false)} />}
+    <div id="print-root">{printMode ? <PrintRoot mode={printMode} project={project} hyd={hyd} boq={boq} rab={rab} /> : reportPreview ? <div className="rp" style={{ padding: '40mm 20mm', textAlign: 'center' }}><h1>WASHLY</h1><p>Cetak laporan teknis hanya tersedia di <b>WASHLY PRO</b>. Upgrade di menu Langganan.</p></div> : null}</div>
   </>;
 }
 
