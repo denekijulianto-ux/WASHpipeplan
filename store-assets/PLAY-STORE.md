@@ -59,8 +59,8 @@ New accounts become active after approval by an organisation admin.
 * **Category:** *Productivity*. Alternatives: *Tools*, *Business*. **[YOU]** pick one.
 * **Tags:** engineering, water, maps, productivity.
 * **Contact e-mail (required):** `washlywater@gmail.com`
-* **Website:** `https://denekijulianto-ux.github.io/WASHpipeplan/` (optional).
-* **Privacy policy URL (required):** `https://denekijulianto-ux.github.io/WASHpipeplan/privacy.html` (completed; check the page opens before entering it).
+* **Website:** `https://washlywater.github.io/` (optional).
+* **Privacy policy URL (required):** `https://washlywater.github.io/privacy.html` (completed; check the page opens before entering it).
 
 ## 3. App content declarations (Play Console → Policy → App content)
 

@@ -415,7 +415,7 @@ Aplikasi meminta **Daftar / Masuk** sebelum dipakai. Data proyek dipisah per aku
 2. *Build → Authentication → Get started → Email/Password* → aktifkan.
 3. *Build → Firestore Database → Create database* (mode produksi, lokasi `asia-southeast2` / Jakarta).
 4. *Firestore → Rules*: tempel isi `firestore.rules`, ganti `admin@organisasi.org` dengan email admin → *Publish*.
-5. *Authentication → Settings → Authorized domains*: tambahkan domain GitHub Pages Anda (mis. `washly-ux.github.io`).
+5. *Authentication → Settings → Authorized domains*: tambahkan domain GitHub Pages Anda (mis. `washlywater.github.io`).
 6. *Project settings → General → Your apps → Web (</>)* → daftarkan aplikasi → salin `firebaseConfig`.
 7. Edit `auth-config.js` di GitHub: tempel konfigurasi ke `firebase: {...}` dan isi `adminEmails` → *Commit*. Situs diperbarui dalam 1–2 menit.
 8. Admin mendaftar dengan email admin, klik tautan verifikasi di email, keluar lalu masuk lagi. Pendaftar lain disetujui lewat **Kelola pengguna**.

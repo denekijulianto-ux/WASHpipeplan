@@ -13,29 +13,16 @@ Langkah di bawah ini butuh akun, perangkat, atau tanda tangan Anda sendiri. Kerj
 
 ---
 
-## Langkah 0 (opsional, disarankan sebelum Play Store) — Alamat web tanpa nama pribadi
-Alamat GitHub Pages selalu berbentuk `<pemilik>.github.io/<nama-repo>`. Supaya tidak memuat nama pribadi, pindahkan repositori ke **organisasi GitHub** bernama `washly-ux`. Gratis.
+## Langkah 0 — Alamat web tanpa nama pribadi (1 klik)
+Repo WASHLY sudah berada di akun GitHub **washlywater**. Tinggal satu klik agar situs tayang di **https://washlywater.github.io/**:
 
-1. Buka <https://github.com/account/organizations/new?plan=free>.
-   - *Organization name:* `washly-ux`. Bila sudah dipakai orang lain, coba `washlyapp` / `washly-water`.
-   - *Contact email:* `washlywater@gmail.com`.
-   - *This organization belongs to:* **My personal account** → *Next* → lewati undangan anggota.
-2. Buka repo <https://github.com/denekijulianto-ux/WASHpipeplan> → **Settings** → **General**.
-3. **Ganti nama repo** (*Repository name*) menjadi `washly-ux.github.io` → *Rename*. Dengan nama ini alamatnya menjadi **https://washly-ux.github.io/** tanpa garis miring tambahan.
-   - Bila lebih suka `https://washly-ux.github.io/washly/`, beri nama repo `washly` saja.
-4. Masih di Settings → **Danger Zone** → **Transfer ownership** → pilih organisasi `washly-ux` → ketik nama repo untuk konfirmasi → *Transfer*.
-5. Di repo yang sudah pindah: **Settings → Pages** → *Source*: **Deploy from a branch**, *Branch*: `main` / `(root)` → *Save*. Tunggu ± 5 menit, lalu buka `https://washly-ux.github.io/`.
-6. Firebase Console → **Authentication → Settings → Authorized domains** → *Add domain* → `washly-ux.github.io`.
-7. Kabari saya di chat. Saya akan:
-   - mengganti semua alamat di dokumen dan panduan Play Store;
-   - menyambungkan sesi ini ke repo baru.
+1. Buka <https://github.com/washlywater/washly-ux.github.io/settings> (login sebagai **washlywater**).
+2. Kotak **Repository name** paling atas: hapus isinya, ketik `washlywater.github.io` → klik **Rename**.
+3. Tunggu ± 5 menit, lalu buka <https://washlywater.github.io/>. Halaman login WASHLY harus muncul.
+4. Firebase Console → **Authentication → Settings → Authorized domains** → *Add domain* → `washlywater.github.io`.
+   Link langsung: <https://console.firebase.google.com/project/washpipe-93f48/authentication/settings>
 
-Catatan:
-* Alamat lama `denekijulianto-ux.github.io/WASHpipeplan` **berhenti bekerja** setelah transfer (GitHub tidak mengalihkannya).
-  - Data cloud (Firebase) **tidak hilang**; pengguna cukup membuka alamat baru dan login lagi.
-  - Ikon web-app yang sudah terpasang di HP dari alamat lama perlu dipasang ulang dari alamat baru.
-* Aplikasi Android **tidak terpengaruh**, karena semua berkasnya ada di dalam aplikasi.
-* Nama di repo Git untuk penyimpanan kode tetap terlihat oleh Anda saja bila repo dibuat privat. GitHub Pages pada repo privat memerlukan paket berbayar, jadi biarkan repo **publik**.
+Catatan: semua dokumen & panduan ini sudah memakai alamat baru. Data cloud tidak berubah; pengguna web cukup membuka alamat baru dan login. Aplikasi Android tidak terpengaruh.
 
 ## Langkah 1 — Amankan kunci upload (5 menit) ⚠️ PALING PENTING
 File `washly-upload.jks` dan `keystore.properties` sudah dikirim ke chat.
@@ -57,8 +44,8 @@ Ini wajib agar fitur **Hapus akun** berjalan.
 
 ## Langkah 3 — Cek halaman privasi online (1 menit)
 Buka kedua alamat ini di browser HP atau laptop. Pastikan halamannya tampil dan e-mail washlywater@gmail.com terlihat.
-- <https://denekijulianto-ux.github.io/WASHpipeplan/privacy.html>
-- <https://denekijulianto-ux.github.io/WASHpipeplan/hapus-akun.html>
+- <https://washlywater.github.io/privacy.html>
+- <https://washlywater.github.io/hapus-akun.html>
 
 Bila muncul "404", tunggu 5–10 menit (GitHub Pages sedang memperbarui), lalu muat ulang.
 
@@ -101,7 +88,7 @@ Lalu buka **Grow → Store presence → Main store listing**:
 * **Feature graphic:** `feature-graphic-1024x500.png`
 * **Phone screenshots:** screenshot dari Langkah 4 (atau draf di folder `screenshots/`).
 * **Category:** Productivity · **Email:** `washlywater@gmail.com`
-* **Privacy policy:** `https://denekijulianto-ux.github.io/WASHpipeplan/privacy.html`
+* **Privacy policy:** `https://washlywater.github.io/privacy.html`
 
 ## Langkah 7 — Buat akun untuk reviewer Google (5 menit)
 Reviewer Google perlu bisa masuk ke aplikasi, sedangkan akun baru harus disetujui admin dulu.
@@ -120,7 +107,7 @@ Semuanya di **Policy → App content**.
 | **Target audience** | 18 and over |
 | **News app** | No |
 | **Data safety** | Ikuti tabel di `PLAY-STORE.md` §4. Dienkripsi saat transit: **Yes**. Pengguna bisa minta hapus data: **Yes**. Lokasi presisi & konten pengguna: **dibagikan** (sudah diputuskan). Tidak ada iklan/analitik. |
-| **Account deletion** | Delete account URL: `https://denekijulianto-ux.github.io/WASHpipeplan/hapus-akun.html` |
+| **Account deletion** | Delete account URL: `https://washlywater.github.io/hapus-akun.html` |
 | **Government app** | No (kecuali dirilis atas nama instansi pemerintah) |
 | **Financial features / Health** | None |
 
