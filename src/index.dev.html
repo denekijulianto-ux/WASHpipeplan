@@ -8459,8 +8459,10 @@ async function makeFirebaseAuth() {
     async resendVerify() { if (auth.currentUser) await auth.currentUser.sendEmailVerification().catch(e => { throw new Error(fbErr(e)); }); },
     async listUsers() { if (auth.currentUser) { await auth.currentUser.reload().catch(() => {}); await auth.currentUser.getIdToken(true).catch(() => {}); }
       const q = await db.collection('users').get().catch(e => { throw new Error(fbErr(e)); });
-      const pm = {}; if (auth.currentUser && isAdm(auth.currentUser.email)) { const pq = await db.collection('profiles').get().catch(() => null); if (pq) pq.docs.forEach(d => { pm[d.id] = d.data().profile; }); }
-      return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, profile: pm[d.id] || null, status: isAdm(x.email) ? 'approved' : liveStatus(x.status), rawStatus: x.status, admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
+      const pm = {}, em = {}; if (auth.currentUser && isAdm(auth.currentUser.email)) { const pq = await db.collection('profiles').get().catch(() => null); if (pq) pq.docs.forEach(d => { pm[d.id] = d.data().profile; });
+        const eq = await db.collection('entitlements').get().catch(() => null); if (eq) eq.docs.forEach(d => { em[d.id] = d.data(); }); }
+      const planOf = (id, email) => isAdm(email) ? 'ADMIN' : em[id] && em[id].tier === 'PRO' && (em[id].accessUntil || 0) > Date.now() ? 'PRO' : 'FREE';
+      return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, profile: pm[d.id] || null, status: isAdm(x.email) ? 'approved' : liveStatus(x.status), rawStatus: x.status, plan: planOf(d.id, x.email), admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
     async setStatus(id, status) { await db.collection('users').doc(id).update({ status }).catch(e => { throw new Error(fbErr(e)); }); },
     async setReview(id, review) { await db.collection('users').doc(id).update({ review }).catch(e => { throw new Error(fbErr(e)); }); },
     async getUser(id) { const d = await db.collection('users').doc(id).get().catch(e => { throw new Error(fbErr(e)); }); if (!d.exists) return null; const x = d.data();
@@ -8655,13 +8657,14 @@ function UserAdminDialog({ api, me, onClose, onProfile }) {
       <div className="flex items-center justify-between px-5 py-3 border-b border-line"><h2 className="font-semibold flex items-center gap-2"><Icon name="UserRound" size={17} className="text-aqua-600" />Kelola pengguna {nPend > 0 && <span className="pill s-low">{nPend} menunggu</span>}</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
       <div className="p-5 overflow-y-auto space-y-3 text-[13px]">
         <p className="text-slate-600 rounded-md bg-aqua-50 border border-aqua-100 px-3 py-2"><b>Hak review:</b> centang <i>Pemeriksa</i> / <i>Penyetuju</i> pada pengguna yang boleh dipilih saat proyek diajukan. Tidak semua staf harus menjadi pemeriksa; jabatan di profil tidak menentukan hak ini. Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.</p>
-        <p className="text-slate-600">{AUTH_MODE === 'firebase' ? 'Pengguna terdaftar di semua perangkat. Setujui akun agar pemiliknya dapat memakai aplikasi; tangguhkan untuk mencabut akses.' : 'Mode lokal: daftar ini hanya berisi akun di perangkat ini.'}</p>
+        <p className="text-slate-600">{AUTH_MODE === 'firebase' ? 'Akun baru langsung aktif dengan paket FREE (label FREE/PRO/ADMIN di samping nama). Tangguhkan untuk mencabut akses; tombol Aktifkan muncul untuk akun lama yang masih tercatat menunggu.' : 'Mode lokal: daftar ini hanya berisi akun di perangkat ini.'}</p>
         {AUTH_MODE === 'firebase' && me.admin && me.verified === false && <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900">Verifikasi email admin Anda dulu (cek kotak masuk), lalu keluar dan masuk lagi, agar aturan keamanan mengizinkan Anda mengelola pengguna.</div>}
         {err && <div className="rounded-md bg-red-50 text-red-800 px-3 py-2">{err}</div>}
         {!users && <p className="text-slate-500">Memuat…</p>}
         {users && users.map(u => <div key={u.uid} className="rounded-lg border border-line p-3 flex flex-wrap items-center gap-3">
           <Avatar src={u.profile?.photo} name={u.profile?.fullName || u.name} size={40} />
-          <div className="flex-1 min-w-[200px]"><div className="font-semibold">{u.profile?.fullName || u.name} {u.admin && <span className="pill s-src ml-1">admin</span>} {u.uid === me.uid && <span className="pill s-idle ml-1">Anda</span>}</div>
+          <div className="flex-1 min-w-[200px]"><div className="font-semibold">{u.profile?.fullName || u.name} {u.admin && <span className="pill s-src ml-1">admin</span>} {u.uid === me.uid && <span className="pill s-idle ml-1">Anda</span>}
+            {BILLING_CFG.enabled && u.plan && <span data-noi18n title="Paket langganan" className={'ml-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold ' + (u.plan === 'PRO' ? 'bg-amber-300 text-slate-900' : u.plan === 'ADMIN' ? 'bg-deep text-white' : 'bg-slate-200 text-slate-700')}>{u.plan}</span>}</div>
             <div className="text-[12px] text-slate-500">{[u.email, u.role, u.profile?.pmi || u.org, u.phone].filter(Boolean).join(' · ')}</div>
             {onProfile && <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline" onClick={() => onProfile(u.uid)}>Lihat profil{u.profile ? ` · ${(u.profile.history || []).length} riwayat penugasan` : ' (belum diisi)'}</button>}
             {u.createdAt > 0 && <div className="text-[11px] text-slate-400">Daftar {new Date(u.createdAt).toLocaleString(LOCALE, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}</div>
@@ -8996,7 +8999,7 @@ function useInbox(api, user) {
 function usePendingUsers(api, user) {
   const [pend, setPend] = useState([]); const [fresh, setFresh] = useState(null); const seen = useRef(null);
   useEffect(() => { if (!user || !user.admin || !api) return;
-    const apply = (list) => { if (seen.current) { const nw = list.filter(u => !seen.current.has(u.uid)); if (nw.length) { setFresh(nw[0]); browserNotify('Pendaftar baru', `${nw[0].name || nw[0].email} menunggu persetujuan.`, 'reg-' + nw[0].uid); } }
+    const apply = (list) => { if (seen.current) { const nw = list.filter(u => !seen.current.has(u.uid)); if (nw.length) { setFresh(nw[0]); browserNotify('Pendaftar baru', `${nw[0].name || nw[0].email} perlu diaktifkan.`, 'reg-' + nw[0].uid); } }
       seen.current = new Set(list.map(u => u.uid)); setPend(list); };
     if (api.db) return api.db.collection('users').where('status', '==', 'pending').onSnapshot(s => apply(s.docs.map(d => ({ uid: d.id, ...d.data() }))), () => {});
     const poll = () => api.listUsers().then(l => apply(l.filter(u => u.status === 'pending'))).catch(() => {}); poll(); const t = setInterval(poll, 15000); return () => clearInterval(t);
@@ -9200,6 +9203,7 @@ const Billing = (() => {
 })();
 function useBilling() { return React.useSyncExternalStore(Billing.subscribe, Billing.get); }
 const billingAvailable = (api) => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
+const paymentsOpen = () => BILLING_CFG.payments !== false; // false: Cloud Functions/Midtrans belum siap
 
 // Panggil Cloud Function (protokol callable) dengan token login Firebase pengguna
 async function callFn(name, data = {}) {
@@ -9241,9 +9245,14 @@ function useBillingSync(api, user) {
     try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c) Billing.set({ ...c, uid: user.uid, admin: !!user.admin }); } catch (e) {}
     const save = () => { try { const s = Billing.get(); localStorage.setItem(key, JSON.stringify({ managed: s.managed, config: s.config, ent: s.ent, usage: s.usage })); } catch (e) {} };
     const db = api.db; const uns = [];
-    uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; Billing.set({ config: c ? { ...BILLING_DEFAULT, ...c, features: { ...BILLING_DEFAULT.features, ...(c.features || {}) } } : null, managed: !!(c && c.enforce) }); save(); }, () => {}));
+    // Konfigurasi belum ada di server (Cloud Functions belum di-deploy) atau belum terbaca → pakai paket bawaan dan tetap batasi ke FREE
+    const noCfg = () => { Billing.set({ config: { ...BILLING_DEFAULT, enforce: BILLING_CFG.enforce !== false }, managed: BILLING_CFG.enforce !== false }); save(); };
+    uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; if (!c) { noCfg(); return; }
+      Billing.set({ config: { ...BILLING_DEFAULT, ...c, features: { ...BILLING_DEFAULT.features, ...(c.features || {}) } }, managed: !!c.enforce }); save(); }, noCfg));
     uns.push(db.collection('entitlements').doc(user.uid).onSnapshot(d => { Billing.set({ ent: d.exists ? d.data() : null }); save(); }, () => {}));
-    uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => { Billing.set({ usage: d.exists ? d.data().cloudProjects || 0 : 0 }); save(); }, () => {}));
+    let usageDoc = null, ownCount = 0; const setUsage = () => { Billing.set({ usage: Math.max(usageDoc ?? 0, ownCount) }); save(); };
+    uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => { usageDoc = d.exists ? d.data().cloudProjects || 0 : null; setUsage(); }, () => {}));
+    uns.push(db.collection('projects').where('ownerUid', '==', user.uid).onSnapshot(q => { ownCount = q.size != null ? q.size : (q.docs || []).length; setUsage(); }, () => {}));
     Billing.set({ uid: user.uid, admin: !!user.admin });
     // Android: pembelian yang selesai belakangan (mis. pembayaran tertunda) diverifikasi ke server
     const pl = PlayBilling.plugin(); let h = null;
@@ -9295,6 +9304,7 @@ function PricingDialog({ user, onClose }) {
   const pro = Billing.isPro(); const ent = b.ent || {};
   const priceOf = (p) => { const o = p.playProductId && play[p.playProductId + '/' + p.playBasePlanId]; return IS_NATIVE && o && o.formattedPrice ? o.formattedPrice : planPrice(p); };
   const buy = async (p) => {
+    if (!paymentsOpen()) { setMsg('Pembayaran online WASHLY PRO belum dibuka. Hubungi admin WASHLY (washlywater@gmail.com) untuk akses PRO.'); return; }
     setErr(''); setMsg(''); setBusy(p.code);
     try {
       if (IS_NATIVE) { const r = await PlayBilling.buy(p); if (r.canceled) setMsg('Pembelian dibatalkan.'); else if (r.pending) setMsg('Pembayaran Google Play sedang diproses. PRO aktif otomatis setelah pembayaran selesai.'); else setMsg('Pembelian terverifikasi. Selamat datang di WASHLY PRO!'); }
@@ -9319,6 +9329,7 @@ function PricingDialog({ user, onClose }) {
       <div className="flex items-center gap-2 px-5 py-3 border-b border-line"><Icon name="Sparkles" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Paket WASHLY</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
       <div className="p-5 overflow-y-auto space-y-4 text-[13px]">
         <p className="text-slate-600">Alat rekayasa yang bisa dipakai semua orang. Mulai gratis, upgrade saat Anda membutuhkan keluaran profesional.</p>
+        {!paymentsOpen() && <div id="pay-closed" className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">Pembayaran online belum dibuka. Hubungi admin WASHLY (washlywater@gmail.com) untuk akses PRO.</div>}
         {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
         {msg && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{msg}</div>}
         <div className="grid sm:grid-cols-3 gap-3">
@@ -9363,8 +9374,8 @@ function SubscriptionDialog({ api, user, onClose }) {
         {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
         {msg && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{msg}</div>}
         <div className={'rounded-lg p-4 ' + (pro ? 'bg-deep text-white' : 'bg-ground')}>
-          <div className="flex items-center gap-2"><span className={'rounded-full px-2.5 py-0.5 text-[11px] font-bold ' + (pro ? 'bg-amber-300 text-slate-900' : 'bg-slate-700 text-white')} data-noi18n>{pro ? 'PRO' : 'FREE'}</span>
-            <span id="sub-headline" className="font-semibold">{pro ? 'Langganan WASHLY PRO Anda aktif.' : 'Anda sedang memakai WASHLY FREE.'}</span></div>
+          <div className="flex items-center gap-2"><span className={'rounded-full px-2.5 py-0.5 text-[11px] font-bold ' + (pro ? 'bg-amber-300 text-slate-900' : 'bg-slate-700 text-white')} data-noi18n>{pro ? 'PRO' : b.admin ? 'ADMIN' : 'FREE'}</span>
+            <span id="sub-headline" className="font-semibold">{pro ? 'Langganan WASHLY PRO Anda aktif.' : b.admin ? 'Akun admin: semua fitur WASHLY terbuka.' : 'Anda sedang memakai WASHLY FREE.'}</span></div>
           {pro ? <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-[12.5px]">
             {row('Paket', plan ? plan.name : e.planCode)}{row('Status', SUB_STATUS[e.status] || e.status)}
             {row('Metode tagihan', PROVIDER[e.provider] || e.provider || '–')}{row('Siklus', plan && plan.months === 12 ? 'Tahunan' : plan && plan.months === 1 ? 'Bulanan' : plan ? plan.months + ' bulan' : '–')}
@@ -9380,7 +9391,7 @@ function SubscriptionDialog({ api, user, onClose }) {
           {pro && ['midtrans', 'google_play'].includes(e.provider) && e.status !== 'CANCELED' && <Btn id="sub-cancel" variant="danger" icon="CircleX" disabled={!!busy} onClick={cancel}>{e.provider === 'google_play' ? 'Kelola / batalkan di Google Play' : 'Batalkan langganan'}</Btn>}
           {IS_NATIVE && <Btn variant="outline" icon="RotateCcw" disabled={!!busy} onClick={() => run('restore', async () => { const n = await PlayBilling.restore(); return n ? `${n} pembelian Google Play dipulihkan & diverifikasi.` : 'Tidak ada pembelian Google Play aktif di akun Google perangkat ini.'; })}>Pulihkan pembelian</Btn>}
           {IS_NATIVE && <Btn variant="outline" icon="ExternalLink" onClick={() => PlayBilling.manage()}>Kelola di Google Play</Btn>}
-          {billingAvailable(api) && <Btn variant="ghost" icon="RefreshCw" disabled={!!busy} onClick={() => run('refresh', async () => { await callFn('billingRefresh'); return 'Status langganan diperbarui dari server.'; })}>Segarkan status</Btn>}
+          {billingAvailable(api) && paymentsOpen() && <Btn variant="ghost" icon="RefreshCw" disabled={!!busy} onClick={() => run('refresh', async () => { await callFn('billingRefresh'); return 'Status langganan diperbarui dari server.'; })}>Segarkan status</Btn>}
         </div>
         {e.provider === 'google_play' && IS_NATIVE === false && <p className="text-[11.5px] text-slate-500">Langganan ini dibeli lewat Google Play; pembatalan & metode pembayaran diatur di Google Play (play.google.com → Langganan).</p>}
         <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Riwayat pembayaran</div>
@@ -9960,8 +9971,8 @@ function App({ user, api }) {
           <div className="flex-1" />
           <button type="button" id="bell-d" onClick={() => setNotifOpen(true)} title="Notifikasi" className="relative inline-flex items-center rounded-md px-2.5 py-1.5 text-slate-200 hover:bg-white/10 border border-white/10"><Icon name="Bell" size={16} />
             {inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10.5px] font-bold flex items-center justify-center px-1">{inbox.unread + (user.admin ? pendU.pend.length : 0)}</span>}</button>
-          {user.admin && <Btn variant="dark" icon="UserRound" onClick={() => setUserAdmin(true)} title="Setujui pendaftar & atur akses">Kelola pengguna{pendU.pend.length ? ` (${pendU.pend.length})` : ''}</Btn>}
-          {user.admin && bill.managed !== undefined && billingAvailable(api) && <Btn variant="dark" icon="ChartColumn" onClick={() => setRevOpen(true)} title="Dasbor pendapatan & langganan">Pendapatan</Btn>}
+          {user.admin && <Btn variant="dark" icon="UserRound" onClick={() => setUserAdmin(true)} title="Atur akses & lihat paket pengguna (angka = akun lama yang perlu diaktifkan)">Kelola pengguna{pendU.pend.length ? ` (${pendU.pend.length})` : ''}</Btn>}
+          {user.admin && paymentsOpen() && billingAvailable(api) && <Btn variant="dark" icon="ChartColumn" onClick={() => setRevOpen(true)} title="Dasbor pendapatan & langganan">Pendapatan</Btn>}
           {billingAvailable(api) && <button type="button" id="my-plan" onClick={() => setSubOpen(true)} title="Langganan saya" className="flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10"><Icon name="Sparkles" size={14} />Langganan<ProBadge /></button>}
           <button type="button" id="my-profile" onClick={() => setProfileOf(user.uid)} title="Profil saya" className="relative flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10">
             <Avatar src={myProfile?.photo} name={myProfile?.fullName || user.name} size={22} />Profil{myProfile !== undefined && profileMissing(myProfile).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400" title="Profil belum lengkap" />}</button>
@@ -10069,7 +10080,7 @@ function App({ user, api }) {
           ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)],
           ['IdCard', 'Profil saya', () => setProfileOf(user.uid)],
           ...(billingAvailable(api) ? [['Sparkles', 'Langganan saya', () => setSubOpen(true)]] : []),
-          ...(user.admin && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []),
+          ...(user.admin && paymentsOpen() && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []),
           ['ShieldCheck', 'Kebijakan privasi', () => { window.location.href = 'privacy.html'; }],
           ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []),
           ['Building2', 'Data proyek', () => setDialog(true)],

@@ -274,6 +274,16 @@ firebase deploy --only firestore:rules,functions --project washpipe-93f48
 4. *License testing*: tambahkan akun Gmail penguji agar pembelian memakai kartu uji (tidak ditagih).
 5. Unggah AAB ke *Internal testing*. Billing hanya bekerja pada aplikasi yang diinstal dari Play (bukan APK sideload).
 
+### 7.5b Mode saat ini (sebelum Blaze & Midtrans siap)
+`auth-config.js` → `billing: { enabled: true, enforce: true, payments: false }`:
+* Pembatasan FREE/PRO **sudah berlaku** di aplikasi walau Cloud Functions belum di-deploy: tanpa dokumen `billing_config/main`,
+  aplikasi memakai paket bawaan, semua akun selain admin = FREE, admin = semua fitur.
+* Batas 3 proyek cloud dihitung dari proyek milik pengguna sendiri. Penegakan di server lewat `firestore.rules` + `usage/{uid}`
+  baru penuh setelah Cloud Functions aktif.
+* Paket terlihat di header (**Langganan FREE/PRO/ADMIN**) dan di **Kelola pengguna** (label di samping nama).
+* Tombol beli menampilkan "pembayaran online belum dibuka". Dasbor pendapatan disembunyikan karena butuh Cloud Functions.
+* Setelah deploy & Midtrans siap: ubah `payments` menjadi `true`.
+
 ### 7.6 Mengaktifkan di aplikasi
 1. `auth-config.js` → `billing: { enabled: true, region: "asia-southeast2" }` → `npm run build` → push (GitHub Pages) → `npm run build:android`.
 2. Masuk sebagai admin → **Pendapatan → Paket & harga** → periksa harga, lalu **Simpan konfigurasi** (dokumen `billing_config/main` terbentuk).
