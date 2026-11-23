@@ -34646,7 +34646,20 @@ function AuthShell({
   }, " \xB7 "), React.createElement("a", {
     href: "hapus-akun.html",
     className: "text-aqua-100 underline"
-  }, "Hapus akun"))));
+  }, "Hapus akun"), React.createElement("br", null), React.createElement("a", {
+    href: "harga.html",
+    className: "text-aqua-100 underline"
+  }, "Harga"), React.createElement("span", {
+    className: "text-aqua-100/60"
+  }, " \xB7 "), React.createElement("a", {
+    href: "syarat.html",
+    className: "text-aqua-100 underline"
+  }, "Syarat & Ketentuan"), React.createElement("span", {
+    className: "text-aqua-100/60"
+  }, " \xB7 "), React.createElement("a", {
+    href: "refund.html",
+    className: "text-aqua-100 underline"
+  }, "Pembatalan & Refund"))));
 }
 function PwField({
   id,
@@ -38502,7 +38515,17 @@ function PricingDialog({
     className: "text-center"
   }, cell(k, 'pro'))))))), React.createElement("div", {
     className: "rounded-md bg-ground px-3 py-2.5 text-[12px] text-slate-600 space-y-1"
-  }, !IS_NATIVE && !paymentsOpen() && manualOpen(cfg) ? React.createElement("p", null, "Pembayaran lewat ", React.createElement("b", null, "transfer bank", cfg.manual.qris ? ' / QRIS' : ''), ". Setelah transfer, kirim konfirmasi; PRO aktif setelah admin memastikan dana masuk (biasanya kurang dari 1\xD724 jam). Tidak ada penagihan otomatis: Anda diingatkan sebelum masa aktif berakhir dan dapat memperpanjang dengan transfer lagi.") : IS_NATIVE ? React.createElement(React.Fragment, null, React.createElement("p", null, "Pembayaran lewat ", React.createElement("b", null, "Google Play"), ". Langganan diperpanjang otomatis setiap periode sampai Anda membatalkannya di Google Play (Profil \u2192 Langganan \u2192 Kelola). Setelah dibatalkan, PRO tetap aktif sampai akhir periode yang sudah dibayar.")) : React.createElement(React.Fragment, null, React.createElement("p", null, "Pembayaran web lewat ", React.createElement("b", null, "Virtual Account"), " (BCA, BNI, BRI, Mandiri, Permata) dengan konfirmasi otomatis, atau ", React.createElement("b", null, "QRIS, e-wallet & kartu"), " lewat Midtrans. Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada ", cfg.graceDays, " hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.")), React.createElement("p", null, "Harga sudah termasuk pajak yang berlaku. PRO aktif setelah pembayaran diverifikasi oleh server. Langganan melekat pada akun WASHLY Anda, bukan perangkat.")))));
+  }, !IS_NATIVE && !paymentsOpen() && manualOpen(cfg) ? React.createElement("p", null, "Pembayaran lewat ", React.createElement("b", null, "transfer bank", cfg.manual.qris ? ' / QRIS' : ''), ". Setelah transfer, kirim konfirmasi; PRO aktif setelah admin memastikan dana masuk (biasanya kurang dari 1\xD724 jam). Tidak ada penagihan otomatis: Anda diingatkan sebelum masa aktif berakhir dan dapat memperpanjang dengan transfer lagi.") : IS_NATIVE ? React.createElement(React.Fragment, null, React.createElement("p", null, "Pembayaran lewat ", React.createElement("b", null, "Google Play"), ". Langganan diperpanjang otomatis setiap periode sampai Anda membatalkannya di Google Play (Profil \u2192 Langganan \u2192 Kelola). Setelah dibatalkan, PRO tetap aktif sampai akhir periode yang sudah dibayar.")) : React.createElement(React.Fragment, null, React.createElement("p", null, "Pembayaran web lewat ", React.createElement("b", null, "Virtual Account"), " (BCA, BNI, BRI, Mandiri, Permata) dengan konfirmasi otomatis, atau ", React.createElement("b", null, "QRIS, e-wallet & kartu"), " lewat Midtrans. Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada ", cfg.graceDays, " hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.")), React.createElement("p", null, "Harga sudah termasuk pajak yang berlaku. PRO aktif setelah pembayaran diverifikasi oleh server. Langganan melekat pada akun WASHLY Anda, bukan perangkat."), React.createElement("p", null, React.createElement("a", {
+    className: "text-aqua-700 underline",
+    href: "syarat.html",
+    target: "_blank",
+    rel: "noopener"
+  }, "Syarat & Ketentuan"), " \xB7 ", React.createElement("a", {
+    className: "text-aqua-700 underline",
+    href: "refund.html",
+    target: "_blank",
+    rel: "noopener"
+  }, "Pembatalan & Refund"))))));
 }
 function SubscriptionDialog({
   api,

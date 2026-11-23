@@ -69,7 +69,7 @@ html = html.replace(/<link rel="manifest"[^>]*>\n?/, '');
 // ---- 6. berkas aplikasi lain ----
 fs.writeFileSync(path.join(WWW, 'index.html'), html);
 cp(path.join(ROOT, 'auth-config.js'), path.join(WWW, 'auth-config.js'));
-for (const f of ['privacy.html', 'hapus-akun.html']) cp(path.join(ROOT, f), path.join(WWW, f));
+for (const f of ['privacy.html', 'hapus-akun.html', 'harga.html', 'syarat.html', 'refund.html']) cp(path.join(ROOT, f), path.join(WWW, f));
 for (const f of fs.readdirSync(path.join(ROOT, 'icons'))) cp(path.join(ROOT, 'icons', f), path.join(WWW, 'icons', f));
 
 // ---- 7. pemeriksaan: tidak ada lagi script/style dari CDN ----

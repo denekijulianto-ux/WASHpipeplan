@@ -209,8 +209,9 @@ function makeService(deps) {
     const payload = { order_id: body.order_id, transaction_status: body.transaction_status, status_code: body.status_code, gross_amount: body.gross_amount, payment_type: body.payment_type, transaction_id: body.transaction_id, fraud_status: body.fraud_status || null };
     await wref.set({ provider: 'midtrans', eventType: body.transaction_status, payload, payloadHash: sha256(JSON.stringify(body)), status: 'RECEIVED', receivedAt: now(), attempts: (prev.exists ? prev.data().attempts || 0 : 0) + 1 });
     try {
-      const st = await M.getStatus(body.order_id); // sumber kebenaran: API status Midtrans, bukan isi notifikasi
-      if (!st || st.order_id !== body.order_id) throw new Error('Status API tidak cocok');
+      const st = await M.getStatus(body.order_id).catch(e => /\b404\b/.test(String(e.message)) ? null : Promise.reject(e)); // sumber kebenaran: API status Midtrans
+      if (!st || String(st.status_code) === '404') { await wref.update({ status: 'IGNORED', processedAt: now(), error: 'transaksi tidak dikenal Midtrans (mis. notifikasi uji)' }); return { ignored: 'unknown transaction' }; }
+      if (st.order_id !== body.order_id) throw new Error('Status API tidak cocok');
       const r = await applyMidtransStatus(st, 'webhook');
       await wref.update({ status: 'PROCESSED', processedAt: now(), verifiedStatus: st.transaction_status, error: null });
       return r;

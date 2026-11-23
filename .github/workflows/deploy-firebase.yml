@@ -117,5 +117,5 @@ jobs:
           chk adminSetMidtrans "401" '{"data":{"serverKey":"x"}}'
           chk manualOrder "401" '{"data":{"planCode":"PRO_MONTHLY"}}'
           chk adminManualDecide "401" '{"data":{"orderId":"x","decision":"approve"}}'
-          chk midtransWebhook "401" '{"order_id":"FAKE-1","status_code":"200","gross_amount":"125000.00","transaction_status":"settlement","signature_key":"abc"}'  # tanda tangan palsu ditolak
+          chk midtransWebhook "200" '{"order_id":"FAKE-1","status_code":"200","gross_amount":"125000.00","transaction_status":"settlement","signature_key":"abc"}'  # tanda tangan palsu diabaikan (200, ok:false)
           exit $FAIL

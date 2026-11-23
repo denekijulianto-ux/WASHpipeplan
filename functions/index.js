@@ -75,7 +75,8 @@ exports.midtransWebhook = onRequest({ secrets: [MIDTRANS_SERVER_KEY, MIDTRANS_SI
   if (req.method !== 'POST') { res.status(405).send('Method not allowed'); return; }
   try { const r = await service().handleMidtransNotification(req.body || {}); res.status(200).json({ ok: true, ...r }); }
   catch (e) {
-    if (e instanceof BillingError && e.code === 'permission-denied') { logger.warn('Midtrans: tanda tangan tidak valid', { order: req.body && req.body.order_id }); res.status(401).json({ ok: false }); return; }
+    // Tanda tangan tidak sah: diabaikan (tidak mengubah apa pun). Dijawab 200 agar uji Notification URL dari dashboard Midtrans lolos.
+    if (e instanceof BillingError && e.code === 'permission-denied') { logger.warn('Midtrans: tanda tangan tidak valid, diabaikan', { order: req.body && req.body.order_id }); res.status(200).json({ ok: false, ignored: 'invalid signature' }); return; }
     if (e instanceof BillingError && e.code === 'not-found') { res.status(200).json({ ok: false, ignored: 'unknown order' }); return; }
     logger.error('Midtrans webhook gagal', e); res.status(500).json({ ok: false }); // Midtrans akan mengirim ulang
   }

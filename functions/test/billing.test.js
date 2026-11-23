@@ -379,3 +379,11 @@ test('Pengaturan Midtrans dari aplikasi: hanya admin, format & lingkungan divali
   const va = await sv.createVaCharge(A, { planCode: 'PRO_MONTHLY', bank: 'bni' }); assert.equal(va.va.number, 'VA-9999', 'memakai kunci yang disimpan admin');
   await assert.rejects(sv.createVaCharge(U, { planCode: 'PRO_MONTHLY', bank: 'bni' }), { code: 'failed-precondition' }); // sandbox: hanya admin
 });
+
+test('Webhook: notifikasi uji dari dashboard (order tak dikenal Midtrans) diabaikan tanpa error', async () => {
+  const { s, db } = setup();
+  const n = { order_id: 'test-notif-123', status_code: '200', gross_amount: '10000.00', transaction_status: 'settlement' };
+  const r = await s.handleMidtransNotification({ ...n, signature_key: sign(n) });
+  assert.equal(r.ignored, 'unknown transaction');
+  assert.equal((await db.collection('webhook_events').get()).docs[0].data().status, 'IGNORED');
+});

@@ -8498,7 +8498,7 @@ function AuthShell({ children }) {
       </div>
       <div className="bg-white rounded-xl shadow-xl">{children}</div>
       <p className="text-[11.5px] text-aqua-100/80 mt-3 text-center">{AUTH_MODE === 'firebase' ? 'Akun baru langsung aktif dengan paket WASHLY FREE.' : 'Mode lokal: akun tersimpan di perangkat ini saja. Akun pertama menjadi admin perangkat.'}</p>
-      <p className="text-[11.5px] mt-2 text-center"><a id="link-privacy" href="privacy.html" className="text-aqua-100 underline">Kebijakan privasi</a><span className="text-aqua-100/60"> · </span><a href="hapus-akun.html" className="text-aqua-100 underline">Hapus akun</a></p>
+      <p className="text-[11.5px] mt-2 text-center"><a id="link-privacy" href="privacy.html" className="text-aqua-100 underline">Kebijakan privasi</a><span className="text-aqua-100/60"> · </span><a href="hapus-akun.html" className="text-aqua-100 underline">Hapus akun</a><br /><a href="harga.html" className="text-aqua-100 underline">Harga</a><span className="text-aqua-100/60"> · </span><a href="syarat.html" className="text-aqua-100 underline">Syarat &amp; Ketentuan</a><span className="text-aqua-100/60"> · </span><a href="refund.html" className="text-aqua-100 underline">Pembatalan &amp; Refund</a></p>
     </div>
   </div>;
 }
@@ -9460,6 +9460,7 @@ function PricingDialog({ user, onClose }) {
             <p>Pembayaran web lewat <b>Virtual Account</b> (BCA, BNI, BRI, Mandiri, Permata) dengan konfirmasi otomatis, atau <b>QRIS, e-wallet & kartu</b> lewat Midtrans. Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada {cfg.graceDays} hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.</p>
           </>}
           <p>Harga sudah termasuk pajak yang berlaku. PRO aktif setelah pembayaran diverifikasi oleh server. Langganan melekat pada akun WASHLY Anda, bukan perangkat.</p>
+          <p><a className="text-aqua-700 underline" href="syarat.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a className="text-aqua-700 underline" href="refund.html" target="_blank" rel="noopener">Pembatalan &amp; Refund</a></p>
         </div>
       </div></div></div>;
 }
