@@ -28,6 +28,13 @@ function setup({ enforce = true } = {}) {
   return { db, s, clock, mid, play, pushes, seedUser, auth, midSettle, ent };
 }
 
+test('katalog FREE: dasar saja; cetak RAB, e-sign, logo, kalkulator & RAB lanjutan khusus PRO', () => {
+  const f = DEFAULT_CONFIG.features;
+  for (const k of ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print']) assert.equal(f[k].free, true, k);
+  for (const k of ['rab_print', 'esign', 'custom_logo', 'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced', 'ded_print']) assert.equal(f[k].free, false, k);
+  const e = L.resolveEntitlement([], DEFAULT_CONFIG, Date.now()); assert.equal(e.tier, 'FREE'); assert.equal(e.features.esign, false); assert.equal(e.features.calc_basic, true);
+});
+
 test('konfigurasi: harga & paket divalidasi', () => {
   assert.equal(validateConfig(DEFAULT_CONFIG).ok, true);
   const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); bad.plans.PRO_MONTHLY.price = -5; bad.plans.PRO_YEARLY.price = 'x';
@@ -36,11 +43,13 @@ test('konfigurasi: harga & paket divalidasi', () => {
   assert.equal(validateConfig(noPro).ok, false);
 });
 
-test('checkout web: butuh login, akun disetujui, paket valid; tagihan PENDING tanpa mengaktifkan PRO', async () => {
+test('checkout web: butuh login, akun aktif (tidak ditangguhkan), paket valid; tagihan PENDING tanpa mengaktifkan PRO', async () => {
   const { s, seedUser, auth, db, ent } = setup();
   await assert.rejects(s.createCheckout(null, { planCode: 'PRO_MONTHLY' }), { code: 'unauthenticated' });
-  await seedUser('u1', 'u1@x.org', 'pending');
+  await seedUser('u1', 'u1@x.org', 'suspended'); // akun ditangguhkan admin tidak boleh membeli
   await assert.rejects(s.createCheckout(auth('u1', 'u1@x.org'), { planCode: 'PRO_MONTHLY' }), { code: 'failed-precondition' });
+  await seedUser('u0', 'u0@x.org', 'pending'); // pendaftar lama berstatus pending kini dianggap aktif
+  assert.ok((await s.createCheckout(auth('u0', 'u0@x.org'), { planCode: 'PRO_MONTHLY' })).orderId);
   await seedUser('u2', 'u2@x.org');
   await assert.rejects(s.createCheckout(auth('u2', 'u2@x.org'), { planCode: 'FREE' }), { code: 'invalid-argument' });
   const r = await s.createCheckout(auth('u2', 'u2@x.org'), { planCode: 'PRO_MONTHLY' });
@@ -69,6 +78,7 @@ test('webhook Midtrans: lunas → PRO aktif 1 bulan, notifikasi, duplikat tidak 
   const n = midSettle(orderId, 125000);
   const r1 = await s.handleMidtransNotification(n); assert.equal(r1.changed, true);
   const e = await ent('u'); assert.equal(e.tier, 'PRO'); assert.equal(e.planCode, 'PRO_MONTHLY'); assert.equal(e.features.ded_print, true);
+  for (const f of ['rab_print', 'esign', 'custom_logo', 'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced']) assert.equal(e.features[f], true, f);
   assert.equal(e.accessUntil, L.addMonths(T0, 1));
   const p = (await db.collection('payments').doc(orderId).get()).data(); assert.equal(p.status, 'PAID'); assert.equal(p.method, 'qris');
   const notes = (await db.collection('notifications').get()).docs.map(d => d.data()); assert.ok(notes.some(x => x.toEmail === 'u@x.org' && /Selamat datang di WASHLY PRO/.test(x.body)));

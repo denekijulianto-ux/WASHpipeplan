@@ -12,7 +12,7 @@ Everything here is a **draft prepared from the app's actual behaviour**. Items m
 | Phone screenshots | `store-assets/screenshots/01…06.png` | 2–8 images, 1080×1920 (9:16) |
 
 The screenshots are drafts made from the app's sample project. **[YOU]** Before publishing, consider replacing them with screenshots from a real phone, logged in to a real (non-sample) project:
-* `01-masuk.png` shows the *local-mode* login note; the production app shows "Akun baru aktif setelah disetujui admin organisasi".
+* `01-masuk.png` shows the *local-mode* login note; the production app shows "Akun baru langsung aktif dengan paket WASHLY FREE.".
 * `02-peta-jaringan.png` has no satellite basemap, because the build machine had no map access.
 
 ## 2. Store listing
@@ -38,7 +38,7 @@ Alat kerja teknis untuk perencanaan air bersih, sanitasi, dan rekayasa jaringan 
 • Bekerja tanpa sinyal di lapangan; data tersinkron saat online kembali.
 • Asisten teknis (luring) dengan opsi AI memakai kunci API Anda sendiri.
 
-Akun baru aktif setelah disetujui admin organisasi.
+Akun baru langsung aktif dengan paket WASHLY FREE.
 ```
 
 **Full description (EN)**

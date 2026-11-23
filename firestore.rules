@@ -37,16 +37,28 @@ service cloud.firestore {
         || !exists(/databases/$(database)/documents/usage/$(uid)) && get(/databases/$(database)/documents/billing_config/main).data.freeLimits.cloudProjects > 0
         || exists(/databases/$(database)/documents/usage/$(uid)) && underFreeLimit(uid);
     }
+    // Akun aktif: pendaftaran tidak lagi menunggu persetujuan admin ('pending' lama dianggap aktif).
+    // Admin tetap bisa menangguhkan ('suspended') atau menolak ('rejected') akun.
     function approved() {
       return isAdmin() || (request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved');
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status in ['approved', 'pending']);
+    }
+    // Pemilik, admin, atau petugas yang ditunjuk pada proyek (boleh membuka seluruh isi proyek)
+    function projectMember(pid) {
+      return isAdmin() || (request.auth != null && exists(/databases/$(database)/documents/projects/$(pid)) && (
+        get(/databases/$(database)/documents/projects/$(pid)).data.ownerUid == request.auth.uid
+        || get(/databases/$(database)/documents/projects/$(pid)).data.get('checkerUid', '') == request.auth.uid
+        || get(/databases/$(database)/documents/projects/$(pid)).data.get('approverUid', '') == request.auth.uid
+        || get(/databases/$(database)/documents/projects/$(pid)).data.get('surveyorUid', '') == request.auth.uid
+        || get(/databases/$(database)/documents/projects/$(pid)).data.get('drafterUid', '') == request.auth.uid));
     }
     // Profil pengguna & persetujuan akun
     match /users/{uid} {
       // pengguna yang disetujui boleh melihat daftar pengguna (untuk memilih pemeriksa & penyetuju)
       allow read: if request.auth != null && (request.auth.uid == uid || approved());
       allow create: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status in ['approved', 'pending'];
       allow update, delete: if isAdmin();
       // pengguna boleh menghapus akunnya sendiri (fitur "Hapus akun", wajib Google Play)
       allow delete: if request.auth != null && request.auth.uid == uid;
@@ -79,9 +91,9 @@ service cloud.firestore {
               && request.resource.data.status in ['review', 'checked', 'approved', 'revisi']));
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
-    // Isi lengkap proyek (terkompresi)
+    // Isi lengkap proyek (terkompresi): hanya pemilik, admin, dan petugas yang ditunjuk
     match /projectData/{pid} {
-      allow read: if approved();
+      allow read: if approved() && (resource.data.ownerUid == request.auth.uid || projectMember(pid));
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
       allow update: if approved() && request.resource.data.ownerUid == resource.data.ownerUid
         && (resource.data.ownerUid == request.auth.uid || isAdmin()
@@ -91,9 +103,17 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/projects/$(pid)).data.get('drafterUid', '') == request.auth.uid);
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
-    // Foto asesmen (resolusi penuh): anggota yang disetujui boleh melihat; hanya pengunggah/admin yang boleh mengubah/menghapus
-    match /photos/{id} {
+    // Hanya jaringan pipa (titik & pipa) untuk pengguna lain; ditulis bersama projectData oleh pemilik/petugas
+    match /projectNet/{pid} {
       allow read: if approved();
+      allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if approved() && request.resource.data.ownerUid == resource.data.ownerUid && projectMember(pid);
+      allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+    }
+    // Foto asesmen: hanya pengunggah, admin, dan anggota proyeknya; hanya pengunggah/admin yang boleh mengubah/menghapus
+    match /photos/{id} {
+      allow read: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin()
+        || (resource.data.get('projectId', '') != '' && projectMember(resource.data.projectId)));
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }

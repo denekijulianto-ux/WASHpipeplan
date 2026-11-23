@@ -4,16 +4,24 @@
 
 // Fitur yang benar-benar ada di aplikasi. free: true = penuh, 'limited' = ada batas, false = khusus PRO.
 const FEATURES = {
+  // FREE: alat dasar yang tetap berguna
   map_survey:           { free: true,      pro: true, id: 'Pemetaan, GPS & survei lapangan', en: 'Mapping, GPS & field survey' },
   hydraulics:           { free: true,      pro: true, id: 'Analisis hidrolis jaringan', en: 'Network hydraulic analysis' },
-  pumps_treatment:      { free: true,      pro: true, id: 'Pompa & pengolahan air', en: 'Pumps & water treatment' },
-  calculator:           { free: true,      pro: true, id: 'Kalkulator kebutuhan air, node & daya pompa', en: 'Water demand, node & pump power calculator' },
-  boq_cost:             { free: true,      pro: true, id: 'BoQ & RAB', en: 'Bill of quantities & cost estimate' },
-  report_print:         { free: true,      pro: true, id: 'Cetak laporan teknis (PDF)', en: 'Print technical report (PDF)' },
+  calc_basic:           { free: true,      pro: true, id: 'Kalkulator kebutuhan air & jumlah node', en: 'Water demand & node count calculator' },
+  pump_basic:           { free: true,      pro: true, id: 'Head, daya & kurva pompa sumur bor', en: 'Borehole pump head, power & curve' },
+  boq_cost:             { free: true,      pro: true, id: 'BoQ & RAB umum (volume, harga bawaan, ubah harga satuan)', en: 'General BoQ & cost estimate (quantities, default prices, edit unit prices)' },
+  report_print:         { free: true,      pro: true, id: 'Cetak laporan teknis (tanpa RAB)', en: 'Print technical report (without cost estimate)' },
   data_export:          { free: true,      pro: true, id: 'Simpan/muat .json & .gpx', en: 'Save/load .json & .gpx' },
-  review_workflow:      { free: true,      pro: true, id: 'Review & tanda tangan elektronik', en: 'Review & electronic signatures' },
   assistant_offline:    { free: true,      pro: true, id: 'Asisten (basis pengetahuan luring)', en: 'Assistant (offline knowledge base)' },
   cloud_projects:       { free: 'limited', pro: true, id: 'Proyek tersimpan di cloud', en: 'Projects stored in the cloud' },
+  // PRO: semua fitur dimaksimalkan
+  calc_advanced:        { free: false,     pro: true, id: 'Kalkulator debit sumber & daya pompa', en: 'Source flow & pump power calculators' },
+  pump_advanced:        { free: false,     pro: true, id: 'Daya pompa min/ideal/maks, spesifikasi pengadaan & paket all-in', en: 'Min/ideal/max pump power, procurement spec & all-in package' },
+  treatment_design:     { free: false,     pro: true, id: 'Desain pengolahan air (aerator, filter, membran)', en: 'Water treatment design (aerator, filters, membranes)' },
+  rab_advanced:         { free: false,     pro: true, id: 'RAB lanjutan: SHS/IKK provinsi, tingkat spesifikasi, edit item', en: 'Advanced cost estimate: provincial SHS/IKK, spec tiers, item editing' },
+  rab_print:            { free: false,     pro: true, id: 'Cetak RAB', en: 'Print cost estimate' },
+  esign:                { free: false,     pro: true, id: 'Review & tanda tangan elektronik', en: 'Review & electronic signatures' },
+  custom_logo:          { free: false,     pro: true, id: 'Ganti logo instansi', en: 'Custom organisation logo' },
   ded_print:            { free: false,     pro: true, id: 'Cetak / PDF gambar DED', en: 'Print / PDF of DED drawings' },
   structural_design:    { free: false,     pro: true, id: 'Penulangan beton (BBS) & jembatan pipa', en: 'Concrete reinforcement (BBS) & pipe bridges' },
   rehab_module:         { free: false,     pro: true, id: 'Rehabilitasi sistem existing', en: 'Rehabilitation of existing systems' },

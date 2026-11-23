@@ -52,3 +52,30 @@ test('batas proyek cloud FREE ditegakkan server; PRO & admin bebas; mode tanpa l
   await env.clearFirestore(); await seed(async d => { await base(d, { usage: 3 }); await setDoc(doc(d, 'usage/a'), { cloudProjects: 50 }); });
   await assertSucceeds(setDoc(doc(user('a', ADMIN), 'projects/p7'), proj('a')));
 });
+
+test('pendaftaran langsung aktif tanpa persetujuan admin; akun lama "pending" aktif; akun ditangguhkan diblokir', async () => {
+  await assertSucceeds(setDoc(doc(user('n1', 'n1@x.org'), 'users/n1'), { email: 'n1@x.org', name: 'N', status: 'approved' }));
+  await assertFails(setDoc(doc(user('n2', 'n2@x.org'), 'users/n2'), { email: 'n2@x.org', name: 'N', status: 'suspended' }));
+  await seed(async db => { await setDoc(doc(db, 'billing_config/main'), { enforce: false, freeLimits: { cloudProjects: 3 } });
+    await setDoc(doc(db, 'users/old'), { email: 'old@x.org', status: 'pending' }); await setDoc(doc(db, 'users/bad'), { email: 'bad@x.org', status: 'suspended' }); });
+  await assertSucceeds(setDoc(doc(user('old', 'old@x.org'), 'projects/po'), proj('old')));
+  await assertFails(setDoc(doc(user('bad', 'bad@x.org'), 'projects/pb'), proj('bad')));
+  await assertFails(setDoc(doc(user('bad', 'bad@x.org'), 'users/bad'), { email: 'bad@x.org', status: 'approved' }));
+});
+
+test('proyek orang lain: isi lengkap & foto tertutup, hanya jaringan pipa yang terbaca; petugas yang ditunjuk boleh membaca', async () => {
+  await seed(async db => {
+    for (const u of ['own', 'oth', 'chk']) await setDoc(doc(db, 'users/' + u), { email: u + '@x.org', status: 'approved' });
+    await setDoc(doc(db, 'projects/p1'), { ownerUid: 'own', name: 'P', status: 'review', checkerUid: 'chk' });
+    await setDoc(doc(db, 'projectData/p1'), { ownerUid: 'own', rev: 1, text: '{}' });
+    await setDoc(doc(db, 'projectNet/p1'), { ownerUid: 'own', rev: 1, text: '{}' });
+    await setDoc(doc(db, 'photos/f1'), { ownerUid: 'own', projectId: 'p1', data: 'x' });
+  });
+  const oth = user('oth', 'oth@x.org'), own = user('own', 'own@x.org'), chk = user('chk', 'chk@x.org'), adm = user('a', ADMIN);
+  await assertFails(getDoc(doc(oth, 'projectData/p1'))); await assertFails(getDoc(doc(oth, 'photos/f1')));
+  await assertSucceeds(getDoc(doc(oth, 'projectNet/p1'))); await assertSucceeds(getDoc(doc(oth, 'projects/p1')));
+  await assertFails(setDoc(doc(oth, 'projectNet/p1'), { ownerUid: 'own', rev: 2, text: '{"nodes":[]}' }));
+  await assertFails(setDoc(doc(oth, 'projectData/p1'), { ownerUid: 'own', rev: 2, text: '{}' }));
+  for (const db of [own, chk, adm]) { await assertSucceeds(getDoc(doc(db, 'projectData/p1'))); await assertSucceeds(getDoc(doc(db, 'photos/f1'))); }
+  await assertSucceeds(setDoc(doc(own, 'projectNet/p1'), { ownerUid: 'own', rev: 2, text: '{}' }));
+});

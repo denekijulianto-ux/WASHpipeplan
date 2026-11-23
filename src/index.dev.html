@@ -1477,8 +1477,9 @@ function CalcDialog({ project, setProject, hyd, onClose, initialTab = 'air' }) {
             <div className="flex flex-wrap gap-2"><Btn variant="primary" icon="Check" onClick={applyDemand}>Terapkan kebutuhan ke node HU & pengaturan SR</Btn><Btn variant="outline" icon="Zap" onClick={() => { set('Qp', round2(d.Qpump)); setTab('pompa'); }}>Lanjut hitung daya pompa →</Btn></div>
             <p className="text-[11px] text-slate-500">Q rata-rata = (Σ jiwa × L/org/hari) × (1 + non-domestik) ÷ (1 − kehilangan) ÷ 86.400. Nilai acuan perdesaan umumnya 60 L/org/hari (SR boleh lebih tinggi), faktor hari maksimum 1,05–1,25 dan jam puncak 1,5–2,0; sesuaikan dengan pedoman yang berlaku di daerah Anda.</p>
           </div></div>}
-        {tab === 'sumber' && <SourceTab c={c} set={set} d={d} project={project} setProject={setProject} onDone={setDone} />}
-        {tab === 'pompa' && <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        {tab === 'sumber' && <ProGate feature="calc_advanced"><SourceTab c={c} set={set} d={d} project={project} setProject={setProject} onDone={setDone} /></ProGate>}
+        {tab === 'pompa' && !Billing.has('calc_advanced') && <ProGate feature="calc_advanced" />}
+        {tab === 'pompa' && Billing.has('calc_advanced') && <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           <div className="lg:col-span-2 space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <Field label="Debit pompa (L/dtk)" hint={`dari kalkulator air: ${fmt(d.Qpump, 2)}`}><NumField id="calc-Qp" value={c.Qp || round2(d.Qpump)} step={0.1} min={0.05} onChange={v => set('Qp', Math.max(0.05, v))} /></Field>
@@ -4680,16 +4681,17 @@ function PumpCard({ node, pr, project, setProject, openDed }) {
             ['Angkatan statis', `${fmt(pr.staticLift, 2)} m`], ['Kehilangan pipa transmisi', `${fmt(pr.pathHf, 2)} m`], ['Kehilangan pipa riser & kepala sumur', `${fmt(pr.riserHf, 2)} m`],
             ['Head total kebutuhan (TDH)', `${fmt(pr.TDHreq, 2)} m`], ['Daya hidrolik / masuk', `${fmt(pr.Phyd, 2)} / ${fmt(pr.Pin, 2)} kW`]].map(([a, b]) => <tr key={a}><td className="text-slate-500">{a}</td><td className="r font-mono">{b}</td></tr>)}
         </tbody></table>
-        {pr.tiers && <PowerTierTable tiers={pr.tiers} pick={pp.motorTier || 'auto'} onPick={v => set('motorTier', v === 'auto' ? '' : v)}
+        <ProGate feature="pump_advanced"><>{pr.tiers && <PowerTierTable tiers={pr.tiers} pick={pp.motorTier || 'auto'} onPick={v => set('motorTier', v === 'auto' ? '' : v)}
           head={`Air harus diangkat ${fmt(pr.Qd, 2)} L/dtk setinggi TDH ${fmt(pr.TDHreq, 1)} m = angkatan statis ${fmt(pr.staticLift, 1)} m (muka air dinamis → ${pr.mode === 'trans' ? 'inlet reservoir' : 'titik layanan kritis'}) + gesekan transmisi ${fmt(pr.pathHf, 1)} m + riser & kepala sumur ${fmt(pr.riserHf, 1)} m. Motor terpasang: ${fmt(pr.motor, 2)} kW (${hpOf(pr.motor)} HP).`} />}
-        <PumpSpecTable spec={boreSpec(node, pr)} />
+        <PumpSpecTable spec={boreSpec(node, pr)} /></></ProGate>
+        <ProGate feature="pump_advanced" compact><>
         {(() => { const a = pumpAllin(node, pr); return <div className="space-y-1.5"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Estimasi biaya paket sumur bor all-in</div>
           <table className="tp-table"><tbody>{a.groups.filter(g => g[1] > 0).map(([l, v]) => <tr key={l}><td className="text-slate-500">{l}</td><td className="r num">{rp(v)}</td></tr>)}
             <tr className="bg-aqua-50 font-semibold"><td>Total paket all-in</td><td className="r num text-[14px]">{rp(a.total)}</td></tr>
             <tr><td className="text-slate-500">Setara per meter kedalaman</td><td className="r num">{rp(a.perM)}/m</td></tr></tbody></table>
           <Field label="Cara masuk RAB"><select id={`pp-${node.id}-rabMode`} className="tp-field" value={pp.rabMode || 'detail'} onChange={e => set('rabMode', e.target.value)}>
             <option value="detail">Rincian per item (pengeboran, pompa, panel, survei, izin, dll.)</option><option value="allin">Satu paket all-in (lump sum, termasuk cadangan 10%)</option></select></Field>
-          <p className="text-[11px] text-slate-500">Harga bawaan sebelum penyesuaian IKK/SHS provinsi & tingkat spesifikasi; nilai akhir lihat tab RAB. Sudah termasuk survei geolistrik, mobilisasi rig, logging, uji pompa & laboratorium, perizinan, dan {pp.solar ? 'PLTS' : 'sambungan listrik'}.</p></div>; })()}
+          <p className="text-[11px] text-slate-500">Harga bawaan sebelum penyesuaian IKK/SHS provinsi & tingkat spesifikasi; nilai akhir lihat tab RAB. Sudah termasuk survei geolistrik, mobilisasi rig, logging, uji pompa & laboratorium, perizinan, dan {pp.solar ? 'PLTS' : 'sambungan listrik'}.</p></div>; })()}</></ProGate>
       </div>
     </div>
   </Card>;
@@ -4900,9 +4902,10 @@ function WaterWorkspace({ project, setProject, hyd, boq, openDedSheet, goMapBore
     {bores.map(x => <PumpCard key={x.node.id} node={x.node} pr={x.pr} project={project} setProject={setProject} openDed={() => openDedSheet('pb:' + x.node.id)} />)}
     <div className="flex flex-wrap items-center gap-2 pt-2"><Icon name="FlaskConical" size={18} className="text-aqua-600" /><h2 className="font-semibold text-[15px] flex-1">Pengolahan air (water treatment)</h2>
       <select id="wt-add-scale" className="tp-field !w-auto" value={addScale} onChange={e => setAddScale(e.target.value)}><option value="central">IPA terpusat di sumber air</option><option value="reservoir">IPA terpusat di bak penampung</option><option value="household">Filter skala rumah tangga</option></select>
-      <Btn variant="primary" icon="CirclePlus" onClick={add}>Tambah desain</Btn></div>
+      <Btn variant="primary" icon="CirclePlus" onClick={() => Billing.require('treatment_design') && add()}>Tambah desain</Btn></div>
     {treats.length === 0 && <Card><p className="text-[13px] text-slate-600">Belum ada desain pengolahan. Pilih skala di atas, lalu isi hasil uji kualitas air baku; rangkaian pengolahan dipilih otomatis.</p></Card>}
-    {treats.map(x => <TreatmentCard key={x.t.id} t={x.t} d={x.d} project={project} setProject={setProject}
+    {treats.length > 0 && !Billing.has('treatment_design') && <ProGate feature="treatment_design" />}
+    {Billing.has('treatment_design') && treats.map(x => <TreatmentCard key={x.t.id} t={x.t} d={x.d} project={project} setProject={setProject}
       openDed={() => openDedSheet((x.t.scale === 'household' ? 'th:' : 'tv:') + x.t.id)} onDelete={() => setProject(p => ({ ...p, treatments: p.treatments.filter(y => y.id !== x.t.id) }))} />)}
   </div></div>;
 }
@@ -5040,7 +5043,7 @@ function BoqWorkspace({ project, setProject, boq, rab }) {
           <td className="r">{fmt(x.q.concrete, 2)}</td><td className="r">{fmt(x.q.steel, 0)}</td><td className="r">{fmt(x.q.galian, 2)}</td><td className="r">{fmt(rab.sections.find(s => s.structId === x.st.id)?.subtotal, 0)}</td></tr>)}</tbody></table>
       <div className="px-4 py-2 text-[12px] text-slate-500">Dimensi, perpipaan dan penulangan diatur di Workspace 4 (DED). Harga satuan beton, besi, bekisting dan plester berlaku sama untuk semua bangunan.</div>
     </Card>}
-    <ShsCard project={project} setProject={setProject} rab={rab} />
+    <ProGate feature="rab_advanced"><ShsCard project={project} setProject={setProject} rab={rab} /></ProGate>
     <RabTable project={project} setProject={setProject} rab={rab} setPrice={setPrice} nEdited={nEdited} />
   </div></div>;
 }
@@ -5121,9 +5124,9 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
       {nEdited > 0 && <span className="text-[12px] text-amber-700">{nEdited} harga diubah</span>}
       {nEd > 0 && <span className="text-[12px] text-amber-700">{nEd} perubahan item</span>}
       <label className="flex items-center gap-1.5 text-[12px]" title="Tingkat spesifikasi bahan untuk semua item (bisa diubah per item)">Spesifikasi
-        <select id="rab-tier-all" className="tp-field !py-1 !w-auto" value={rab.tierAll} onChange={e => { const v = e.target.value; setE(x => ({ ...x, tierAll: v, tier: {} })); }}>{Object.entries(TIERS).map(([k, l]) => <option key={k} value={k}>{l} (semua item)</option>)}</select></label>
+        <select id="rab-tier-all" className="tp-field !py-1 !w-auto" value={rab.tierAll} onChange={e => { const v = e.target.value; if (!Billing.require('rab_advanced')) return; setE(x => ({ ...x, tierAll: v, tier: {} })); }}>{Object.entries(TIERS).map(([k, l]) => <option key={k} value={k}>{l} (semua item)</option>)}</select></label>
       <Btn icon="RotateCcw" variant="outline" disabled={!nEdited} onClick={() => setProject(p => ({ ...p, prices: {} }))}>Harga bawaan</Btn>
-      <Btn icon="PencilRuler" variant={edit ? 'primary' : 'outline'} onClick={() => setEdit(v => !v)}>{edit ? 'Selesai mengedit' : 'Edit item RAB'}</Btn></div>}>
+      <Btn icon="PencilRuler" variant={edit ? 'primary' : 'outline'} onClick={() => (edit || Billing.require('rab_advanced')) && setEdit(v => !v)}>{edit ? 'Selesai mengedit' : 'Edit item RAB'}</Btn></div>}>
     {edit && <div className="px-4 py-2.5 bg-aqua-50 border-b border-line text-[12.5px] text-aqua-900 flex flex-wrap items-center gap-2">
       <Icon name="Info" size={15} /><span className="flex-1 min-w-[240px]">Mode edit: ubah uraian, volume, dan satuan langsung di tabel; <b>Tambah item</b> di tiap bagian; ikon tempat sampah menghapus item. Ikon <Icon name="RotateCcw" size={12} className="inline" /> mengembalikan nilai otomatis. Volume yang diubah tidak lagi ikut berubah saat desain berubah.</span>
       {nEd > 0 && (confirmReset ? <><Btn variant="danger" onClick={() => { setProject(p => ({ ...p, rabEdits: {} })); setConfirmReset(false); }}>Ya, kembalikan semua</Btn><Btn variant="outline" onClick={() => setConfirmReset(false)}>Batal</Btn></>
@@ -5133,7 +5136,7 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
         <div className="flex items-start gap-2 bg-ground px-3 py-2 font-semibold text-[13px]"><span>{sec.code}</span><span className="flex-1">{sec.title}</span><span className="num whitespace-nowrap">{fmt(sec.subtotal, 0)}</span></div>
         {sec.items.map((it, i) => <div key={it.ek} className="px-3 py-2.5 space-y-1.5 border-t border-line">
           <div className="text-[13px]"><span className="text-slate-400 mr-1">{i + 1}.</span>{it.desc}{(it.edDesc || it.edVol || it.edUnit) && <span className="pill s-low ml-1.5 !text-[10px]">diubah</span>}</div>
-          {it.spec && <TierPick it={it} onPick={(k) => setMap('tier', it.ek, k === rab.tierAll ? undefined : k)} manual={project.prices[it.key] !== undefined} />}
+          {it.spec && <TierPick it={it} onPick={(k) => Billing.require('rab_advanced') && setMap('tier', it.ek, k === rab.tierAll ? undefined : k)} manual={project.prices[it.key] !== undefined} />}
           <div className="text-[12px] text-slate-600"><b className="num">{fmt(it.vol, 2)} {it.unit}</b>{it.pack ? <> · {it.pack}</> : null}</div>
           <div className="flex items-end gap-2"><div className="flex-1"><div className="text-[10.5px] uppercase tracking-wide text-slate-500">Harga satuan (Rp)</div>
             <PriceField id={'pricem-' + sec.sid + '-' + it.key} value={it.price} edited={project.prices[it.key] !== undefined} onChange={v => setPrice(it.key, v)} /></div>
@@ -5159,7 +5162,7 @@ function RabTable({ project, setProject, rab, setPrice, nEdited }) {
                 <textarea id={'rab-d-' + it.ek} rows={it.desc.length > 70 ? 2 : 1} className="tp-field !py-1 resize-y" value={it.desc} onChange={e => it.custom ? updCustom(it.cid, { desc: e.target.value }) : setMap('desc', it.ek, e.target.value)} />
                 {!it.custom && <Reset on={it.edDesc} title="Kembalikan uraian otomatis" onClick={() => setMap('desc', it.ek, undefined)} />}</div>
               : <>{it.desc}{(it.edDesc || it.edVol || it.edUnit) && <span className="pill s-low ml-1.5 !text-[10px]">diubah</span>}{it.custom && <span className="pill s-src ml-1.5 !text-[10px]">tambahan</span>}</>}
-              {it.spec && <TierPick it={it} onPick={(k) => setMap('tier', it.ek, k === rab.tierAll ? undefined : k)} manual={project.prices[it.key] !== undefined} />}</td>
+              {it.spec && <TierPick it={it} onPick={(k) => Billing.require('rab_advanced') && setMap('tier', it.ek, k === rab.tierAll ? undefined : k)} manual={project.prices[it.key] !== undefined} />}</td>
             <td className="r">{edit ? <div className="flex items-center justify-end gap-1.5"><div className="w-24"><NumField id={'rab-v-' + it.ek} value={it.vol} step="0.01" min="0" onChange={v => it.custom ? updCustom(it.cid, { vol: v }) : setMap('vol', it.ek, v)} /></div>
                 {!it.custom && <Reset on={it.edVol} title={`Kembalikan volume otomatis (${fmt(it.autoVol, 2)})`} onClick={() => setMap('vol', it.ek, undefined)} />}</div>
               : <span title={it.edVol ? `Volume otomatis: ${fmt(it.autoVol, 2)}` : undefined}>{fmt(it.vol, 2)}</span>}</td>
@@ -7824,7 +7827,8 @@ const KB = [
   { k: 'pemeriksa penyetuju hak review staf custom tidak semua', t: 'Mengatur siapa pemeriksa & penyetuju', a: 'Admin membuka *Menu → Kelola pengguna* lalu mencentang **Pemeriksa** dan/atau **Penyetuju** pada pengguna tertentu. Saat proyek diajukan, daftar pilihan hanya berisi pengguna yang dicentang (jabatan di profil tidak menentukan). Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.' },
   { k: 'unggah upload tanda tangan gambar scan foto ttd esign', t: 'Unggah gambar tanda tangan', a: 'Pada jendela tanda tangan elektronik tekan **Unggah gambar tanda tangan** dan pilih foto/scan tanda tangan (PNG/JPG). Opsi *Hapus latar putih otomatis* membuat latar kertas transparan. Tanda tangan disimpan di perangkat untuk dipakai lagi.' },
   { k: 'login masuk gagal configuration-not-found firebase auth-config domain', t: 'Gagal masuk / login daring', a: '- **auth/configuration-not-found**: aktifkan *Authentication → Sign-in method → Email/Password* di Firebase dan pastikan isi `auth-config.js` sama persis dengan *Project settings → Your apps → Config*.\n- **unauthorized-domain**: tambahkan domain situs (mis. `nama.github.io`) di *Authentication → Settings → Authorized domains*.\n- **Email atau kata sandi salah**: pakai "Lupa kata sandi" di layar masuk.\n- Masuk pertama kali di perangkat baru butuh internet; setelah itu bisa luring hingga 30 hari.' },
-  { k: 'daftar akun menunggu persetujuan pending approve admin setujui pengguna', t: 'Akun menunggu persetujuan', a: 'Akun baru berstatus **Menunggu persetujuan** sampai admin menyetujui di *Menu → Kelola pengguna*. Admin mendapat pop-up/notifikasi saat ada pendaftar baru. Setelah disetujui, tekan **Periksa ulang** di layar tunggu.' },
+  { k: 'daftar akun baru menunggu persetujuan pending approve admin aktif free tangguhkan', t: 'Mendaftar akun', a: 'Akun baru **langsung aktif** dengan paket **WASHLY FREE**, tanpa menunggu persetujuan admin. Admin tetap bisa melihat pendaftar dan **menangguhkan** akun di *Menu → Kelola pengguna*. Untuk membuka semua fitur, upgrade ke **WASHLY PRO** di *Langganan*.' },
+  { k: 'proyek orang lain lihat jaringan saja tidak bisa edit hanya baca petugas review akses', t: 'Membuka proyek milik pengguna lain', a: 'Proyek milik orang lain hanya dapat dilihat **jaringan pipanya** (titik & pipa) di peta. Analisis, RAB, gambar DED, foto, dan data lain hanya untuk **pemilik dan admin**, dan tidak ada yang bisa mengubah proyek milik orang lain. Petugas yang ditunjuk pemilik (surveyor, penggambar, pemeriksa, penyetuju) dapat melihat semua lembar dan menandatangani, tetapi tetap tidak dapat mengubah isinya.' },
   { k: 'sinkron cloud gagal permission-denied aturan firestore rules simpan', t: 'Sinkron cloud gagal', a: '- **Akses ditolak (permission-denied)**: tempel ulang isi `firestore.rules` terbaru di *Firebase Console → Firestore → Rules → Publish*.\n- **Offline**: data tetap tersimpan di perangkat dan dikirim otomatis saat online.\n- **Ada versi lain di cloud**: pilih memakai versi cloud, menimpa dengan versi Anda, atau menyimpan sebagai salinan.' },
   { k: 'gps tidak akurat lokasi izin akurasi sinyal tracker rekam jejak', t: 'GPS tidak akurat / tidak jalan', a: '- Izinkan akses **Lokasi** untuk browser/aplikasi dan aktifkan mode akurasi tinggi.\n- Aplikasi harus dibuka lewat **HTTPS** (GitHub Pages sudah HTTPS).\n- Tunggu akurasi ≤ batas di *Pengaturan GPS* (bawaan 20 m); di bawah pohon/lembah akurasi turun.\n- Saat merekam jejak, layar dijaga tetap menyala; jangan kunci layar terlalu lama.' },
   { k: 'elevasi dem tidak terisi ketinggian otomatis open-meteo perkiraan', t: 'Elevasi otomatis (DEM) tidak terisi', a: 'Elevasi otomatis memakai DEM Copernicus 90 m via internet. Bila offline, elevasi sementara diperkirakan dari titik sekitar (label *Perkiraan*) dan diperbarui saat online (tombol *Coba lagi* di bilah bawah). Untuk akurasi lebih baik, isi elevasi manual dari survei (waterpass/GPS geodetik).' },
@@ -8012,6 +8016,7 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
         <table><thead><tr><th>Parameter</th><th>Baku mutu</th><th>Air baku</th><th>Olahan (perkiraan)</th><th>Status</th></tr></thead><tbody>{x.d.compliance.map(c => <tr key={c.k}><td>{c.label} {c.unit && `(${c.unit})`}</td><td className="r">{c.min !== undefined ? `${c.min}–${c.max}` : c.max === 0 ? '0' : '≤ ' + c.max}</td><td className="r">{fmt(c.raw, c.d)}</td><td className="r">{fmt(c.fin, c.d)}</td><td>{c.ok ? 'memenuhi' : 'MELEBIHI'}</td></tr>)}</tbody></table>
         {x.d.om.length > 0 && <p style={{ fontSize: '8.5pt' }}>Biaya operasional bahan & energi ± {rp(x.d.omMonth)}/bulan ({x.d.om.map(o => `${o[0]} ${fmt(o[1], 1)} ${o[2]}`).join('; ')}).</p>}</div>)}
       <p style={{ fontSize: '8.5pt' }}><i>Kualitas air olahan adalah perkiraan berdasarkan efisiensi tipikal unit; wajib dikonfirmasi dengan uji laboratorium.</i></p></>}
+    {Billing.has('rab_print') ? <>
     <h2>5. Rencana Anggaran Biaya</h2>
     <p style={{ fontSize: '9pt' }}>Acuan harga: Standar Harga Satuan Provinsi {rab.shs.name} tahun {rab.shs.year}{rab.shs.n ? ` (${rab.shs.n} item SHS${rab.shs.source ? ', ' + rab.shs.source : ''})` : ''}; harga bawaan disesuaikan dengan IKK {fmt(rab.shs.ikk, 1)} (faktor × {fmt(rab.shs.factor, 3)} terhadap Jawa Barat).</p>
     <table><thead><tr><th>No</th><th>Uraian pekerjaan</th><th>Volume</th><th>Sat.</th><th>Kemasan / qty beli</th><th>Harga satuan (Rp)</th><th>Jumlah (Rp)</th></tr></thead>
@@ -8025,6 +8030,7 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
     {rab.sections.some(x => x.items.some(it => it.spec)) && <><h3>Lampiran: rekomendasi spesifikasi bahan (minimal · ideal · maksimal)</h3>
       <table style={{ fontSize: '7.5pt' }}><thead><tr><th>No</th><th>Item</th><th>Minimal</th><th>Ideal</th><th>Maksimal</th><th>Dipakai</th></tr></thead>
         <tbody>{rab.sections.flatMap(x => x.items.filter(it => it.spec).map(it => [x.code, it])).map(([c, it], i) => <tr key={it.ek}><td>{i + 1}</td><td>{it.desc}</td><td>{it.spec.min.s}</td><td>{it.spec.ideal.s}</td><td>{it.spec.max.s}</td><td>{TIERS[it.tier]}</td></tr>)}</tbody></table></>}
+    </> : <><h2>5. Rencana Anggaran Biaya</h2><p style={{ fontSize: '9pt' }}><i>Rincian RAB hanya disertakan pada cetakan WASHLY PRO. Lihat tab BoQ & RAB di aplikasi.</i></p></>}
     {project.cloud && <p style={{ marginTop: '14pt', fontSize: '9pt' }}>Status dokumen: <b>{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</b>{project.meta.checkedName ? ` · diperiksa ${project.meta.checkedName} (${project.meta.checkedBy}) ${project.meta.checkedDate || ''}` : ''}{project.meta.approvedName ? ` · disetujui ${project.meta.approvedName} (${project.meta.approvedBy}) ${project.meta.approvedDate || ''}` : ''}</p>}
     <table style={{ marginTop: '12pt', border: 0 }}><tbody><tr>{[['Dibuat oleh', project.meta.drawnBy, project.cloud?.ownerName], ['Diperiksa oleh', project.meta.checkedBy || 'Pemeriksa', project.meta.checkedName], ['Disetujui oleh', project.meta.approvedBy || 'Penyetuju', project.meta.approvedName]].map(([a, t, n]) =>
       <td key={a} style={{ border: 0, textAlign: 'center', width: '33%' }}>{a},<br /><b>{t}</b><div style={{ height: '44pt' }} /><b><u>{n || '(............................................)'}</u></b></td>)}</tr></tbody></table>
@@ -8138,7 +8144,7 @@ function ProjectDialog({ locked = false, ownerName = '', project, setProject, on
           <div className="rounded-lg border border-line p-4 flex flex-col items-center gap-3">
             <OrgLogos meta={project.meta} height={54} gap={20} className="flex-wrap justify-center" />
             <div className="flex flex-wrap gap-2 justify-center">
-              <label className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium border border-line bg-white text-slate-700 hover:border-aqua-400 cursor-pointer"><Icon name="Upload" size={15} />Ganti logo<input id="org-logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={onLogo} /></label>
+              <label onClick={e => { if (!Billing.has('custom_logo')) { e.preventDefault(); Billing.set({ ask: 'custom_logo' }); } }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium border border-line bg-white text-slate-700 hover:border-aqua-400 cursor-pointer"><Icon name="Upload" size={15} />Ganti logo<input id="org-logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={onLogo} /></label>
               {project.meta.orgLogo && <Btn variant="outline" icon="RotateCcw" onClick={() => setProject(p => ({ ...p, meta: { ...p.meta, orgLogo: '', orgLogoW: 0, orgLogoH: 0 } }), { noStamp: true })}>Kembalikan logo bawaan</Btn>}
             </div>
             {logoErr && <p className="text-red-600 text-[12px]">{logoErr}</p>}
@@ -8355,11 +8361,13 @@ async function hashPw(pw, saltB64) {
 }
 const normEmail = (e) => String(e || '').trim().toLowerCase();
 const LOCAL_USERS = 'tirtaplan-users', LOCAL_SESSION = 'tirtaplan-session';
-const USER_STATUS = { pending: ['Menunggu persetujuan', 's-low'], approved: ['Aktif', 's-ok'], rejected: ['Ditolak', 's-high'], suspended: ['Ditangguhkan', 's-idle'] };
+// Pendaftaran tidak lagi menunggu admin: akun 'pending' lama diperlakukan aktif
+const liveStatus = (st) => st === 'pending' ? 'approved' : st;
+const USER_STATUS = { pending: ['Aktif', 's-ok'], approved: ['Aktif', 's-ok'], rejected: ['Ditolak', 's-high'], suspended: ['Ditangguhkan', 's-idle'] };
 function makeLocalAuth() {
   const read = () => { try { return JSON.parse(localStorage.getItem(LOCAL_USERS) || '[]'); } catch (e) { return []; } };
   const write = (u) => localStorage.setItem(LOCAL_USERS, JSON.stringify(u));
-  const pub = (u) => u ? { uid: u.uid, email: u.email, name: u.name, role: u.role, org: u.org, phone: u.phone, status: u.status, admin: !!u.admin, review: u.review || null, profile: u.profile || null, createdAt: u.createdAt } : null;
+  const pub = (u) => u ? { uid: u.uid, email: u.email, name: u.name, role: u.role, org: u.org, phone: u.phone, status: liveStatus(u.status), admin: !!u.admin, review: u.review || null, profile: u.profile || null, createdAt: u.createdAt } : null;
   const session = (id) => localStorage.setItem(LOCAL_SESSION, JSON.stringify({ uid: id, exp: Date.now() + 30 * 864e5 }));
   let listener = null;
   const emit = () => { let s = null; try { s = JSON.parse(localStorage.getItem(LOCAL_SESSION) || 'null'); } catch (e) {} const u = s && s.exp > Date.now() ? read().find(x => x.uid === s.uid) : null; listener && listener(pub(u)); };
@@ -8370,7 +8378,7 @@ function makeLocalAuth() {
       email = normEmail(email); const users = read();
       if (users.some(u => u.email === email)) throw new Error('Email ini sudah terdaftar di perangkat ini. Silakan masuk.');
       const h = await hashPw(password); const first = users.length === 0;
-      const u = { uid: uid('u'), email, name, role, org, phone, ...h, status: first ? 'approved' : 'pending', admin: first, createdAt: Date.now() };
+      const u = { uid: uid('u'), email, name, role, org, phone, ...h, status: 'approved', admin: first, createdAt: Date.now() };
       write([...users, u]); session(u.uid); emit();
     },
     async signIn(email, password) {
@@ -8420,9 +8428,9 @@ async function makeFirebaseAuth() {
     const ref = db.collection('users').doc(u.uid);
     try {
       let snap = await ref.get();
-      if (!snap.exists) { await ref.set({ email: normEmail(u.email), name: form?.name || u.displayName || u.email, role: form?.role || '', org: form?.org || '', phone: form?.phone || '', status: 'pending', createdAt: firebase.firestore.FieldValue.serverTimestamp() }); snap = await ref.get(); }
+      if (!snap.exists) { await ref.set({ email: normEmail(u.email), name: form?.name || u.displayName || u.email, role: form?.role || '', org: form?.org || '', phone: form?.phone || '', status: 'approved', createdAt: firebase.firestore.FieldValue.serverTimestamp() }); snap = await ref.get(); }
       const d = snap.data();
-      const prof = { uid: u.uid, email: u.email, name: d.name, role: d.role, org: d.org, phone: d.phone, status: isAdm(u.email) ? 'approved' : d.status, admin: isAdm(u.email), verified: u.emailVerified };
+      const prof = { uid: u.uid, email: u.email, name: d.name, role: d.role, org: d.org, phone: d.phone, status: isAdm(u.email) ? 'approved' : liveStatus(d.status), admin: isAdm(u.email), verified: u.emailVerified };
       try { localStorage.setItem(cacheKey(u.uid), JSON.stringify({ ...prof, cachedAt: Date.now() })); } catch (e) {}
       return prof;
     } catch (e) {
@@ -8449,7 +8457,7 @@ async function makeFirebaseAuth() {
     async listUsers() { if (auth.currentUser) { await auth.currentUser.reload().catch(() => {}); await auth.currentUser.getIdToken(true).catch(() => {}); }
       const q = await db.collection('users').get().catch(e => { throw new Error(fbErr(e)); });
       const pm = {}; if (auth.currentUser && isAdm(auth.currentUser.email)) { const pq = await db.collection('profiles').get().catch(() => null); if (pq) pq.docs.forEach(d => { pm[d.id] = d.data().profile; }); }
-      return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, profile: pm[d.id] || null, status: isAdm(x.email) ? 'approved' : x.status, admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
+      return q.docs.map(d => { const x = d.data(); return { uid: d.id, ...x, profile: pm[d.id] || null, status: isAdm(x.email) ? 'approved' : liveStatus(x.status), admin: isAdm(x.email), createdAt: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0 }; }); },
     async setStatus(id, status) { await db.collection('users').doc(id).update({ status }).catch(e => { throw new Error(fbErr(e)); }); },
     async setReview(id, review) { await db.collection('users').doc(id).update({ review }).catch(e => { throw new Error(fbErr(e)); }); },
     async getUser(id) { const d = await db.collection('users').doc(id).get().catch(e => { throw new Error(fbErr(e)); }); if (!d.exists) return null; const x = d.data();
@@ -8463,7 +8471,7 @@ async function makeFirebaseAuth() {
       await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, password)).catch(e => { throw new Error(fbErr(e)); });
       const me = u.uid; const delWhere = async (col, f, v) => { const s = await db.collection(col).where(f, '==', v).get().catch(() => null); if (s) for (const d of s.docs) await db.collection(col).doc(d.id).delete().catch(() => {}); };
       if (withProjects) { await delWhere('photos', 'ownerUid', me); const ps = await db.collection('projects').where('ownerUid', '==', me).get().catch(() => null);
-        if (ps) for (const d of ps.docs) { await db.collection('projectData').doc(d.id).delete().catch(() => {}); await db.collection('projects').doc(d.id).delete().catch(() => {}); } }
+        if (ps) for (const d of ps.docs) { await db.collection('projectData').doc(d.id).delete().catch(() => {}); await db.collection('projectNet').doc(d.id).delete().catch(() => {}); await db.collection('projects').doc(d.id).delete().catch(() => {}); } }
       if (u.email) await delWhere('notifications', 'toEmail', normEmail(u.email));
       await db.collection('profiles').doc(me).delete().catch(() => {});
       await db.collection('users').doc(me).delete().catch(() => {});
@@ -8484,7 +8492,7 @@ function AuthShell({ children }) {
         <div><div className="text-[18px] font-semibold leading-tight">WASHLY - Simplify the flow</div><div className="text-[12.5px] text-aqua-100">Perencanaan & survei jaringan air bersih</div></div>
       </div>
       <div className="bg-white rounded-xl shadow-xl">{children}</div>
-      <p className="text-[11.5px] text-aqua-100/80 mt-3 text-center">{AUTH_MODE === 'firebase' ? 'Akun baru aktif setelah disetujui admin organisasi.' : 'Mode lokal: akun tersimpan di perangkat ini saja. Akun pertama menjadi admin perangkat.'}</p>
+      <p className="text-[11.5px] text-aqua-100/80 mt-3 text-center">{AUTH_MODE === 'firebase' ? 'Akun baru langsung aktif dengan paket WASHLY FREE.' : 'Mode lokal: akun tersimpan di perangkat ini saja. Akun pertama menjadi admin perangkat.'}</p>
       <p className="text-[11.5px] mt-2 text-center"><a id="link-privacy" href="privacy.html" className="text-aqua-100 underline">Kebijakan privasi</a><span className="text-aqua-100/60"> · </span><a href="hapus-akun.html" className="text-aqua-100 underline">Hapus akun</a></p>
     </div>
   </div>;
@@ -8507,7 +8515,7 @@ function AuthScreen({ api }) {
     if (f.password.length < 8) return setErr('Kata sandi minimal 8 karakter.');
     if (f.password !== f.password2) return setErr('Konfirmasi kata sandi tidak sama.');
     return run(async () => { await api.signUp({ ...f, name: f.name.trim(), email: f.email.trim() });
-      sendNotify(api, { to: ADMIN_EMAILS.filter(e => e !== normEmail(f.email)).map(email => ({ email, name: 'Admin' })), title: 'Pendaftar baru menunggu persetujuan', body: `${f.name.trim()} (${f.email.trim()})${f.role ? ', ' + f.role : ''}${f.org ? ', ' + f.org : ''} mendaftar di WASHLY. Tinjau di Menu → Kelola pengguna.`, kind: 'register', from: { name: f.name.trim() } }).catch(() => {}); });
+      sendNotify(api, { to: ADMIN_EMAILS.filter(e => e !== normEmail(f.email)).map(email => ({ email, name: 'Admin' })), title: 'Pendaftar baru', body: `${f.name.trim()} (${f.email.trim()})${f.role ? ', ' + f.role : ''}${f.org ? ', ' + f.org : ''} mendaftar di WASHLY (langsung aktif, paket FREE).`, kind: 'register', from: { name: f.name.trim() } }).catch(() => {}); });
   };
   return <AuthShell>
     <div className="flex border-b border-line">{[['in', 'Masuk'], ['up', 'Daftar akun']].map(([k, l]) => <button key={k} type="button" onClick={() => { setTab(k); setErr(''); setMsg(''); }} className={`flex-1 py-3 text-[14px] font-semibold ${tab === k || (k === 'in' && tab === 'reset') ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}</div>
@@ -8737,7 +8745,15 @@ function makeCloudStore(api) {
     async list(scope, user) { try { let q = db.collection('projects'); if (scope === 'mine') q = q.where('ownerUid', '==', user.uid); const s = await q.get(); return s.docs.map(metaOf).sort((a, b) => b.updatedAt - a.updatedAt); } catch (e) { throw wrap(e); } },
     async meta(id) { try { const s = await db.collection('projects').doc(id).get(); return s.exists ? metaOf(s) : null; } catch (e) { throw wrap(e); } },
     async load(id) {
-      try { const [m, d] = await Promise.all([db.collection('projects').doc(id).get(), db.collection('projectData').doc(id).get()]);
+      try { const m = await db.collection('projects').doc(id).get();
+        let d = null; try { d = await db.collection('projectData').doc(id).get(); } catch (e) { if (e.code !== 'permission-denied') throw e; }
+        if (!d) { // bukan pemilik/admin/petugas: server hanya memberi jaringan pipa (projectNet)
+          const n = await db.collection('projectNet').doc(id).get();
+          if (!n.exists || !m.exists) throw new Error('Jaringan proyek ini belum tersedia untuk dilihat. Pemilik perlu membuka proyek ini sekali agar tersinkron.');
+          const net = await unpackJson(n.data()); const x = m.data();
+          return { project: normalizeProject({ ...createEmptyProject(), meta: { ...createEmptyProject().meta, name: net.name || x.name, location: net.location || x.location || '', lat: net.lat ?? null, lng: net.lng ?? null },
+            nodes: net.nodes || [], pipes: net.pipes || [], structures: [], photos: [], tracks: [],
+            cloud: { id, ownerUid: x.ownerUid, ownerName: x.ownerName || '', ownerEmail: x.ownerEmail || '', status: x.status || 'draft', netOnly: true } }), rev: x.rev || 0 }; }
         if (!d.exists) throw new Error('Data proyek ini tidak ditemukan di cloud.');
         return { project: normalizeProject(await unpackJson(d.data())), rev: m.exists ? m.data().rev || 0 : 0 }; } catch (e) { throw e.code ? wrap(e) : e; }
     },
@@ -8745,16 +8761,20 @@ function makeCloudStore(api) {
     async save(p, baseRev, user, str) {
       const pk = await packJson(str || p); const bytes = pk.bytes ? pk.bytes.length : pk.size;
       if (bytes > 950000) throw new Error('Proyek terlalu besar untuk cloud (lebih dari 1 MB setelah dikompresi). Hapus jejak GPS lama atau simpan sebagai .json.');
-      const c = p.cloud; const mRef = db.collection('projects').doc(c.id), dRef = db.collection('projectData').doc(c.id);
+      const c = p.cloud; const mRef = db.collection('projects').doc(c.id), dRef = db.collection('projectData').doc(c.id), nRef = db.collection('projectNet').doc(c.id);
+      // Salinan "hanya jaringan pipa" untuk pengguna lain (tanpa kebutuhan air, bangunan, RAB, gambar, foto, atau tanda tangan)
+      const nk = await packJson(JSON.stringify({ name: p.meta.name || '', location: p.meta.location || '', lat: p.meta.lat ?? null, lng: p.meta.lng ?? null,
+        nodes: p.nodes.map(n => ({ id: n.id, label: n.label, type: n.type, lat: n.lat, lng: n.lng, elev: n.elev })), pipes: p.pipes.map(x => ({ id: x.id, label: x.label, from: x.from, to: x.to, material: x.material, diameter: x.diameter, ...(x.path ? { path: x.path } : {}) })) }));
       try {
         return await db.runTransaction(async (tx) => {
           const snap = await tx.get(mRef); const cur = snap.exists ? snap.data() : null;
           if (baseRev !== undefined && cur && (cur.rev || 0) !== baseRev) { const e = new Error('conflict'); e.conflict = { by: cur.updatedByName, at: ms(cur.updatedAt), rev: cur.rev || 0 }; throw e; }
           const rev = (cur?.rev || 0) + 1;
           tx.set(mRef, { name: p.meta.name || 'Tanpa nama', location: p.meta.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName || '', ownerEmail: c.ownerEmail || '',
-            status: c.status || 'draft', checkerUid: c.reviewers?.checker?.uid || '', approverUid: c.reviewers?.approver?.uid || '', surveyorUid: c.reviewers?.surveyor?.uid || '', drafterUid: c.reviewers?.drafter?.uid || '', rev, nodes: p.nodes.length, pipes: p.pipes.length, size: bytes, checkedName: p.meta.checkedName || '', approvedName: p.meta.approvedName || '',
+            status: c.status || 'draft', checkerUid: c.reviewers?.checker?.uid || '', approverUid: c.reviewers?.approver?.uid || '', surveyorUid: c.reviewers?.surveyor?.uid || '', drafterUid: c.reviewers?.drafter?.uid || '', rev, netV: 1, nodes: p.nodes.length, pipes: p.pipes.length, size: bytes, checkedName: p.meta.checkedName || '', approvedName: p.meta.approvedName || '',
             updatedByUid: user.uid, updatedByName: user.name || user.email, updatedByDev: DEVICE_ID, updatedFrom: DEVICE_KIND, updatedAt: FS.FieldValue.serverTimestamp(), createdAt: cur?.createdAt || FS.FieldValue.serverTimestamp() });
           tx.set(dRef, { ownerUid: c.ownerUid, rev, fmt: pk.fmt, ...(pk.bytes ? { data: FS.Blob.fromUint8Array(pk.bytes) } : { text: pk.text }) });
+          tx.set(nRef, { ownerUid: c.ownerUid, rev, fmt: nk.fmt, ...(nk.bytes ? { data: FS.Blob.fromUint8Array(nk.bytes) } : { text: nk.text }) });
           return { rev };
         });
       } catch (e) { if (e.conflict) throw e; throw wrap(e); }
@@ -8762,7 +8782,7 @@ function makeCloudStore(api) {
     // Dengarkan perubahan proyek (realtime): cb(meta) setiap kali versi di cloud berubah
     watch(id, cb) { try { return db.collection('projects').doc(id).onSnapshot(s => { if (s.exists && !(s.metadata && s.metadata.hasPendingWrites)) cb(metaOf(s)); }, () => {}); } catch (e) { return () => {}; } },
     watchMine(user, cb) { try { return db.collection('projects').where('ownerUid', '==', user.uid).onSnapshot(s => cb(s.docs.map(metaOf)), () => {}); } catch (e) { return () => {}; } },
-    async remove(id) { try { await db.collection('projectData').doc(id).delete(); await db.collection('projects').doc(id).delete(); } catch (e) { throw wrap(e); } },
+    async remove(id) { try { await db.collection('projectData').doc(id).delete(); await db.collection('projectNet').doc(id).delete().catch(() => {}); await db.collection('projects').doc(id).delete(); } catch (e) { throw wrap(e); } },
     async putPhoto(id, rec) { try { await db.collection('photos').doc(id).set({ ...rec, at: FS.FieldValue.serverTimestamp() }); } catch (e) { throw wrap(e); } },
     async getPhoto(id) { const s = await db.collection('photos').doc(id).get(); return s.exists ? s.data().data : null; },
   };
@@ -8928,7 +8948,7 @@ async function sha256Hex(str) { const b = await crypto.subtle.digest('SHA-256', 
 async function ntfyTopicFor(email) { return NOTIFY.ntfyTopic ? `${NOTIFY.ntfyTopic}-${(await sha256Hex(normEmail(email))).slice(0, 10)}` : null; }
 const appUrl = () => location.origin + location.pathname;
 // Pesan ntfy (server publik) sengaja umum, tanpa nama/email; rinciannya ada di kotak masuk aplikasi & email.
-const NTFY_TEXT = { register: 'Ada pendaftar baru menunggu persetujuan admin.', review: 'Ada proyek menunggu pemeriksaan Anda.', checked: 'Ada proyek menunggu persetujuan Anda.', approved: 'Proyek Anda sudah disetujui.', revisi: 'Proyek Anda dikembalikan untuk revisi.', info: 'Ada pemberitahuan baru.' };
+const NTFY_TEXT = { register: 'Ada pendaftar baru di WASHLY.', review: 'Ada proyek menunggu pemeriksaan Anda.', checked: 'Ada proyek menunggu persetujuan Anda.', approved: 'Proyek Anda sudah disetujui.', revisi: 'Proyek Anda dikembalikan untuk revisi.', info: 'Ada pemberitahuan baru.' };
 async function sendNotify(api, { to, title, body, kind = 'info', projectId = '', from = null }) {
   const out = { inbox: 0, push: 0, email: 0 }; const seen = new Set();
   for (const r of to || []) { if (!r || !r.email) continue; const email = normEmail(r.email); if (seen.has(email)) continue; seen.add(email);
@@ -9078,14 +9098,61 @@ function ConflictDialog({ info, canOverwrite, onCloud, onMine, onCopy, onClose }
    Sumber kebenaran: dokumen Firestore entitlements/{uid} yang HANYA ditulis server (Cloud Functions)
    setelah pembayaran diverifikasi ke Midtrans / Google Play. Aplikasi hanya membaca.
    =================================================================== */
+// Penampil proyek milik pengguna lain: hanya jaringan pipa (titik & pipa), tanpa alat edit dan tanpa lembar lain
+function netStrip(p) {
+  const e = createEmptyProject();
+  return normalizeProject({ ...e, meta: { ...e.meta, name: p.meta.name, location: p.meta.location || '', lat: p.meta.lat ?? null, lng: p.meta.lng ?? null },
+    nodes: p.nodes.map(n => ({ id: n.id, label: n.label, type: n.type, lat: n.lat, lng: n.lng, elev: n.elev })),
+    pipes: p.pipes.map(x => ({ id: x.id, label: x.label, from: x.from, to: x.to, material: x.material, diameter: x.diameter, ...(x.path ? { path: x.path } : {}) })),
+    structures: [], photos: [], tracks: [], cloud: { id: p.cloud.id, ownerUid: p.cloud.ownerUid, ownerName: p.cloud.ownerName, status: p.cloud.status, netOnly: true } });
+}
+function NetViewer({ project: full, mobile }) {
+  const project = useMemo(() => netStrip(full), [full]); const hyd = useMemo(() => computeHydraulics(project), [project]);
+  const [sel, setSel] = useState(null); const [fit, setFit] = useState(1);
+  const MapC = window.L ? LeafletMap : CanvasMap; const nmap = Object.fromEntries(project.nodes.map(n => [n.id, n]));
+  const lenOf = (p) => hyd.pipes[p.id] ? hyd.pipes[p.id].length : 0;
+  const byMat = {}; project.pipes.forEach(p => { const k = `${p.material} Ø${p.diameter} mm`; byMat[k] = (byMat[k] || 0) + lenOf(p); });
+  const s = sel && (sel.kind === 'node' ? nmap[sel.id] : project.pipes.find(p => p.id === sel.id));
+  const noop = () => {};
+  return <div className="h-full flex flex-col lg:flex-row min-h-0">
+    <div className="relative flex-1 min-h-[300px]">
+      <MapC project={project} hyd={hyd} selection={sel} activeNode={null} tool="view" colorMode="velocity" showLabels={false} fitSignal={fit} bendAngle={project.settings.bendAngle}
+        tracks={[]} gpsPos={null} follow={false} focus={null} mobile={mobile} pending={[]} onPipeVertex={noop} projKey={'net:' + project.cloud.id}
+        site={project.meta.lat != null && project.meta.lng != null ? { lat: +project.meta.lat, lng: +project.meta.lng } : null}
+        photos={[]} onPhotoClick={noop} onMapClick={() => setSel(null)} onNodeClick={id => setSel({ kind: 'node', id })} onPipeClick={id => setSel({ kind: 'pipe', id })}
+        hoverPt={null} gw={null} onGwCand={noop} onNodeDrag={noop} onStructClick={noop} onStructDrag={noop} />
+      <button type="button" onClick={() => setFit(f => f + 1)} className="absolute right-3 bottom-8 z-[600] bg-white border border-line rounded-full px-3 py-1.5 text-[12px] font-semibold shadow">Tampilkan seluruh jaringan</button>
+    </div>
+    <aside id="net-viewer" className="lg:w-[320px] shrink-0 bg-white border-t lg:border-t-0 lg:border-l border-line p-4 overflow-y-auto text-[13px] space-y-3 max-h-[42vh] lg:max-h-none">
+      <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Jaringan pipa</div><div className="font-semibold">{project.meta.name}</div>
+        <div className="text-slate-500 text-[12px]">Milik {project.cloud.ownerName || 'pengguna lain'}</div></div>
+      <div className="grid grid-cols-2 gap-2"><div className="rounded-md bg-ground px-3 py-2"><div className="text-[11px] text-slate-500">Titik</div><div className="font-semibold num">{project.nodes.length}</div></div>
+        <div className="rounded-md bg-ground px-3 py-2"><div className="text-[11px] text-slate-500">Panjang pipa</div><div className="font-semibold num">{fmt(hyd.totalLength, 0)} m</div></div></div>
+      <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Pipa per jenis & diameter</div>
+        {Object.entries(byMat).sort((a, b) => b[1] - a[1]).map(([k, v]) => <div key={k} className="flex justify-between border-t border-line py-1"><span>{k}</span><span className="num">{fmt(v, 0)} m</span></div>)}</div>
+      {s && <div className="rounded-md border border-aqua-200 bg-aqua-50 px-3 py-2">{sel.kind === 'node'
+        ? <><b>{s.label}</b> · {(NODE_TYPES[s.type] || {}).label}<div className="text-[12px] text-slate-600 num">{(+s.lat).toFixed(6)}, {(+s.lng).toFixed(6)} · elevasi {fmt(+s.elev, 1)} m</div></>
+        : <><b>{s.label}</b> · {s.material} Ø{s.diameter} mm<div className="text-[12px] text-slate-600 num">{(nmap[s.from] || {}).label} → {(nmap[s.to] || {}).label} · {fmt(lenOf(s), 1)} m</div></>}</div>}
+      <p className="text-[11.5px] text-slate-500">Analisis, RAB, gambar DED, foto, dan data lain proyek ini hanya dapat dibuka pemilik dan admin. Ketuk titik atau pipa untuk melihat keterangannya.</p>
+    </aside>
+  </div>;
+}
+
 const BILLING_CFG = (AUTH_CFG && AUTH_CFG.billing) || {}; // mode lokal: AUTH_CFG bisa null
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 // Label fitur (kuncinya sama dengan functions/src/config.js)
 const FEAT = {
-  map_survey: ['Pemetaan, GPS & survei lapangan'], hydraulics: ['Analisis hidrolis jaringan'], pumps_treatment: ['Pompa & pengolahan air'],
-  calculator: ['Kalkulator kebutuhan air, node & daya pompa'], boq_cost: ['BoQ & RAB'], report_print: ['Cetak laporan teknis (PDF)'],
-  data_export: ['Simpan/muat .json & .gpx'], review_workflow: ['Review & tanda tangan elektronik'], assistant_offline: ['Asisten (basis pengetahuan luring)'],
+  map_survey: ['Pemetaan, GPS & survei lapangan'], hydraulics: ['Analisis hidrolis jaringan'], calc_basic: ['Kalkulator kebutuhan air & jumlah node'],
+  pump_basic: ['Head, daya & kurva pompa sumur bor'], boq_cost: ['BoQ & RAB umum (volume, harga bawaan, ubah harga satuan)'], report_print: ['Cetak laporan teknis (tanpa RAB)'],
+  data_export: ['Simpan/muat .json & .gpx'], assistant_offline: ['Asisten (basis pengetahuan luring)'],
   cloud_projects: ['Proyek tersimpan di cloud', 'Paket FREE menyimpan proyek di cloud dengan batas jumlah. PRO tanpa batas (sesuai kapasitas sistem), sehingga semua pekerjaan tim tersinkron antarperangkat.'],
+  calc_advanced: ['Kalkulator debit sumber & daya pompa', 'Kalkulator debit sumber air (ember, pelampung, V-notch, uji pompa, embung, air hujan) dan daya pompa sumur bor memakai perhitungan lanjutan.'],
+  pump_advanced: ['Daya pompa min/ideal/maks, spesifikasi pengadaan & paket all-in', 'Perbandingan daya motor minimal/ideal/maksimal, tabel spesifikasi pompa untuk pengadaan, dan estimasi paket sumur bor all-in.'],
+  treatment_design: ['Desain pengolahan air (aerator, filter, membran)', 'Desain instalasi pengolahan air lengkap: aerator, filter media & FRP, membran, filter rumah tangga, beserta gambar dan RAB-nya.'],
+  rab_advanced: ['RAB lanjutan: SHS/IKK provinsi, tingkat spesifikasi, edit item', 'Penyesuaian harga provinsi (IKK), impor & pencocokan SHS resmi, rekomendasi spesifikasi minimal/ideal/maksimal, dan pengeditan item RAB.'],
+  rab_print: ['Cetak RAB', 'Rincian RAB siap cetak untuk dokumen anggaran. Di paket FREE, RAB tetap bisa dilihat di aplikasi.'],
+  esign: ['Review & tanda tangan elektronik', 'Alur pemeriksaan & persetujuan dengan tanda tangan elektronik yang terikat sidik jari dokumen.'],
+  custom_logo: ['Ganti logo instansi', 'Logo instansi Anda tampil di aplikasi, kop setiap lembar gambar, dan sampul laporan.'],
   ded_print: ['Cetak / PDF gambar DED', 'Gambar DED siap cetak adalah keluaran profesional untuk dokumen perencanaan, tender, dan pelaksanaan. Gambar tetap bisa dilihat di paket FREE.'],
   structural_design: ['Penulangan beton (BBS) & jembatan pipa', 'Desain penulangan, daftar potong besi, dan jembatan pipa memakai perhitungan struktur lanjutan.'],
   rehab_module: ['Rehabilitasi sistem existing', 'Modul rehabilitasi menghitung asesmen kerusakan, volume perbaikan, dan lembar rencana rehabilitasi.'],
@@ -9094,14 +9161,16 @@ const FEAT = {
   manual_drawing: ['Gambar manual di lembar DED', 'Alat gambar manual untuk menyempurnakan dan menambah lembar DED.'],
   ai_assistant: ['Mode AI (Claude) di Asisten', 'Mode AI menjawab pertanyaan bebas memakai model Claude dengan konteks proyek Anda.'],
 };
-const FEAT_ORDER = ['map_survey', 'hydraulics', 'pumps_treatment', 'calculator', 'boq_cost', 'report_print', 'data_export', 'review_workflow', 'assistant_offline', 'cloud_projects', 'ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'];
+const FEAT_ORDER = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print', 'data_export', 'assistant_offline', 'cloud_projects',
+  'calc_advanced', 'pump_advanced', 'treatment_design', 'rab_advanced', 'rab_print', 'esign', 'custom_logo', 'ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'];
+const FEAT_FREE = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print', 'data_export', 'assistant_offline'];
 const BILLING_DEFAULT = {
   enforce: false, currency: 'IDR', graceDays: 3, reminderDays: [7, 1], pendingHours: 24, freeLimits: { cloudProjects: 3 },
   plans: { FREE: { code: 'FREE', name: 'WASHLY FREE', tier: 'FREE', months: 0, price: 0, active: true },
     PRO_MONTHLY: { code: 'PRO_MONTHLY', name: 'WASHLY PRO Bulanan', tier: 'PRO', months: 1, price: 125000, active: true, playProductId: 'washly_pro', playBasePlanId: 'monthly' },
     PRO_YEARLY: { code: 'PRO_YEARLY', name: 'WASHLY PRO Tahunan', tier: 'PRO', months: 12, price: 499000, active: true, playProductId: 'washly_pro', playBasePlanId: 'yearly' } },
   promo: { enabled: false, codes: {} },
-  features: Object.fromEntries(FEAT_ORDER.map(k => [k, { free: ['cloud_projects'].includes(k) ? 'limited' : ['ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'].includes(k) ? false : true, pro: true }])),
+  features: Object.fromEntries(FEAT_ORDER.map(k => [k, { free: k === 'cloud_projects' ? 'limited' : FEAT_FREE.includes(k), pro: true }])),
 };
 const SUB_STATUS = { FREE: 'Gratis', ACTIVE: 'Aktif', PENDING: 'Menunggu pembayaran', PAST_DUE: 'Pembayaran tertunggak', GRACE_PERIOD: 'Masa tenggang', CANCELED: 'Dibatalkan (aktif sampai akhir periode)', EXPIRED: 'Berakhir', REFUNDED: 'Dana dikembalikan' };
 const PAY_STATUS = { PENDING: 'Menunggu', PAID: 'Lunas', FAILED: 'Gagal', EXPIRED: 'Kedaluwarsa', CANCELED: 'Dibatalkan', REFUNDED: 'Refund' };
@@ -9118,7 +9187,7 @@ const Billing = (() => {
     set(p) { st = { ...st, ...p }; emit(); },
     isPro() { return !!effEnt(); },
     // hasAccess(feature): true bila fitur boleh dipakai (paket FREE bertanda 'limited' = boleh dengan batas)
-    has(f) { if (!st.managed || st.admin) return true; if (effEnt()) return true; const c = (st.config || BILLING_DEFAULT).features[f]; return !c || c.free === true || c.free === 'limited'; },
+    has(f) { if (!st.managed || st.admin) return true; if (effEnt()) return true; const c = (st.config || BILLING_DEFAULT).features[f] || BILLING_DEFAULT.features[f]; return !c || c.free === true || c.free === 'limited'; },
     require(f) { if (api.has(f)) return true; api.set({ ask: f }); return false; },
     cloudLimit() { return !st.managed || st.admin || effEnt() ? null : (st.config || BILLING_DEFAULT).freeLimits.cloudProjects; },
     canCreateCloudProject() { const lim = api.cloudLimit(); return lim == null || (st.usage ?? 0) < lim; },
@@ -9168,7 +9237,7 @@ function useBillingSync(api, user) {
     try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c) Billing.set({ ...c, uid: user.uid, admin: !!user.admin }); } catch (e) {}
     const save = () => { try { const s = Billing.get(); localStorage.setItem(key, JSON.stringify({ managed: s.managed, config: s.config, ent: s.ent, usage: s.usage })); } catch (e) {} };
     const db = api.db; const uns = [];
-    uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; Billing.set({ config: c ? { ...BILLING_DEFAULT, ...c } : null, managed: !!(c && c.enforce) }); save(); }, () => {}));
+    uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; Billing.set({ config: c ? { ...BILLING_DEFAULT, ...c, features: { ...BILLING_DEFAULT.features, ...(c.features || {}) } } : null, managed: !!(c && c.enforce) }); save(); }, () => {}));
     uns.push(db.collection('entitlements').doc(user.uid).onSnapshot(d => { Billing.set({ ent: d.exists ? d.data() : null }); save(); }, () => {}));
     uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => { Billing.set({ usage: d.exists ? d.data().cloudProjects || 0 : 0 }); save(); }, () => {}));
     Billing.set({ uid: user.uid, admin: !!user.admin });
@@ -9231,7 +9300,7 @@ function PricingDialog({ user, onClose }) {
     } catch (e) { setErr(e.message || String(e)); }
     setBusy('');
   };
-  const cell = (k, tier) => { const f = cfg.features[k] || { free: true }; const v = tier === 'pro' ? true : f.free;
+  const cell = (k, tier) => { const f = cfg.features[k] || BILLING_DEFAULT.features[k] || { free: true }; const v = tier === 'pro' ? true : f.free;
     return v === true ? <Icon name="Check" size={16} className="text-emerald-600 mx-auto" /> : v === 'limited' ? <span className="text-[11.5px] text-amber-700">{k === 'cloud_projects' ? `Terbatas (${cfg.freeLimits.cloudProjects} proyek)` : 'Terbatas'}</span> : <span className="text-slate-400">—</span>; };
   const card = (p, { cta, highlight, sub }) => <div className={'rounded-xl border p-4 flex flex-col ' + (highlight ? 'border-2 border-aqua-500 shadow-md relative' : 'border-line')}>
     {highlight && sv && <span className="absolute -top-2.5 right-3 rounded-full bg-amber-300 text-slate-900 text-[11px] font-bold px-2 py-0.5">Hemat {sv.pct}%</span>}
@@ -9463,10 +9532,21 @@ function App({ user, api }) {
   const [conflict, setConflict] = useState(null);
   const [libOpen, setLibOpen] = useState(false); const [reviewOpen, setReviewOpen] = useState(false);
   const readOnly = !!store && project.cloud.ownerUid !== user.uid && !user.admin;
+  // Akses proyek orang lain: petugas yang ditunjuk (pemeriksa/penyetuju/surveyor/penggambar) boleh melihat semua lembar & menandatangani;
+  // pengguna lain hanya melihat jaringan pipa. Tidak ada yang bisa mengubah isi proyek milik orang lain.
+  const rvw0 = project.cloud.reviewers || {}; const isCrew = [rvw0.checker?.uid, rvw0.approver?.uid, rvw0.surveyor?.uid, rvw0.drafter?.uid].includes(user.uid);
+  const netOnly = readOnly && (!isCrew || !!project.cloud.netOnly);
+  const readOnlyRef = useRef(readOnly); readOnlyRef.current = readOnly;
   const history = useRef([]); const [histLen, setHistLen] = useState(0);
   const officerRef = useRef(null);
   const setProject = useCallback((upd, opts = {}) => {
-    setProjectRaw(prev => { let next = typeof upd === 'function' ? upd(prev) : upd; if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current);
+    setProjectRaw(prev => { let next = typeof upd === 'function' ? upd(prev) : upd;
+      // Proyek milik orang lain: tolak semua perubahan isi (kecuali tanda tangan/review petugas & pindah lembar DED)
+      if (readOnlyRef.current && next !== prev && !opts.review && prev.cloud && next.cloud && prev.cloud.id === next.cloud.id) {
+        const keys = Object.keys({ ...prev, ...next }).filter(k => next[k] !== prev[k]);
+        const uiOnly = keys.every(k => k === 'ded' && Object.keys({ ...prev.ded, ...next.ded }).every(j => j === 'sheet' || next.ded[j] === prev.ded[j]));
+        if (!uiOnly) return prev; }
+      if (next !== prev && !opts.noStamp) next = stampProject(prev, next, officerRef.current);
       if (next !== prev && !opts.system && next.cloud && ['checked', 'approved'].includes(next.cloud.status) && Object.keys(next).some(k => k !== 'ded' ? next[k] !== prev[k] : Object.keys(next.ded).some(j => j !== 'sheet' && next.ded[j] !== prev.ded[j]))) {
         const who = officerRef.current; next = { ...next, meta: { ...next.meta, checkedName: '', checkedDate: '', approvedName: '', approvedDate: '', checkedSig: '', approvedSig: '', surveyedSig: '', surveyedSigName: '', surveyedDate: '', drawnSig: '', drawnSigName: '', drawnDate: '' },
           cloud: { ...next.cloud, status: 'draft', signs: [], reviews: [...(next.cloud.reviews || []), { at: Date.now(), by: who ? { uid: who.id, name: who.name, role: who.role } : null, from: next.cloud.status, to: 'draft', note: 'Isi proyek diubah setelah ' + (next.cloud.status === 'approved' ? 'disetujui' : 'diperiksa') + '; perlu diajukan ulang.' }] } }; }
@@ -9610,7 +9690,7 @@ function App({ user, api }) {
   }, [project.nodes, project.structures, project.settings.elevSource, elevRetry]);
   const openDed = (id) => { setProject(p => ({ ...p, ded: { ...p.ded, sheet: 'st:' + id } })); setTab('ded'); };
   const fileBase = () => (project.meta.name || 'proyek').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 50);
-  const shareData = async (kind) => {
+  const shareData = async (kind) => { if (netOnly) { netMsg(); return; }
     const isGpx = kind === 'gpx'; const name = fileBase() + (isGpx ? '.gpx' : '.json');
     const text = isGpx ? buildGpx(project) : JSON.stringify(project, null, 2);
     try {
@@ -9706,7 +9786,7 @@ function App({ user, api }) {
         if (!s.dirty) { const r = await store.load(id); localLib.put(user.uid, r.project); localLib.setSync(id, { rev: r.rev, dirty: false }); cleanRef.current = { id, str: JSON.stringify(r.project) }; setProjectRaw(r.project); history.current = []; setHistLen(0); setToast(`Memuat versi terbaru "${r.project.meta.name}" dari cloud`); setSync({ state: 'saved', at: new Date() }); }
         else if (cur.cloud.ownerUid === user.uid || user.admin) { setConflict({ by: m.updatedByName, at: m.updatedAt, rev: m.rev, name: cur.meta.name, project: cur }); setSync({ state: 'conflict' }); }
         else setSync({ state: 'readonly' });
-      } else if (!m || s.dirty) await pushCloud(cur); else setSync({ state: readOnly ? 'readonly' : 'saved', at: new Date() });
+      } else if (!m || s.dirty || (!m.netV && (cur.cloud.ownerUid === user.uid || user.admin))) await pushCloud(cur); else setSync({ state: readOnly ? 'readonly' : 'saved', at: new Date() });
       for (const it of localLib.list(user.uid)) { if (it.id !== id && localLib.sync(it.id).dirty) { const p = localLib.get(it.id); if (p) await pushCloud(p); } }
     } catch (e) { setSync({ state: 'error', msg: e.message }); }
   }, [store, user, pushCloud]);
@@ -9752,10 +9832,11 @@ function App({ user, api }) {
     if (n.projectId) { try { if (n.projectId !== projectRef.current.cloud.id) await openProject({ id: n.projectId, rev: 1e15 }); setReviewOpen(true); } catch (e) { setToast(e.message || 'Proyek tidak dapat dibuka'); } } };
   const openProject = async (it) => { saveCurrentLocal(); const p = await fetchProject(it); switchTo(p); setLibOpen(false); setToast(`Membuka "${p.meta.name}"`); };
   // Batas proyek cloud paket FREE (ditegakkan juga oleh firestore.rules)
-  const printAs = (m) => { if (m === 'ded' && !Billing.require('ded_print')) return; setPrintMode(m); };
+  const netMsg = () => setToast('Proyek milik pengguna lain hanya dapat dilihat jaringan pipanya.');
+  const printAs = (m) => { if (netOnly) { netMsg(); return; } if (m === 'ded' && !Billing.require('ded_print')) return; setPrintMode(m); };
   const newProject = (base, label) => { if (store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
     if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
-  const duplicateProject = async (it) => { const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
+  const duplicateProject = async (it) => { if (store && it.ownerUid && it.ownerUid !== user.uid && !user.admin) { setToast('Proyek milik pengguna lain tidak dapat disalin.'); return; } const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
   const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
   const reviewAct = (to, note, extra = {}) => {
     const p0 = projectRef.current; const c0 = p0.cloud; const me = { uid: user.uid, name: user.name || user.email, email: user.email };
@@ -9772,7 +9853,7 @@ function App({ user, api }) {
         if (to !== 'review' && (to === 'revisi' || c.status === 'approved')) { meta.checkedName = ''; meta.checkedDate = ''; meta.checkedSig = ''; signs = keepPlan(signs); }
         if (to === 'review') { meta.checkedName = ''; meta.checkedDate = ''; meta.checkedSig = ''; signs = keepPlan(signs); } }
       if (extra.sign) signs.push(extra.sign);
-      return { ...p, meta, cloud: { ...c, status: to, reviewers, signs, reviews: [...(c.reviews || []), { at: Date.now(), by: { uid: user.uid, name: user.name || user.email, role: user.role || '' }, from: c.status || 'draft', to, note, signed: !!extra.sign }] } }; }, { noStamp: true, system: true });
+      return { ...p, meta, cloud: { ...c, status: to, reviewers, signs, reviews: [...(c.reviews || []), { at: Date.now(), by: { uid: user.uid, name: user.name || user.email, role: user.role || '' }, from: c.status || 'draft', to, note, signed: !!extra.sign }] } }; }, { noStamp: true, system: true, review: true });
     // Notifikasi otomatis ke orang berikutnya dalam alur
     const rv = extra.reviewers || c0.reviewers || {}; const owner = { uid: c0.ownerUid, email: c0.ownerEmail, name: c0.ownerName }; const nm = p0.meta.name || 'Proyek'; const pid = c0.id;
     const N = (to2, title, body, kind) => sendNotify(api, { to: to2.filter(Boolean), title, body, kind, projectId: pid, from: me }).then(r => { if (r.inbox || r.email || r.push) setToast(`Notifikasi terkirim ke ${to2.filter(Boolean).map(x => x.name || x.email).join(', ')}`); }).catch(() => {});
@@ -9793,6 +9874,9 @@ function App({ user, api }) {
     callFn('billingRefreshOrder', { orderId: order }).then(r => setToast(r.status === 'PAID' ? 'Pembayaran terverifikasi. Selamat datang di WASHLY PRO!' : r.status === 'PENDING' ? 'Pembayaran belum diterima. PRO aktif otomatis setelah pembayaran dikonfirmasi.' : 'Pembayaran tidak berhasil. Anda bisa mencoba lagi.'))
       .catch(e => setToast(e.message));
   }, []);
+  useEffect(() => { if (netOnly && (reviewOpen || calcOpen || dialog || coordTab || assistOpen)) { setReviewOpen(false); setCalcOpen(false); setDialog(false); setCoordTab(null); setAssistOpen(false); netMsg(); } }, [netOnly, reviewOpen, calcOpen, dialog, coordTab, assistOpen]);
+  useEffect(() => { if (netOnly && tab !== 'map') setTab('map'); }, [netOnly, tab]);
+  useEffect(() => { if (reviewOpen && !netOnly && !Billing.has('esign')) { setReviewOpen(false); Billing.set({ ask: 'esign' }); } }, [reviewOpen, bill.managed, bill.ent]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 2600); return () => clearTimeout(t); }, [toast]);
   useEffect(() => {
     const onKey = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) { e.preventDefault(); undo(); }
@@ -9811,7 +9895,7 @@ function App({ user, api }) {
     return () => clearTimeout(t);
   }, [printMode]);
 
-  const saveFile = async () => {
+  const saveFile = async () => { if (netOnly) { netMsg(); return; }
     const photoData = {}; for (const ph of project.photos || []) { const v = await loadPhoto(ph.id); if (v) photoData[ph.id] = v; }
     const blob = new Blob([JSON.stringify(Object.keys(photoData).length ? { ...project, photoData } : project, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -9854,7 +9938,7 @@ function App({ user, api }) {
           <button type="button" onClick={() => setMenuOpen(true)} className="p-2 -mr-1 rounded" aria-label="Menu"><Icon name="Menu" size={22} /></button>
         </div>
         <nav className="flex">
-          {tabs.map(t => <button key={t.id} type="button" onClick={() => setTab(t.id)}
+          {tabs.filter(t => !netOnly || t.id === 'map').map(t => <button key={t.id} type="button" onClick={() => setTab(t.id)}
             className={`flex-1 flex items-center justify-center gap-1 py-2 text-[12px] font-semibold border-b-2 ${tab === t.id ? 'border-aqua-400 text-white bg-white/5' : 'border-transparent text-slate-300'}`}>
             <Icon name={t.icon} size={14} />{t.short}{t.id === 'hyd' && hyd.warnings.length > 0 && <span className={`text-[9px] font-bold rounded-full px-1 ${nCrit ? 'bg-red-500' : 'bg-amber-400 text-ink'}`}>{hyd.warnings.length}</span>}</button>)}
         </nav>
@@ -9864,7 +9948,7 @@ function App({ user, api }) {
             <img src="icons/washly-mark.png" alt="WASHLY" className="w-8 h-8 rounded-md bg-white p-0.5 shrink-0" />
             <div className="min-w-0">
               <div className="text-[12px] tracking-[0.04em] text-aqua-200 font-semibold">WASHLY - Simplify the flow</div>
-              <div className="flex items-center gap-2 min-w-0"><button type="button" onClick={() => setDialog(true)} className="block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[460px] hover:underline text-left" title="Ubah data proyek">{project.meta.name}</button>
+              <div className="flex items-center gap-2 min-w-0"><button type="button" id="proj-title" onClick={() => setDialog(true)} className="block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[460px] hover:underline text-left" title="Ubah data proyek">{project.meta.name}</button>
                 <button type="button" onClick={() => setReviewOpen(true)} className={'pill shrink-0 ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]} title="Status & review proyek">{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</button></div>
             </div>
           </div>
@@ -9893,12 +9977,12 @@ function App({ user, api }) {
             <Btn variant="dark" icon="Smartphone" onClick={() => setDeviceDlg(true)} title="Buka aplikasi di HP / tablet">Buka di HP</Btn>
             <span className="w-px h-6 bg-white/15 mx-1" />
             <Btn variant="dark" icon="Calculator" onClick={() => setCalcOpen(true)} title="Kalkulator kebutuhan air, jumlah node & daya pompa">Kalkulator</Btn>
-            <Btn variant="dark" icon="FileText" onClick={() => setPrintMode('report')}>Cetak laporan</Btn>
+            <Btn variant="dark" icon="FileText" onClick={() => printAs('report')}>Cetak laporan</Btn>
             <Btn variant="dark" icon="Printer" onClick={() => printAs('ded')}>Cetak DED</Btn>
           </div>
         </div>
         <nav className="flex overflow-x-auto px-2">
-          {tabs.map(t => <button key={t.id} type="button" onClick={() => setTab(t.id)}
+          {tabs.filter(t => !netOnly || t.id === 'map').map(t => <button key={t.id} type="button" onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium whitespace-nowrap border-b-2 ${tab === t.id ? 'border-aqua-400 text-white bg-white/5' : 'border-transparent text-slate-300 hover:text-white'}`}>
             <span className={`font-mono text-[11px] w-5 h-5 rounded flex items-center justify-center ${tab === t.id ? 'bg-aqua-500 text-white' : 'bg-white/10'}`}>{t.n}</span><Icon name={t.icon} size={15} />{t.label}
             {t.id === 'map' && rec && <span className="ml-1 flex items-center gap-1 text-[10px] font-bold rounded-full px-1.5 bg-red-500 text-white"><span className="tp-rec w-1.5 h-1.5 rounded-full bg-white" />REC</span>}
@@ -9907,19 +9991,19 @@ function App({ user, api }) {
         </nav>
       </header>}
       {readOnly && <div className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-900 text-[12.5px] px-4 py-1.5 flex flex-wrap items-center gap-2">
-        <Icon name="Eye" size={14} /><span className="flex-1 min-w-[200px]">Hanya-baca: proyek ini milik <b>{project.cloud.ownerName}</b>. Perubahan Anda tidak disimpan ke cloud.</span>
-        <button type="button" className="font-semibold text-aqua-700 hover:underline" onClick={() => { newProject(project, project.meta.name + ' (salinan)'); setToast('Salinan milik Anda dibuat'); }}>Simpan sebagai salinan saya</button></div>}
+        <Icon name="Eye" size={14} /><span id="ro-banner" className="flex-1 min-w-[200px]">{netOnly ? <>Proyek milik <b>{project.cloud.ownerName}</b>: Anda hanya dapat melihat jaringan pipanya. Lembar lain dan pengeditan hanya untuk pemilik & admin.</>
+          : <>Hanya-baca: proyek ini milik <b>{project.cloud.ownerName}</b>. Anda ditunjuk sebagai petugas review: dapat melihat & menandatangani, tetapi tidak dapat mengubah isinya.</>}</span></div>}
       {mobile && store && ['offline', 'error', 'conflict'].includes(sync.state) && <div className="shrink-0 bg-white border-b border-line text-[12px] px-3 py-1"><SyncBadge sync={sync} /></div>}
       <main className="flex-1 min-h-0 relative">
-        {tab === 'map' && <MapWorkspace project={project} setProject={setProject} hyd={hyd} selection={selection} setSelection={setSelection} field={field} />}
+        {netOnly ? <NetViewer project={project} mobile={mobile} /> : <>{tab === 'map' && <MapWorkspace project={project} setProject={setProject} hyd={hyd} selection={selection} setSelection={setSelection} field={field} />}
         {tab === 'hyd' && <HydraulicWorkspace project={project} setProject={setProject} hyd={hyd} setSelection={setSelection} goMap={() => setTab('map')} />}
         {tab === 'wt' && <WaterWorkspace project={project} setProject={setProject} hyd={hyd} boq={boq}
           openDedSheet={(key) => { setProject(p => ({ ...p, ded: { ...p.ded, sheet: key } })); setTab('ded'); }}
           goMapBorehole={() => { setPrefs(p => ({ ...p, type: 'borehole' })); setTab('map'); setToast('Pilih alat Gambar pipa, ketuk lokasi sumur bor, lalu sambungkan ke reservoir'); }} />}
         {tab === 'boq' && <BoqWorkspace project={project} setProject={setProject} boq={boq} rab={rab} />}
-        {tab === 'ded' && <DedWorkspace locked={readOnly} project={project} setProject={setProject} hyd={hyd} boq={boq} onPrint={printAs} />}
+        {tab === 'ded' && <DedWorkspace locked={readOnly} project={project} setProject={setProject} hyd={hyd} boq={boq} onPrint={printAs} />}</>}
       </main>
-      <footer className="shrink-0 bg-white border-t border-line px-4 py-1.5 hidden lg:flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-slate-600 num">
+      {!netOnly && <footer className="shrink-0 bg-white border-t border-line px-4 py-1.5 hidden lg:flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-slate-600 num">
         <span className="flex items-center gap-1.5"><Icon name="Spline" size={13} />{project.nodes.length} node · {project.pipes.length} pipa · {fmt(hyd.totalLength, 1)} m</span>
         <span className="flex items-center gap-1.5"><Icon name="Droplets" size={13} />Q total {fmt(hyd.totalDemand)} L/dtk</span>
         <span className="flex items-center gap-1.5"><Icon name="Gauge" size={13} />P min {hyd.minP ? fmt(hyd.nodes[hyd.minP.id].pressure, 1) + ' mka' : '–'}</span>
@@ -9932,7 +10016,7 @@ function App({ user, api }) {
             : <><Icon name="Mountain" size={13} className="text-green-600" />Elevasi DEM terbaru</>}</span>}
         <SyncBadge sync={sync} />
         <span className="flex items-center gap-1.5">{savedAt === 'err' ? <><Icon name="TriangleAlert" size={13} className="text-amber-600" />Penyimpanan otomatis tidak tersedia di browser ini</> : savedAt ? <><Icon name="CircleCheck" size={13} className="text-green-600" />Tersimpan otomatis {savedAt.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</> : 'Menyimpan…'}</span>
-      </footer>
+      </footer>}
     </div>
     {pendingLoad && <div className="fixed inset-0 z-[2100] bg-black/40 flex items-center justify-center p-4" onClick={() => setPendingLoad(null)}>
       <div className="bg-white rounded-lg w-full max-w-md p-5 space-y-3" onClick={e => e.stopPropagation()}>
@@ -9947,7 +10031,7 @@ function App({ user, api }) {
       </div></div>}
     {libOpen && <ProjectLibrary user={user} store={store} currentId={project.cloud.id} onClose={() => setLibOpen(false)} onOpen={openProject}
       onNew={(k) => newProject(k === 'example' ? createExampleProject() : createEmptyProject(), k === 'example' ? undefined : 'Proyek baru')} onDuplicate={duplicateProject} onDelete={deleteProject} onImport={() => { setLibOpen(false); fileRef.current.click(); }} />}
-    {reviewOpen && <ReviewDialog project={project} user={user} api={api} onClose={() => setReviewOpen(false)} onAct={(to, note, extra) => { reviewAct(to, note, extra); setToast(to === 'sign' ? 'Tanda tangan tersimpan' : to === 'assign' ? 'Penunjukan disimpan' : `Status proyek: ${PSTATUS[to][0]}`); setTimeout(() => { if (store) pushCloud(projectRef.current); }, 400); }} />}
+    {reviewOpen && !netOnly && <ReviewDialog project={project} user={user} api={api} onClose={() => setReviewOpen(false)} onAct={(to, note, extra) => { reviewAct(to, note, extra); setToast(to === 'sign' ? 'Tanda tangan tersimpan' : to === 'assign' ? 'Penunjukan disimpan' : `Status proyek: ${PSTATUS[to][0]}`); setTimeout(() => { if (store) pushCloud(projectRef.current); }, 400); }} />}
     {conflict && <ConflictDialog info={conflict} canOverwrite={conflict.project.cloud.ownerUid === user.uid || user.admin} onClose={() => setConflict(null)}
       onCloud={async () => { try { const r = await store.load(conflict.project.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(r.project.cloud.id, { rev: r.rev, dirty: false }); if (conflict.project.cloud.id === projectRef.current.cloud.id) switchTo(r.project); setConflict(null); setSync({ state: 'saved', at: new Date() }); } catch (e) { setToast(e.message); } }}
       onMine={async () => { const p = conflict.project; setConflict(null); await pushCloud(p, { overwrite: true }); }}
@@ -9986,7 +10070,7 @@ function App({ user, api }) {
           ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []),
           ['Building2', 'Data proyek', () => setDialog(true)],
           ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)],
-          ['FileText', 'Cetak laporan', () => setPrintMode('report')],
+          ['FileText', 'Cetak laporan', () => printAs('report')],
           ['Printer', 'Cetak DED', () => printAs('ded')],
           ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())],
           ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')],
@@ -9994,16 +10078,16 @@ function App({ user, api }) {
         ].map(([ic, l, fn, dis, danger], i) => <button key={i} type="button" disabled={dis} onClick={() => { setMenuOpen(false); fn(); }} className={danger ? 'w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line text-red-700 font-semibold hover:bg-red-50' : "w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"}><Icon name={ic} size={19} className={danger ? 'text-red-600' : 'text-aqua-700'} />{l}</button>)}
         <p className="px-4 py-3 text-[11px] text-slate-500">{savedAt instanceof Date ? `Tersimpan otomatis di perangkat ini ${savedAt.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
       </div></div>}
-    {coordTab && <CoordDialog tab={coordTab} setTab={setCoordTab} onClose={() => setCoordTab(null)} project={project} setProject={setProject} field={field} setSelection={setSelection} toast={setToast} />}
+    {coordTab && !netOnly && <CoordDialog tab={coordTab} setTab={setCoordTab} onClose={() => setCoordTab(null)} project={project} setProject={setProject} field={field} setSelection={setSelection} toast={setToast} />}
     {bill.ask && <UpgradeDialog feature={bill.ask} onClose={() => Billing.set({ ask: null })} />}
     {bill.pricing && <PricingDialog user={user} onClose={() => Billing.set({ pricing: false })} />}
     {subOpen && <SubscriptionDialog api={api} user={user} onClose={() => setSubOpen(false)} />}
     {revOpen && user.admin && <AdminBillingDialog onClose={() => setRevOpen(false)} />}
-    {calcOpen && <CalcDialog project={project} setProject={setProject} hyd={hyd} onClose={() => setCalcOpen(false)} />}
-    {dialog && <ProjectDialog locked={readOnly} ownerName={project.cloud?.ownerName} project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
+    {calcOpen && !netOnly && <CalcDialog project={project} setProject={setProject} hyd={hyd} onClose={() => setCalcOpen(false)} />}
+    {dialog && !netOnly && <ProjectDialog locked={readOnly} ownerName={project.cloud?.ownerName} project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
     <input ref={camRef} id="photo-cam" type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFiles} />
     <input ref={galRef} id="photo-gal" type="file" accept="image/*" multiple className="hidden" onChange={onPhotoFiles} />
-    {assistOpen ? <AssistantPanel project={project} hyd={hyd} rab={rab} onClose={() => setAssistOpen(false)}
+    {assistOpen && !netOnly ? <AssistantPanel project={project} hyd={hyd} rab={rab} onClose={() => setAssistOpen(false)}
       onReport={async (qText, aText) => { try { const r = await sendNotify(api, { to: ADMIN_EMAILS.map(email => ({ email, name: 'Admin' })), title: 'Laporan jawaban AI Asisten', body: `Dilaporkan oleh ${user.name || user.email}.\nPertanyaan: ${String(qText).slice(0, 400)}\nJawaban AI: ${String(aText).slice(0, 1200)}`, kind: 'info', from: { uid: user.uid, name: user.name || user.email } }); setToast(r.inbox ? 'Terima kasih, laporan dikirim ke admin.' : 'Laporan belum terkirim (periksa koneksi).'); return r.inbox > 0; } catch (e) { setToast('Laporan gagal dikirim.'); return false; } }} />
       : !printMode && <button type="button" id="assist-btn" onClick={() => setAssistOpen(true)} title="Asisten WASHLY" className="fixed z-[1900] bottom-20 right-3 lg:bottom-4 lg:right-4 flex items-center gap-1.5 rounded-full bg-deep text-white shadow-xl px-3.5 py-2.5 text-[13px] font-semibold hover:bg-aqua-800"><Icon name="MessagesSquare" size={17} />Asisten</button>}
     {notifOpen && <NotifyCenter inbox={inbox} user={user} onOpenItem={openNotif} onClose={() => setNotifOpen(false)} />}
@@ -10012,7 +10096,7 @@ function App({ user, api }) {
         <div className="flex-1 min-w-0"><div className="font-semibold">{inbox.popup.title}</div><div className="text-slate-600 text-[12.5px]">{inbox.popup.body}</div>
           <div className="flex gap-2 mt-2"><Btn variant="primary" onClick={() => openNotif(inbox.popup)}>Buka</Btn><Btn variant="outline" onClick={() => inbox.setPopup(null)}>Nanti</Btn></div></div></div></div>}
       {user.admin && pendU.fresh && <div className="bg-white rounded-lg shadow-2xl border border-amber-300 p-3 text-[13px]"><div className="flex items-start gap-2"><Icon name="UserPlus" size={17} className="text-amber-700 mt-0.5" />
-        <div className="flex-1 min-w-0"><div className="font-semibold">Pendaftar baru menunggu persetujuan</div><div className="text-slate-600 text-[12.5px]">{pendU.fresh.name || pendU.fresh.email}{pendU.fresh.role ? ` · ${pendU.fresh.role}` : ''}{pendU.fresh.org ? ` · ${pendU.fresh.org}` : ''}</div>
+        <div className="flex-1 min-w-0"><div className="font-semibold">Pendaftar baru</div><div className="text-slate-600 text-[12.5px]">{pendU.fresh.name || pendU.fresh.email}{pendU.fresh.role ? ` · ${pendU.fresh.role}` : ''}{pendU.fresh.org ? ` · ${pendU.fresh.org}` : ''}</div>
           <div className="flex gap-2 mt-2"><Btn variant="primary" onClick={() => { pendU.setFresh(null); setUserAdmin(true); }}>Tinjau sekarang</Btn><Btn variant="outline" onClick={() => pendU.setFresh(null)}>Nanti</Btn></div></div></div></div>}
     </div>}
     {logoutAsk && <div className="fixed inset-0 z-[2300] bg-black/40 flex items-center justify-center p-4" onClick={() => setLogoutAsk(false)}>

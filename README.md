@@ -10,7 +10,8 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - `build.js`, `package.json`: skrip build.
 
 ## Langganan WASHLY PRO (FREE / PRO bulanan / PRO tahunan)
-Paket FREE tetap memuat semua alat inti (peta & survei, hidrolis, pompa & olah air, kalkulator, RAB, cetak laporan, 3 proyek cloud). PRO membuka cetak DED, penulangan & jembatan pipa, rehabilitasi, analisis air tanah, profil DEM detail, gambar manual, mode AI, dan proyek cloud tanpa batas.
+Paket FREE memuat alat dasar: peta & survei GPS, analisis hidrolis, kalkulator kebutuhan air, perhitungan pompa dasar, BoQ & RAB umum, cetak laporan tanpa RAB, dan 3 proyek cloud. PRO membuka semuanya: cetak RAB & DED, tanda tangan elektronik, ganti logo, kalkulator debit sumber & daya pompa, spesifikasi pompa & paket all-in, desain pengolahan air, RAB lanjutan (SHS/IKK, spesifikasi, edit item), penulangan & jembatan pipa, rehabilitasi, analisis air tanah, profil DEM, gambar manual, mode AI, dan proyek cloud tanpa batas.
+Akun baru langsung aktif (FREE) tanpa persetujuan admin. Proyek milik orang lain hanya bisa dilihat jaringan pipanya (ditegakkan di server); petugas yang ditunjuk pemilik bisa melihat semua lembar & menandatangani tanpa bisa mengubah.
 Pembayaran web lewat **Midtrans**, Android lewat **Google Play Billing**; status PRO diverifikasi server (Cloud Functions) dan berlaku di semua perangkat. Admin punya **dasbor pendapatan** (MRR, ARR, ARPPU, konversi, churn, grafik) dan bisa mengubah harga tanpa deploy.
 Belum aktif sampai Cloud Functions di-deploy dan `billing.enabled` dinyalakan. Panduan lengkap, skema database, dan hasil uji ada di **[BILLING.md](BILLING.md)**.
 
@@ -420,9 +421,9 @@ Perubahan ikut tersimpan di berkas proyek, muncul di laporan cetak, dan mengemba
 ## Akun & login
 Aplikasi meminta **Daftar / Masuk** sebelum dipakai. Data proyek dipisah per akun, dan akun yang masuk otomatis tercatat sebagai petugas.
 
-**Mode lokal** (bawaan, selama `auth-config.js` belum diisi): akun tersimpan di perangkat masing-masing, kata sandi di-hash (PBKDF2). Akun pertama di perangkat menjadi admin; pendaftar berikutnya menunggu persetujuan admin perangkat itu. Mode ini hanya mengunci aplikasi per perangkat — siapa pun yang membuka situs di perangkatnya sendiri tetap bisa membuat akun lokal.
+**Mode lokal** (bawaan, selama `auth-config.js` belum diisi): akun tersimpan di perangkat masing-masing, kata sandi di-hash (PBKDF2). Akun pertama di perangkat menjadi admin; pendaftar berikutnya langsung aktif (paket FREE). Mode ini hanya mengunci aplikasi per perangkat — siapa pun yang membuka situs di perangkatnya sendiri tetap bisa membuat akun lokal.
 
-**Login daring (disarankan) — hanya orang yang disetujui admin yang bisa memakai aplikasi:**
+**Login daring (disarankan) — setiap orang bisa mendaftar dan langsung memakai paket FREE; admin dapat menangguhkan akun:**
 1. Buka https://console.firebase.google.com → *Add project* (paket gratis Spark cukup).
 2. *Build → Authentication → Get started → Email/Password* → aktifkan.
 3. *Build → Firestore Database → Create database* (mode produksi, lokasi `asia-southeast2` / Jakarta).

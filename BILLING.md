@@ -71,22 +71,46 @@ Harga bawaan (dapat diubah admin tanpa deploy di **Dasbor pendapatan → Paket &
 | WASHLY PRO Bulanan | `PRO_MONTHLY` | Rp125.000 | 1 bulan |
 | WASHLY PRO Tahunan | `PRO_YEARLY` | Rp499.000 | 12 bulan (hemat 67% dibanding 12 × bulanan) |
 
-Fitur (sesuai fitur yang **benar-benar ada** di aplikasi):
+Fitur (sesuai fitur yang **benar-benar ada** di aplikasi). FREE memuat alat dasar, PRO membuka semuanya:
 
 | Fitur | FREE | PRO | Dibatasi di |
 |---|---|---|---|
-| Pemetaan, GPS & survei, analisis hidrolis, pompa & pengolahan air, kalkulator, BoQ & RAB, cetak laporan, .json/.gpx, review & tanda tangan, Asisten luring | ✓ | ✓ | — |
+| Pemetaan, GPS & survei, analisis hidrolis jaringan, simpan/muat .json/.gpx, Asisten luring | ✓ | ✓ | — |
+| Kalkulator **kebutuhan air & jumlah node** (dasar) | ✓ | ✓ | — |
+| Kalkulator **debit sumber** & **daya pompa** | — | ✓ | tab kalkulator (`calc_advanced`) |
+| Pompa sumur bor: head, daya, kurva, energi (dasar) | ✓ | ✓ | — |
+| Pompa: daya min/ideal/maks, spesifikasi pengadaan, paket all-in | — | ✓ | `pump_advanced` |
+| Desain pengolahan air (aerator, filter, membran, filter rumah tangga) | — | ✓ | `treatment_design` |
+| BoQ & RAB **umum**: volume, harga bawaan, ubah harga satuan, PPN | ✓ | ✓ | — |
+| RAB lanjutan: SHS/IKK provinsi, impor & cocokkan SHS, spesifikasi min/ideal/maks, edit item RAB | — | ✓ | `rab_advanced` |
+| Cetak laporan teknis | ✓ (tanpa RAB) | ✓ (dengan RAB & lampiran spesifikasi) | `rab_print` |
+| Review & **tanda tangan elektronik** | — | ✓ | dialog Status & review (`esign`) |
+| **Ganti logo** instansi | — (logo WASHLY) | ✓ | `custom_logo` |
+| Cetak / PDF gambar DED (melihat tetap gratis) | — | ✓ | `ded_print` |
+| Penulangan beton (BBS) & jembatan pipa | — | ✓ | `structural_design` |
+| Rehabilitasi sistem existing | — | ✓ | `rehab_module` |
+| Analisis potensi air tanah · Profil DEM detail · Gambar manual DED · Mode AI | — | ✓ | masing-masing |
 | Proyek tersimpan di cloud | 3 proyek (bisa diatur) | tanpa batas | `newProject` + **firestore.rules** |
-| Cetak / PDF gambar DED (melihat tetap gratis) | — | ✓ | `printAs('ded')` |
-| Penulangan beton (BBS) & jembatan pipa | — | ✓ | `ProGate` RcPanel, tambah bangunan jembatan |
-| Rehabilitasi sistem existing | — | ✓ | pilihan kondisi/status existing |
-| Analisis potensi air tanah | — | ✓ | tombol analisis |
-| Profil tanah detail dari DEM | — | ✓ | tombol DEM |
-| Gambar manual di lembar DED | — | ✓ | tombol gambar manual |
-| Mode AI (Claude) di Asisten | — | ✓ | sakelar mode AI |
 
-Proyek & data yang sudah ada **tidak pernah dikunci atau dihapus** saat turun ke FREE.
-Semua pembatasan melalui satu pintu: `Billing.has(feature)` / `Billing.require(feature)`.
+Proyek & data yang sudah ada **tidak pernah dikunci atau dihapus** saat turun ke FREE. Semua pembatasan melalui satu pintu:
+`Billing.has(feature)` / `Billing.require(feature)` / `<ProGate feature>`. Konfigurasi lama di Firestore yang belum memuat kunci fitur baru
+otomatis memakai nilai bawaan di atas.
+
+### Akun & akses proyek (berlaku dengan atau tanpa langganan)
+
+* **Pendaftaran tanpa persetujuan admin.** Akun baru langsung aktif dengan paket FREE (`users/{uid}.status = 'approved'`).
+  Akun lama yang masih `pending` diperlakukan aktif. Admin tetap bisa **menangguhkan** atau **menolak** akun di *Kelola pengguna*.
+* **Proyek milik orang lain:**
+  * **Pemilik & admin**: akses penuh.
+  * **Petugas yang ditunjuk pemilik** (surveyor, penggambar, pemeriksa, penyetuju): melihat semua lembar dan menandatangani,
+    tetapi **tidak dapat mengubah** isi proyek (perubahan ditolak di aplikasi, kecuali langkah tanda tangan/review).
+  * **Pengguna lain**: hanya **jaringan pipa** (titik & pipa) di penampil peta khusus. Tidak ada tab lain, data proyek, cetak/ekspor,
+    salin, kalkulator, atau Asisten untuk proyek itu.
+* **Ditegakkan di server:** `projectData` (isi lengkap) dan `photos` hanya terbaca oleh pemilik/admin/petugas proyeknya
+  (`projectMember()` di `firestore.rules`). Pengguna lain hanya bisa membaca `projectNet/{pid}`, yaitu salinan berisi titik & pipa saja
+  (tanpa kebutuhan air, bangunan, RAB, foto, atau tanda tangan) yang ditulis aplikasi setiap kali pemilik menyimpan.
+  Proyek lama mendapat `projectNet` saat pemiliknya membukanya berikutnya.
+* Tampilan penampil selalu memangkas data ke jaringan saja, bahkan bila perangkat masih menyimpan salinan lengkap di cache.
 
 ## 3. Database (Cloud Firestore)
 
@@ -99,6 +123,7 @@ Tidak ada tabel pengguna baru: semuanya merujuk `users/{uid}` dan UID Firebase A
 | `subscriptions/{id}` | `web_{uid}` · `play_{hash token}` · `admin_{uid}_{t}` | `subjectType`(`user`/`org`), `subjectId`, `userId`, `orgId`, `seats`, `planCode`, `status`, `provider`, `providerSubscriptionId`, `purchaseTokenHash`, `startedAt`, `currentPeriodStart/End`, `nextRenewalAt`, `canceledAt`, `graceEndsAt`, `autoRenew`, `renewalMode`, `createdAt`, `updatedAt` | pemilik, admin | server |
 | `payments/{id}` | order_id Midtrans · `play_{orderId}` | `userId`, `subscriptionId`, `provider`, `transactionId`, `amount`, `currency`, `status` (PENDING/PAID/FAILED/EXPIRED/CANCELED/REFUNDED), `method`, `paidAt`, `refundStatus`, `refundAmount`, `refundedAt`, `invoiceRef`, `promoCode`, `createdAt` | pemilik, admin | server |
 | `subscription_events/{auto}` | — | jejak audit: `payment_initiated`, `payment_succeeded`, `payment_failed`, `subscription_created/renewed/reactivated/canceled/expired/upgraded/downgraded/restored`, `grace_period_started/ended`, `refund_processed`, `renewal_reminder_sent` (+ `actor`, `reason` untuk tindakan admin) | pemilik, admin | server |
+| `projectNet/{pid}` | id proyek | salinan **jaringan saja** (nama, lokasi, titik: id/label/jenis/koordinat/elevasi, pipa: id/label/dari/ke/bahan/diameter/jalur), terkompresi | semua akun aktif | pemilik/petugas (bersama `projectData`) |
 | `webhook_events/{provider_key}` | ID idempoten | `provider`, `eventType`, `payload` (tanpa rahasia), `payloadHash`, `status` (RECEIVED/PROCESSED/FAILED/IGNORED), `processedAt`, `error`, `attempts` | admin | server |
 | `play_tokens/{sha256}` | hash token | token pembelian Play + `uid` (untuk RTDN & sweep) | **tidak ada** | server |
 | `usage/{uid}` | uid | `cloudProjects` (dihitung ulang server) | pemilik, admin | server |
@@ -259,14 +284,16 @@ firebase deploy --only firestore:rules,functions --project washpipe-93f48
 
 | Area | Skenario | Hasil |
 |---|---|---|
-| Backend (unit, `npm test`, 20 uji) | checkout (login, akun disetujui, paket valid, batas 5 tagihan/jam), tanda tangan webhook salah, lunas → PRO, webhook duplikat, status dari API (bukan isi notifikasi), nominal dimanipulasi, gagal/kedaluwarsa + coba bayar lagi, upgrade bulanan→tahunan, batal → tetap PRO → FREE, pengingat (tidak dobel) → tenggang → kedaluwarsa, bayar saat tenggang, refund, tagihan tertunda kedaluwarsa, kode promo, Play verifikasi & akun lain ditolak, restore tanpa transaksi ganda, RTDN batal/tenggang/on-hold/duplikat/voided/perpanjangan, upgrade Play (linkedPurchaseToken), otorisasi admin & email belum terverifikasi, grant/revoke + audit, langganan berbayar tak bisa dicabut manual, ubah harga tervalidasi, MRR/ARR/ARPPU/konversi/churn | **PASS** |
-| Aturan Firestore (emulator, 3 uji) | pengguna tak bisa menulis entitlements/subscriptions/payments/config/usage/events; baca hanya milik sendiri; token Play tertutup; batas proyek FREE (mati/penuh/kurang/tanpa dokumen/PRO aktif/PRO kedaluwarsa/admin) | **PASS** |
-| E2E web (Playwright + layanan server asli + Midtrans disimulasikan, 25 cek) | FREE: fitur dasar & cetak laporan, Cetak DED → dialog upgrade, "Lanjut dengan Free", halaman langganan FREE, halaman harga & hemat 67%, checkout → tagihan PENDING, parameter URL palsu tak mengaktifkan PRO, webhook lunas + duplikat, lencana PRO, halaman langganan PRO + riwayat, Cetak DED terbuka, tulis entitlements ditolak, API admin menolak pengguna biasa (403), batal → tetap PRO + notifikasi, batas proyek cloud → dialog upgrade, dasbor admin (KPI, grafik, detail pengguna), ubah harga + audit, tanpa error JS | **PASS** |
-| Regresi mode Indonesia (tes lama) | review & tanda tangan, hak petugas, RAB, laporan pompa, hapus akun | **PASS** |
-| Android | build APK/AAB dengan Billing Library 8.3.0, izin BILLING ter-merge | **PASS (build)** |
-| Android | pembelian Play nyata, restore, pembatalan, perpanjangan, ganti perangkat | **NOT TESTED** — butuh produk di Play Console & aplikasi dari jalur testing Play |
-| Midtrans | transaksi sandbox nyata, notifikasi nyata, refund nyata | **NOT TESTED** — butuh akun & Server Key Midtrans |
-| Deploy | Cloud Functions di Firebase, RTDN Pub/Sub, jadwal sweep | **NOT TESTED** — butuh paket Blaze |
+| Backend (unit, `npm test`, 21 uji) | katalog FREE/PRO baru; checkout (login, akun tidak ditangguhkan, pendaftar lama `pending` boleh membeli, paket valid, batas 5 tagihan/jam); tanda tangan webhook salah; lunas → PRO (semua fitur PRO terbuka); webhook duplikat; status dari API (bukan isi notifikasi); nominal dimanipulasi; gagal/kedaluwarsa + coba lagi; upgrade bulanan→tahunan; batal → tetap PRO → FREE; pengingat → tenggang → kedaluwarsa; bayar saat tenggang; refund; tagihan tertunda kedaluwarsa; kode promo; Google Play verifikasi/akun lain ditolak/restore/RTDN/voided/upgrade; otorisasi & audit admin; ubah harga; MRR/ARR/ARPPU/konversi/churn | **PASS** |
+| Aturan Firestore (emulator, 5 uji) | pengguna tak bisa menulis data langganan; isolasi baca; batas proyek FREE; **pendaftaran langsung aktif**, akun `pending` lama aktif, akun ditangguhkan diblokir & tak bisa mengaktifkan diri; **isi lengkap & foto proyek orang lain tertutup, `projectNet` terbaca, tidak bisa ditulis orang lain; pemilik/petugas/admin bisa membaca** | **PASS** |
+| E2E langganan (25 cek) | alur FREE→pembayaran Midtrans (disimulasikan)→PRO, batal, batas proyek, dasbor admin, ubah harga | **PASS** |
+| E2E akses & batas FREE (26 cek) | daftar → langsung masuk (FREE); kalkulator dasar terbuka, debit sumber & daya pompa terkunci; pompa dasar tampil, spesifikasi/all-in terkunci; desain pengolahan → upgrade; RAB umum tampil, SHS/IKK terkunci, edit item → upgrade; **cetak laporan tanpa RAB**; **e-sign → upgrade**; **ganti logo → upgrade**; proyek tersimpan + `projectNet`; server menolak isi lengkap proyek orang lain; penampil jaringan saja (hanya tab Peta, tanpa alat edit, tanpa bangunan/debit/tekanan/RAB); cetak/ekspor ditolak; proyek orang lain tak pernah ditulis; setelah PRO: kalkulator lanjutan, laporan dengan RAB, e-sign terbuka | **PASS** |
+| E2E akses petugas (10 cek) | pendaftaran tanpa persetujuan; pengguna lain hanya jaringan & tak bisa membuka data proyek; petugas yang ditunjuk melihat semua lembar, banner hanya-baca, **perubahan ditolak** | **PASS** |
+| Regresi lama (mode Indonesia) | review & tanda tangan, RAB, laporan pompa, hapus akun | **PASS** |
+| Android | build APK/AAB dengan Billing Library 8.3.0 | **PASS (build)** |
+| Android | pembelian Play nyata, restore, pembatalan, perpanjangan, ganti perangkat | **NOT TESTED**, butuh produk di Play Console |
+| Midtrans | transaksi sandbox nyata, notifikasi nyata, refund nyata | **NOT TESTED**, butuh akun & Server Key |
+| Deploy | Cloud Functions, RTDN Pub/Sub, jadwal sweep | **NOT TESTED**, butuh paket Blaze |
 
 Menjalankan ulang:
 ```bash

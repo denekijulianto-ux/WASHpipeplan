@@ -76,7 +76,7 @@ function makeService(deps) {
     const plan = config.plans[String(data.planCode || '')];
     if (!plan || plan.tier !== 'PRO' || !plan.active) throw new BillingError('invalid-argument', 'Paket tidak tersedia.');
     const ud = await col('users').doc(uid).get(); const user = ud.exists ? ud.data() : null;
-    if (!user || (user.status !== 'approved' && !isAdmin(auth))) throw new BillingError('failed-precondition', 'Akun belum disetujui admin.');
+    if (!user || (!['approved', 'pending'].includes(user.status) && !isAdmin(auth))) throw new BillingError('failed-precondition', 'Akun ditangguhkan atau ditolak admin.');
     const recent = (await col('payments').where('userId', '==', uid).get()).docs.map(d => d.data()).filter(p => p.status === 'PENDING' && p.createdAt > now() - 36e5);
     if (recent.length >= 5) throw new BillingError('resource-exhausted', 'Terlalu banyak tagihan tertunda. Selesaikan atau tunggu tagihan sebelumnya kedaluwarsa.');
     let amount = plan.price, promoCode = null;
