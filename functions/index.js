@@ -52,6 +52,7 @@ exports.billingCancel = onCall(callOpts, wrap(s => s.cancelWeb));
 exports.billingAccountId = onCall(callOpts, wrap(s => s.myAccountId));
 exports.billingRefresh = onCall(callOpts, wrap(s => s.refreshMe));
 exports.playVerify = onCall(callOpts, wrap(s => s.playVerify));
+exports.billingVaCharge = onCall(callOpts, wrap(s => s.createVaCharge));
 exports.manualOrder = onCall(callOpts, wrap(s => s.createManualOrder));
 exports.manualProof = onCall({ ...callOpts, memory: '512MiB' }, wrap(s => s.submitManualProof));
 exports.adminManualList = onCall({ ...callOpts, memory: '512MiB' }, wrap(s => s.adminManualList));

@@ -107,6 +107,38 @@ function makeService(deps) {
     return { orderId, token: snap.token, redirectUrl: snap.redirect_url, amount };
   }
 
+  // Virtual Account: buat transaksi Core API dan kembalikan nomor VA untuk ditampilkan di aplikasi
+  async function createVaCharge(auth, data = {}) {
+    const uid = needAuth(auth); const config = await getConfig();
+    if (!config.va.enabled) throw new BillingError('failed-precondition', 'Pembayaran Virtual Account belum dibuka.');
+    const bank = String(data.bank || '').toLowerCase(); if (!config.va.banks.includes(bank)) throw new BillingError('invalid-argument', 'Bank Virtual Account tidak tersedia.');
+    const plan = config.plans[String(data.planCode || '')];
+    if (!plan || plan.tier !== 'PRO' || !plan.active) throw new BillingError('invalid-argument', 'Paket tidak tersedia.');
+    const ud = await col('users').doc(uid).get(); const user = ud.exists ? ud.data() : null;
+    if (!user || (!['approved', 'pending'].includes(user.status) && !isAdmin(auth))) throw new BillingError('failed-precondition', 'Akun ditangguhkan atau ditolak admin.');
+    const mine = (await col('payments').where('userId', '==', uid).get()).docs.map(d => d.data());
+    const open = mine.find(p => p.status === 'PENDING' && p.method === 'va_' + bank && p.planCode === plan.code && p.va && (p.expiresAt || 0) > now() + 10 * 6e4);
+    if (open) return { orderId: open.id, amount: open.amount, bank, va: open.va, expiresAt: open.expiresAt, reused: true };
+    if (mine.filter(p => p.status === 'PENDING' && p.createdAt > now() - 36e5).length >= 5) throw new BillingError('resource-exhausted', 'Terlalu banyak tagihan tertunda. Selesaikan atau tunggu tagihan sebelumnya kedaluwarsa.');
+    const orderId = `WVA-${uid.slice(0, 8)}-${now().toString(36)}-${crypto.randomBytes(2).toString('hex')}`.toUpperCase();
+    const amount = plan.price; const hours = config.pendingHours;
+    const pay = { id: orderId, userId: uid, subscriptionId: 'web_' + uid, provider: 'midtrans', planCode: plan.code, amount, listPrice: plan.price, currency: 'IDR', status: 'PENDING', method: 'va_' + bank,
+      transactionId: null, paidAt: null, refundStatus: null, refundAmount: 0, refundedAt: null, invoiceRef: orderId, expiresAt: now() + hours * 36e5, createdAt: now(), updatedAt: now() };
+    await col('payments').doc(orderId).set(pay);
+    const base = { transaction_details: { order_id: orderId, gross_amount: amount }, item_details: [{ id: plan.code, price: amount, quantity: 1, name: plan.name.slice(0, 50) }],
+      customer_details: { first_name: String(user.name || '').slice(0, 50), email: normEmail(auth.token && auth.token.email || user.email) }, custom_expiry: { expiry_duration: hours, unit: 'hour' }, custom_field1: uid };
+    const payload = bank === 'mandiri' ? { ...base, payment_type: 'echannel', echannel: { bill_info1: 'Pembayaran', bill_info2: 'WASHLY PRO' } }
+      : bank === 'permata' ? { ...base, payment_type: 'permata' } : { ...base, payment_type: 'bank_transfer', bank_transfer: { bank } };
+    let r;
+    try { r = await deps.midtrans.charge(payload); }
+    catch (e) { await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'charge_error', updatedAt: now() }); throw new BillingError('unavailable', 'Virtual Account tidak dapat dibuat saat ini. Coba lagi atau pilih bank lain.'); }
+    const va = bank === 'mandiri' ? { billerCode: r.biller_code, billKey: r.bill_key } : { number: r.permata_va_number || (r.va_numbers && r.va_numbers[0] && r.va_numbers[0].va_number) };
+    if (!va.number && !va.billKey) { await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'no_va', updatedAt: now() }); throw new BillingError('unavailable', 'Nomor Virtual Account tidak diterima dari bank.'); }
+    const exp = Date.parse(String(r.expiry_time || '').replace(' ', 'T') + '+07:00') || pay.expiresAt;
+    await col('payments').doc(orderId).update({ va, transactionId: r.transaction_id || null, expiresAt: exp, updatedAt: now() });
+    await logEvents([{ type: 'payment_initiated', method: 'va_' + bank }], { userId: uid, subscriptionId: pay.subscriptionId, paymentId: orderId, provider: 'midtrans', planCode: plan.code, amount });
+    return { orderId, amount, bank, va, expiresAt: exp };
+  }
   function verifyMidtransSignature(n) {
     if (!n || !n.order_id || !n.status_code || n.gross_amount == null || !n.signature_key) return false;
     const exp = crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + deps.midtrans.serverKey).digest('hex');
@@ -410,7 +442,7 @@ function makeService(deps) {
   async function refreshMe(auth) { const uid = needAuth(auth); return { entitlement: await recomputeEntitlement(uid) }; }
 
   return { BillingError, getConfig, recomputeEntitlement, recountUsage, createCheckout, verifyMidtransSignature, handleMidtransNotification, applyMidtransStatus, refreshOrder, cancelWeb,
-    playVerify, handleRtdn, sweep, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
+    playVerify, handleRtdn, sweep, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
 }
 
 module.exports = { makeService, BillingError, accountIdFor, sha256 };

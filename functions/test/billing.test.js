@@ -14,10 +14,10 @@ const sign = (n) => crypto.createHash('sha512').update(n.order_id + n.status_cod
 
 function setup({ enforce = true } = {}) {
   const db = makeDb(); const clock = { t: T0 };
-  const mid = { statuses: {}, created: [] }; const play = { subs: {}, acks: [] }; const pushes = [];
+  const mid = { statuses: {}, created: [], charged: [] }; const play = { subs: {}, acks: [] }; const pushes = [];
   const s = makeService({
     db, now: () => clock.t, ts: (ms) => new Date(ms), adminEmails: ['boss@x.org'], appUrl: 'https://app/', ntfyTopic: 'wtest', fetch: async (u, o) => { pushes.push(JSON.parse(o.body)); return { ok: true }; },
-    midtrans: { serverKey: SERVER_KEY, createSnap: async (p) => { mid.created.push(p); return { token: 'tok-' + p.transaction_details.order_id, redirect_url: 'https://pay/' + p.transaction_details.order_id }; }, getStatus: async (id) => mid.statuses[id] },
+    midtrans: { serverKey: SERVER_KEY, charge: async (p) => { mid.charged.push(p); if (p.payment_type === 'echannel') return { status_code: '201', transaction_id: 't', bill_key: '7001234', biller_code: '70012', expiry_time: '2026-01-11 10:00:00' }; if (p.payment_type === 'permata') return { status_code: '201', permata_va_number: '8562000111' }; return { status_code: '201', transaction_id: 't', va_numbers: [{ bank: p.bank_transfer.bank, va_number: '12345' + p.bank_transfer.bank.length }] }; }, createSnap: async (p) => { mid.created.push(p); return { token: 'tok-' + p.transaction_details.order_id, redirect_url: 'https://pay/' + p.transaction_details.order_id }; }, getStatus: async (id) => mid.statuses[id] },
     play: { packageName: 'com.washly.app', getSubscription: async (tk) => { if (!play.subs[tk]) throw new Error('404'); return play.subs[tk]; }, acknowledge: async (pid, tk) => { play.acks.push(tk); } },
   });
   const seedUser = async (uid, email, status = 'approved') => db.collection('users').doc(uid).set({ email, name: uid.toUpperCase(), status, createdAt: T0 - 30 * DAY });
@@ -314,4 +314,18 @@ test('transfer manual: konfigurasi divalidasi & tagihan kedaluwarsa setelah bata
   const o = await s.createManualOrder(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' });
   clock.t += 26 * 36e5; await s.sweep();
   assert.equal((await db.collection('payments').doc(o.orderId).get()).data().status, 'EXPIRED');
+});
+
+test('Virtual Account: nomor VA tampil di aplikasi; lunas lewat webhook → PRO otomatis; tagihan terbuka dipakai ulang', async () => {
+  const { s, db, mid, seedUser, auth, midSettle, ent } = setup(); await seedUser('u', 'u@x.org');
+  await assert.rejects(s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bank-palsu' }), { code: 'invalid-argument' });
+  const r = await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' });
+  assert.equal(r.va.number, '123453'); assert.equal(mid.charged[0].payment_type, 'bank_transfer'); assert.equal(mid.charged[0].transaction_details.gross_amount, 125000);
+  assert.equal((await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' })).orderId, r.orderId);
+  const m = await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_YEARLY', bank: 'mandiri' }); assert.equal(m.va.billKey, '7001234'); assert.equal(m.va.billerCode, '70012');
+  assert.equal((await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_YEARLY', bank: 'permata' })).va.number, '8562000111');
+  assert.ok(!(await ent('u')), 'belum dibayar → belum PRO');
+  await s.handleMidtransNotification(midSettle(r.orderId, 125000, { payment_type: 'bank_transfer' }));
+  assert.equal((await ent('u')).tier, 'PRO');
+  assert.equal((await db.collection('payments').doc(r.orderId).get()).data().status, 'PAID');
 });

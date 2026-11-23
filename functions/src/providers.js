@@ -14,6 +14,13 @@ function midtransClient({ serverKey, isProduction, fetchImpl = fetch }) {
       if (!r.ok || !j.token) throw new Error('Midtrans Snap ' + r.status + ': ' + (j.error_messages || []).join('; '));
       return j;
     },
+    // Core API: buat transaksi langsung (mis. Virtual Account) tanpa halaman Snap
+    async charge(payload) {
+      const r = await fetchImpl(apiBase + '/v2/charge', { method: 'POST', headers: headers(), body: JSON.stringify(payload) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !['200', '201'].includes(String(j.status_code))) throw new Error('Midtrans charge ' + r.status + ' ' + (j.status_code || '') + ': ' + (j.status_message || ''));
+      return j;
+    },
     async getStatus(orderId) {
       const r = await fetchImpl(apiBase + '/v2/' + encodeURIComponent(orderId) + '/status', { headers: headers() });
       const j = await r.json().catch(() => null);

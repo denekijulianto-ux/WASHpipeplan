@@ -48,6 +48,8 @@ const DEFAULT_CONFIG = {
   // Promosi Google Play WAJIB lewat offer di Play Console.
   promo: { enabled: false, codes: {} },
   // Transfer bank / QRIS manual: pengguna transfer, admin mengecek mutasi lalu mengonfirmasi di dasbor.
+  // Virtual Account lewat Midtrans Core API (nomor VA tampil di aplikasi, PRO aktif otomatis lewat webhook)
+  va: { enabled: true, banks: ['bca', 'bni', 'bri', 'mandiri', 'permata'] },
   manual: { enabled: false, bankName: '', accountNumber: '', accountName: '', qris: '', instructions: '', hours: 72 },
   features: Object.fromEntries(Object.entries(FEATURES).map(([k, v]) => [k, { free: v.free, pro: v.pro }])),
 };
@@ -88,6 +90,8 @@ function validateConfig(input) {
     codes[code] = { percent: pct, planCodes: (pr.planCodes || []).filter(x => plans[x] && plans[x].tier === 'PRO'), validUntil: pr.validUntil || null, maxUses: pr.maxUses ? num(pr.maxUses, 1, 1e6, 'maxUses') : null, active: pr.active !== false };
   }
   out.promo = { enabled: !!(out.promo && out.promo.enabled), codes };
+  const VA_BANKS = ['bca', 'bni', 'bri', 'mandiri', 'permata', 'cimb'];
+  out.va = { enabled: !(out.va && out.va.enabled === false), banks: ((out.va && out.va.banks) || DEFAULT_CONFIG.va.banks).filter(b => VA_BANKS.includes(b)) };
   const m = out.manual || {}; const str = (v, n) => String(v || '').trim().slice(0, n);
   const qris = typeof m.qris === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(m.qris) ? m.qris : '';
   if (m.qris && !qris) errors.push('Gambar QRIS harus PNG/JPG');

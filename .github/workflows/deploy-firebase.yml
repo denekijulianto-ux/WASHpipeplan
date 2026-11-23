@@ -92,6 +92,7 @@ jobs:
           chk billingCheckout "401" '{"data":{"planCode":"PRO_MONTHLY"}}'          # tanpa login ditolak
           chk adminBillingMetrics "401" '{"data":{}}'                              # dasbor admin tanpa login ditolak
           chk playVerify "401" '{"data":{"purchaseToken":"x"}}'
+          chk billingVaCharge "401" '{"data":{"planCode":"PRO_MONTHLY","bank":"bca"}}'
           chk manualOrder "401" '{"data":{"planCode":"PRO_MONTHLY"}}'
           chk adminManualDecide "401" '{"data":{"orderId":"x","decision":"approve"}}'
           chk midtransWebhook "401" '{"order_id":"FAKE-1","status_code":"200","gross_amount":"125000.00","transaction_status":"settlement","signature_key":"abc"}'  # tanda tangan palsu ditolak
