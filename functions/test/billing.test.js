@@ -329,3 +329,14 @@ test('Virtual Account: nomor VA tampil di aplikasi; lunas lewat webhook → PRO 
   assert.equal((await ent('u')).tier, 'PRO');
   assert.equal((await db.collection('payments').doc(r.orderId).get()).data().status, 'PAID');
 });
+
+test('Sandbox Midtrans: hanya admin yang boleh membuat transaksi (cegah PRO gratis lewat simulator)', async () => {
+  const db = makeDb(); const auth = (uid, email) => ({ uid, token: { email, email_verified: true } });
+  for (const [u, e] of [['u', 'u@x.org'], ['boss', 'boss@x.org']]) await db.collection('users').doc(u).set({ email: e, name: u, status: 'approved' });
+  const sv = makeService({ db, now: () => T0, adminEmails: ['boss@x.org'], midtrans: { serverKey: SERVER_KEY, isProduction: false,
+    createSnap: async (p) => ({ token: 't', redirect_url: 'https://pay/x' }), charge: async (p) => ({ status_code: '201', va_numbers: [{ va_number: '111' }] }), getStatus: async () => null } });
+  await assert.rejects(sv.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' }), { code: 'failed-precondition' });
+  await assert.rejects(sv.createCheckout(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' }), { code: 'failed-precondition' });
+  assert.equal((await sv.createVaCharge(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' })).va.number, '111');
+  assert.ok((await sv.createCheckout(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY' })).redirectUrl);
+});

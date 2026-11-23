@@ -9205,7 +9205,8 @@ const Billing = (() => {
 })();
 function useBilling() { return React.useSyncExternalStore(Billing.subscribe, Billing.get); }
 const billingAvailable = (api) => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
-const paymentsOpen = () => BILLING_CFG.payments !== false; // false: Midtrans/Google Play belum siap untuk pembeli
+// false: belum dibuka · 'admin': uji coba (Sandbox) khusus admin · true/tidak diisi: dibuka untuk semua
+const paymentsOpen = () => { const p = BILLING_CFG.payments; return p === undefined || p === true || (p === 'admin' && !!Billing.get().admin); };
 const serverOn = () => BILLING_CFG.functions === true || paymentsOpen(); // Cloud Functions sudah di-deploy (dasbor admin, Beri PRO)
 // Transfer bank/QRIS manual (dikonfirmasi admin): hanya di web; aplikasi Android wajib Google Play Billing
 const manualOpen = (cfg) => !IS_NATIVE && serverOn() && !!(cfg && cfg.manual && cfg.manual.enabled);

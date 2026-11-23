@@ -7,7 +7,7 @@ function midtransClient({ serverKey, isProduction, fetchImpl = fetch }) {
   const apiBase = isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
   const headers = () => ({ Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(serverKey + ':').toString('base64') });
   return {
-    serverKey,
+    serverKey, isProduction: !!isProduction,
     async createSnap(payload) {
       const r = await fetchImpl(snapBase + '/snap/v1/transactions', { method: 'POST', headers: headers(), body: JSON.stringify(payload) });
       const j = await r.json().catch(() => ({}));

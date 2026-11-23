@@ -37513,7 +37513,10 @@ function useBilling() {
   return React.useSyncExternalStore(Billing.subscribe, Billing.get);
 }
 const billingAvailable = api => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
-const paymentsOpen = () => BILLING_CFG.payments !== false;
+const paymentsOpen = () => {
+  const p = BILLING_CFG.payments;
+  return p === undefined || p === true || p === 'admin' && !!Billing.get().admin;
+};
 const serverOn = () => BILLING_CFG.functions === true || paymentsOpen();
 const manualOpen = cfg => !IS_NATIVE && serverOn() && !!(cfg && cfg.manual && cfg.manual.enabled);
 const anyPayment = cfg => IS_NATIVE ? paymentsOpen() : paymentsOpen() || manualOpen(cfg);

@@ -72,8 +72,10 @@ function makeService(deps) {
   }
 
   /* ---------------- WEB: Midtrans ---------------- */
+  // Sandbox: pembayaran bisa "dibayar" dengan simulator publik Midtrans → hanya admin yang boleh mencoba
+  const sandboxGuard = (auth) => { if (deps.midtrans && deps.midtrans.isProduction === false && !isAdmin(auth)) throw new BillingError('failed-precondition', 'Pembayaran online masih dalam uji coba; belum dibuka untuk umum.'); };
   async function createCheckout(auth, data = {}) {
-    const uid = needAuth(auth); const config = await getConfig();
+    const uid = needAuth(auth); sandboxGuard(auth); const config = await getConfig();
     const plan = config.plans[String(data.planCode || '')];
     if (!plan || plan.tier !== 'PRO' || !plan.active) throw new BillingError('invalid-argument', 'Paket tidak tersedia.');
     const ud = await col('users').doc(uid).get(); const user = ud.exists ? ud.data() : null;
@@ -109,7 +111,7 @@ function makeService(deps) {
 
   // Virtual Account: buat transaksi Core API dan kembalikan nomor VA untuk ditampilkan di aplikasi
   async function createVaCharge(auth, data = {}) {
-    const uid = needAuth(auth); const config = await getConfig();
+    const uid = needAuth(auth); sandboxGuard(auth); const config = await getConfig();
     if (!config.va.enabled) throw new BillingError('failed-precondition', 'Pembayaran Virtual Account belum dibuka.');
     const bank = String(data.bank || '').toLowerCase(); if (!config.va.banks.includes(bank)) throw new BillingError('invalid-argument', 'Bank Virtual Account tidak tersedia.');
     const plan = config.plans[String(data.planCode || '')];

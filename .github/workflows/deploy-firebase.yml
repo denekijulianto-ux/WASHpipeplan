@@ -84,6 +84,16 @@ jobs:
           firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force || { echo "Mengulang deploy dalam 2 menit…"; sleep 120; firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force; }
           # Hapus image fungsi lama otomatis (hindari biaya penyimpanan kecil yang menumpuk)
           firebase functions:artifacts:setpolicy --location asia-southeast2 --days 7 --project "$PROJECT_ID" --non-interactive --force || true
+      - name: Uji koneksi Midtrans (baca saja)
+        if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1' && env.MIDTRANS_KEY != ''
+        run: |
+          if [ "${{ vars.MIDTRANS_IS_PRODUCTION }}" = "true" ]; then API=https://api.midtrans.com; else API=https://api.sandbox.midtrans.com; fi
+          case "$MIDTRANS_KEY" in SB-Mid-server-*) KIND=Sandbox;; Mid-server-*) KIND=Production;; *) KIND="format tidak dikenal";; esac
+          echo "Jenis kunci: $KIND · API: $API"
+          OUT=$(curl -s -u "$MIDTRANS_KEY:" "$API/v2/WASHLY-CEK-KONEKSI-$(date +%s)/status")
+          echo "Jawaban Midtrans: $(echo "$OUT" | head -c 200)"
+          if echo "$OUT" | grep -q '"status_code":"401"'; then echo "::error::Server Key ditolak Midtrans (401). Periksa kunci atau lingkungan Sandbox/Production."; exit 1; fi
+          echo "Koneksi & otentikasi Midtrans OK (order uji memang tidak ada)."
       - name: Uji cepat fungsi yang ter-deploy
         if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
         run: |
