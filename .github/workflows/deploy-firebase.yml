@@ -35,8 +35,19 @@ jobs:
         if: steps.cred.outputs.skip == '0'
         working-directory: functions
         run: npm ci --no-audit --no-fund && npm test
-      - name: Parameter functions (.env, tidak di-commit)
+      - name: Deploy aturan Firestore (tidak butuh Blaze)
         if: steps.cred.outputs.skip == '0'
+        run: firebase deploy --only firestore:rules --project "$PROJECT_ID" --non-interactive
+      - name: Cek paket Blaze (billing)
+        id: billing
+        if: steps.cred.outputs.skip == '0'
+        run: |
+          TOKEN=$(node -e "const {GoogleAuth}=require('./functions/node_modules/google-auth-library');new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform']}).getAccessToken().then(t=>console.log(t))")
+          OUT=$(curl -s -H "Authorization: Bearer $TOKEN" "https://cloudbilling.googleapis.com/v1/projects/$PROJECT_ID/billingInfo")
+          echo "billingInfo: $OUT" | sed -E 's/"billingAccountName": "[^"]*"/"billingAccountName": "(disembunyikan)"/'
+          if echo "$OUT" | grep -q '"billingEnabled": true'; then echo "blaze=1" >> "$GITHUB_OUTPUT"; else echo "blaze=0" >> "$GITHUB_OUTPUT"; echo "::warning::Billing belum terdeteksi aktif untuk $PROJECT_ID; Cloud Functions belum bisa di-deploy."; fi
+      - name: Parameter functions (.env, tidak di-commit)
+        if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
         run: |
           ADMINS=$(node -e "global.window={};require('./auth-config.js');console.log((window.TIRTAPLAN_AUTH.adminEmails||[]).join(','))")
           LOC=$(firebase firestore:databases:get "(default)" --project "$PROJECT_ID" --json 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log((j.result&&j.result.locationId)||'')}catch(e){console.log('')}})")
@@ -51,7 +62,7 @@ jobs:
             echo "FIRESTORE_REGION=$FREG"
           } > "functions/.env.$PROJECT_ID"
       - name: Secret Midtrans
-        if: steps.cred.outputs.skip == '0'
+        if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
         run: |
           if [ -n "$MIDTRANS_KEY" ]; then
             printf '%s' "$MIDTRANS_KEY" | firebase functions:secrets:set MIDTRANS_SERVER_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
@@ -59,6 +70,6 @@ jobs:
             echo "::notice::MIDTRANS_SERVER_KEY belum ada; diisi penanda NOT_CONFIGURED (pembayaran web belum aktif)."
             printf 'NOT_CONFIGURED' | firebase functions:secrets:set MIDTRANS_SERVER_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
           fi
-      - name: Deploy
-        if: steps.cred.outputs.skip == '0'
-        run: firebase deploy --only firestore:rules,functions --project "$PROJECT_ID" --non-interactive --force
+      - name: Deploy Cloud Functions
+        if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
+        run: firebase deploy --only functions --project "$PROJECT_ID" --non-interactive --force
