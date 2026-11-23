@@ -283,7 +283,14 @@ firebase deploy --only firestore:rules,functions --project washpipe-93f48
 4. *License testing*: tambahkan akun Gmail penguji agar pembelian memakai kartu uji (tidak ditagih).
 5. Unggah AAB ke *Internal testing*. Billing hanya bekerja pada aplikasi yang diinstal dari Play (bukan APK sideload).
 
-### 7.5b Mode saat ini (sebelum Blaze & Midtrans siap)
+### 7.5a Status deploy (23 November 2026)
+* Paket **Blaze aktif**. Deploy lewat GitHub Actions (`washlywater/washlywater.github.io`) **berhasil**: `firestore.rules` + **16 Cloud Functions**
+  di `asia-southeast2`, kebijakan pembersihan image 7 hari, dan uji cepat pasca-deploy
+  (checkout/admin/playVerify tanpa login → 401, webhook Midtrans bertanda tangan palsu → 401).
+* `MIDTRANS_SERVER_KEY` masih berisi penanda `NOT_CONFIGURED`. Pembayaran web belum aktif sampai Server Key asli disimpan sebagai secret GitHub.
+* `auth-config.js`: `functions: true` (dasbor & Beri PRO untuk admin), `payments: false` (tombol beli belum dibuka).
+
+### 7.5b Mode saat ini (sebelum Midtrans siap)
 `auth-config.js` → `billing: { enabled: true, enforce: true, payments: false }`:
 * Pembatasan FREE/PRO **sudah berlaku** di aplikasi walau Cloud Functions belum di-deploy: tanpa dokumen `billing_config/main`,
   aplikasi memakai paket bawaan, semua akun selain admin = FREE, admin = semua fitur.

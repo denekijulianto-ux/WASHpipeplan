@@ -13,9 +13,10 @@ window.TIRTAPLAN_AUTH = {
   adminEmails: ["denekijulianto@gmail.com", "eki_julianto@pmi.or.id"],
   // Langganan WASHLY PRO (lihat BILLING.md).
   //  enabled  : true = paket FREE/PRO berlaku. Akun selain admin memakai FREE sampai membeli PRO.
-  //  payments : false = pembayaran online belum dibuka (Cloud Functions/Midtrans belum siap); ubah ke true setelah deploy.
+  //  functions: true = Cloud Functions sudah di-deploy (dasbor pendapatan & Beri PRO untuk admin).
+  //  payments : false = pembayaran online belum dibuka untuk pembeli; ubah ke true setelah Midtrans/Google Play siap.
   // Tidak ada rahasia di sini: kunci server Midtrans & akses Google Play hanya ada di server (Secret Manager).
-  billing: { enabled: true, enforce: true, payments: false, region: "asia-southeast2" },
+  billing: { enabled: true, enforce: true, functions: true, payments: false, region: "asia-southeast2" },
   // Notifikasi di luar aplikasi (opsional). Kosongkan bila belum dipakai.
   notify: {
     // Push HP/laptop walau aplikasi tertutup lewat aplikasi gratis "ntfy" (ntfy.sh).

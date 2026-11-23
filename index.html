@@ -37500,6 +37500,7 @@ function useBilling() {
 }
 const billingAvailable = api => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
 const paymentsOpen = () => BILLING_CFG.payments !== false;
+const serverOn = () => BILLING_CFG.functions === true || paymentsOpen();
 async function callFn(name, data = {}) {
   const u = window.firebase && firebase.auth().currentUser;
   if (!u) throw new Error('Silakan masuk terlebih dahulu.');
@@ -38122,7 +38123,7 @@ function SubscriptionDialog({
     variant: "outline",
     icon: "ExternalLink",
     onClick: () => PlayBilling.manage()
-  }, "Kelola di Google Play"), billingAvailable(api) && paymentsOpen() && React.createElement(Btn, {
+  }, "Kelola di Google Play"), billingAvailable(api) && serverOn() && React.createElement(Btn, {
     variant: "ghost",
     icon: "RefreshCw",
     disabled: !!busy,
@@ -40477,7 +40478,7 @@ function App({
     icon: "UserRound",
     onClick: () => setUserAdmin(true),
     title: "Atur akses & lihat paket pengguna (angka = akun lama yang perlu diaktifkan)"
-  }, "Kelola pengguna", pendU.pend.length ? ` (${pendU.pend.length})` : ''), user.admin && paymentsOpen() && billingAvailable(api) && React.createElement(Btn, {
+  }, "Kelola pengguna", pendU.pend.length ? ` (${pendU.pend.length})` : ''), user.admin && serverOn() && billingAvailable(api) && React.createElement(Btn, {
     variant: "dark",
     icon: "ChartColumn",
     onClick: () => setRevOpen(true),
@@ -40936,7 +40937,7 @@ function App({
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['IdCard', 'Profil saya', () => setProfileOf(user.uid)], ...(billingAvailable(api) ? [['Sparkles', 'Langganan saya', () => setSubOpen(true)]] : []), ...(user.admin && paymentsOpen() && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []), ['ShieldCheck', 'Kebijakan privasi', () => {
+  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['IdCard', 'Profil saya', () => setProfileOf(user.uid)], ...(billingAvailable(api) ? [['Sparkles', 'Langganan saya', () => setSubOpen(true)]] : []), ...(user.admin && serverOn() && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []), ['ShieldCheck', 'Kebijakan privasi', () => {
     window.location.href = 'privacy.html';
   }], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)], ['FileText', 'Cetak laporan', () => printAs('report')], ['Printer', 'Cetak DED', () => printAs('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
     key: i,

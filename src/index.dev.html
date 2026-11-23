@@ -9203,7 +9203,8 @@ const Billing = (() => {
 })();
 function useBilling() { return React.useSyncExternalStore(Billing.subscribe, Billing.get); }
 const billingAvailable = (api) => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
-const paymentsOpen = () => BILLING_CFG.payments !== false; // false: Cloud Functions/Midtrans belum siap
+const paymentsOpen = () => BILLING_CFG.payments !== false; // false: Midtrans/Google Play belum siap untuk pembeli
+const serverOn = () => BILLING_CFG.functions === true || paymentsOpen(); // Cloud Functions sudah di-deploy (dasbor admin, Beri PRO)
 
 // Panggil Cloud Function (protokol callable) dengan token login Firebase pengguna
 async function callFn(name, data = {}) {
@@ -9391,7 +9392,7 @@ function SubscriptionDialog({ api, user, onClose }) {
           {pro && ['midtrans', 'google_play'].includes(e.provider) && e.status !== 'CANCELED' && <Btn id="sub-cancel" variant="danger" icon="CircleX" disabled={!!busy} onClick={cancel}>{e.provider === 'google_play' ? 'Kelola / batalkan di Google Play' : 'Batalkan langganan'}</Btn>}
           {IS_NATIVE && <Btn variant="outline" icon="RotateCcw" disabled={!!busy} onClick={() => run('restore', async () => { const n = await PlayBilling.restore(); return n ? `${n} pembelian Google Play dipulihkan & diverifikasi.` : 'Tidak ada pembelian Google Play aktif di akun Google perangkat ini.'; })}>Pulihkan pembelian</Btn>}
           {IS_NATIVE && <Btn variant="outline" icon="ExternalLink" onClick={() => PlayBilling.manage()}>Kelola di Google Play</Btn>}
-          {billingAvailable(api) && paymentsOpen() && <Btn variant="ghost" icon="RefreshCw" disabled={!!busy} onClick={() => run('refresh', async () => { await callFn('billingRefresh'); return 'Status langganan diperbarui dari server.'; })}>Segarkan status</Btn>}
+          {billingAvailable(api) && serverOn() && <Btn variant="ghost" icon="RefreshCw" disabled={!!busy} onClick={() => run('refresh', async () => { await callFn('billingRefresh'); return 'Status langganan diperbarui dari server.'; })}>Segarkan status</Btn>}
         </div>
         {e.provider === 'google_play' && IS_NATIVE === false && <p className="text-[11.5px] text-slate-500">Langganan ini dibeli lewat Google Play; pembatalan & metode pembayaran diatur di Google Play (play.google.com → Langganan).</p>}
         <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Riwayat pembayaran</div>
@@ -9972,7 +9973,7 @@ function App({ user, api }) {
           <button type="button" id="bell-d" onClick={() => setNotifOpen(true)} title="Notifikasi" className="relative inline-flex items-center rounded-md px-2.5 py-1.5 text-slate-200 hover:bg-white/10 border border-white/10"><Icon name="Bell" size={16} />
             {inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10.5px] font-bold flex items-center justify-center px-1">{inbox.unread + (user.admin ? pendU.pend.length : 0)}</span>}</button>
           {user.admin && <Btn variant="dark" icon="UserRound" onClick={() => setUserAdmin(true)} title="Atur akses & lihat paket pengguna (angka = akun lama yang perlu diaktifkan)">Kelola pengguna{pendU.pend.length ? ` (${pendU.pend.length})` : ''}</Btn>}
-          {user.admin && paymentsOpen() && billingAvailable(api) && <Btn variant="dark" icon="ChartColumn" onClick={() => setRevOpen(true)} title="Dasbor pendapatan & langganan">Pendapatan</Btn>}
+          {user.admin && serverOn() && billingAvailable(api) && <Btn variant="dark" icon="ChartColumn" onClick={() => setRevOpen(true)} title="Dasbor pendapatan & langganan">Pendapatan</Btn>}
           {billingAvailable(api) && <button type="button" id="my-plan" onClick={() => setSubOpen(true)} title="Langganan saya" className="flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10"><Icon name="Sparkles" size={14} />Langganan<ProBadge /></button>}
           <button type="button" id="my-profile" onClick={() => setProfileOf(user.uid)} title="Profil saya" className="relative flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10">
             <Avatar src={myProfile?.photo} name={myProfile?.fullName || user.name} size={22} />Profil{myProfile !== undefined && profileMissing(myProfile).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400" title="Profil belum lengkap" />}</button>
@@ -10080,7 +10081,7 @@ function App({ user, api }) {
           ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)],
           ['IdCard', 'Profil saya', () => setProfileOf(user.uid)],
           ...(billingAvailable(api) ? [['Sparkles', 'Langganan saya', () => setSubOpen(true)]] : []),
-          ...(user.admin && paymentsOpen() && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []),
+          ...(user.admin && serverOn() && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []),
           ['ShieldCheck', 'Kebijakan privasi', () => { window.location.href = 'privacy.html'; }],
           ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []),
           ['Building2', 'Data proyek', () => setDialog(true)],
