@@ -24,6 +24,7 @@ const NOTE = {
   canceled: ['Langganan dibatalkan', 'Langganan Anda dibatalkan. Anda tetap dapat memakai PRO sampai {0}.'],
   expired: ['Langganan PRO berakhir', 'Langganan WASHLY PRO Anda sudah berakhir. Anda sekarang memakai WASHLY FREE.'],
   grace: ['Masa tenggang PRO', 'Periode PRO Anda sudah habis. Akses PRO masih aktif sampai {0}; perpanjang agar tidak terputus.'],
+  manual_rejected: ['Transfer belum dapat dikonfirmasi', 'Transfer Anda untuk WASHLY PRO belum dapat dikonfirmasi admin: {0}. Silakan periksa kembali atau hubungi admin WASHLY.'],
   refunded: ['Refund diproses', 'Refund pembayaran WASHLY PRO Anda sudah diproses; akses PRO untuk periode tersebut dicabut.'],
 };
 const fmtDate = (t) => { const d = new Date(t + 7 * 36e5); return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`; };
@@ -268,7 +269,7 @@ function makeService(deps) {
       }
     }
     const pend = (await col('payments').where('status', '==', 'PENDING').get()).docs;
-    for (const d of pend) if (d.data().createdAt < t - (config.pendingHours + 1) * 36e5) { await d.ref.update({ status: 'EXPIRED', updatedAt: t, failureReason: 'not_paid' }); out.expiredPending++; }
+    for (const d of pend) if (d.data().createdAt < t - ((d.data().provider === 'manual' ? config.manual.hours : config.pendingHours) + 1) * 36e5) { await d.ref.update({ status: 'EXPIRED', updatedAt: t, failureReason: 'not_paid' }); out.expiredPending++; }
     for (const uid of touched) await recomputeEntitlement(uid, config);
     // Hitung ulang pemakaian proyek cloud (batas paket FREE ditegakkan oleh firestore.rules dari dokumen ini)
     const users = (await col('users').get()).docs; for (const u of users) await recountUsage(u.id);
@@ -336,11 +337,80 @@ function makeService(deps) {
     const users = (await col('users').get()).docs; for (const u of users) await recomputeEntitlement(u.id, v.config);
     return { config: v.config };
   }
+  /* ---------------- WEB: transfer bank / QRIS manual (konfirmasi admin) ---------------- */
+  async function notifyAdmins(title, body) {
+    for (const email of (deps.adminEmails || []).map(normEmail)) await col('notifications').add({ toEmail: email, toUid: '', title, body, kind: 'billing', projectId: '', fromUid: '', fromName: 'WASHLY', read: false, at: deps.ts ? deps.ts(now()) : now() });
+  }
+  async function createManualOrder(auth, data = {}) {
+    const uid = needAuth(auth); const config = await getConfig(); const M = config.manual;
+    if (!M.enabled) throw new BillingError('failed-precondition', 'Pembayaran transfer belum dibuka.');
+    const plan = config.plans[String(data.planCode || '')];
+    if (!plan || plan.tier !== 'PRO' || !plan.active) throw new BillingError('invalid-argument', 'Paket tidak tersedia.');
+    const ud = await col('users').doc(uid).get(); const user = ud.exists ? ud.data() : null;
+    if (!user || (!['approved', 'pending'].includes(user.status) && !isAdmin(auth))) throw new BillingError('failed-precondition', 'Akun ditangguhkan atau ditolak admin.');
+    const mine = (await col('payments').where('userId', '==', uid).get()).docs.map(d => d.data());
+    const open = mine.find(p => p.status === 'PENDING' && p.provider === 'manual' && p.planCode === plan.code);
+    if (open) return { orderId: open.id, amount: open.amount, uniqueCode: open.uniqueCode, expiresAt: open.expiresAt, reused: true };
+    if (mine.filter(p => p.status === 'PENDING' && p.createdAt > now() - 864e5).length >= 5) throw new BillingError('resource-exhausted', 'Terlalu banyak tagihan tertunda. Selesaikan atau tunggu tagihan sebelumnya kedaluwarsa.');
+    // Kode unik 1–499 rupiah memudahkan admin mencocokkan transfer di mutasi rekening
+    const taken = new Set((await col('payments').where('status', '==', 'PENDING').get()).docs.map(d => d.data()).filter(p => p.provider === 'manual').map(p => p.amount));
+    let code = 0; for (let i = 0; i < 40 && !code; i++) { const c = 1 + crypto.randomInt(499); if (!taken.has(plan.price + c)) code = c; }
+    if (!code) code = 1 + crypto.randomInt(499);
+    const orderId = `TRF-${uid.slice(0, 6)}-${now().toString(36)}`.toUpperCase();
+    const pay = { id: orderId, userId: uid, userEmail: normEmail(auth.token && auth.token.email || user.email), userName: String(user.name || '').slice(0, 80), subscriptionId: 'web_' + uid, provider: 'manual', planCode: plan.code,
+      amount: plan.price + code, listPrice: plan.price, uniqueCode: code, currency: 'IDR', status: 'PENDING', method: 'bank_transfer', transactionId: null, paidAt: null, refundStatus: null, refundAmount: 0, refundedAt: null,
+      invoiceRef: orderId, proof: false, expiresAt: now() + M.hours * 36e5, createdAt: now(), updatedAt: now() };
+    await col('payments').doc(orderId).set(pay);
+    await logEvents([{ type: 'payment_initiated' }], { userId: uid, subscriptionId: pay.subscriptionId, paymentId: orderId, provider: 'manual', planCode: plan.code, amount: pay.amount });
+    return { orderId, amount: pay.amount, uniqueCode: code, expiresAt: pay.expiresAt };
+  }
+  async function submitManualProof(auth, data = {}) {
+    const uid = needAuth(auth); const orderId = String(data.orderId || ''); const pref = col('payments').doc(orderId); const pd = await pref.get();
+    if (!pd.exists || pd.data().userId !== uid || pd.data().provider !== 'manual') throw new BillingError('not-found', 'Tagihan tidak ditemukan.');
+    if (pd.data().status !== 'PENDING') throw new BillingError('failed-precondition', 'Tagihan ini sudah diproses.');
+    const img = typeof data.image === 'string' ? data.image : '';
+    if (img && (!/^data:image\/(png|jpeg|webp);base64,/.test(img) || img.length > 700000)) throw new BillingError('invalid-argument', 'Bukti harus gambar PNG/JPG maks. ±500 KB.');
+    const senderName = String(data.senderName || '').trim().slice(0, 80), senderBank = String(data.senderBank || '').trim().slice(0, 60);
+    if (!senderName) throw new BillingError('invalid-argument', 'Isi nama pemilik rekening pengirim.');
+    await col('payment_proofs').doc(orderId).set({ userId: uid, image: img, senderName, senderBank, note: String(data.note || '').slice(0, 300), at: now() });
+    await pref.update({ proof: true, proofAt: now(), senderName, senderBank, updatedAt: now() });
+    const p = pd.data();
+    await notifyAdmins('Konfirmasi transfer WASHLY PRO', `${p.userName || p.userEmail} melaporkan transfer Rp ${p.amount.toLocaleString('id-ID')} (${p.planCode}) dari ${senderName}${senderBank ? ' / ' + senderBank : ''}. Cek mutasi rekening lalu konfirmasi di Pendapatan → Konfirmasi transfer.`);
+    return { ok: true };
+  }
+  async function adminManualList(auth, { status = 'PENDING' } = {}) {
+    needAdmin(auth);
+    const ps = (await col('payments').where('provider', '==', 'manual').get()).docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => status === 'ALL' || p.status === status).sort((a, b) => (b.proofAt || b.createdAt) - (a.proofAt || a.createdAt)).slice(0, 100);
+    for (const p of ps) { const pr = await col('payment_proofs').doc(p.id).get(); p.proofData = pr.exists ? pr.data() : null; }
+    return ps;
+  }
+  async function adminManualDecide(auth, { orderId, decision, reason } = {}) {
+    needAdmin(auth); if (!['approve', 'reject'].includes(decision)) throw new BillingError('invalid-argument', 'Keputusan tidak valid.');
+    if (decision === 'reject' && String(reason || '').trim().length < 5) throw new BillingError('invalid-argument', 'Alasan penolakan wajib diisi (min. 5 karakter).');
+    const config = await getConfig(); const pref = col('payments').doc(String(orderId || '')); let after = null;
+    await db.runTransaction(async (tx) => {
+      const pd = await tx.get(pref); if (!pd.exists || pd.data().provider !== 'manual') throw new BillingError('not-found', 'Tagihan tidak ditemukan.');
+      const p = pd.data(); if (p.status !== 'PENDING' && !(p.status === 'EXPIRED' && decision === 'approve')) throw new BillingError('failed-precondition', 'Tagihan ini sudah diproses (' + p.status + ').');
+      const base = { userId: p.userId, subscriptionId: p.subscriptionId, paymentId: p.id, provider: 'manual', planCode: p.planCode, actor: auth.uid };
+      if (decision === 'reject') { tx.update(pref, { status: 'FAILED', failureReason: String(reason).slice(0, 300), decidedBy: auth.uid, decidedAt: now(), updatedAt: now() }); after = { uid: p.userId, events: [{ type: 'payment_failed', reason: 'ditolak admin: ' + String(reason).slice(0, 200) }], base, reject: true }; return; }
+      const sref = col('subscriptions').doc(p.subscriptionId); const sd = await tx.get(sref); const sub = sd.exists ? { id: sd.id, ...sd.data() } : null;
+      const plan = config.plans[p.planCode] || { code: p.planCode, months: 1 };
+      const r = L.applyWebPayment(sub, { ...p, id: p.id, provider: 'manual' }, plan, now());
+      tx.update(pref, { status: 'PAID', paidAt: now(), transactionId: 'manual-' + p.id, confirmedBy: auth.uid, confirmedByEmail: normEmail(auth.token.email), decidedAt: now(), updatedAt: now() });
+      tx.set(sref, r.sub); after = { uid: p.userId, events: r.events, base, sub: r.sub };
+    });
+    await logEvents(after.events, after.base);
+    await audit(auth, decision === 'approve' ? 'manual_confirm' : 'manual_reject', after.uid, String(reason || '').slice(0, 300), { orderId });
+    const ent = await recomputeEntitlement(after.uid, config);
+    if (after.reject) await notifyUser(after.uid, 'manual_rejected', [String(reason).slice(0, 200)]); else await notifyFor(after.uid, after.events, after.sub);
+    return { status: decision === 'approve' ? 'PAID' : 'FAILED', entitlement: ent };
+  }
   async function myAccountId(auth) { return { accountId: accountIdFor(needAuth(auth)) }; }
   async function refreshMe(auth) { const uid = needAuth(auth); return { entitlement: await recomputeEntitlement(uid) }; }
 
   return { BillingError, getConfig, recomputeEntitlement, recountUsage, createCheckout, verifyMidtransSignature, handleMidtransNotification, applyMidtransStatus, refreshOrder, cancelWeb,
-    playVerify, handleRtdn, sweep, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
+    playVerify, handleRtdn, sweep, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
 }
 
 module.exports = { makeService, BillingError, accountIdFor, sha256 };

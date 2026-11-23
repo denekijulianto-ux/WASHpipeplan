@@ -52,6 +52,10 @@ exports.billingCancel = onCall(callOpts, wrap(s => s.cancelWeb));
 exports.billingAccountId = onCall(callOpts, wrap(s => s.myAccountId));
 exports.billingRefresh = onCall(callOpts, wrap(s => s.refreshMe));
 exports.playVerify = onCall(callOpts, wrap(s => s.playVerify));
+exports.manualOrder = onCall(callOpts, wrap(s => s.createManualOrder));
+exports.manualProof = onCall({ ...callOpts, memory: '512MiB' }, wrap(s => s.submitManualProof));
+exports.adminManualList = onCall({ ...callOpts, memory: '512MiB' }, wrap(s => s.adminManualList));
+exports.adminManualDecide = onCall(callOpts, wrap(s => s.adminManualDecide));
 // ---- Admin (dicek ulang di server: email admin terverifikasi)
 exports.adminBillingMetrics = onCall({ ...callOpts, memory: '512MiB', timeoutSeconds: 120 }, wrap(s => s.adminMetrics));
 exports.adminBillingUsers = onCall(callOpts, wrap(s => s.adminUsers));

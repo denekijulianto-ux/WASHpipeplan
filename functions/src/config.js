@@ -47,6 +47,8 @@ const DEFAULT_CONFIG = {
   // Disiapkan untuk promosi web (kode diverifikasi di server, harga akhir tetap dibayar lewat Midtrans).
   // Promosi Google Play WAJIB lewat offer di Play Console.
   promo: { enabled: false, codes: {} },
+  // Transfer bank / QRIS manual: pengguna transfer, admin mengecek mutasi lalu mengonfirmasi di dasbor.
+  manual: { enabled: false, bankName: '', accountNumber: '', accountName: '', qris: '', instructions: '', hours: 72 },
   features: Object.fromEntries(Object.entries(FEATURES).map(([k, v]) => [k, { free: v.free, pro: v.pro }])),
 };
 
@@ -86,6 +88,13 @@ function validateConfig(input) {
     codes[code] = { percent: pct, planCodes: (pr.planCodes || []).filter(x => plans[x] && plans[x].tier === 'PRO'), validUntil: pr.validUntil || null, maxUses: pr.maxUses ? num(pr.maxUses, 1, 1e6, 'maxUses') : null, active: pr.active !== false };
   }
   out.promo = { enabled: !!(out.promo && out.promo.enabled), codes };
+  const m = out.manual || {}; const str = (v, n) => String(v || '').trim().slice(0, n);
+  const qris = typeof m.qris === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(m.qris) ? m.qris : '';
+  if (m.qris && !qris) errors.push('Gambar QRIS harus PNG/JPG');
+  if (qris.length > 400000) errors.push('Gambar QRIS terlalu besar (maks. ±300 KB)');
+  out.manual = { enabled: !!m.enabled, bankName: str(m.bankName, 60), accountNumber: str(m.accountNumber, 40).replace(/[^0-9 \-]/g, ''), accountName: str(m.accountName, 80),
+    qris, instructions: str(m.instructions, 500), hours: num(m.hours == null ? 72 : m.hours, 1, 336, 'manual.hours') };
+  if (out.manual.enabled && !((out.manual.bankName && out.manual.accountNumber && out.manual.accountName) || out.manual.qris)) errors.push('Transfer manual aktif: isi rekening (bank, nomor, nama) atau unggah QRIS');
   out.version = DEFAULT_CONFIG.version;
   return { ok: errors.length === 0, errors, config: out };
 }

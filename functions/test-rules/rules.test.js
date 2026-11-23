@@ -79,3 +79,12 @@ test('proyek orang lain: isi lengkap & foto tertutup, hanya jaringan pipa yang t
   for (const db of [own, chk, adm]) { await assertSucceeds(getDoc(doc(db, 'projectData/p1'))); await assertSucceeds(getDoc(doc(db, 'photos/f1'))); }
   await assertSucceeds(setDoc(doc(own, 'projectNet/p1'), { ownerUid: 'own', rev: 2, text: '{}' }));
 });
+
+test('bukti transfer: hanya pengirim & admin yang bisa membaca; tidak ada yang bisa menulis dari aplikasi', async () => {
+  await seed(async db => { await setDoc(doc(db, 'users/u'), { email: 'u@x.org', status: 'approved' }); await setDoc(doc(db, 'payment_proofs/T1'), { userId: 'u', image: 'data:x' }); });
+  await assertSucceeds(getDoc(doc(user('u', 'u@x.org'), 'payment_proofs/T1')));
+  await assertFails(getDoc(doc(user('v', 'v@x.org'), 'payment_proofs/T1')));
+  await assertSucceeds(getDoc(doc(user('a', ADMIN), 'payment_proofs/T1')));
+  await assertFails(setDoc(doc(user('u', 'u@x.org'), 'payment_proofs/T2'), { userId: 'u' }));
+  await assertFails(setDoc(doc(user('u', 'u@x.org'), 'payments/T3'), { userId: 'u', provider: 'manual', status: 'PAID' }));
+});

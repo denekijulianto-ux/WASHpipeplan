@@ -180,6 +180,17 @@ mencabut pemberian admin. Langganan berbayar **tidak bisa** diubah manual; harus
 **Notifikasi** memakai kotak masuk yang sudah ada (`notifications`, ikon lonceng) plus push ntfy bila `NTFY_TOPIC` diisi
 (pesan umum tanpa data pribadi): aktif, diperpanjang, pengingat perpanjangan, gagal bayar, tenggang, dibatalkan, berakhir, refund.
 
+### Transfer bank / QRIS manual (tanpa payment gateway)
+Saluran web yang aktif tanpa akun Midtrans. Diatur admin di **Pendapatan → Paket & harga → Pembayaran transfer bank / QRIS**
+(bank, nomor rekening, atas nama, gambar QRIS opsional, batas waktu bayar).
+1. `manualOrder`: server membuat tagihan `payments/{TRF-…}` PENDING dengan **nominal unik** (harga + 1–499 rupiah), dan memakai ulang tagihan terbuka yang sama.
+2. Pengguna mentransfer lalu `manualProof`: nama & bank pengirim + foto bukti (≤ ±500 KB, hanya gambar) disimpan di `payment_proofs/{id}`
+   (hanya pengirim & admin yang bisa membaca). Admin mendapat notifikasi. **Bukti tidak mengaktifkan PRO.**
+3. Admin mencocokkan nominal unik dengan **mutasi rekening**, lalu **Konfirmasi dana masuk** (`adminManualDecide`) → pembayaran PAID,
+   langganan `web_{uid}` aktif/diperpanjang (provider `manual`), peristiwa + audit dicatat, pengguna diberi tahu. Atau **Tolak** dengan alasan.
+4. Tagihan yang tidak dibayar kedaluwarsa setelah `manual.hours` (bawaan 72 jam). Perpanjangan memakai alur yang sama, dengan pengingat H-7/H-1 dan masa tenggang.
+5. Tidak tampil di aplikasi Android (kebijakan Play: wajib Google Play Billing).
+
 ## 5. Kepatuhan Google Play
 
 * WASHLY PRO adalah layanan digital yang dipakai di dalam aplikasi, jadi **aplikasi Android memakai Google Play Billing**.

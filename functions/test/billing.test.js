@@ -274,3 +274,44 @@ test('metrik: MRR dinormalisasi, pending bukan pendapatan, refund dikurangi, ARP
   assert.equal(m.current.converted, 2); assert.equal(m.current.eligible, 4); assert.equal(m.overview.proUsers, 3); assert.equal(m.overview.freeUsers, 1);
   assert.ok(m.series.length >= 4); assert.equal(m.series.reduce((a, b) => a + b.revenue, 0), 624000);
 });
+
+test('transfer manual: tagihan nominal unik → bukti → admin konfirmasi → PRO; bukti saja tidak mengaktifkan', async () => {
+  const { s, db, seedUser, auth, ent } = setup(); await seedUser('u', 'u@x.org'); await seedUser('v', 'v@x.org');
+  await assert.rejects(s.createManualOrder(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' }), { code: 'failed-precondition' }); // belum dibuka
+  const A = auth('boss', 'boss@x.org'); await seedUser('boss', 'boss@x.org');
+  const cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); cfg.enforce = true; cfg.manual = { enabled: true, bankName: 'BRI', accountNumber: '1234 5678', accountName: 'WASHLY', hours: 72 };
+  await s.adminSaveConfig(A, { config: cfg, reason: 'Buka transfer manual' });
+  const o = await s.createManualOrder(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' });
+  assert.ok(o.amount > 125000 && o.amount < 125500 && o.uniqueCode >= 1, 'nominal unik');
+  assert.equal((await s.createManualOrder(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' })).orderId, o.orderId, 'tagihan terbuka dipakai ulang');
+  await assert.rejects(s.submitManualProof(auth('v', 'v@x.org'), { orderId: o.orderId, senderName: 'V' }), { code: 'not-found' }); // bukan pemilik
+  await assert.rejects(s.submitManualProof(auth('u', 'u@x.org'), { orderId: o.orderId, senderName: 'U', image: 'javascript:alert(1)' }), { code: 'invalid-argument' });
+  await s.submitManualProof(auth('u', 'u@x.org'), { orderId: o.orderId, senderName: 'Budi', senderBank: 'BCA', image: 'data:image/png;base64,AAAA' });
+  assert.ok(!(await ent('u')) || (await ent('u')).tier === 'FREE', 'bukti transfer saja TIDAK mengaktifkan PRO');
+  const notes = (await db.collection('notifications').get()).docs.map(d => d.data()); assert.ok(notes.some(n => n.toEmail === 'boss@x.org' && /Konfirmasi transfer/.test(n.title)));
+  await assert.rejects(s.adminManualList(auth('u', 'u@x.org'), {}), { code: 'permission-denied' });
+  await assert.rejects(s.adminManualDecide(auth('u', 'u@x.org'), { orderId: o.orderId, decision: 'approve' }), { code: 'permission-denied' });
+  const list = await s.adminManualList(A, {}); assert.equal(list[0].id, o.orderId); assert.equal(list[0].proofData.senderName, 'Budi');
+  await s.adminManualDecide(A, { orderId: o.orderId, decision: 'approve' });
+  const e = await ent('u'); assert.equal(e.tier, 'PRO'); assert.equal(e.provider, 'manual');
+  const p = (await db.collection('payments').doc(o.orderId).get()).data(); assert.equal(p.status, 'PAID'); assert.equal(p.confirmedByEmail, 'boss@x.org');
+  await assert.rejects(s.adminManualDecide(A, { orderId: o.orderId, decision: 'approve' }), { code: 'failed-precondition' }); // tidak dobel
+  assert.ok((await db.collection('admin_audit').get()).docs.some(d => d.data().action === 'manual_confirm'));
+  // ditolak: tetap FREE, pengguna diberi tahu alasannya
+  const o2 = await s.createManualOrder(auth('v', 'v@x.org'), { planCode: 'PRO_YEARLY' });
+  await assert.rejects(s.adminManualDecide(A, { orderId: o2.orderId, decision: 'reject', reason: '' }), { code: 'invalid-argument' });
+  await s.adminManualDecide(A, { orderId: o2.orderId, decision: 'reject', reason: 'Dana belum masuk ke rekening' });
+  assert.ok(!(await ent('v')) || (await ent('v')).tier === 'FREE');
+  assert.ok((await db.collection('notifications').get()).docs.some(d => d.data().toEmail === 'v@x.org' && /Dana belum masuk/.test(d.data().body)));
+});
+
+test('transfer manual: konfigurasi divalidasi & tagihan kedaluwarsa setelah batas jam', async () => {
+  const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); bad.manual = { enabled: true }; assert.equal(validateConfig(bad).ok, false);
+  bad.manual = { enabled: true, qris: 'https://evil/x.png' }; assert.equal(validateConfig(bad).ok, false);
+  const { s, db, clock, seedUser, auth } = setup(); await seedUser('u', 'u@x.org'); await seedUser('boss', 'boss@x.org');
+  const cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); cfg.manual = { enabled: true, bankName: 'BRI', accountNumber: '1', accountName: 'W', hours: 24 };
+  await s.adminSaveConfig(auth('boss', 'boss@x.org'), { config: cfg, reason: 'uji' });
+  const o = await s.createManualOrder(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' });
+  clock.t += 26 * 36e5; await s.sweep();
+  assert.equal((await db.collection('payments').doc(o.orderId).get()).data().status, 'EXPIRED');
+});

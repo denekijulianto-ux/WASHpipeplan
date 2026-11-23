@@ -143,6 +143,11 @@ service cloud.firestore {
       allow write: if false;
     }
     // Rahasia server: token pembelian Google Play, log webhook, audit admin
+    // Bukti transfer manual: hanya pengirimnya & admin yang boleh melihat; ditulis lewat server
+    match /payment_proofs/{id} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
     match /play_tokens/{id} { allow read, write: if false; }
     match /webhook_events/{id} { allow read: if isAdmin(); allow write: if false; }
     match /admin_audit/{id} { allow read: if isAdmin(); allow write: if false; }

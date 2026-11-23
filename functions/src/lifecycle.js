@@ -46,14 +46,14 @@ function applyWebPayment(sub, payment, plan, now) {
   const start = sub && sub.status === 'GRACE_PERIOD' ? sub.currentPeriodEnd : prevUntil > now ? Math.max(prevUntil, sub.currentPeriodEnd || 0) : now;
   const end = addMonths(start, plan.months);
   const base = sub || { id: payment.subscriptionId, subjectType: 'user', subjectId: payment.userId, userId: payment.userId, orgId: null, seats: 1,
-    provider: 'midtrans', providerSubscriptionId: null, startedAt: now, createdAt: now };
+    provider: payment.provider || 'midtrans', providerSubscriptionId: null, startedAt: now, createdAt: now };
   let type;
   if (!sub) type = 'subscription_created';
   else if (!prevUntil) type = 'subscription_reactivated';
   else type = 'subscription_renewed';
   if (sub && sub.planCode && sub.planCode !== plan.code) events.push({ type: plan.months > (sub.planMonths || 0) ? 'subscription_upgraded' : 'subscription_downgraded', from: sub.planCode, to: plan.code });
   events.unshift({ type: 'payment_succeeded' }, { type });
-  const next = { ...base, planCode: plan.code, planMonths: plan.months, status: 'ACTIVE', autoRenew: true, renewalMode: 'manual',
+  const next = { ...base, provider: payment.provider || base.provider, planCode: plan.code, planMonths: plan.months, status: 'ACTIVE', autoRenew: true, renewalMode: 'manual',
     currentPeriodStart: prevUntil > now && sub.status !== 'GRACE_PERIOD' ? (sub.currentPeriodStart || now) : start, currentPeriodEnd: end, nextRenewalAt: end,
     canceledAt: null, graceEndsAt: null, lastPaymentId: payment.id, updatedAt: now };
   return { sub: next, events };

@@ -9173,6 +9173,7 @@ const FEAT_ORDER = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq
 const FEAT_FREE = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_cost', 'report_print', 'data_export', 'assistant_offline'];
 const BILLING_DEFAULT = {
   enforce: false, currency: 'IDR', graceDays: 3, reminderDays: [7, 1], pendingHours: 24, freeLimits: { cloudProjects: 3 },
+  manual: { enabled: false, bankName: '', accountNumber: '', accountName: '', qris: '', instructions: '', hours: 72 },
   plans: { FREE: { code: 'FREE', name: 'WASHLY FREE', tier: 'FREE', months: 0, price: 0, active: true },
     PRO_MONTHLY: { code: 'PRO_MONTHLY', name: 'WASHLY PRO Bulanan', tier: 'PRO', months: 1, price: 125000, active: true, playProductId: 'washly_pro', playBasePlanId: 'monthly' },
     PRO_YEARLY: { code: 'PRO_YEARLY', name: 'WASHLY PRO Tahunan', tier: 'PRO', months: 12, price: 499000, active: true, playProductId: 'washly_pro', playBasePlanId: 'yearly' } },
@@ -9181,7 +9182,7 @@ const BILLING_DEFAULT = {
 };
 const SUB_STATUS = { FREE: 'Gratis', ACTIVE: 'Aktif', PENDING: 'Menunggu pembayaran', PAST_DUE: 'Pembayaran tertunggak', GRACE_PERIOD: 'Masa tenggang', CANCELED: 'Dibatalkan (aktif sampai akhir periode)', EXPIRED: 'Berakhir', REFUNDED: 'Dana dikembalikan' };
 const PAY_STATUS = { PENDING: 'Menunggu', PAID: 'Lunas', FAILED: 'Gagal', EXPIRED: 'Kedaluwarsa', CANCELED: 'Dibatalkan', REFUNDED: 'Refund' };
-const PROVIDER = { midtrans: 'Web (Midtrans)', google_play: 'Google Play', admin: 'Pemberian admin' };
+const PROVIDER = { midtrans: 'Web (Midtrans)', manual: 'Transfer bank/QRIS', google_play: 'Google Play', admin: 'Pemberian admin' };
 const dateTxt = (t) => t ? new Date(t).toLocaleDateString(LOCALE, { day: '2-digit', month: 'short', year: 'numeric' }) : '–';
 
 // ---- Penyimpan hak akses (satu-satunya tempat aplikasi bertanya "boleh pakai fitur X?")
@@ -9205,6 +9206,45 @@ function useBilling() { return React.useSyncExternalStore(Billing.subscribe, Bil
 const billingAvailable = (api) => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
 const paymentsOpen = () => BILLING_CFG.payments !== false; // false: Midtrans/Google Play belum siap untuk pembeli
 const serverOn = () => BILLING_CFG.functions === true || paymentsOpen(); // Cloud Functions sudah di-deploy (dasbor admin, Beri PRO)
+// Transfer bank/QRIS manual (dikonfirmasi admin): hanya di web; aplikasi Android wajib Google Play Billing
+const manualOpen = (cfg) => !IS_NATIVE && serverOn() && !!(cfg && cfg.manual && cfg.manual.enabled);
+const anyPayment = (cfg) => IS_NATIVE ? paymentsOpen() : (paymentsOpen() || manualOpen(cfg));
+// Kecilkan gambar (bukti transfer / QRIS) sebelum dikirim
+function shrinkImage(file, max = 1280, q = 0.72) {
+  return new Promise((ok, fail) => { const r = new FileReader(); r.onerror = fail; r.onload = () => { const im = new Image(); im.onerror = () => fail(new Error('Berkas bukan gambar yang dapat dibaca.'));
+    im.onload = () => { const k = Math.min(1, max / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height); ok(c.toDataURL('image/jpeg', q)); }; im.src = r.result; }; r.readAsDataURL(file); });
+}
+function ManualPayDialog({ order, cfg, onClose }) {
+  const M = cfg.manual || {}; const plan = cfg.plans[order.planCode] || {};
+  const [f, setF] = useState({ senderName: '', senderBank: '', note: '', image: '' }); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [done, setDone] = useState(!!order.proof);
+  const copy = (t) => { try { navigator.clipboard.writeText(String(t)); } catch (e) {} };
+  const send = async () => { setErr(''); if (!f.senderName.trim()) { setErr('Isi nama pemilik rekening pengirim.'); return; } setBusy(true);
+    try { await callFn('manualProof', { orderId: order.orderId, ...f }); setDone(true); } catch (e) { setErr(e.message || String(e)); } setBusy(false); };
+  return <div className="fixed inset-0 z-[2350] bg-black/40 flex items-center justify-center p-3" onClick={onClose}>
+    <div id="manual-dlg" className="bg-white rounded-lg w-full max-w-lg max-h-[94vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-line"><Icon name="Landmark" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Bayar dengan transfer</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="p-5 overflow-y-auto space-y-3 text-[13px]">
+        <div className="rounded-lg bg-deep text-white p-4"><div className="text-[12px] text-aqua-100">{plan.name || order.planCode} · transfer tepat sejumlah</div>
+          <div className="flex items-center gap-2"><span id="manual-amount" className="text-[24px] font-bold num">{rp(order.amount)}</span><button type="button" className="text-[12px] underline text-aqua-100" onClick={() => copy(order.amount)}>salin</button></div>
+          <div className="text-[11.5px] text-aqua-100">Termasuk kode unik Rp {order.uniqueCode} agar transfer Anda mudah dikenali. Bayar sebelum {order.expiresAt ? new Date(order.expiresAt).toLocaleString(LOCALE, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–'}.</div></div>
+        {M.accountNumber && <div className="rounded-md border border-line p-3"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Rekening tujuan</div>
+          <div className="font-semibold">{M.bankName}</div><div className="flex items-center gap-2"><span className="font-mono text-[16px]" data-noi18n>{M.accountNumber}</span><button type="button" className="text-[12px] text-aqua-700 underline" onClick={() => copy(M.accountNumber.replace(/\D/g, ''))}>salin</button></div>
+          <div className="text-slate-600">a.n. {M.accountName}</div></div>}
+        {M.qris && <div className="rounded-md border border-line p-3 text-center"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Atau scan QRIS</div><img src={M.qris} alt="QRIS WASHLY" className="mx-auto max-h-[260px]" /></div>}
+        {M.instructions && <p className="text-slate-600 whitespace-pre-line">{M.instructions}</p>}
+        {done ? <div id="manual-done" className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">Bukti transfer terkirim. Admin akan mengecek mutasi rekening dan mengaktifkan PRO Anda (biasanya kurang dari 1×24 jam). Anda akan mendapat notifikasi.</div>
+        : <div className="rounded-md border border-line p-3 space-y-2"><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Setelah transfer, kirim konfirmasi</div>
+          <div className="grid grid-cols-2 gap-2"><Field label="Nama pemilik rekening pengirim"><input id="manual-sender" className="tp-field" value={f.senderName} onChange={e => setF(x => ({ ...x, senderName: e.target.value }))} /></Field>
+            <Field label="Bank / e-wallet pengirim"><input className="tp-field" value={f.senderBank} onChange={e => setF(x => ({ ...x, senderBank: e.target.value }))} placeholder="mis. BCA, DANA" /></Field></div>
+          <Field label="Foto / tangkapan layar bukti transfer (opsional)"><input id="manual-proof" type="file" accept="image/*" className="text-[12px]" onChange={async e => { const fl = e.target.files[0]; if (!fl) return; try { const img = await shrinkImage(fl); setF(x => ({ ...x, image: img })); } catch (er) { setErr(er.message); } }} /></Field>
+          {f.image && <img src={f.image} alt="Bukti transfer" className="max-h-[160px] rounded border border-line" />}
+          <Field label="Catatan (opsional)"><input className="tp-field" value={f.note} onChange={e => setF(x => ({ ...x, note: e.target.value }))} /></Field>
+          {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
+          <Btn id="manual-send" variant="primary" icon="Send" className="w-full justify-center py-2" disabled={busy} onClick={send}>{busy ? 'Mengirim…' : 'Saya sudah transfer — kirim konfirmasi'}</Btn></div>}
+        <p className="text-[11.5px] text-slate-500">PRO aktif setelah admin memastikan dana sudah masuk ke rekening WASHLY, bukan hanya dari bukti yang diunggah. Masa aktif dihitung sejak dikonfirmasi; tidak ada penagihan otomatis.</p>
+      </div></div></div>;
+}
 
 // Panggil Cloud Function (protokol callable) dengan token login Firebase pengguna
 async function callFn(name, data = {}) {
@@ -9304,10 +9344,12 @@ function PricingDialog({ user, onClose }) {
   useEffect(() => { if (IS_NATIVE) PlayBilling.products(cfg).then(setPlay).catch(() => {}); }, []);
   const pro = Billing.isPro(); const ent = b.ent || {};
   const priceOf = (p) => { const o = p.playProductId && play[p.playProductId + '/' + p.playBasePlanId]; return IS_NATIVE && o && o.formattedPrice ? o.formattedPrice : planPrice(p); };
+  const [manual, setManual] = useState(null);
   const buy = async (p) => {
-    if (!paymentsOpen()) { setMsg('Pembayaran online WASHLY PRO belum dibuka. Hubungi admin WASHLY (washlywater@gmail.com) untuk akses PRO.'); return; }
+    if (!anyPayment(cfg)) { setMsg('Pembayaran online WASHLY PRO belum dibuka. Hubungi admin WASHLY (washlywater@gmail.com) untuk akses PRO.'); return; }
     setErr(''); setMsg(''); setBusy(p.code);
     try {
+      if (!IS_NATIVE && !paymentsOpen() && manualOpen(cfg)) { const r = await callFn('manualOrder', { planCode: p.code }); setManual({ ...r, planCode: p.code }); setBusy(''); return; }
       if (IS_NATIVE) { const r = await PlayBilling.buy(p); if (r.canceled) setMsg('Pembelian dibatalkan.'); else if (r.pending) setMsg('Pembayaran Google Play sedang diproses. PRO aktif otomatis setelah pembayaran selesai.'); else setMsg('Pembelian terverifikasi. Selamat datang di WASHLY PRO!'); }
       else { const r = await callFn('billingCheckout', { planCode: p.code, promoCode: promo.trim() || undefined });
         try { sessionStorage.setItem('washly-pending-order', r.orderId); } catch (e) {}
@@ -9330,7 +9372,8 @@ function PricingDialog({ user, onClose }) {
       <div className="flex items-center gap-2 px-5 py-3 border-b border-line"><Icon name="Sparkles" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Paket WASHLY</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
       <div className="p-5 overflow-y-auto space-y-4 text-[13px]">
         <p className="text-slate-600">Alat rekayasa yang bisa dipakai semua orang. Mulai gratis, upgrade saat Anda membutuhkan keluaran profesional.</p>
-        {!paymentsOpen() && <div id="pay-closed" className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">Pembayaran online belum dibuka. Hubungi admin WASHLY (washlywater@gmail.com) untuk akses PRO.</div>}
+        {manual && <ManualPayDialog order={manual} cfg={cfg} onClose={() => setManual(null)} />}
+        {!anyPayment(cfg) && <div id="pay-closed" className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">Pembayaran online belum dibuka. Hubungi admin WASHLY (washlywater@gmail.com) untuk akses PRO.</div>}
         {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
         {msg && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{msg}</div>}
         <div className="grid sm:grid-cols-3 gap-3">
@@ -9343,7 +9386,8 @@ function PricingDialog({ user, onClose }) {
           <thead><tr className="bg-ground"><th className="text-left px-3 py-2">Fitur</th><th className="px-3 py-2 w-[130px]">Free</th><th className="px-3 py-2 w-[90px]">PRO</th></tr></thead>
           <tbody>{FEAT_ORDER.map(k => <tr key={k} className="border-t border-line"><td className="px-3 py-1.5">{FEAT[k][0]}</td><td className="text-center">{cell(k, 'free')}</td><td className="text-center">{cell(k, 'pro')}</td></tr>)}</tbody></table></div>
         <div className="rounded-md bg-ground px-3 py-2.5 text-[12px] text-slate-600 space-y-1">
-          {IS_NATIVE ? <>
+          {!IS_NATIVE && !paymentsOpen() && manualOpen(cfg) ? <p>Pembayaran lewat <b>transfer bank{cfg.manual.qris ? ' / QRIS' : ''}</b>. Setelah transfer, kirim konfirmasi; PRO aktif setelah admin memastikan dana masuk (biasanya kurang dari 1×24 jam). Tidak ada penagihan otomatis: Anda diingatkan sebelum masa aktif berakhir dan dapat memperpanjang dengan transfer lagi.</p>
+          : IS_NATIVE ? <>
             <p>Pembayaran lewat <b>Google Play</b>. Langganan diperpanjang otomatis setiap periode sampai Anda membatalkannya di Google Play (Profil → Langganan → Kelola). Setelah dibatalkan, PRO tetap aktif sampai akhir periode yang sudah dibayar.</p>
           </> : <>
             <p>Pembayaran web lewat <b>Midtrans</b> (QRIS, Virtual Account, e-wallet, kartu). Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada {cfg.graceDays} hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.</p>
@@ -9361,7 +9405,7 @@ function SubscriptionDialog({ api, user, onClose }) {
     api.db.collection('subscriptions').where('userId', '==', user.uid).get().then(q => setSubs(q.docs.map(d => ({ id: d.id, ...d.data() })))).catch(() => {}); };
   useEffect(load, [b.ent && b.ent.updatedAt]);
   const run = async (label, fn) => { setErr(''); setMsg(''); setBusy(label); try { const m = await fn(); if (m) setMsg(m); load(); } catch (x) { setErr(x.message || String(x)); } setBusy(''); };
-  const sub = subs.find(s => s.id === e.subscriptionId) || null; const plan = cfg.plans[e.planCode] || null;
+  const sub = subs.find(s => s.id === e.subscriptionId) || null; const plan = cfg.plans[e.planCode] || null; const [manual, setManual] = useState(null);
   const cancel = () => run('cancel', async () => {
     if (e.provider === 'google_play') { await PlayBilling.manage(plan && plan.playProductId); return 'Batalkan langganan di halaman Google Play yang terbuka. Status di WASHLY diperbarui otomatis.'; }
     if (!window.confirm(`Batalkan perpanjangan WASHLY PRO? Anda tetap memakai PRO sampai ${dateTxt(e.currentPeriodEnd)}, lalu akun kembali ke FREE. Proyek tidak dihapus.`)) return '';
@@ -9382,14 +9426,14 @@ function SubscriptionDialog({ api, user, onClose }) {
             {row('Metode tagihan', PROVIDER[e.provider] || e.provider || '–')}{row('Siklus', plan && plan.months === 12 ? 'Tahunan' : plan && plan.months === 1 ? 'Bulanan' : plan ? plan.months + ' bulan' : '–')}
             {row('Mulai berlangganan', dateTxt(sub && sub.startedAt))}{row('Periode berjalan berakhir', dateTxt(e.currentPeriodEnd))}
             {row('Jumlah per periode', e.provider === 'admin' ? 'Rp0 (pemberian admin)' : planPrice(plan))}
-            {row(e.provider === 'google_play' ? 'Perpanjangan otomatis' : 'Pembayaran berikutnya', e.status === 'CANCELED' ? `Tidak ada — berakhir ${dateTxt(e.currentPeriodEnd)}` : e.provider === 'google_play' ? (e.autoRenew ? dateTxt(e.currentPeriodEnd) : 'Mati') : e.provider === 'admin' ? 'Tidak ada' : `Bayar manual sebelum ${dateTxt(e.currentPeriodEnd)}`)}
+            {row(e.provider === 'google_play' ? 'Perpanjangan otomatis' : 'Pembayaran berikutnya', e.status === 'CANCELED' ? `Tidak ada — berakhir ${dateTxt(e.currentPeriodEnd)}` : e.provider === 'google_play' ? (e.autoRenew ? dateTxt(e.currentPeriodEnd) : 'Mati') : e.provider === 'admin' ? 'Tidak ada' : `Bayar (perpanjang) sebelum ${dateTxt(e.currentPeriodEnd)}`)}
             {e.status === 'GRACE_PERIOD' && row('Masa tenggang sampai', dateTxt(e.graceEndsAt || e.accessUntil))}
           </div> : <div className="mt-2 text-[12.5px] text-slate-600">Dengan PRO: {FEAT_ORDER.filter(k => (cfg.features[k] || {}).free !== true).map(k => (window.washlyT || (x => x))(FEAT[k][0])).join(' · ')}.</div>}
         </div>
         <div className="flex flex-wrap gap-2">
           {b.managed && <Btn id="sub-plans" variant="primary" icon="Sparkles" onClick={() => Billing.set({ pricing: true })}>{pro ? (plan && plan.months === 1 ? 'Ganti ke tahunan' : 'Lihat paket') : 'Upgrade ke PRO'}</Btn>}
-          {b.managed && pro && !IS_NATIVE && e.provider === 'midtrans' && <Btn variant="outline" icon="RefreshCw" onClick={() => Billing.set({ pricing: true })}>Perpanjang sekarang</Btn>}
-          {pro && ['midtrans', 'google_play'].includes(e.provider) && e.status !== 'CANCELED' && <Btn id="sub-cancel" variant="danger" icon="CircleX" disabled={!!busy} onClick={cancel}>{e.provider === 'google_play' ? 'Kelola / batalkan di Google Play' : 'Batalkan langganan'}</Btn>}
+          {b.managed && pro && !IS_NATIVE && ['midtrans', 'manual'].includes(e.provider) && <Btn variant="outline" icon="RefreshCw" onClick={() => Billing.set({ pricing: true })}>Perpanjang sekarang</Btn>}
+          {pro && ['midtrans', 'manual', 'google_play'].includes(e.provider) && e.status !== 'CANCELED' && <Btn id="sub-cancel" variant="danger" icon="CircleX" disabled={!!busy} onClick={cancel}>{e.provider === 'google_play' ? 'Kelola / batalkan di Google Play' : 'Batalkan langganan'}</Btn>}
           {IS_NATIVE && <Btn variant="outline" icon="RotateCcw" disabled={!!busy} onClick={() => run('restore', async () => { const n = await PlayBilling.restore(); return n ? `${n} pembelian Google Play dipulihkan & diverifikasi.` : 'Tidak ada pembelian Google Play aktif di akun Google perangkat ini.'; })}>Pulihkan pembelian</Btn>}
           {IS_NATIVE && <Btn variant="outline" icon="ExternalLink" onClick={() => PlayBilling.manage()}>Kelola di Google Play</Btn>}
           {billingAvailable(api) && serverOn() && <Btn variant="ghost" icon="RefreshCw" disabled={!!busy} onClick={() => run('refresh', async () => { await callFn('billingRefresh'); return 'Status langganan diperbarui dari server.'; })}>Segarkan status</Btn>}
@@ -9400,8 +9444,9 @@ function SubscriptionDialog({ api, user, onClose }) {
           <table className="w-full text-[12px]"><thead><tr className="text-left text-slate-500"><th className="py-1">Tanggal</th><th>Paket</th><th>Metode</th><th className="text-right">Jumlah</th><th className="text-right">Status</th></tr></thead>
             <tbody>{pays.slice(0, 50).map(p => <tr key={p.id} className="border-t border-line"><td className="py-1">{dateTxt(p.paidAt || p.createdAt)}</td><td>{(cfg.plans[p.planCode] || {}).name || p.planCode}</td><td>{PROVIDER[p.provider] || p.provider}{p.method && p.method !== 'google_play' ? ' · ' + p.method : ''}</td><td className="text-right num">{rp(p.amount)}</td>
               <td className="text-right"><span className={'rounded px-1.5 py-0.5 ' + (p.status === 'PAID' ? 'bg-emerald-50 text-emerald-800' : p.status === 'PENDING' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600')}>{PAY_STATUS[p.status] || p.status}</span>
-              {p.status === 'PENDING' && p.redirectUrl && <a className="ml-1 text-aqua-700 underline" href={p.redirectUrl}>bayar</a>}</td></tr>)}</tbody></table>}
+              {p.status === 'PENDING' && p.redirectUrl && <a className="ml-1 text-aqua-700 underline" href={p.redirectUrl}>bayar</a>}{p.status === 'PENDING' && p.provider === 'manual' && <button type="button" className="ml-1 text-aqua-700 underline" onClick={() => setManual({ orderId: p.id, amount: p.amount, uniqueCode: p.uniqueCode, expiresAt: p.expiresAt, planCode: p.planCode, proof: p.proof })}>{p.proof ? 'lihat' : 'bayar'}</button>}</td></tr>)}</tbody></table>}
         </div>
+        {manual && <ManualPayDialog order={manual} cfg={cfg} onClose={() => setManual(null)} />}
         <p className="text-[11.5px] text-slate-500">Batalkan kapan saja. Setelah dibatalkan, Anda tetap memakai PRO sampai akhir periode yang sudah dibayar, lalu akun otomatis kembali ke FREE; proyek Anda tidak dihapus.</p>
       </div></div></div>;
 }
@@ -9441,7 +9486,14 @@ function AdminBillingDialog({ onClose }) {
   const setPlan = (code, k, v) => setCfg(c => ({ ...c, plans: { ...c.plans, [code]: { ...c.plans[code], [k]: v } } }));
   const saveCfg = async () => { setErr(''); setSaved(''); setBusy('c'); try { const r = await callFn('adminBillingConfig', { config: cfg, reason }); setCfg(r.config); setSaved('Konfigurasi tersimpan & hak akses semua pengguna dihitung ulang.'); } catch (e) { setErr(e.message); } setBusy(''); };
   const c = m && m.current, p = m && m.previous, o = m && m.overview;
-  const tabs = [['overview', 'Pendapatan & pelanggan', 'ChartColumn'], ['users', 'Pengguna & langganan', 'Users'], ['config', 'Paket & harga', 'Settings2']];
+  const tabs = [['overview', 'Pendapatan & pelanggan', 'ChartColumn'], ['manual', 'Konfirmasi transfer', 'Landmark'], ['users', 'Pengguna & langganan', 'Users'], ['config', 'Paket & harga', 'Settings2']];
+  const [mList, setMList] = useState(null); const [mFilter, setMFilter] = useState('PENDING'); const [zoom, setZoom] = useState('');
+  const loadMan = async () => { setErr(''); setBusy('man'); try { setMList(await callFn('adminManualList', { status: mFilter })); } catch (e) { setErr(e.message); } setBusy(''); };
+  useEffect(() => { if (tab === 'manual') loadMan(); }, [tab, mFilter]);
+  const decide = async (p, decision) => { let reason = '';
+    if (decision === 'approve' && !window.confirm(`Konfirmasi dana ${rp(p.amount)} dari ${p.senderName || p.userName || p.userEmail} SUDAH MASUK ke rekening WASHLY? PRO ${p.planCode} langsung aktif untuk ${p.userEmail}.`)) return;
+    if (decision === 'reject') { reason = window.prompt('Alasan penolakan (dikirim ke pengguna, wajib):') || ''; if (reason.trim().length < 5) return; }
+    setBusy('d' + p.id); setErr(''); try { await callFn('adminManualDecide', { orderId: p.id, decision, reason }); await loadMan(); } catch (e) { setErr(e.message); } setBusy(''); };
   return <div className="fixed inset-0 z-[2150] bg-black/40 flex items-center justify-center p-2 sm:p-3" onClick={onClose}>
     <div id="rev-dlg" className="bg-ground rounded-lg w-full max-w-6xl h-[96vh] flex flex-col" onClick={e => e.stopPropagation()}>
       <div className="flex items-center gap-2 px-5 py-3 border-b border-line bg-white rounded-t-lg"><Icon name="ChartColumn" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Dasbor pendapatan & langganan</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
@@ -9480,6 +9532,20 @@ function AdminBillingDialog({ onClose }) {
                 <li>Churn langganan = langganan berbayar yang berakhir/refund di rentang ÷ langganan berbayar aktif di awal rentang. Persentase di kartu = perubahan dibanding periode sebelumnya yang sama panjang.</li></ul></details>
           </>}
         </>}
+        {tab === 'manual' && <div className="space-y-2">
+          {zoom && <div className="fixed inset-0 z-[2400] bg-black/70 flex items-center justify-center p-4" onClick={() => setZoom('')}><img src={zoom} alt="Bukti transfer" className="max-h-[90vh] max-w-full rounded" /></div>}
+          <div className="flex flex-wrap items-center gap-2"><select className="tp-field !w-auto" value={mFilter} onChange={e => setMFilter(e.target.value)}><option value="PENDING">Menunggu konfirmasi</option><option value="PAID">Sudah dikonfirmasi</option><option value="FAILED">Ditolak</option><option value="EXPIRED">Kedaluwarsa</option><option value="ALL">Semua</option></select>
+            <Btn variant="outline" icon="RefreshCw" disabled={busy === 'man'} onClick={loadMan}>Muat ulang</Btn>
+            <span className="text-[12px] text-slate-500">Cocokkan nominal unik dengan mutasi rekening sebelum menekan Konfirmasi.</span></div>
+          {!mList ? <p className="text-slate-500">{busy === 'man' ? 'Memuat…' : ''}</p> : !mList.length ? <p className="text-slate-500">Tidak ada tagihan transfer pada status ini.</p> : mList.map(p => <div key={p.id} className="rounded-lg border border-line bg-white p-3 flex flex-wrap gap-3 items-start">
+            {p.proofData && p.proofData.image ? <img src={p.proofData.image} alt="Bukti" className="w-24 h-24 object-cover rounded border border-line cursor-zoom-in" onClick={() => setZoom(p.proofData.image)} /> : <div className="w-24 h-24 rounded border border-dashed border-line flex items-center justify-center text-[11px] text-slate-400 text-center">tanpa foto bukti</div>}
+            <div className="flex-1 min-w-[220px] text-[12.5px]"><div className="font-semibold text-[15px] num">{rp(p.amount)} <span className="text-[11px] font-normal text-slate-500">(kode unik {p.uniqueCode})</span></div>
+              <div>{p.userName || '–'} · {p.userEmail}</div><div>{(cfg.plans[p.planCode] || {}).name || p.planCode} · {p.id}</div>
+              <div className="text-slate-600">Pengirim: <b>{p.senderName || (p.proofData && p.proofData.senderName) || 'belum dikirim'}</b>{p.senderBank ? ' · ' + p.senderBank : ''}{p.proofData && p.proofData.note ? ' · "' + p.proofData.note + '"' : ''}</div>
+              <div className="text-slate-500">Dibuat {new Date(p.createdAt).toLocaleString(LOCALE)}{p.proofAt ? ' · konfirmasi pengguna ' + new Date(p.proofAt).toLocaleString(LOCALE) : ''} · {PAY_STATUS[p.status] || p.status}{p.failureReason ? ' · ' + p.failureReason : ''}{p.confirmedByEmail ? ' · oleh ' + p.confirmedByEmail : ''}</div></div>
+            {(p.status === 'PENDING' || p.status === 'EXPIRED') && <div className="flex flex-col gap-1.5"><Btn variant="primary" icon="CircleCheck" disabled={!!busy} onClick={() => decide(p, 'approve')}>Konfirmasi dana masuk</Btn>
+              {p.status === 'PENDING' && <Btn variant="danger" icon="CircleX" disabled={!!busy} onClick={() => decide(p, 'reject')}>Tolak</Btn>}</div>}</div>)}
+        </div>}
         {tab === 'users' && <div className="grid lg:grid-cols-[1fr_1.1fr] gap-3">
           <div className="rounded-lg border border-line bg-white p-3 min-w-0"><div className="flex gap-2"><input id="rev-q" className="tp-field flex-1" placeholder="Cari nama / email…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadU()} /><Btn variant="primary" icon="Search" onClick={loadU}>Cari</Btn></div>
             {!list ? <p className="text-slate-500 mt-2">{busy === 'u' ? 'Memuat…' : ''}</p> : <div className="mt-2 max-h-[60vh] overflow-y-auto"><table className="w-full text-[12px]"><thead><tr className="text-left text-slate-500"><th>Pengguna</th><th>Paket</th><th>Status</th><th>Sampai</th></tr></thead>
@@ -9518,6 +9584,16 @@ function AdminBillingDialog({ onClose }) {
           <div className="rounded-lg border border-line bg-white p-3"><b>Fitur per paket</b><div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 mt-1">{FEAT_ORDER.map(k => <label key={k} className="flex items-center gap-2 text-[12px]"><span className="flex-1">{FEAT[k][0]}</span>
             <select className="tp-field w-[150px]" value={String((cfg.features[k] || {}).free)} onChange={e => setCfg(x => ({ ...x, features: { ...x.features, [k]: { free: e.target.value === 'true' ? true : e.target.value === 'limited' ? 'limited' : false, pro: true } } }))}>
               <option value="true">FREE & PRO</option><option value="limited">FREE terbatas</option><option value="false">Khusus PRO</option></select></label>)}</div></div>
+          {(() => { const M = cfg.manual || {}; const setM = (k, v) => setCfg(x => ({ ...x, manual: { ...(x.manual || {}), [k]: v } }));
+            return <div className="rounded-lg border border-line bg-white p-3 space-y-2"><label className="flex items-center gap-2"><input id="cfg-manual" type="checkbox" checked={!!M.enabled} onChange={e => setM('enabled', e.target.checked)} /><b>Pembayaran transfer bank / QRIS (konfirmasi admin)</b></label>
+              <p className="text-[12px] text-slate-500">Pengguna web mentransfer ke rekening/QRIS di bawah lalu mengirim konfirmasi; PRO aktif setelah Anda menekan <i>Konfirmasi dana masuk</i> di tab Konfirmasi transfer. Tidak tampil di aplikasi Android (wajib Google Play).</p>
+              <div className="grid sm:grid-cols-3 gap-2"><Field label="Bank"><input id="cfg-bank" className="tp-field" value={M.bankName || ''} onChange={e => setM('bankName', e.target.value)} placeholder="mis. BRI" /></Field>
+                <Field label="Nomor rekening"><input id="cfg-acct" className="tp-field" value={M.accountNumber || ''} onChange={e => setM('accountNumber', e.target.value)} /></Field>
+                <Field label="Atas nama"><input id="cfg-acctname" className="tp-field" value={M.accountName || ''} onChange={e => setM('accountName', e.target.value)} /></Field></div>
+              <div className="flex flex-wrap items-end gap-3"><Field label="QRIS (opsional, gambar)"><input type="file" accept="image/png,image/jpeg" className="text-[12px]" onChange={async e => { const fl = e.target.files[0]; if (!fl) return; try { setM('qris', await shrinkImage(fl, 900, 0.85)); } catch (er) { setErr(er.message); } }} /></Field>
+                {M.qris && <><img src={M.qris} alt="QRIS" className="h-24 rounded border border-line" /><Btn variant="outline" icon="Trash2" onClick={() => setM('qris', '')}>Hapus QRIS</Btn></>}
+                <Field label="Batas waktu bayar (jam)"><input type="number" className="tp-field w-24" value={M.hours ?? 72} onChange={e => setM('hours', +e.target.value)} /></Field></div>
+              <Field label="Petunjuk tambahan (opsional)"><textarea className="tp-field" rows={2} value={M.instructions || ''} onChange={e => setM('instructions', e.target.value)} placeholder="mis. Konfirmasi juga via WhatsApp 08xx bila mendesak." /></Field></div>; })()}
           <div className="rounded-lg border border-line bg-white p-3 space-y-2"><label className="flex items-center gap-2"><input type="checkbox" checked={!!(cfg.promo && cfg.promo.enabled)} onChange={e => setCfg(x => ({ ...x, promo: { ...(x.promo || { codes: {} }), enabled: e.target.checked } }))} /><b>Kode promo web</b></label>
             <p className="text-[12px] text-slate-500">Potongan diverifikasi di server dan dibayar penuh lewat Midtrans (tidak ada jalan pintas tanpa pembayaran). Promo Google Play dibuat sebagai offer di Play Console.</p>
             {Object.entries((cfg.promo && cfg.promo.codes) || {}).map(([code, pr]) => <div key={code} className="flex flex-wrap items-center gap-2 text-[12px]"><span className="font-mono w-24">{code}</span>
