@@ -7,3 +7,4 @@ android-signing/
 *.jks
 *.keystore
 keystore.properties
+dist/
