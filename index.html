@@ -5167,7 +5167,7 @@ function GwPanel({
     icon: "ScanSearch",
     className: "w-full justify-center",
     disabled: !!busy,
-    onClick: run
+    onClick: () => Billing.require('groundwater_analysis') && run()
   }, res ? 'Analisis ulang' : 'Analisis potensi air tanah'), res && React.createElement("div", {
     className: "space-y-1.5"
   }, React.createElement("div", {
@@ -5753,6 +5753,7 @@ function SourceTab({
   const link = s.nodeId && project.nodes.find(n => n.id === s.nodeId);
   const Vres = Math.max(5, Math.round((d ? d.Qr : r.Qtake) * 86.4 * (d && r.Qtake < d.Qmd ? 0.3 : 0.2)));
   const addStruct = (type, extra = {}) => {
+    if (type === 'bridge' && !Billing.require('structural_design')) return;
     const st = newStructure(type, project.structures || [], {
       ...(link ? {
         nodeId: type === 'reservoir' && link.type === 'reservoir' ? link.id : '',
@@ -6366,7 +6367,7 @@ function ProfilePanel({
     variant: dem ? 'primary' : 'outline',
     icon: "Mountain",
     disabled: busy,
-    onClick: dem ? () => setDem(null) : loadDem
+    onClick: dem ? () => setDem(null) : () => Billing.require('dem_profile') && loadDem()
   }, busy ? 'Mengambil DEM…' : dem ? `Detail DEM (${dem.length} titik) · kembali ke node` : 'Profil tanah detail dari DEM'), React.createElement("span", {
     className: "text-slate-600"
   }, "Panjang ", fmt(total, 0), " m \xB7 beda tinggi ", fmt(mx.z - mn.z, 1), " m")), err && React.createElement("div", {
@@ -7105,9 +7106,12 @@ function RehabPanel({
     id: "st-cond",
     className: "tp-field",
     value: cond,
-    onChange: e => upd({
-      cond: e.target.value
-    })
+    onChange: e => {
+      if (e.target.value === 'fix' && !Billing.require('rehab_module')) return;
+      upd({
+        cond: e.target.value
+      });
+    }
   }, Object.entries(STRUCT_COND).map(([k, l]) => React.createElement("option", {
     key: k,
     value: k
@@ -7219,9 +7223,12 @@ function AssetStatusFields({
     id: `${kind}-status`,
     className: "tp-field",
     value: st,
-    onChange: e => upd({
-      status: e.target.value
-    })
+    onChange: e => {
+      if (['fix', 'rep'].includes(e.target.value) && !Billing.require('rehab_module')) return;
+      upd({
+        status: e.target.value
+      });
+    }
   }, Object.entries(ASSET_ST).map(([k, l]) => React.createElement("option", {
     key: k,
     value: k
@@ -30773,10 +30780,12 @@ function TowerEditor({
     className: "grid grid-cols-2 gap-2"
   }, num('Ht', 'Tinggi menara (lantai)', 0.5, 1), g.steel ? React.createElement(React.Fragment, null, prof('colProfile', 'Profil kolom', ['H100.100', 'H125.125', 'H150.150', 'WF150.75', 'L100.100.10', 'Pipa 4" Sch40', 'Pipa 6" Sch40']), prof('braceProfile', 'Profil ikatan', ['L70.70.7', 'L80.80.8', 'L100.100.10'])) : React.createElement(React.Fragment, null, num('col', 'Kolom (sisi)', 0.05, 0.2), num('beamB', 'Lebar balok', 0.05, 0.15), num('beamH', 'Tinggi balok', 0.05, 0.2), num('slab', 'Tebal pelat lantai', 0.01, 0.1)), num('footB', 'Lebar pondasi telapak', 0.05, 0.6), num('footT', 'Tebal pondasi', 0.05, 0.2), num('footD', 'Kedalaman pondasi', 0.1, 0.6), num('soil', 'Daya dukung tanah (kN/m²)', 10, 20)), React.createElement(H, null, "Perpipaan (mm)"), React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
-  }, dia('dIn', 'Ø inlet'), dia('dOut', 'Ø outlet'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras')), React.createElement(H, null, "Rangka beton & penulangan"), React.createElement(RcPanel, {
+  }, dia('dIn', 'Ø inlet'), dia('dOut', 'Ø outlet'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras')), React.createElement(H, null, "Rangka beton & penulangan"), React.createElement(ProGate, {
+    feature: "structural_design"
+  }, React.createElement(RcPanel, {
     s: s,
     setProject: setProject
-  }), React.createElement("div", {
+  })), React.createElement("div", {
     className: "rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]"
   }, React.createElement("span", {
     className: "text-slate-500"
@@ -31024,10 +31033,12 @@ function StructureEditorMain({
     className: "text-[11px] text-slate-500"
   }, p.baffle === 'sed' ? 'Air masuk ke ruang endap, lumpur mengendap, air jernih melimpas di atas ambang ke ruang air bersih. Ruang endap punya penguras sendiri.' : p.baffle === 'sedfilt' ? 'Ruang endap → melimpas ke ruang saringan pasir (aliran turun) → lewat lubang bawah sekat ke ruang air bersih.' : 'Sekat berselang luapan atas & lubang bawah memperpanjang lintasan air (waktu kontak klorin).')), React.createElement(H, null, "Perpipaan (mm)"), React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
-  }, ['reservoir', 'bak_pembagi', 'bpt', 'hidran'].includes(st.type) && dia('dIn', 'Ø inlet'), st.type !== 'hidran' && dia('dOut', 'Ø outlet'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras')), React.createElement(H, null, "Rangka beton & penulangan"), React.createElement(RcPanel, {
+  }, ['reservoir', 'bak_pembagi', 'bpt', 'hidran'].includes(st.type) && dia('dIn', 'Ø inlet'), st.type !== 'hidran' && dia('dOut', 'Ø outlet'), dia('dOf', 'Ø peluap'), dia('dDr', 'Ø penguras')), React.createElement(H, null, "Rangka beton & penulangan"), React.createElement(ProGate, {
+    feature: "structural_design"
+  }, React.createElement(RcPanel, {
     s: s,
     setProject: setProject
-  }), React.createElement("div", {
+  })), React.createElement("div", {
     className: "rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]"
   }, React.createElement("span", {
     className: "text-slate-500"
@@ -31299,6 +31310,7 @@ function DedWorkspace({
     setDed('sheet', 'layout');
   };
   const addStructure = () => {
+    if (addType === 'bridge' && !Billing.require('structural_design')) return;
     const st = newStructure(addType, project.structures || [], {
       params: {
         ...STRUCT_DEFAULTS.common,
@@ -31395,7 +31407,7 @@ function DedWorkspace({
     icon: "FilePlus2",
     variant: "outline",
     className: "w-full justify-center mt-3",
-    onClick: addManual
+    onClick: () => Billing.require('manual_drawing') && addManual()
   }, "Tambah lembar gambar manual"), React.createElement("p", {
     className: "text-[11px] text-slate-500 mt-1.5"
   }, "Sumur bor dan desain pengolahan diatur di tab Olah Air. Lembar manual digambar bebas dengan alat gambar (garis, persegi, ukuran, teks, simbol, foto sketsa).")), React.createElement("div", {
@@ -31572,6 +31584,7 @@ function DedWorkspace({
     icon: "PenTool",
     variant: drawOn ? 'primary' : 'outline',
     onClick: () => {
+      if (!drawOn && !Billing.require('manual_drawing')) return;
       setDrawOn(v => !v);
       setSelI(null);
     }
@@ -32387,7 +32400,7 @@ function AssistantPanel({
       role: 'user',
       text: t
     }]);
-    if (!(useAi && key) || /^periksa proyek/i.test(t)) {
+    if (!(useAi && key && Billing.has('ai_assistant')) || /^periksa proyek/i.test(t)) {
       setMsgs(m => [...m, {
         role: 'assistant',
         text: localAnswer(t, project, hyd, rab),
@@ -32459,7 +32472,10 @@ function AssistantPanel({
     id: "ai-use",
     type: "checkbox",
     checked: useAi,
-    onChange: e => setUseAi(e.target.checked)
+    onChange: e => {
+      if (e.target.checked && !Billing.require('ai_assistant')) return;
+      setUseAi(e.target.checked);
+    }
   }), "Pakai AI (Claude) untuk pertanyaan bebas"), React.createElement(Field, {
     label: "Kunci API Anthropic (disimpan hanya di perangkat ini)"
   }, React.createElement("input", {
@@ -37028,10 +37044,1562 @@ function ConflictDialog({
     onClick: onClose
   }, "Nanti saja"))));
 }
+const BILLING_CFG = AUTH_CFG.billing || {};
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const FEAT = {
+  map_survey: ['Pemetaan, GPS & survei lapangan'],
+  hydraulics: ['Analisis hidrolis jaringan'],
+  pumps_treatment: ['Pompa & pengolahan air'],
+  calculator: ['Kalkulator kebutuhan air, node & daya pompa'],
+  boq_cost: ['BoQ & RAB'],
+  report_print: ['Cetak laporan teknis (PDF)'],
+  data_export: ['Simpan/muat .json & .gpx'],
+  review_workflow: ['Review & tanda tangan elektronik'],
+  assistant_offline: ['Asisten (basis pengetahuan luring)'],
+  cloud_projects: ['Proyek tersimpan di cloud', 'Paket FREE menyimpan proyek di cloud dengan batas jumlah. PRO tanpa batas (sesuai kapasitas sistem), sehingga semua pekerjaan tim tersinkron antarperangkat.'],
+  ded_print: ['Cetak / PDF gambar DED', 'Gambar DED siap cetak adalah keluaran profesional untuk dokumen perencanaan, tender, dan pelaksanaan. Gambar tetap bisa dilihat di paket FREE.'],
+  structural_design: ['Penulangan beton (BBS) & jembatan pipa', 'Desain penulangan, daftar potong besi, dan jembatan pipa memakai perhitungan struktur lanjutan.'],
+  rehab_module: ['Rehabilitasi sistem existing', 'Modul rehabilitasi menghitung asesmen kerusakan, volume perbaikan, dan lembar rencana rehabilitasi.'],
+  groundwater_analysis: ['Analisis potensi air tanah', 'Analisis menggabungkan DEM, jaringan sungai, dan litologi untuk area yang luas.'],
+  dem_profile: ['Profil tanah detail dari DEM', 'Profil detail mengambil elevasi DEM tiap ± 10 m di sepanjang pipa.'],
+  manual_drawing: ['Gambar manual di lembar DED', 'Alat gambar manual untuk menyempurnakan dan menambah lembar DED.'],
+  ai_assistant: ['Mode AI (Claude) di Asisten', 'Mode AI menjawab pertanyaan bebas memakai model Claude dengan konteks proyek Anda.']
+};
+const FEAT_ORDER = ['map_survey', 'hydraulics', 'pumps_treatment', 'calculator', 'boq_cost', 'report_print', 'data_export', 'review_workflow', 'assistant_offline', 'cloud_projects', 'ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'];
+const BILLING_DEFAULT = {
+  enforce: false,
+  currency: 'IDR',
+  graceDays: 3,
+  reminderDays: [7, 1],
+  pendingHours: 24,
+  freeLimits: {
+    cloudProjects: 3
+  },
+  plans: {
+    FREE: {
+      code: 'FREE',
+      name: 'WASHLY FREE',
+      tier: 'FREE',
+      months: 0,
+      price: 0,
+      active: true
+    },
+    PRO_MONTHLY: {
+      code: 'PRO_MONTHLY',
+      name: 'WASHLY PRO Bulanan',
+      tier: 'PRO',
+      months: 1,
+      price: 125000,
+      active: true,
+      playProductId: 'washly_pro',
+      playBasePlanId: 'monthly'
+    },
+    PRO_YEARLY: {
+      code: 'PRO_YEARLY',
+      name: 'WASHLY PRO Tahunan',
+      tier: 'PRO',
+      months: 12,
+      price: 499000,
+      active: true,
+      playProductId: 'washly_pro',
+      playBasePlanId: 'yearly'
+    }
+  },
+  promo: {
+    enabled: false,
+    codes: {}
+  },
+  features: Object.fromEntries(FEAT_ORDER.map(k => [k, {
+    free: ['cloud_projects'].includes(k) ? 'limited' : ['ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'].includes(k) ? false : true,
+    pro: true
+  }]))
+};
+const SUB_STATUS = {
+  FREE: 'Gratis',
+  ACTIVE: 'Aktif',
+  PENDING: 'Menunggu pembayaran',
+  PAST_DUE: 'Pembayaran tertunggak',
+  GRACE_PERIOD: 'Masa tenggang',
+  CANCELED: 'Dibatalkan (aktif sampai akhir periode)',
+  EXPIRED: 'Berakhir',
+  REFUNDED: 'Dana dikembalikan'
+};
+const PAY_STATUS = {
+  PENDING: 'Menunggu',
+  PAID: 'Lunas',
+  FAILED: 'Gagal',
+  EXPIRED: 'Kedaluwarsa',
+  CANCELED: 'Dibatalkan',
+  REFUNDED: 'Refund'
+};
+const PROVIDER = {
+  midtrans: 'Web (Midtrans)',
+  google_play: 'Google Play',
+  admin: 'Pemberian admin'
+};
+const dateTxt = t => t ? new Date(t).toLocaleDateString(LOCALE, {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric'
+}) : '–';
+const Billing = (() => {
+  let st = {
+    managed: false,
+    config: null,
+    ent: null,
+    usage: null,
+    admin: false,
+    ask: null,
+    pricing: false,
+    account: false,
+    uid: null
+  };
+  const subs = new Set();
+  const emit = () => subs.forEach(f => f());
+  const effEnt = () => {
+    const e = st.ent;
+    return e && e.tier === 'PRO' && e.accessUntil && e.accessUntil > Date.now() ? e : null;
+  };
+  const api = {
+    get: () => st,
+    subscribe: f => {
+      subs.add(f);
+      return () => subs.delete(f);
+    },
+    set(p) {
+      st = {
+        ...st,
+        ...p
+      };
+      emit();
+    },
+    isPro() {
+      return !!effEnt();
+    },
+    has(f) {
+      if (!st.managed || st.admin) return true;
+      if (effEnt()) return true;
+      const c = (st.config || BILLING_DEFAULT).features[f];
+      return !c || c.free === true || c.free === 'limited';
+    },
+    require(f) {
+      if (api.has(f)) return true;
+      api.set({
+        ask: f
+      });
+      return false;
+    },
+    cloudLimit() {
+      return !st.managed || st.admin || effEnt() ? null : (st.config || BILLING_DEFAULT).freeLimits.cloudProjects;
+    },
+    canCreateCloudProject() {
+      const lim = api.cloudLimit();
+      return lim == null || (st.usage ?? 0) < lim;
+    }
+  };
+  return api;
+})();
+function useBilling() {
+  return React.useSyncExternalStore(Billing.subscribe, Billing.get);
+}
+const billingAvailable = api => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
+async function callFn(name, data = {}) {
+  const u = window.firebase && firebase.auth().currentUser;
+  if (!u) throw new Error('Silakan masuk terlebih dahulu.');
+  const base = BILLING_CFG.functionsUrl || `https://${BILLING_CFG.region || 'asia-southeast2'}-${AUTH_CFG.firebase.projectId}.cloudfunctions.net`;
+  const r = await fetch(`${base}/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + (await u.getIdToken())
+    },
+    body: JSON.stringify({
+      data
+    })
+  }).catch(() => {
+    throw new Error('Tidak dapat terhubung ke server langganan. Periksa koneksi internet.');
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error && j.error.message || `Server langganan menolak permintaan (${r.status}).`);
+  return j.result;
+}
+const PlayBilling = {
+  plugin: () => IS_NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.WashlyBilling,
+  async products(config) {
+    const pl = PlayBilling.plugin();
+    if (!pl) return {};
+    const ids = [...new Set(Object.values(config.plans).map(p => p.playProductId).filter(Boolean))];
+    const out = {};
+    for (const id of ids) {
+      const r = await pl.getProducts({
+        productId: id
+      }).catch(() => ({
+        offers: []
+      }));
+      (r.offers || []).forEach(o => {
+        out[id + '/' + o.basePlanId] = o;
+      });
+    }
+    return out;
+  },
+  async verifyAll(purchases) {
+    const res = [];
+    for (const p of purchases || []) {
+      if (p.purchaseState && p.purchaseState !== 'PURCHASED') continue;
+      res.push(await callFn('playVerify', {
+        purchaseToken: p.purchaseToken,
+        productId: p.productId
+      }));
+    }
+    return res;
+  },
+  async buy(plan) {
+    const pl = PlayBilling.plugin();
+    if (!pl) throw new Error('Google Play Billing tidak tersedia di perangkat ini.');
+    const {
+      accountId
+    } = await callFn('billingAccountId');
+    const owned = (await pl.queryPurchases().catch(() => ({
+      purchases: []
+    }))).purchases || [];
+    const old = owned.find(p => p.productId === plan.playProductId && p.purchaseState === 'PURCHASED');
+    const r = await pl.purchase({
+      productId: plan.playProductId,
+      basePlanId: plan.playBasePlanId,
+      accountId,
+      oldPurchaseToken: old ? old.purchaseToken : undefined
+    });
+    if (r.canceled) return {
+      canceled: true
+    };
+    if ((r.purchases || []).some(p => p.purchaseState === 'PENDING')) return {
+      pending: true
+    };
+    return {
+      verified: await PlayBilling.verifyAll(r.purchases)
+    };
+  },
+  async restore() {
+    const pl = PlayBilling.plugin();
+    if (!pl) throw new Error('Pulihkan pembelian hanya tersedia di aplikasi Android.');
+    const r = await pl.queryPurchases();
+    const v = await PlayBilling.verifyAll(r.purchases);
+    return v.length;
+  },
+  manage(productId) {
+    const pl = PlayBilling.plugin();
+    if (pl) return pl.manage({
+      productId: productId || 'washly_pro'
+    });
+    window.open('https://play.google.com/store/account/subscriptions', '_blank', 'noopener');
+  }
+};
+function useBillingSync(api, user) {
+  useEffect(() => {
+    const key = 'washly-billing:' + user.uid;
+    if (!billingAvailable(api)) {
+      Billing.set({
+        managed: false,
+        uid: user.uid,
+        admin: !!user.admin
+      });
+      return;
+    }
+    try {
+      const c = JSON.parse(localStorage.getItem(key) || 'null');
+      if (c) Billing.set({
+        ...c,
+        uid: user.uid,
+        admin: !!user.admin
+      });
+    } catch (e) {}
+    const save = () => {
+      try {
+        const s = Billing.get();
+        localStorage.setItem(key, JSON.stringify({
+          managed: s.managed,
+          config: s.config,
+          ent: s.ent,
+          usage: s.usage
+        }));
+      } catch (e) {}
+    };
+    const db = api.db;
+    const uns = [];
+    uns.push(db.collection('billing_config').doc('main').onSnapshot(d => {
+      const c = d.exists ? d.data() : null;
+      Billing.set({
+        config: c ? {
+          ...BILLING_DEFAULT,
+          ...c
+        } : null,
+        managed: !!(c && c.enforce)
+      });
+      save();
+    }, () => {}));
+    uns.push(db.collection('entitlements').doc(user.uid).onSnapshot(d => {
+      Billing.set({
+        ent: d.exists ? d.data() : null
+      });
+      save();
+    }, () => {}));
+    uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => {
+      Billing.set({
+        usage: d.exists ? d.data().cloudProjects || 0 : 0
+      });
+      save();
+    }, () => {}));
+    Billing.set({
+      uid: user.uid,
+      admin: !!user.admin
+    });
+    const pl = PlayBilling.plugin();
+    let h = null;
+    if (pl && pl.addListener) Promise.resolve(pl.addListener('purchasesUpdated', r => {
+      PlayBilling.verifyAll(r.purchases).catch(() => {});
+    })).then(x => {
+      h = x;
+    });
+    return () => {
+      uns.forEach(f => f());
+      if (h && h.remove) h.remove();
+    };
+  }, [api, user.uid]);
+}
+function ProBadge({
+  className = ''
+}) {
+  const b = useBilling();
+  if (!b.managed) return null;
+  const pro = Billing.isPro();
+  return React.createElement("span", {
+    "data-noi18n": true,
+    className: 'inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold tracking-wide ' + (pro ? 'bg-amber-300 text-slate-900' : 'bg-white/15 text-white border border-white/25') + ' ' + className
+  }, b.admin && !pro ? 'ADMIN' : pro ? 'PRO' : 'FREE');
+}
+function ProGate({
+  feature,
+  children,
+  compact
+}) {
+  useBilling();
+  if (Billing.has(feature)) return children;
+  return React.createElement("div", {
+    className: "rounded-md border border-dashed border-aqua-300 bg-aqua-50/60 px-3 py-2.5 text-[12.5px] flex items-center gap-2.5"
+  }, React.createElement(Icon, {
+    name: "Lock",
+    size: 16,
+    className: "text-aqua-700 shrink-0"
+  }), React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, React.createElement("div", {
+    className: "font-semibold text-aqua-900"
+  }, FEAT[feature][0], " \xB7 PRO"), !compact && React.createElement("div", {
+    className: "text-slate-600"
+  }, FEAT[feature][1])), React.createElement(Btn, {
+    variant: "primary",
+    icon: "Sparkles",
+    onClick: () => Billing.set({
+      ask: feature
+    })
+  }, "Buka dengan PRO"));
+}
+const planPrice = p => p ? rp(p.price) : '–';
+function yearlySaving(cfg) {
+  const m = cfg.plans.PRO_MONTHLY,
+    y = cfg.plans.PRO_YEARLY;
+  if (!m || !y) return null;
+  const full = m.price * 12;
+  const save = full - y.price;
+  return save > 0 ? {
+    save,
+    pct: Math.round(save / full * 100),
+    perMonth: Math.round(y.price / 12)
+  } : null;
+}
+function UpgradeDialog({
+  feature,
+  onClose
+}) {
+  const b = useBilling();
+  const cfg = b.config || BILLING_DEFAULT;
+  const m = cfg.plans.PRO_MONTHLY,
+    y = cfg.plans.PRO_YEARLY;
+  const sv = yearlySaving(cfg);
+  const lim = cfg.freeLimits.cloudProjects;
+  const f = FEAT[feature] || ['Fitur PRO', ''];
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2300] bg-black/40 flex items-center justify-center p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    id: "upgrade-dlg",
+    className: "bg-white rounded-xl w-full max-w-md overflow-hidden shadow-2xl",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "bg-deep text-white px-5 py-4"
+  }, React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, React.createElement(Icon, {
+    name: "Sparkles",
+    size: 18,
+    className: "text-amber-300"
+  }), React.createElement("span", {
+    className: "font-semibold"
+  }, "Buka lebih banyak kemungkinan dengan WASHLY PRO.")), React.createElement("p", {
+    className: "text-[12.5px] text-aqua-100 mt-1"
+  }, "Akses alat rekayasa lanjutan, simpan proyek Anda, buat laporan, dan sederhanakan alur kerja Anda.")), React.createElement("div", {
+    className: "p-5 space-y-3 text-[13px]"
+  }, React.createElement("div", {
+    className: "rounded-md bg-aqua-50 border border-aqua-200 px-3 py-2"
+  }, React.createElement("div", {
+    className: "text-[11px] uppercase tracking-wide text-aqua-700 font-semibold"
+  }, "Fitur PRO"), React.createElement("div", {
+    className: "font-semibold text-slate-900"
+  }, f[0]), React.createElement("div", {
+    className: "text-slate-600 mt-0.5"
+  }, feature === 'cloud_projects' ? `Paket FREE menyimpan hingga ${lim} proyek di cloud dan Anda sudah mencapai batas itu. Proyek lama tetap bisa dibuka dan diedit; PRO tanpa batas (sesuai kapasitas sistem).` : f[1])), React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, m && m.active && React.createElement("div", {
+    className: "rounded-md border border-line p-2.5"
+  }, React.createElement("div", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Bulanan"), React.createElement("div", {
+    className: "font-bold text-[16px] num"
+  }, planPrice(m)), React.createElement("div", {
+    className: "text-[11px] text-slate-500"
+  }, "per bulan")), y && y.active && React.createElement("div", {
+    className: "rounded-md border-2 border-aqua-500 p-2.5 relative"
+  }, React.createElement("div", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Tahunan"), React.createElement("div", {
+    className: "font-bold text-[16px] num"
+  }, planPrice(y)), React.createElement("div", {
+    className: "text-[11px] text-slate-500"
+  }, "per tahun", sv ? ` · hemat ${sv.pct}%` : ''))), React.createElement("div", {
+    className: "flex flex-col gap-2 pt-1"
+  }, React.createElement(Btn, {
+    variant: "primary",
+    icon: "Sparkles",
+    className: "justify-center py-2",
+    onClick: () => Billing.set({
+      ask: null,
+      pricing: true
+    })
+  }, "Upgrade ke PRO"), React.createElement(Btn, {
+    variant: "outline",
+    className: "justify-center",
+    onClick: onClose
+  }, "Lanjut dengan Free")))));
+}
+function PricingDialog({
+  user,
+  onClose
+}) {
+  const b = useBilling();
+  const cfg = b.config || BILLING_DEFAULT;
+  const sv = yearlySaving(cfg);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [promo, setPromo] = useState('');
+  const [play, setPlay] = useState({});
+  useEffect(() => {
+    if (IS_NATIVE) PlayBilling.products(cfg).then(setPlay).catch(() => {});
+  }, []);
+  const pro = Billing.isPro();
+  const ent = b.ent || {};
+  const priceOf = p => {
+    const o = p.playProductId && play[p.playProductId + '/' + p.playBasePlanId];
+    return IS_NATIVE && o && o.formattedPrice ? o.formattedPrice : planPrice(p);
+  };
+  const buy = async p => {
+    setErr('');
+    setMsg('');
+    setBusy(p.code);
+    try {
+      if (IS_NATIVE) {
+        const r = await PlayBilling.buy(p);
+        if (r.canceled) setMsg('Pembelian dibatalkan.');else if (r.pending) setMsg('Pembayaran Google Play sedang diproses. PRO aktif otomatis setelah pembayaran selesai.');else setMsg('Pembelian terverifikasi. Selamat datang di WASHLY PRO!');
+      } else {
+        const r = await callFn('billingCheckout', {
+          planCode: p.code,
+          promoCode: promo.trim() || undefined
+        });
+        try {
+          sessionStorage.setItem('washly-pending-order', r.orderId);
+        } catch (e) {}
+        window.location.assign(r.redirectUrl);
+        return;
+      }
+    } catch (e) {
+      setErr(e.message || String(e));
+    }
+    setBusy('');
+  };
+  const cell = (k, tier) => {
+    const f = cfg.features[k] || {
+      free: true
+    };
+    const v = tier === 'pro' ? true : f.free;
+    return v === true ? React.createElement(Icon, {
+      name: "Check",
+      size: 16,
+      className: "text-emerald-600 mx-auto"
+    }) : v === 'limited' ? React.createElement("span", {
+      className: "text-[11.5px] text-amber-700"
+    }, k === 'cloud_projects' ? `Terbatas (${cfg.freeLimits.cloudProjects} proyek)` : 'Terbatas') : React.createElement("span", {
+      className: "text-slate-400"
+    }, "\u2014");
+  };
+  const card = (p, {
+    cta,
+    highlight,
+    sub
+  }) => React.createElement("div", {
+    className: 'rounded-xl border p-4 flex flex-col ' + (highlight ? 'border-2 border-aqua-500 shadow-md relative' : 'border-line')
+  }, highlight && sv && React.createElement("span", {
+    className: "absolute -top-2.5 right-3 rounded-full bg-amber-300 text-slate-900 text-[11px] font-bold px-2 py-0.5"
+  }, "Hemat ", sv.pct, "%"), React.createElement("div", {
+    className: "text-[12px] font-semibold uppercase tracking-wide text-aqua-700"
+  }, p.tier === 'FREE' ? 'FREE' : p.months === 12 ? 'PRO Tahunan' : 'PRO Bulanan'), React.createElement("div", {
+    className: "mt-1 text-[22px] font-bold num"
+  }, p.tier === 'FREE' ? 'Rp0' : priceOf(p), React.createElement("span", {
+    className: "text-[12px] font-medium text-slate-500"
+  }, p.tier === 'FREE' ? '' : p.months === 12 ? ' /tahun' : ' /bulan')), React.createElement("div", {
+    className: "text-[11.5px] text-slate-500 min-h-[34px]"
+  }, sub), React.createElement("div", {
+    className: "flex-1"
+  }), cta);
+  const M = cfg.plans.PRO_MONTHLY,
+    Y = cfg.plans.PRO_YEARLY;
+  const curCode = pro ? ent.planCode : 'FREE';
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2250] bg-black/40 flex items-center justify-center p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    id: "pricing-dlg",
+    className: "bg-white rounded-lg w-full max-w-4xl max-h-[94vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center gap-2 px-5 py-3 border-b border-line"
+  }, React.createElement(Icon, {
+    name: "Sparkles",
+    size: 17,
+    className: "text-aqua-600"
+  }), React.createElement("h2", {
+    className: "font-semibold flex-1"
+  }, "Paket WASHLY"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "p-5 overflow-y-auto space-y-4 text-[13px]"
+  }, React.createElement("p", {
+    className: "text-slate-600"
+  }, "Alat rekayasa yang bisa dipakai semua orang. Mulai gratis, upgrade saat Anda membutuhkan keluaran profesional."), err && React.createElement("div", {
+    className: "rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2"
+  }, err), msg && React.createElement("div", {
+    className: "rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2"
+  }, msg), React.createElement("div", {
+    className: "grid sm:grid-cols-3 gap-3"
+  }, card(cfg.plans.FREE, {
+    sub: 'Untuk menjelajah & proyek kecil.',
+    cta: React.createElement(Btn, {
+      variant: "outline",
+      className: "justify-center",
+      onClick: onClose
+    }, curCode === 'FREE' ? 'Lanjut dengan Free' : 'Paket dasar')
+  }), M && M.active && card(M, {
+    sub: 'Ditagih tiap bulan.',
+    cta: React.createElement(Btn, {
+      id: "buy-monthly",
+      variant: "primary",
+      className: "justify-center",
+      disabled: !!busy || curCode === 'PRO_MONTHLY',
+      onClick: () => buy(M)
+    }, busy === M.code ? 'Memproses…' : curCode === 'PRO_MONTHLY' ? 'Paket Anda saat ini' : 'Upgrade ke PRO')
+  }), Y && Y.active && card(Y, {
+    highlight: true,
+    sub: sv ? `Setara ${rp(sv.perMonth)}/bulan · hemat ${rp(sv.save)} per tahun dibanding bulanan.` : 'Ditagih tiap tahun.',
+    cta: React.createElement(Btn, {
+      id: "buy-yearly",
+      variant: "primary",
+      className: "justify-center",
+      disabled: !!busy || curCode === 'PRO_YEARLY',
+      onClick: () => buy(Y)
+    }, busy === Y.code ? 'Memproses…' : curCode === 'PRO_YEARLY' ? 'Paket Anda saat ini' : 'Ambil PRO Tahunan')
+  })), !IS_NATIVE && cfg.promo && cfg.promo.enabled && React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, React.createElement("input", {
+    id: "promo-code",
+    className: "tp-field max-w-[200px]",
+    placeholder: "Kode promo (opsional)",
+    value: promo,
+    onChange: e => setPromo(e.target.value.toUpperCase())
+  }), React.createElement("span", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Potongan dihitung & diverifikasi di server saat pembayaran.")), React.createElement("div", {
+    className: "overflow-x-auto"
+  }, React.createElement("table", {
+    className: "w-full text-[12.5px] border border-line rounded-md"
+  }, React.createElement("thead", null, React.createElement("tr", {
+    className: "bg-ground"
+  }, React.createElement("th", {
+    className: "text-left px-3 py-2"
+  }, "Fitur"), React.createElement("th", {
+    className: "px-3 py-2 w-[130px]"
+  }, "Free"), React.createElement("th", {
+    className: "px-3 py-2 w-[90px]"
+  }, "PRO"))), React.createElement("tbody", null, FEAT_ORDER.map(k => React.createElement("tr", {
+    key: k,
+    className: "border-t border-line"
+  }, React.createElement("td", {
+    className: "px-3 py-1.5"
+  }, FEAT[k][0]), React.createElement("td", {
+    className: "text-center"
+  }, cell(k, 'free')), React.createElement("td", {
+    className: "text-center"
+  }, cell(k, 'pro'))))))), React.createElement("div", {
+    className: "rounded-md bg-ground px-3 py-2.5 text-[12px] text-slate-600 space-y-1"
+  }, IS_NATIVE ? React.createElement(React.Fragment, null, React.createElement("p", null, "Pembayaran lewat ", React.createElement("b", null, "Google Play"), ". Langganan diperpanjang otomatis setiap periode sampai Anda membatalkannya di Google Play (Profil \u2192 Langganan \u2192 Kelola). Setelah dibatalkan, PRO tetap aktif sampai akhir periode yang sudah dibayar.")) : React.createElement(React.Fragment, null, React.createElement("p", null, "Pembayaran web lewat ", React.createElement("b", null, "Midtrans"), " (QRIS, Virtual Account, e-wallet, kartu). Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada ", cfg.graceDays, " hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.")), React.createElement("p", null, "Harga sudah termasuk pajak yang berlaku. PRO aktif setelah pembayaran diverifikasi oleh server. Langganan melekat pada akun WASHLY Anda, bukan perangkat.")))));
+}
+function SubscriptionDialog({
+  api,
+  user,
+  onClose
+}) {
+  const b = useBilling();
+  const cfg = b.config || BILLING_DEFAULT;
+  const pro = Billing.isPro();
+  const e = b.ent || {};
+  const [pays, setPays] = useState(null);
+  const [subs, setSubs] = useState([]);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const load = () => {
+    if (!billingAvailable(api)) return;
+    api.db.collection('payments').where('userId', '==', user.uid).get().then(q => setPays(q.docs.map(d => d.data()).sort((a, b2) => (b2.createdAt || 0) - (a.createdAt || 0)))).catch(() => setPays([]));
+    api.db.collection('subscriptions').where('userId', '==', user.uid).get().then(q => setSubs(q.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    })))).catch(() => {});
+  };
+  useEffect(load, [b.ent && b.ent.updatedAt]);
+  const run = async (label, fn) => {
+    setErr('');
+    setMsg('');
+    setBusy(label);
+    try {
+      const m = await fn();
+      if (m) setMsg(m);
+      load();
+    } catch (x) {
+      setErr(x.message || String(x));
+    }
+    setBusy('');
+  };
+  const sub = subs.find(s => s.id === e.subscriptionId) || null;
+  const plan = cfg.plans[e.planCode] || null;
+  const cancel = () => run('cancel', async () => {
+    if (e.provider === 'google_play') {
+      await PlayBilling.manage(plan && plan.playProductId);
+      return 'Batalkan langganan di halaman Google Play yang terbuka. Status di WASHLY diperbarui otomatis.';
+    }
+    if (!window.confirm(`Batalkan perpanjangan WASHLY PRO? Anda tetap memakai PRO sampai ${dateTxt(e.currentPeriodEnd)}, lalu akun kembali ke FREE. Proyek tidak dihapus.`)) return '';
+    const r = await callFn('billingCancel');
+    return `Langganan dibatalkan. PRO tetap aktif sampai ${dateTxt(r.accessUntil)}.`;
+  });
+  const row = (k, v) => React.createElement(React.Fragment, null, React.createElement("span", {
+    className: "text-slate-500"
+  }, k), React.createElement("span", {
+    className: "font-medium"
+  }, v));
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2200] bg-black/40 flex items-center justify-center p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    id: "sub-dlg",
+    className: "bg-white rounded-lg w-full max-w-2xl max-h-[94vh] flex flex-col",
+    onClick: x => x.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center gap-2 px-5 py-3 border-b border-line"
+  }, React.createElement(Icon, {
+    name: "BadgeCheck",
+    size: 17,
+    className: "text-aqua-600"
+  }), React.createElement("h2", {
+    className: "font-semibold flex-1"
+  }, "Langganan saya"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "p-5 overflow-y-auto space-y-4 text-[13px]"
+  }, !b.managed && React.createElement("div", {
+    className: "rounded-md bg-aqua-50 border border-aqua-200 px-3 py-2"
+  }, "Langganan belum diaktifkan oleh admin organisasi; semua fitur WASHLY terbuka untuk akun Anda."), err && React.createElement("div", {
+    className: "rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2"
+  }, err), msg && React.createElement("div", {
+    className: "rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2"
+  }, msg), React.createElement("div", {
+    className: 'rounded-lg p-4 ' + (pro ? 'bg-deep text-white' : 'bg-ground')
+  }, React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, React.createElement("span", {
+    className: 'rounded-full px-2.5 py-0.5 text-[11px] font-bold ' + (pro ? 'bg-amber-300 text-slate-900' : 'bg-slate-700 text-white'),
+    "data-noi18n": true
+  }, pro ? 'PRO' : 'FREE'), React.createElement("span", {
+    id: "sub-headline",
+    className: "font-semibold"
+  }, pro ? 'Langganan WASHLY PRO Anda aktif.' : 'Anda sedang memakai WASHLY FREE.')), pro ? React.createElement("div", {
+    className: "grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-[12.5px]"
+  }, row('Paket', plan ? plan.name : e.planCode), row('Status', SUB_STATUS[e.status] || e.status), row('Metode tagihan', PROVIDER[e.provider] || e.provider || '–'), row('Siklus', plan && plan.months === 12 ? 'Tahunan' : plan && plan.months === 1 ? 'Bulanan' : plan ? plan.months + ' bulan' : '–'), row('Mulai berlangganan', dateTxt(sub && sub.startedAt)), row('Periode berjalan berakhir', dateTxt(e.currentPeriodEnd)), row('Jumlah per periode', e.provider === 'admin' ? 'Rp0 (pemberian admin)' : planPrice(plan)), row(e.provider === 'google_play' ? 'Perpanjangan otomatis' : 'Pembayaran berikutnya', e.status === 'CANCELED' ? `Tidak ada — berakhir ${dateTxt(e.currentPeriodEnd)}` : e.provider === 'google_play' ? e.autoRenew ? dateTxt(e.currentPeriodEnd) : 'Mati' : e.provider === 'admin' ? 'Tidak ada' : `Bayar manual sebelum ${dateTxt(e.currentPeriodEnd)}`), e.status === 'GRACE_PERIOD' && row('Masa tenggang sampai', dateTxt(e.graceEndsAt || e.accessUntil))) : React.createElement("div", {
+    className: "mt-2 text-[12.5px] text-slate-600"
+  }, "Dengan PRO: ", FEAT_ORDER.filter(k => (cfg.features[k] || {}).free !== true).map(k => FEAT[k][0]).join(' · '), ".")), React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, b.managed && React.createElement(Btn, {
+    id: "sub-plans",
+    variant: "primary",
+    icon: "Sparkles",
+    onClick: () => Billing.set({
+      pricing: true
+    })
+  }, pro ? plan && plan.months === 1 ? 'Ganti ke tahunan' : 'Lihat paket' : 'Upgrade ke PRO'), b.managed && pro && !IS_NATIVE && e.provider === 'midtrans' && React.createElement(Btn, {
+    variant: "outline",
+    icon: "RefreshCw",
+    onClick: () => Billing.set({
+      pricing: true
+    })
+  }, "Perpanjang sekarang"), pro && ['midtrans', 'google_play'].includes(e.provider) && e.status !== 'CANCELED' && React.createElement(Btn, {
+    id: "sub-cancel",
+    variant: "danger",
+    icon: "CircleX",
+    disabled: !!busy,
+    onClick: cancel
+  }, e.provider === 'google_play' ? 'Kelola / batalkan di Google Play' : 'Batalkan langganan'), IS_NATIVE && React.createElement(Btn, {
+    variant: "outline",
+    icon: "RotateCcw",
+    disabled: !!busy,
+    onClick: () => run('restore', async () => {
+      const n = await PlayBilling.restore();
+      return n ? `${n} pembelian Google Play dipulihkan & diverifikasi.` : 'Tidak ada pembelian Google Play aktif di akun Google perangkat ini.';
+    })
+  }, "Pulihkan pembelian"), IS_NATIVE && React.createElement(Btn, {
+    variant: "outline",
+    icon: "ExternalLink",
+    onClick: () => PlayBilling.manage()
+  }, "Kelola di Google Play"), billingAvailable(api) && React.createElement(Btn, {
+    variant: "ghost",
+    icon: "RefreshCw",
+    disabled: !!busy,
+    onClick: () => run('refresh', async () => {
+      await callFn('billingRefresh');
+      return 'Status langganan diperbarui dari server.';
+    })
+  }, "Segarkan status")), e.provider === 'google_play' && IS_NATIVE === false && React.createElement("p", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Langganan ini dibeli lewat Google Play; pembatalan & metode pembayaran diatur di Google Play (play.google.com \u2192 Langganan)."), React.createElement("div", null, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1"
+  }, "Riwayat pembayaran"), pays === null ? React.createElement("p", {
+    className: "text-slate-500"
+  }, "Memuat\u2026") : !pays.length ? React.createElement("p", {
+    className: "text-slate-500"
+  }, "Belum ada pembayaran.") : React.createElement("table", {
+    className: "w-full text-[12px]"
+  }, React.createElement("thead", null, React.createElement("tr", {
+    className: "text-left text-slate-500"
+  }, React.createElement("th", {
+    className: "py-1"
+  }, "Tanggal"), React.createElement("th", null, "Paket"), React.createElement("th", null, "Metode"), React.createElement("th", {
+    className: "text-right"
+  }, "Jumlah"), React.createElement("th", {
+    className: "text-right"
+  }, "Status"))), React.createElement("tbody", null, pays.slice(0, 50).map(p => React.createElement("tr", {
+    key: p.id,
+    className: "border-t border-line"
+  }, React.createElement("td", {
+    className: "py-1"
+  }, dateTxt(p.paidAt || p.createdAt)), React.createElement("td", null, (cfg.plans[p.planCode] || {}).name || p.planCode), React.createElement("td", null, PROVIDER[p.provider] || p.provider, p.method && p.method !== 'google_play' ? ' · ' + p.method : ''), React.createElement("td", {
+    className: "text-right num"
+  }, rp(p.amount)), React.createElement("td", {
+    className: "text-right"
+  }, React.createElement("span", {
+    className: 'rounded px-1.5 py-0.5 ' + (p.status === 'PAID' ? 'bg-emerald-50 text-emerald-800' : p.status === 'PENDING' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600')
+  }, PAY_STATUS[p.status] || p.status), p.status === 'PENDING' && p.redirectUrl && React.createElement("a", {
+    className: "ml-1 text-aqua-700 underline",
+    href: p.redirectUrl
+  }, "bayar"))))))), React.createElement("p", {
+    className: "text-[11.5px] text-slate-500"
+  }, "Batalkan kapan saja. Setelah dibatalkan, Anda tetap memakai PRO sampai akhir periode yang sudah dibayar, lalu akun otomatis kembali ke FREE; proyek Anda tidak dihapus."))));
+}
+function MiniBars({
+  series,
+  h = 160
+}) {
+  const max = Math.max(1, ...series.map(s => Math.max(s.revenue, s.refunds, s.pending)));
+  const n = series.length || 1;
+  const W = 640;
+  const bw = Math.max(2, W / n * 0.7);
+  const maxN = Math.max(1, ...series.map(s => s.newSubs));
+  const pts = series.map((s, i) => `${(i + 0.5) * W / n},${h - 4 - s.newSubs / maxN * (h - 24)}`).join(' ');
+  return React.createElement("svg", {
+    viewBox: `0 0 ${W} ${h + 18}`,
+    className: "w-full h-auto",
+    role: "img",
+    "aria-label": "Grafik pendapatan"
+  }, [0.25, 0.5, 0.75, 1].map(f => React.createElement("line", {
+    key: f,
+    x1: "0",
+    x2: W,
+    y1: h - f * (h - 10),
+    y2: h - f * (h - 10),
+    stroke: "#e2e8f0",
+    strokeWidth: "1"
+  })), series.map((s, i) => {
+    const x = i * W / n + (W / n - bw) / 2;
+    const rh = s.revenue / max * (h - 10);
+    const fh = s.refunds / max * (h - 10);
+    const ph = s.pending / max * (h - 10);
+    return React.createElement("g", {
+      key: s.key
+    }, React.createElement("rect", {
+      x: x,
+      y: h - rh,
+      width: bw,
+      height: rh,
+      fill: "#0e7490"
+    }, React.createElement("title", null, `${s.key}: ${rp(s.revenue)}`)), ph > 0 && React.createElement("rect", {
+      x: x + bw * 0.6,
+      y: h - ph,
+      width: bw * 0.4,
+      height: ph,
+      fill: "#fbbf24",
+      opacity: "0.8"
+    }, React.createElement("title", null, `Tertunda ${rp(s.pending)}`)), fh > 0 && React.createElement("rect", {
+      x: x,
+      y: h - fh,
+      width: bw * 0.4,
+      height: fh,
+      fill: "#dc2626"
+    }, React.createElement("title", null, `Refund ${rp(s.refunds)}`)), (n <= 14 || i % Math.ceil(n / 12) === 0) && React.createElement("text", {
+      x: x + bw / 2,
+      y: h + 13,
+      fontSize: "10",
+      textAnchor: "middle",
+      fill: "#64748b"
+    }, s.key.length > 7 ? s.key.slice(5) : s.key));
+  }), React.createElement("polyline", {
+    points: pts,
+    fill: "none",
+    stroke: "#7c3aed",
+    strokeWidth: "2"
+  }));
+}
+function AdminBillingDialog({
+  onClose
+}) {
+  const b = useBilling();
+  const [tab, setTab] = useState('overview');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const DAY = 864e5;
+  const today = new Date();
+  const iso = t => new Date(t + 7 * 36e5).toISOString().slice(0, 10);
+  const [rg, setRg] = useState({
+    from: iso(Date.now() - 30 * DAY),
+    to: iso(Date.now()),
+    g: 'day'
+  });
+  const [m, setM] = useState(null);
+  const loadM = async () => {
+    setErr('');
+    setBusy('m');
+    try {
+      setM(await callFn('adminBillingMetrics', {
+        from: Date.parse(rg.from + 'T00:00:00+07:00'),
+        to: Date.parse(rg.to + 'T00:00:00+07:00') + DAY,
+        granularity: rg.g
+      }));
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  };
+  useEffect(() => {
+    if (tab === 'overview') loadM();
+  }, [tab, rg.from, rg.to, rg.g]);
+  const preset = d => setRg(r => ({
+    ...r,
+    from: iso(Date.now() - d * DAY),
+    to: iso(Date.now()),
+    g: d > 120 ? 'month' : d > 31 ? 'week' : 'day'
+  }));
+  const pct = v => v == null ? '–' : (v * 100).toFixed(1) + '%';
+  const delta = (a, b2) => {
+    if (b2 == null || a == null) return null;
+    if (!b2) return a ? '+∞' : '0%';
+    const d = (a - b2) / Math.abs(b2) * 100;
+    return (d >= 0 ? '+' : '') + d.toFixed(0) + '%';
+  };
+  const kpi = (label, val, prevVal, hint, fmtF = x => x) => {
+    const d = delta(val, prevVal);
+    return React.createElement("div", {
+      className: "rounded-lg border border-line bg-white px-3 py-2.5"
+    }, React.createElement("div", {
+      className: "text-[11px] uppercase tracking-wide text-slate-500"
+    }, label), React.createElement("div", {
+      className: "text-[18px] font-bold num leading-tight"
+    }, fmtF(val)), React.createElement("div", {
+      className: "text-[11px] text-slate-500 flex gap-1.5"
+    }, d && React.createElement("span", {
+      className: d.startsWith('-') ? 'text-red-600' : 'text-emerald-700'
+    }, d), hint && React.createElement("span", null, hint)));
+  };
+  const [q, setQ] = useState('');
+  const [list, setList] = useState(null);
+  const [det, setDet] = useState(null);
+  const [grant, setGrant] = useState({
+    planCode: 'PRO_MONTHLY',
+    months: 1,
+    reason: ''
+  });
+  const loadU = async () => {
+    setErr('');
+    setBusy('u');
+    try {
+      setList(await callFn('adminBillingUsers', {
+        q
+      }));
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  };
+  const openU = async uid => {
+    setErr('');
+    setBusy('d');
+    try {
+      setDet(await callFn('adminBillingUser', {
+        uid
+      }));
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  };
+  useEffect(() => {
+    if (tab === 'users' && !list) loadU();
+  }, [tab]);
+  const [cfg, setCfg] = useState(() => JSON.parse(JSON.stringify(b.config || BILLING_DEFAULT)));
+  const [reason, setReason] = useState('');
+  const [saved, setSaved] = useState('');
+  const setPlan = (code, k, v) => setCfg(c => ({
+    ...c,
+    plans: {
+      ...c.plans,
+      [code]: {
+        ...c.plans[code],
+        [k]: v
+      }
+    }
+  }));
+  const saveCfg = async () => {
+    setErr('');
+    setSaved('');
+    setBusy('c');
+    try {
+      const r = await callFn('adminBillingConfig', {
+        config: cfg,
+        reason
+      });
+      setCfg(r.config);
+      setSaved('Konfigurasi tersimpan & hak akses semua pengguna dihitung ulang.');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  };
+  const c = m && m.current,
+    p = m && m.previous,
+    o = m && m.overview;
+  const tabs = [['overview', 'Pendapatan & pelanggan', 'ChartColumn'], ['users', 'Pengguna & langganan', 'Users'], ['config', 'Paket & harga', 'Settings2']];
+  return React.createElement("div", {
+    className: "fixed inset-0 z-[2150] bg-black/40 flex items-center justify-center p-2 sm:p-3",
+    onClick: onClose
+  }, React.createElement("div", {
+    id: "rev-dlg",
+    className: "bg-ground rounded-lg w-full max-w-6xl h-[96vh] flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("div", {
+    className: "flex items-center gap-2 px-5 py-3 border-b border-line bg-white rounded-t-lg"
+  }, React.createElement(Icon, {
+    name: "ChartColumn",
+    size: 17,
+    className: "text-aqua-600"
+  }), React.createElement("h2", {
+    className: "font-semibold flex-1"
+  }, "Dasbor pendapatan & langganan"), React.createElement(Btn, {
+    icon: "X",
+    onClick: onClose,
+    title: "Tutup"
+  })), React.createElement("div", {
+    className: "flex gap-1 px-3 pt-2 bg-white border-b border-line overflow-x-auto"
+  }, tabs.map(([k, l, ic]) => React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setTab(k),
+    className: 'flex items-center gap-1.5 px-3 py-2 text-[13px] border-b-2 whitespace-nowrap ' + (tab === k ? 'border-aqua-600 text-aqua-700 font-semibold' : 'border-transparent text-slate-600')
+  }, React.createElement(Icon, {
+    name: ic,
+    size: 14
+  }), l))), React.createElement("div", {
+    className: "flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 text-[13px]"
+  }, err && React.createElement("div", {
+    className: "rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2"
+  }, err), tab === 'overview' && React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "flex flex-wrap items-end gap-2"
+  }, [[7, '7 hari'], [30, '30 hari'], [90, '90 hari'], [365, '12 bulan']].map(([d, l]) => React.createElement(Btn, {
+    key: d,
+    variant: "outline",
+    onClick: () => preset(d)
+  }, l)), React.createElement(Field, {
+    label: "Dari"
+  }, React.createElement("input", {
+    type: "date",
+    className: "tp-field",
+    value: rg.from,
+    onChange: e => setRg(r => ({
+      ...r,
+      from: e.target.value
+    }))
+  })), React.createElement(Field, {
+    label: "Sampai"
+  }, React.createElement("input", {
+    type: "date",
+    className: "tp-field",
+    value: rg.to,
+    onChange: e => setRg(r => ({
+      ...r,
+      to: e.target.value
+    }))
+  })), React.createElement(Field, {
+    label: "Per"
+  }, React.createElement("select", {
+    className: "tp-field",
+    value: rg.g,
+    onChange: e => setRg(r => ({
+      ...r,
+      g: e.target.value
+    }))
+  }, React.createElement("option", {
+    value: "day"
+  }, "Hari"), React.createElement("option", {
+    value: "week"
+  }, "Minggu"), React.createElement("option", {
+    value: "month"
+  }, "Bulan"), React.createElement("option", {
+    value: "year"
+  }, "Tahun"))), React.createElement(Btn, {
+    variant: "primary",
+    icon: "RefreshCw",
+    disabled: busy === 'm',
+    onClick: loadM
+  }, busy === 'm' ? 'Memuat…' : 'Muat ulang')), !m ? React.createElement("p", {
+    className: "text-slate-500"
+  }, busy === 'm' ? 'Menghitung metrik…' : 'Belum ada data.') : React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2"
+  }, kpi('Pengguna terdaftar', o.totalUsers), kpi('Pengguna FREE', o.freeUsers), kpi('Pelanggan PRO', o.proUsers), kpi('Langganan aktif', o.activeSubscriptions, null, `${o.activeMonthly} bulanan · ${o.activeAnnual} tahunan`), kpi('MRR', o.mrr, null, `berkomitmen ${rp(o.committedMrr)}`, rp), kpi('ARR', o.arr, null, 'MRR × 12', rp), kpi('Pendapatan bersih', c.revenueNet, p.revenueNet, 'diterima − refund', rp), kpi('Pendapatan kotor', c.revenueGross, p.revenueGross, null, rp), kpi('Refund', c.refunds, p.refunds, null, rp), kpi('Tertunda (bukan pendapatan)', c.pendingAmount, p.pendingAmount, `${c.pendingCount} tagihan`, rp), kpi('Pembayaran gagal', c.failedCount, p.failedCount, rp(c.failedAmount)), kpi('Total transaksi', c.transactions, p.transactions), kpi('ARPPU', c.arppu, p.arppu, `${c.payingUsers} pembayar`, rp), kpi('Langganan baru', c.newSubscriptions, p.newSubscriptions), kpi('Dibatalkan', c.canceled, p.canceled), kpi('Berakhir', c.expired, p.expired), kpi('Perpanjangan', c.renewed, p.renewed, c.renewalRate == null ? '' : 'tingkat ' + pct(c.renewalRate)), kpi('Konversi FREE→PRO', c.conversionRate, p.conversionRate, `${c.converted}/${c.eligible}`, pct), kpi('Churn langganan', c.churnRate, p.churnRate, `${c.ended}/${c.activeAtStart}`, pct)), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3"
+  }, React.createElement("div", {
+    className: "flex flex-wrap items-center gap-3 text-[12px] mb-1"
+  }, React.createElement("b", {
+    className: "text-[13px] flex-1"
+  }, "Pendapatan diterima per ", {
+    day: 'hari',
+    week: 'minggu',
+    month: 'bulan',
+    year: 'tahun'
+  }[rg.g]), React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, React.createElement("i", {
+    className: "w-3 h-3 inline-block bg-[#0e7490]"
+  }), "Diterima"), React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, React.createElement("i", {
+    className: "w-3 h-3 inline-block bg-[#fbbf24]"
+  }), "Tertunda"), React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, React.createElement("i", {
+    className: "w-3 h-3 inline-block bg-[#dc2626]"
+  }), "Refund"), React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, React.createElement("i", {
+    className: "w-3 h-0.5 inline-block bg-[#7c3aed]"
+  }), "Langganan baru")), React.createElement(MiniBars, {
+    series: m.series
+  })), React.createElement("div", {
+    className: "grid sm:grid-cols-2 gap-3"
+  }, [['Per paket', m.byPlan, k => ((b.config || BILLING_DEFAULT).plans[k] || {}).name || k], ['Per penyedia pembayaran', m.byProvider, k => PROVIDER[k] || k]].map(([t, obj, lab]) => React.createElement("div", {
+    key: t,
+    className: "rounded-lg border border-line bg-white p-3"
+  }, React.createElement("b", null, t), !Object.keys(obj).length ? React.createElement("p", {
+    className: "text-slate-500 mt-1"
+  }, "Belum ada pendapatan di rentang ini.") : Object.entries(obj).sort((a, b2) => b2[1] - a[1]).map(([k, v]) => {
+    const tot = Object.values(obj).reduce((a, x) => a + x, 0);
+    return React.createElement("div", {
+      key: k,
+      className: "mt-1.5"
+    }, React.createElement("div", {
+      className: "flex justify-between text-[12px]"
+    }, React.createElement("span", null, lab(k)), React.createElement("span", {
+      className: "num"
+    }, rp(v), " \xB7 ", Math.round(v / tot * 100), "%")), React.createElement("div", {
+      className: "h-1.5 bg-slate-100 rounded"
+    }, React.createElement("div", {
+      className: "h-1.5 bg-aqua-600 rounded",
+      style: {
+        width: v / tot * 100 + '%'
+      }
+    })));
+  })))), React.createElement("details", {
+    className: "rounded-lg border border-line bg-white p-3 text-[12px] text-slate-600"
+  }, React.createElement("summary", {
+    className: "font-semibold cursor-pointer"
+  }, "Definisi metrik"), React.createElement("ul", {
+    className: "list-disc pl-5 mt-1 space-y-0.5"
+  }, React.createElement("li", null, "Pendapatan = pembayaran lunas yang diterima di rentang; tagihan tertunda tidak dihitung. Google Play dicatat dengan harga daftar (bruto, sebelum potongan Google & pajak) \u2014 angka bersih resmi ada di laporan Play Console."), React.createElement("li", null, "MRR = \u03A3 harga paket \xF7 jumlah bulan paket untuk langganan berbayar yang memberi akses saat ini (tahunan dibagi 12); MRR berkomitmen tanpa langganan yang sudah dibatalkan. ARR = MRR \xD7 12."), React.createElement("li", null, "ARPPU = pendapatan bersih \xF7 pengguna unik yang membayar di rentang."), React.createElement("li", null, "Konversi = pengguna yang pertama kali membayar di rentang \xF7 pengguna terdaftar yang belum pernah membayar sebelum rentang."), React.createElement("li", null, "Churn langganan = langganan berbayar yang berakhir/refund di rentang \xF7 langganan berbayar aktif di awal rentang. Persentase di kartu = perubahan dibanding periode sebelumnya yang sama panjang."))))), tab === 'users' && React.createElement("div", {
+    className: "grid lg:grid-cols-[1fr_1.1fr] gap-3"
+  }, React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3 min-w-0"
+  }, React.createElement("div", {
+    className: "flex gap-2"
+  }, React.createElement("input", {
+    id: "rev-q",
+    className: "tp-field flex-1",
+    placeholder: "Cari nama / email\u2026",
+    value: q,
+    onChange: e => setQ(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && loadU()
+  }), React.createElement(Btn, {
+    variant: "primary",
+    icon: "Search",
+    onClick: loadU
+  }, "Cari")), !list ? React.createElement("p", {
+    className: "text-slate-500 mt-2"
+  }, busy === 'u' ? 'Memuat…' : '') : React.createElement("div", {
+    className: "mt-2 max-h-[60vh] overflow-y-auto"
+  }, React.createElement("table", {
+    className: "w-full text-[12px]"
+  }, React.createElement("thead", null, React.createElement("tr", {
+    className: "text-left text-slate-500"
+  }, React.createElement("th", null, "Pengguna"), React.createElement("th", null, "Paket"), React.createElement("th", null, "Status"), React.createElement("th", null, "Sampai"))), React.createElement("tbody", null, list.map(u => React.createElement("tr", {
+    key: u.uid,
+    className: 'border-t border-line cursor-pointer hover:bg-aqua-50 ' + (det && det.user && det.user.uid === u.uid ? 'bg-aqua-50' : ''),
+    onClick: () => openU(u.uid)
+  }, React.createElement("td", {
+    className: "py-1"
+  }, React.createElement("div", {
+    className: "font-medium"
+  }, u.name), React.createElement("div", {
+    className: "text-slate-500"
+  }, u.email)), React.createElement("td", null, React.createElement("span", {
+    className: 'rounded px-1.5 py-0.5 text-[11px] font-bold ' + (u.tier === 'PRO' ? 'bg-amber-300' : 'bg-slate-100')
+  }, u.tier)), React.createElement("td", null, SUB_STATUS[u.status] || u.status, u.provider ? ' · ' + (PROVIDER[u.provider] || u.provider) : ''), React.createElement("td", null, dateTxt(u.accessUntil)))))))), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3 min-w-0 space-y-3"
+  }, !det ? React.createElement("p", {
+    className: "text-slate-500"
+  }, "Pilih pengguna untuk melihat langganan, pembayaran, dan riwayatnya.") : React.createElement(React.Fragment, null, React.createElement("div", null, React.createElement("b", null, det.user ? det.user.name : '–'), " ", React.createElement("span", {
+    className: "text-slate-500"
+  }, det.user && det.user.email)), React.createElement("div", {
+    className: "text-[12px]"
+  }, "Hak akses: ", React.createElement("b", null, det.entitlement ? det.entitlement.tier : 'FREE'), " \xB7 ", det.entitlement ? SUB_STATUS[det.entitlement.status] : '', " \xB7 sampai ", dateTxt(det.entitlement && det.entitlement.accessUntil)), React.createElement("div", null, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase text-slate-500"
+  }, "Langganan"), !det.subscriptions.length ? React.createElement("p", {
+    className: "text-slate-500"
+  }, "Tidak ada.") : det.subscriptions.map(s => React.createElement("div", {
+    key: s.id,
+    className: "flex items-center gap-2 text-[12px] border-t border-line py-1"
+  }, React.createElement("span", {
+    className: "flex-1"
+  }, s.planCode, " \xB7 ", PROVIDER[s.provider] || s.provider, " \xB7 ", SUB_STATUS[s.status] || s.status, " \xB7 ", dateTxt(s.currentPeriodStart), " \u2013 ", dateTxt(s.currentPeriodEnd), s.autoRenew ? ' · perpanjang otomatis' : '', s.canceledAt ? ' · batal ' + dateTxt(s.canceledAt) : ''), s.provider === 'admin' && s.status === 'ACTIVE' && React.createElement(Btn, {
+    variant: "danger",
+    onClick: async () => {
+      const r = window.prompt('Alasan mencabut langganan (wajib, tercatat di audit):');
+      if (!r) return;
+      setBusy('d');
+      try {
+        await callFn('adminBillingRevoke', {
+          subscriptionId: s.id,
+          reason: r
+        });
+        await openU(det.user.uid);
+      } catch (e) {
+        setErr(e.message);
+      }
+      setBusy('');
+    }
+  }, "Cabut")))), React.createElement("div", null, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase text-slate-500"
+  }, "Pembayaran"), !det.payments.length ? React.createElement("p", {
+    className: "text-slate-500"
+  }, "Tidak ada.") : React.createElement("table", {
+    className: "w-full text-[12px]"
+  }, React.createElement("tbody", null, det.payments.map(x => React.createElement("tr", {
+    key: x.id,
+    className: "border-t border-line"
+  }, React.createElement("td", {
+    className: "py-1"
+  }, dateTxt(x.paidAt || x.createdAt)), React.createElement("td", null, x.planCode), React.createElement("td", null, PROVIDER[x.provider], x.method ? ' · ' + x.method : ''), React.createElement("td", {
+    className: "text-right num"
+  }, rp(x.amount)), React.createElement("td", {
+    className: "text-right"
+  }, PAY_STATUS[x.status] || x.status, x.refundAmount ? ' · refund ' + rp(x.refundAmount) : '')))))), React.createElement("div", null, React.createElement("div", {
+    className: "text-[11px] font-semibold uppercase text-slate-500"
+  }, "Riwayat peristiwa"), React.createElement("div", {
+    className: "max-h-[180px] overflow-y-auto"
+  }, det.events.map((x, i) => React.createElement("div", {
+    key: i,
+    className: "text-[11.5px] border-t border-line py-0.5"
+  }, React.createElement("span", {
+    className: "text-slate-500"
+  }, new Date(x.at).toLocaleString(LOCALE)), " \xB7 ", x.type, x.reason ? ' · ' + x.reason : '', x.actor ? ' · oleh admin' : '')))), React.createElement("div", {
+    className: "rounded-md bg-amber-50 border border-amber-200 p-2.5 space-y-2"
+  }, React.createElement("div", {
+    className: "text-[12px] font-semibold text-amber-900"
+  }, "Beri PRO manual (tercatat di audit, tanpa pembayaran)"), React.createElement("div", {
+    className: "grid grid-cols-3 gap-2"
+  }, React.createElement("select", {
+    className: "tp-field",
+    value: grant.planCode,
+    onChange: e => setGrant(g => ({
+      ...g,
+      planCode: e.target.value
+    }))
+  }, Object.values(b.config ? b.config.plans : BILLING_DEFAULT.plans).filter(x => x.tier === 'PRO').map(x => React.createElement("option", {
+    key: x.code,
+    value: x.code
+  }, x.name))), React.createElement("input", {
+    type: "number",
+    min: "1",
+    max: "36",
+    className: "tp-field",
+    value: grant.months,
+    onChange: e => setGrant(g => ({
+      ...g,
+      months: +e.target.value
+    })),
+    title: "Lama (bulan)"
+  }), React.createElement("span", {
+    className: "self-center text-[12px] text-slate-500"
+  }, "bulan")), React.createElement("input", {
+    className: "tp-field",
+    placeholder: "Alasan (wajib, mis. sponsor program desa X)",
+    value: grant.reason,
+    onChange: e => setGrant(g => ({
+      ...g,
+      reason: e.target.value
+    }))
+  }), React.createElement(Btn, {
+    variant: "primary",
+    disabled: busy === 'g' || grant.reason.trim().length < 5,
+    onClick: async () => {
+      setBusy('g');
+      setErr('');
+      try {
+        await callFn('adminBillingGrant', {
+          uid: det.user.uid,
+          ...grant
+        });
+        setGrant(g => ({
+          ...g,
+          reason: ''
+        }));
+        await openU(det.user.uid);
+      } catch (e) {
+        setErr(e.message);
+      }
+      setBusy('');
+    }
+  }, "Beri PRO"))))), tab === 'config' && React.createElement("div", {
+    className: "space-y-3"
+  }, saved && React.createElement("div", {
+    className: "rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2"
+  }, saved), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3 space-y-2"
+  }, React.createElement("label", {
+    className: "flex items-start gap-2"
+  }, React.createElement("input", {
+    id: "cfg-enforce",
+    type: "checkbox",
+    className: "mt-1",
+    checked: !!cfg.enforce,
+    onChange: e => setCfg(x => ({
+      ...x,
+      enforce: e.target.checked
+    }))
+  }), React.createElement("span", null, React.createElement("b", null, "Aktifkan pembatasan FREE/PRO"), React.createElement("br", null), React.createElement("span", {
+    className: "text-[12px] text-slate-500"
+  }, "Bila mati, semua pengguna memakai semua fitur seperti sebelumnya (pembayaran tetap bisa diterima). Nyalakan setelah Midtrans & Google Play siap."))), React.createElement("div", {
+    className: "grid grid-cols-2 sm:grid-cols-4 gap-2"
+  }, React.createElement(Field, {
+    label: "Proyek cloud paket FREE"
+  }, React.createElement("input", {
+    type: "number",
+    className: "tp-field",
+    value: cfg.freeLimits.cloudProjects,
+    onChange: e => setCfg(x => ({
+      ...x,
+      freeLimits: {
+        cloudProjects: +e.target.value
+      }
+    }))
+  })), React.createElement(Field, {
+    label: "Masa tenggang web (hari)"
+  }, React.createElement("input", {
+    type: "number",
+    className: "tp-field",
+    value: cfg.graceDays,
+    onChange: e => setCfg(x => ({
+      ...x,
+      graceDays: +e.target.value
+    }))
+  })), React.createElement(Field, {
+    label: "Pengingat (hari sebelum)"
+  }, React.createElement("input", {
+    className: "tp-field",
+    value: (cfg.reminderDays || []).join(', '),
+    onChange: e => setCfg(x => ({
+      ...x,
+      reminderDays: e.target.value.split(',').map(s => +s.trim()).filter(Boolean)
+    }))
+  })), React.createElement(Field, {
+    label: "Batas bayar tagihan (jam)"
+  }, React.createElement("input", {
+    type: "number",
+    className: "tp-field",
+    value: cfg.pendingHours,
+    onChange: e => setCfg(x => ({
+      ...x,
+      pendingHours: +e.target.value
+    }))
+  })))), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3"
+  }, React.createElement("b", null, "Paket"), React.createElement("p", {
+    className: "text-[12px] text-slate-500"
+  }, "Harga di sini dipakai untuk pembayaran web & laporan. Harga Google Play diatur di Play Console (Monetize \u2192 Subscriptions) dan harus disamakan secara manual."), React.createElement("div", {
+    className: "overflow-x-auto"
+  }, React.createElement("table", {
+    className: "w-full text-[12px] mt-1"
+  }, React.createElement("thead", null, React.createElement("tr", {
+    className: "text-left text-slate-500"
+  }, React.createElement("th", null, "Kode"), React.createElement("th", null, "Nama"), React.createElement("th", null, "Bulan"), React.createElement("th", null, "Harga (Rp)"), React.createElement("th", null, "Aktif"), React.createElement("th", null, "Produk / base plan Play"))), React.createElement("tbody", null, Object.values(cfg.plans).map(pl => React.createElement("tr", {
+    key: pl.code,
+    className: "border-t border-line"
+  }, React.createElement("td", {
+    className: "py-1 font-mono"
+  }, pl.code), React.createElement("td", null, React.createElement("input", {
+    className: "tp-field",
+    value: pl.name,
+    onChange: e => setPlan(pl.code, 'name', e.target.value)
+  })), React.createElement("td", null, pl.tier === 'FREE' ? '–' : React.createElement("input", {
+    type: "number",
+    className: "tp-field w-16",
+    value: pl.months,
+    onChange: e => setPlan(pl.code, 'months', +e.target.value)
+  })), React.createElement("td", null, pl.tier === 'FREE' ? '0' : React.createElement("input", {
+    id: 'cfg-price-' + pl.code,
+    type: "number",
+    className: "tp-field w-28",
+    value: pl.price,
+    onChange: e => setPlan(pl.code, 'price', +e.target.value)
+  })), React.createElement("td", null, React.createElement("input", {
+    type: "checkbox",
+    checked: pl.active !== false,
+    disabled: pl.tier === 'FREE',
+    onChange: e => setPlan(pl.code, 'active', e.target.checked)
+  })), React.createElement("td", null, pl.tier === 'FREE' ? '–' : React.createElement("div", {
+    className: "flex gap-1"
+  }, React.createElement("input", {
+    className: "tp-field w-28",
+    value: pl.playProductId || '',
+    onChange: e => setPlan(pl.code, 'playProductId', e.target.value)
+  }), React.createElement("input", {
+    className: "tp-field w-24",
+    value: pl.playBasePlanId || '',
+    onChange: e => setPlan(pl.code, 'playBasePlanId', e.target.value)
+  }))))))))), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3"
+  }, React.createElement("b", null, "Fitur per paket"), React.createElement("div", {
+    className: "grid sm:grid-cols-2 gap-x-4 gap-y-1 mt-1"
+  }, FEAT_ORDER.map(k => React.createElement("label", {
+    key: k,
+    className: "flex items-center gap-2 text-[12px]"
+  }, React.createElement("span", {
+    className: "flex-1"
+  }, FEAT[k][0]), React.createElement("select", {
+    className: "tp-field w-[150px]",
+    value: String((cfg.features[k] || {}).free),
+    onChange: e => setCfg(x => ({
+      ...x,
+      features: {
+        ...x.features,
+        [k]: {
+          free: e.target.value === 'true' ? true : e.target.value === 'limited' ? 'limited' : false,
+          pro: true
+        }
+      }
+    }))
+  }, React.createElement("option", {
+    value: "true"
+  }, "FREE & PRO"), React.createElement("option", {
+    value: "limited"
+  }, "FREE terbatas"), React.createElement("option", {
+    value: "false"
+  }, "Khusus PRO")))))), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3 space-y-2"
+  }, React.createElement("label", {
+    className: "flex items-center gap-2"
+  }, React.createElement("input", {
+    type: "checkbox",
+    checked: !!(cfg.promo && cfg.promo.enabled),
+    onChange: e => setCfg(x => ({
+      ...x,
+      promo: {
+        ...(x.promo || {
+          codes: {}
+        }),
+        enabled: e.target.checked
+      }
+    }))
+  }), React.createElement("b", null, "Kode promo web")), React.createElement("p", {
+    className: "text-[12px] text-slate-500"
+  }, "Potongan diverifikasi di server dan dibayar penuh lewat Midtrans (tidak ada jalan pintas tanpa pembayaran). Promo Google Play dibuat sebagai offer di Play Console."), Object.entries(cfg.promo && cfg.promo.codes || {}).map(([code, pr]) => React.createElement("div", {
+    key: code,
+    className: "flex flex-wrap items-center gap-2 text-[12px]"
+  }, React.createElement("span", {
+    className: "font-mono w-24"
+  }, code), React.createElement("input", {
+    type: "number",
+    className: "tp-field w-20",
+    value: pr.percent,
+    onChange: e => setCfg(x => ({
+      ...x,
+      promo: {
+        ...x.promo,
+        codes: {
+          ...x.promo.codes,
+          [code]: {
+            ...pr,
+            percent: +e.target.value
+          }
+        }
+      }
+    }))
+  }), "%", React.createElement("input", {
+    type: "date",
+    className: "tp-field w-36",
+    value: pr.validUntil ? String(pr.validUntil).slice(0, 10) : '',
+    onChange: e => setCfg(x => ({
+      ...x,
+      promo: {
+        ...x.promo,
+        codes: {
+          ...x.promo.codes,
+          [code]: {
+            ...pr,
+            validUntil: e.target.value || null
+          }
+        }
+      }
+    })),
+    title: "Berlaku sampai"
+  }), React.createElement("input", {
+    type: "number",
+    className: "tp-field w-24",
+    placeholder: "Kuota",
+    value: pr.maxUses || '',
+    onChange: e => setCfg(x => ({
+      ...x,
+      promo: {
+        ...x.promo,
+        codes: {
+          ...x.promo.codes,
+          [code]: {
+            ...pr,
+            maxUses: +e.target.value || null
+          }
+        }
+      }
+    }))
+  }), React.createElement(Btn, {
+    variant: "danger",
+    icon: "Trash2",
+    onClick: () => setCfg(x => {
+      const cs = {
+        ...x.promo.codes
+      };
+      delete cs[code];
+      return {
+        ...x,
+        promo: {
+          ...x.promo,
+          codes: cs
+        }
+      };
+    })
+  }))), React.createElement(Btn, {
+    variant: "outline",
+    icon: "Plus",
+    onClick: () => {
+      const code = (window.prompt('Kode promo (3–20 huruf/angka, mis. HEMAT20):') || '').toUpperCase().trim();
+      if (!/^[A-Z0-9]{3,20}$/.test(code)) return;
+      setCfg(x => ({
+        ...x,
+        promo: {
+          enabled: true,
+          ...(x.promo || {}),
+          codes: {
+            ...(x.promo && x.promo.codes || {}),
+            [code]: {
+              percent: 10,
+              planCodes: [],
+              active: true,
+              validUntil: null,
+              maxUses: null
+            }
+          }
+        }
+      }));
+    }
+  }, "Tambah kode")), React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3 flex flex-wrap items-end gap-2"
+  }, React.createElement("div", {
+    className: "flex-1 min-w-[220px]"
+  }, React.createElement(Field, {
+    label: "Alasan perubahan (tercatat di audit)"
+  }, React.createElement("input", {
+    id: "cfg-reason",
+    className: "tp-field",
+    value: reason,
+    onChange: e => setReason(e.target.value),
+    placeholder: "mis. Harga peluncuran"
+  }))), React.createElement(Btn, {
+    id: "cfg-save",
+    variant: "primary",
+    icon: "Save",
+    disabled: busy === 'c',
+    onClick: saveCfg
+  }, busy === 'c' ? 'Menyimpan…' : 'Simpan konfigurasi'))))));
+}
 function App({
   user,
   api
 }) {
+  useBillingSync(api, user);
+  const bill = useBilling();
+  const [subOpen, setSubOpen] = useState(false);
+  const [revOpen, setRevOpen] = useState(false);
   const [project, setProjectRaw] = useState(() => {
     const curId = lsGet(CURK(user.uid), null);
     let p = curId && localLib.get(curId);
@@ -38072,7 +39640,17 @@ function App({
     setLibOpen(false);
     setToast(`Membuka "${p.meta.name}"`);
   };
+  const printAs = m => {
+    if (m === 'ded' && !Billing.require('ded_print')) return;
+    setPrintMode(m);
+  };
   const newProject = (base, label) => {
+    if (store && !Billing.canCreateCloudProject()) {
+      Billing.set({
+        ask: 'cloud_projects'
+      });
+      return;
+    }
     saveCurrentLocal();
     const q = ensureCloud({
       ...normalizeProject(base),
@@ -38257,6 +39835,22 @@ function App({
     if (to === 'approved') N([owner, rv.checker], `Proyek disetujui: ${nm}`, `"${nm}" sudah disetujui dan ditandatangani ${me.name}.`, 'approved');
     if (to === 'revisi') N([owner], `Revisi diperlukan: ${nm}`, `${me.name} mengembalikan "${nm}" untuk revisi. Catatan: ${note}`, 'revisi');
   };
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    if (sp.get('billing') !== 'finish' || !billingAvailable(api)) return;
+    let order = sp.get('order');
+    try {
+      order = order || sessionStorage.getItem('washly-pending-order');
+      sessionStorage.removeItem('washly-pending-order');
+    } catch (e) {}
+    history.replaceState(null, '', location.pathname);
+    if (!order) return;
+    setToast('Memverifikasi pembayaran…');
+    setSubOpen(true);
+    callFn('billingRefreshOrder', {
+      orderId: order
+    }).then(r => setToast(r.status === 'PAID' ? 'Pembayaran terverifikasi. Selamat datang di WASHLY PRO!' : r.status === 'PENDING' ? 'Pembayaran belum diterima. PRO aktif otomatis setelah pembayaran dikonfirmasi.' : 'Pembayaran tidak berhasil. Anda bisa mencoba lagi.')).catch(e => setToast(e.message));
+  }, []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(''), 2600);
@@ -38493,7 +40087,21 @@ function App({
     icon: "UserRound",
     onClick: () => setUserAdmin(true),
     title: "Setujui pendaftar & atur akses"
-  }, "Kelola pengguna", pendU.pend.length ? ` (${pendU.pend.length})` : ''), React.createElement("button", {
+  }, "Kelola pengguna", pendU.pend.length ? ` (${pendU.pend.length})` : ''), user.admin && bill.managed !== undefined && billingAvailable(api) && React.createElement(Btn, {
+    variant: "dark",
+    icon: "ChartColumn",
+    onClick: () => setRevOpen(true),
+    title: "Dasbor pendapatan & langganan"
+  }, "Pendapatan"), billingAvailable(api) && React.createElement("button", {
+    type: "button",
+    id: "my-plan",
+    onClick: () => setSubOpen(true),
+    title: "Langganan saya",
+    className: "flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10"
+  }, React.createElement(Icon, {
+    name: "Sparkles",
+    size: 14
+  }), "Langganan", React.createElement(ProBadge, null)), React.createElement("button", {
     type: "button",
     id: "my-profile",
     onClick: () => setProfileOf(user.uid),
@@ -38587,7 +40195,7 @@ function App({
   }, "Cetak laporan"), React.createElement(Btn, {
     variant: "dark",
     icon: "Printer",
-    onClick: () => setPrintMode('ded')
+    onClick: () => printAs('ded')
   }, "Cetak DED"))), React.createElement("nav", {
     className: "flex overflow-x-auto px-2"
   }, tabs.map(t => React.createElement("button", {
@@ -38673,7 +40281,7 @@ function App({
     setProject: setProject,
     hyd: hyd,
     boq: boq,
-    onPrint: setPrintMode
+    onPrint: printAs
   })), React.createElement("footer", {
     className: "shrink-0 bg-white border-t border-line px-4 py-1.5 hidden lg:flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-slate-600 num"
   }, React.createElement("span", {
@@ -38941,9 +40549,9 @@ function App({
     className: "block text-[14px] font-semibold truncate"
   }, officer ? `${officer.name}${officer.role ? ' · ' + officer.role : ''}` : 'Belum dipilih')), React.createElement("span", {
     className: "text-[12px] font-semibold text-aqua-700"
-  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['IdCard', 'Profil saya', () => setProfileOf(user.uid)], ['ShieldCheck', 'Kebijakan privasi', () => {
+  }, "Ganti"))), [['FolderOpen', 'Berkas kerja (daftar proyek)', () => setLibOpen(true)], ['Bell', `Notifikasi${inbox.unread ? ` (${inbox.unread} baru)` : ''}`, () => setNotifOpen(true)], ['CircleCheck', 'Status & review proyek', () => setReviewOpen(true)], ['Undo2', 'Urungkan', undo, !histLen], ['Share2', 'Bagikan data proyek (.json)', () => shareData('json')], ['Share2', 'Bagikan titik & jejak (.gpx)', () => shareData('gpx')], ['Upload', 'Muat / gabungkan .json', () => fileRef.current.click()], ['Download', 'Unduh .json', saveFile], ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []), ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)], ['IdCard', 'Profil saya', () => setProfileOf(user.uid)], ...(billingAvailable(api) ? [['Sparkles', 'Langganan saya', () => setSubOpen(true)]] : []), ...(user.admin && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []), ['ShieldCheck', 'Kebijakan privasi', () => {
     window.location.href = 'privacy.html';
-  }], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => setPrintMode('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
+  }], ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []), ['Building2', 'Data proyek', () => setDialog(true)], ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)], ['FileText', 'Cetak laporan', () => setPrintMode('report')], ['Printer', 'Cetak DED', () => printAs('ded')], ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())], ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')], ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true]].map(([ic, l, fn, dis, danger], i) => React.createElement("button", {
     key: i,
     type: "button",
     disabled: dis,
@@ -38970,6 +40578,22 @@ function App({
     field: field,
     setSelection: setSelection,
     toast: setToast
+  }), bill.ask && React.createElement(UpgradeDialog, {
+    feature: bill.ask,
+    onClose: () => Billing.set({
+      ask: null
+    })
+  }), bill.pricing && React.createElement(PricingDialog, {
+    user: user,
+    onClose: () => Billing.set({
+      pricing: false
+    })
+  }), subOpen && React.createElement(SubscriptionDialog, {
+    api: api,
+    user: user,
+    onClose: () => setSubOpen(false)
+  }), revOpen && user.admin && React.createElement(AdminBillingDialog, {
+    onClose: () => setRevOpen(false)
   }), calcOpen && React.createElement(CalcDialog, {
     project: project,
     setProject: setProject,

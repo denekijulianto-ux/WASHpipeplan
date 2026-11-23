@@ -15,6 +15,28 @@ service cloud.firestore {
         && request.resource.data.get('surveyorUid', '') == resource.data.get('surveyorUid', '')
         && request.resource.data.get('drafterUid', '') == resource.data.get('drafterUid', '');
     }
+    // ---- Langganan (WASHLY PRO). Semua dokumen di bawah ini HANYA ditulis oleh Cloud Functions (Admin SDK),
+    // sehingga pengguna tidak bisa mengubah paket/hak aksesnya sendiri dari aplikasi.
+    function billingOn() {
+      return exists(/databases/$(database)/documents/billing_config/main)
+        && get(/databases/$(database)/documents/billing_config/main).data.get('enforce', false) == true;
+    }
+    function isPro(uid) {
+      return exists(/databases/$(database)/documents/entitlements/$(uid))
+        && get(/databases/$(database)/documents/entitlements/$(uid)).data.get('tier', 'FREE') == 'PRO'
+        && get(/databases/$(database)/documents/entitlements/$(uid)).data.get('accessUntilTs', null) != null
+        && get(/databases/$(database)/documents/entitlements/$(uid)).data.accessUntilTs > request.time;
+    }
+    // Batas proyek cloud paket FREE (jumlah dihitung server di usage/{uid})
+    function underFreeLimit(uid) {
+      return get(/databases/$(database)/documents/usage/$(uid)).data.get('cloudProjects', 0)
+        < get(/databases/$(database)/documents/billing_config/main).data.freeLimits.cloudProjects;
+    }
+    function mayCreateProject(uid) {
+      return isAdmin() || !billingOn() || isPro(uid)
+        || !exists(/databases/$(database)/documents/usage/$(uid)) && get(/databases/$(database)/documents/billing_config/main).data.freeLimits.cloudProjects > 0
+        || exists(/databases/$(database)/documents/usage/$(uid)) && underFreeLimit(uid);
+    }
     function approved() {
       return isAdmin() || (request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved');
@@ -41,7 +63,8 @@ service cloud.firestore {
     match /projects/{pid} {
       allow read: if approved();
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid
-        && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']));
+        && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']))
+        && mayCreateProject(request.auth.uid);
       // Pemilik (status tetap / belum disetujui), admin, atau petugas yang ditunjuk (hanya langkahnya, tanpa mengubah penunjukan)
       allow update: if approved()
         && request.resource.data.ownerUid == resource.data.ownerUid
@@ -74,6 +97,35 @@ service cloud.firestore {
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
+    // ---- Langganan: baca saja untuk pemilik/admin; tulis hanya oleh server
+    match /billing_config/{doc} {
+      allow read: if true;          // harga & daftar fitur untuk halaman harga (tanpa data rahasia)
+      allow write: if false;        // diubah lewat fungsi adminBillingConfig (tervalidasi & tercatat)
+    }
+    match /entitlements/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+    match /usage/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+    match /subscriptions/{id} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /payments/{id} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /subscription_events/{id} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    // Rahasia server: token pembelian Google Play, log webhook, audit admin
+    match /play_tokens/{id} { allow read, write: if false; }
+    match /webhook_events/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /admin_audit/{id} { allow read: if isAdmin(); allow write: if false; }
     // Kotak masuk notifikasi: pengirim = pengguna yang login; hanya penerima yang boleh membaca/menandai
     match /notifications/{id} {
       allow create: if request.auth != null && request.resource.data.fromUid in [request.auth.uid, '']

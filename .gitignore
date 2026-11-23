@@ -8,3 +8,5 @@ android-signing/
 *.keystore
 keystore.properties
 dist/
+functions/node_modules/
+*-debug.log

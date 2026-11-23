@@ -1727,7 +1727,7 @@ function GwPanel({ project, setProject, field, embedded, pick, setPick, onClose 
       <details><summary className="cursor-pointer text-slate-600">Bobot faktor (%)</summary>
         <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1">{Object.entries(GW_FACTORS).map(([k, l]) => <label key={k} className="flex items-center justify-between gap-1 text-[11.5px]"><span className="truncate" title={l}>{l.split(' (')[0]}</span>{nf('gw-w-' + k, gw.w[k], v => setGw(g => ({ w: { ...g.w, [k]: Math.max(0, +v || 0) } })), 'w-14')}</label>)}</div>
         <button type="button" className="text-aqua-700 text-[11.5px] mt-1" onClick={() => setGw({ w: GW_DEF_W })}>Kembalikan bobot bawaan</button></details>
-      <Btn variant="primary" icon="ScanSearch" className="w-full justify-center" disabled={!!busy} onClick={run}>{res ? 'Analisis ulang' : 'Analisis potensi air tanah'}</Btn>
+      <Btn variant="primary" icon="ScanSearch" className="w-full justify-center" disabled={!!busy} onClick={() => Billing.require('groundwater_analysis') && run()}>{res ? 'Analisis ulang' : 'Analisis potensi air tanah'}</Btn>
       {res && <div className="space-y-1.5">
         <div className="flex h-3 rounded overflow-hidden">{GW_CLASSES.map((c, i) => <div key={c[1]} title={`${c[1]}: ${res.counts[i]} sel`} style={{ background: c[2], flex: res.counts[i] || 0 }} />)}</div>
         <div className="flex flex-wrap gap-x-2 text-[10.5px] text-slate-600">{GW_CLASSES.map((c, i) => <span key={c[1]} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: c[2] }} />{c[1]} {Math.round(100 * res.counts[i] / res.cells.length)}%</span>)}</div>
@@ -1851,7 +1851,7 @@ function SourceTab({ c, set, d, project, setProject, onDone }) {
   const nf = (k, l, step = 0.1, hint, unit) => <Field label={l + (unit ? ` (${unit})` : '')} hint={hint}><NumField id={'src-' + k} value={s[k]} step={step} min={0} onChange={v => upd({ [k]: Math.max(0, v) })} /></Field>;
   const srcNodes = project.nodes.filter(isSrc); const link = s.nodeId && project.nodes.find(n => n.id === s.nodeId);
   const Vres = Math.max(5, Math.round((d ? d.Qr : r.Qtake) * 86.4 * (d && r.Qtake < d.Qmd ? 0.3 : 0.2)));
-  const addStruct = (type, extra = {}) => { const st = newStructure(type, project.structures || [], { ...(link ? { nodeId: type === 'reservoir' && link.type === 'reservoir' ? link.id : '', lat: link.lat, lng: link.lng } : {}), params: { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[type], elev: link ? +link.elev || 100 : 100, ...extra } });
+  const addStruct = (type, extra = {}) => { if (type === 'bridge' && !Billing.require('structural_design')) return; const st = newStructure(type, project.structures || [], { ...(link ? { nodeId: type === 'reservoir' && link.type === 'reservoir' ? link.id : '', lat: link.lat, lng: link.lng } : {}), params: { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[type], elev: link ? +link.elev || 100 : 100, ...extra } });
     setProject(p => ({ ...p, structures: [...(p.structures || []), st] })); return st; };
   const mkRes = () => { const Hw = Vres > 60 ? 3 : 2.5; const B = Math.max(1.5, Math.round(Math.sqrt(Vres / Hw / 1.25) * 4) / 4); const L = Math.max(1.5, Math.round(Vres / Hw / B * 4) / 4); const st = addStruct('reservoir', { L, B, Hw });
     onDone(`Reservoir ${st.label} ${fmt(L, 2)} × ${fmt(B, 2)} × ${fmt(Hw, 2)} m (± ${fmt(L * B * Hw, 0)} m³) ditambahkan. Atur detailnya di tab DED; harganya masuk RAB.`); };
@@ -1979,7 +1979,7 @@ function ProfilePanel({ project, hyd, embedded, docked, compact, onClose, setHov
   const body = <div className="p-3 space-y-2 text-[12px]">
     <div className="flex flex-wrap items-center gap-2">
       <label className="flex items-center gap-1.5">Jalur: <b>{rg.path.points[0].node.label}</b> →<select id="pf-end" className="tp-field !py-1 !w-auto" value={endId || rg.path.endId} onChange={e => setEndId(e.target.value)}>{ends.map(n => <option key={n.id} value={n.id}>{n.label} ({fmt(hyd.nodes[n.id].dist, 0)} m)</option>)}</select></label>
-      <Btn variant={dem ? 'primary' : 'outline'} icon="Mountain" disabled={busy} onClick={dem ? () => setDem(null) : loadDem}>{busy ? 'Mengambil DEM…' : dem ? `Detail DEM (${dem.length} titik) · kembali ke node` : 'Profil tanah detail dari DEM'}</Btn>
+      <Btn variant={dem ? 'primary' : 'outline'} icon="Mountain" disabled={busy} onClick={dem ? () => setDem(null) : () => Billing.require('dem_profile') && loadDem()}>{busy ? 'Mengambil DEM…' : dem ? `Detail DEM (${dem.length} titik) · kembali ke node` : 'Profil tanah detail dari DEM'}</Btn>
       <span className="text-slate-600">Panjang {fmt(total, 0)} m · beda tinggi {fmt(mx.z - mn.z, 1)} m</span>
     </div>
     {err && <div className="text-red-700">{err}</div>}
@@ -2225,7 +2225,7 @@ function RehabPanel({ s, setProject }) {
   const cost = REHAB_ITEMS.reduce((a, x) => a + (+r[x[0]] || 0) * x[3], 0); const newCost = (s.newItems || []).reduce((a, x) => a + x[2] * x[4], 0);
   const relevant = REHAB_ITEMS.filter(x => st.type === 'bridge' ? ['rcable', 'rclamp', 'paint', 'concrete', 'steel', 'dismantle'].includes(x[0]) : st.type === 'tower' ? !['catch', 'gravel', 'rcable', 'rclamp'].includes(x[0]) : !['rcable', 'rclamp', 'tank', 'steel'].includes(x[0]) && (['broncaptering', 'bc_v'].includes(st.type) || !['catch', 'gravel'].includes(x[0])));
   return <div className={'rounded-md border p-2.5 space-y-2 ' + (cond === 'new' ? 'border-line' : 'border-amber-300 bg-amber-50/40')}>
-    <Field label="Kondisi bangunan"><select id="st-cond" className="tp-field" value={cond} onChange={e => upd({ cond: e.target.value })}>{Object.entries(STRUCT_COND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+    <Field label="Kondisi bangunan"><select id="st-cond" className="tp-field" value={cond} onChange={e => { if (e.target.value === 'fix' && !Billing.require('rehab_module')) return; upd({ cond: e.target.value }); }}>{Object.entries(STRUCT_COND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
     {cond !== 'new' && <>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Tingkat kerusakan"><select id="st-dmg" className="tp-field" value={as.level || 'ringan'} onChange={e => setA('level', e.target.value)}>{Object.entries(DAMAGE).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
@@ -2254,7 +2254,7 @@ function RehabPanel({ s, setProject }) {
 function AssetStatusFields({ item, upd, kind }) {
   const st = assetSt(item);
   return <div className={'rounded-md border p-2 space-y-2 ' + (st === 'new' ? 'border-line' : 'border-amber-300 bg-amber-50/40')}>
-    <Field label={kind === 'pipe' ? 'Status pipa' : 'Status aksesoris / node'}><select id={`${kind}-status`} className="tp-field" value={st} onChange={e => upd({ status: e.target.value })}>{Object.entries(ASSET_ST).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+    <Field label={kind === 'pipe' ? 'Status pipa' : 'Status aksesoris / node'}><select id={`${kind}-status`} className="tp-field" value={st} onChange={e => { if (['fix', 'rep'].includes(e.target.value) && !Billing.require('rehab_module')) return; upd({ status: e.target.value }); }}>{Object.entries(ASSET_ST).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
     {kind === 'pipe' && st !== 'new' && st !== 'rep' && <Field label="Koefisien C pipa lama (opsional)" hint={`0 = pakai C pipa baru (${MATERIALS[item.material]?.C}). Pipa tua berkerak: GI ± 80–100, PVC/HDPE ± 120–130.`}><NumField id="pipe-cex" value={item.cEx || 0} step={5} min={0} onChange={v => upd({ cEx: Math.max(0, v) })} /></Field>}
     {kind === 'pipe' && st === 'fix' && <div className="grid grid-cols-3 gap-2">
       <Field label="Titik bocor"><NumField id="pipe-leaks" value={item.leaks || 0} step={1} min={0} onChange={v => upd({ leaks: Math.max(0, Math.round(v)) })} /></Field>
@@ -7500,7 +7500,7 @@ function TowerEditor({ s, project, setProject, onDelete, onDuplicate }) {
     <H>Perpipaan (mm)</H>
     <div className="grid grid-cols-2 gap-2">{dia('dIn', 'Ø inlet')}{dia('dOut', 'Ø outlet')}{dia('dOf', 'Ø peluap')}{dia('dDr', 'Ø penguras')}</div>
     <H>Rangka beton & penulangan</H>
-    <RcPanel s={s} setProject={setProject} />
+    <ProGate feature="structural_design"><RcPanel s={s} setProject={setProject} /></ProGate>
     <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
       <span className="text-slate-500">Kapasitas</span><span className="text-right font-mono num">{fmt(g.cap, 2)} m³</span>
       <span className="text-slate-500">Kebutuhan tampungan</span><span className="text-right"><span className={'pill ' + (g.cap >= q.need ? 's-ok' : 's-low')}>{fmt(q.need, 1)} m³</span></span>
@@ -7583,7 +7583,7 @@ function StructureEditorMain({ s, project, setProject, onDelete, onDuplicate }) 
       {st.type !== 'hidran' && dia('dOut', 'Ø outlet')}{dia('dOf', 'Ø peluap')}{dia('dDr', 'Ø penguras')}
     </div>
     <H>Rangka beton & penulangan</H>
-    <RcPanel s={s} setProject={setProject} />
+    <ProGate feature="structural_design"><RcPanel s={s} setProject={setProject} /></ProGate>
     <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
       <span className="text-slate-500">Kapasitas efektif</span><span className="text-right font-mono num">{fmt(q.cap, 2)} m³</span>
       {q.need !== null && <><span className="text-slate-500">Kebutuhan tampungan</span><span className="text-right"><span className={'pill ' + (q.cap >= q.need ? 's-ok' : 's-high')}>{fmt(q.need, 1)} m³</span></span></>}
@@ -7642,7 +7642,7 @@ function DedWorkspace({ locked = false, project, setProject, hyd, boq, onPrint }
   const addManual = () => { const id = uid('mn'); setDraw(d => ({ ...d, sheets: [...d.sheets, { id, title: `Gambar manual ${d.sheets.length + 1}`, scale: 50, notes: '' }] })); setDed('sheet', 'mn:' + id); setDrawOn(true); };
   const updManual = (patch) => setDraw(d => ({ ...d, sheets: d.sheets.map(m => m.id === manual.id ? { ...m, ...patch } : m) }));
   const delManual = () => { setDraw(d => { const mk = { ...d.marks }; delete mk['mn:' + manual.id]; return { ...d, sheets: d.sheets.filter(m => m.id !== manual.id), marks: mk }; }); setDed('sheet', 'layout'); };
-  const addStructure = () => { const st = newStructure(addType, project.structures || [], { params: { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[addType], elev: project.nodes[0] ? +project.nodes[0].elev : 100 } });
+  const addStructure = () => { if (addType === 'bridge' && !Billing.require('structural_design')) return; const st = newStructure(addType, project.structures || [], { params: { ...STRUCT_DEFAULTS.common, ...STRUCT_DEFAULTS[addType], elev: project.nodes[0] ? +project.nodes[0].elev : 100 } });
     setProject(p => ({ ...p, structures: [...(p.structures || []), st], ded: { ...p.ded, sheet: 'st:' + st.id } })); };
   const dupStructure = (st) => { const c = { ...st, id: uid('s'), nodeId: '', label: nextLabel(project.structures, STRUCT_TYPES[st.type].short + '-'), params: { ...st.params, elev: structGeom(st, project).ground } };
     setProject(p => ({ ...p, structures: [...p.structures, c], ded: { ...p.ded, sheet: 'st:' + c.id } })); };
@@ -7662,7 +7662,7 @@ function DedWorkspace({ locked = false, project, setProject, hyd, boq, onPrint }
         </div>
         {[...new Set(extras.map(x => x.group))].filter(gr => gr !== 'Bangunan pelengkap').map(gr => <Fragment key={gr}><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5 mt-3">{gr}</div>
           <div className="space-y-1">{extras.map((x, i) => x.group === gr && sheetBtn(x.key, 4 + i, x.label, x.icon, x.sub))}</div></Fragment>)}
-        <Btn icon="FilePlus2" variant="outline" className="w-full justify-center mt-3" onClick={addManual}>Tambah lembar gambar manual</Btn>
+        <Btn icon="FilePlus2" variant="outline" className="w-full justify-center mt-3" onClick={() => Billing.require('manual_drawing') && addManual()}>Tambah lembar gambar manual</Btn>
         <p className="text-[11px] text-slate-500 mt-1.5">Sumur bor dan desain pengolahan diatur di tab Olah Air. Lembar manual digambar bebas dengan alat gambar (garis, persegi, ukuran, teks, simbol, foto sketsa).</p>
       </div>
       <div className="space-y-2 border-t border-line pt-3">
@@ -7699,7 +7699,7 @@ function DedWorkspace({ locked = false, project, setProject, hyd, boq, onPrint }
     </aside>
     <div className="flex-1 lg:overflow-auto p-3 lg:p-6 min-w-0 bg-[#dfe6e4] shrink-0 lg:shrink">
       <div className="max-w-[1400px] mx-auto mb-2 flex flex-wrap items-center gap-2">
-        <Btn icon="PenTool" variant={drawOn ? 'primary' : 'outline'} onClick={() => { setDrawOn(v => !v); setSelI(null); }}>{drawOn ? 'Selesai menggambar' : 'Gambar manual di lembar ini'}</Btn>
+        <Btn icon="PenTool" variant={drawOn ? 'primary' : 'outline'} onClick={() => { if (!drawOn && !Billing.require('manual_drawing')) return; setDrawOn(v => !v); setSelI(null); }}>{drawOn ? 'Selesai menggambar' : 'Gambar manual di lembar ini'}</Btn>
         {!drawOn && marks.length > 0 && <span className="text-[12px] text-slate-600">{marks.length} objek gambar manual di lembar ini (ikut tercetak)</span>}
         {!drawOn && <Btn icon="FilePlus2" variant="ghost" onClick={addManual}>Lembar kosong baru</Btn>}
       </div>
@@ -7917,7 +7917,7 @@ function AssistantPanel({ project, hyd, rab, onClose, onReport }) {
   const endRef = useRef(null); useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [msgs]);
   const send = async (text) => { const t = (text ?? q).trim(); if (!t || busy) return; setQ(''); const hist = [...msgs.filter((m, i) => i > 0 && !m.err), { role: 'user', text: t }];
     setMsgs(m => [...m, { role: 'user', text: t }]);
-    if (!(useAi && key) || /^periksa proyek/i.test(t)) { setMsgs(m => [...m, { role: 'assistant', text: localAnswer(t, project, hyd, rab), local: true }]); return; }
+    if (!(useAi && key && Billing.has('ai_assistant')) || /^periksa proyek/i.test(t)) { setMsgs(m => [...m, { role: 'assistant', text: localAnswer(t, project, hyd, rab), local: true }]); return; }
     setBusy(true); setMsgs(m => [...m, { role: 'assistant', text: '', ai: true }]);
     try { await askClaude(key, hist.slice(-12), project, hyd, rab, (d) => setMsgs(m => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], text: c[c.length - 1].text + d }; return c; })); }
     catch (e) { setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'assistant', err: true, text: `⚠ ${e.message}\n\nJawaban luring:\n\n${localAnswer(t, project, hyd, rab)}` }; return c; }); }
@@ -7929,7 +7929,7 @@ function AssistantPanel({ project, hyd, rab, onClose, onReport }) {
       <button type="button" title="Pengaturan asisten" onClick={() => setShowSet(v => !v)} className="p-1 rounded hover:bg-white/10"><Icon name="Settings2" size={16} /></button>
       <button type="button" title="Tutup" onClick={onClose} className="p-1 rounded hover:bg-white/10"><Icon name="X" size={16} /></button></div>
     {showSet && <div className="p-3 border-b border-line space-y-2 text-[12.5px] bg-ground">
-      <label className="flex items-center gap-2"><input id="ai-use" type="checkbox" checked={useAi} onChange={e => setUseAi(e.target.checked)} />Pakai AI (Claude) untuk pertanyaan bebas</label>
+      <label className="flex items-center gap-2"><input id="ai-use" type="checkbox" checked={useAi} onChange={e => { if (e.target.checked && !Billing.require('ai_assistant')) return; setUseAi(e.target.checked); }} />Pakai AI (Claude) untuk pertanyaan bebas</label>
       <Field label="Kunci API Anthropic (disimpan hanya di perangkat ini)"><input id="ai-key" type="password" className="tp-field font-mono" value={key} placeholder="sk-ant-…" onChange={e => { setKey(e.target.value); try { e.target.value ? localStorage.setItem(AI_KEY, e.target.value) : localStorage.removeItem(AI_KEY); } catch (x) {} }} /></Field>
       <p className="text-[11px] text-slate-500 leading-snug">Mode AI mengirim pertanyaan dan ringkasan proyek (nama, jumlah titik, peringatan, total RAB) ke Anthropic; biaya pemakaian ditagihkan ke kunci API Anda. Tanpa kunci, asisten tetap bekerja luring dengan basis pengetahuan & diagnosis proyek.</p></div>}
     <div className="flex-1 overflow-y-auto p-3 space-y-2.5 text-[13px]">
@@ -9072,7 +9072,382 @@ function ConflictDialog({ info, canOverwrite, onCloud, onMine, onCopy, onClose }
   </div>;
 }
 
+/* ===================================================================
+   LANGGANAN WASHLY PRO — hak akses terpusat, harga, pembayaran, dasbor admin
+   Sumber kebenaran: dokumen Firestore entitlements/{uid} yang HANYA ditulis server (Cloud Functions)
+   setelah pembayaran diverifikasi ke Midtrans / Google Play. Aplikasi hanya membaca.
+   =================================================================== */
+const BILLING_CFG = AUTH_CFG.billing || {};
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+// Label fitur (kuncinya sama dengan functions/src/config.js)
+const FEAT = {
+  map_survey: ['Pemetaan, GPS & survei lapangan'], hydraulics: ['Analisis hidrolis jaringan'], pumps_treatment: ['Pompa & pengolahan air'],
+  calculator: ['Kalkulator kebutuhan air, node & daya pompa'], boq_cost: ['BoQ & RAB'], report_print: ['Cetak laporan teknis (PDF)'],
+  data_export: ['Simpan/muat .json & .gpx'], review_workflow: ['Review & tanda tangan elektronik'], assistant_offline: ['Asisten (basis pengetahuan luring)'],
+  cloud_projects: ['Proyek tersimpan di cloud', 'Paket FREE menyimpan proyek di cloud dengan batas jumlah. PRO tanpa batas (sesuai kapasitas sistem), sehingga semua pekerjaan tim tersinkron antarperangkat.'],
+  ded_print: ['Cetak / PDF gambar DED', 'Gambar DED siap cetak adalah keluaran profesional untuk dokumen perencanaan, tender, dan pelaksanaan. Gambar tetap bisa dilihat di paket FREE.'],
+  structural_design: ['Penulangan beton (BBS) & jembatan pipa', 'Desain penulangan, daftar potong besi, dan jembatan pipa memakai perhitungan struktur lanjutan.'],
+  rehab_module: ['Rehabilitasi sistem existing', 'Modul rehabilitasi menghitung asesmen kerusakan, volume perbaikan, dan lembar rencana rehabilitasi.'],
+  groundwater_analysis: ['Analisis potensi air tanah', 'Analisis menggabungkan DEM, jaringan sungai, dan litologi untuk area yang luas.'],
+  dem_profile: ['Profil tanah detail dari DEM', 'Profil detail mengambil elevasi DEM tiap ± 10 m di sepanjang pipa.'],
+  manual_drawing: ['Gambar manual di lembar DED', 'Alat gambar manual untuk menyempurnakan dan menambah lembar DED.'],
+  ai_assistant: ['Mode AI (Claude) di Asisten', 'Mode AI menjawab pertanyaan bebas memakai model Claude dengan konteks proyek Anda.'],
+};
+const FEAT_ORDER = ['map_survey', 'hydraulics', 'pumps_treatment', 'calculator', 'boq_cost', 'report_print', 'data_export', 'review_workflow', 'assistant_offline', 'cloud_projects', 'ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'];
+const BILLING_DEFAULT = {
+  enforce: false, currency: 'IDR', graceDays: 3, reminderDays: [7, 1], pendingHours: 24, freeLimits: { cloudProjects: 3 },
+  plans: { FREE: { code: 'FREE', name: 'WASHLY FREE', tier: 'FREE', months: 0, price: 0, active: true },
+    PRO_MONTHLY: { code: 'PRO_MONTHLY', name: 'WASHLY PRO Bulanan', tier: 'PRO', months: 1, price: 125000, active: true, playProductId: 'washly_pro', playBasePlanId: 'monthly' },
+    PRO_YEARLY: { code: 'PRO_YEARLY', name: 'WASHLY PRO Tahunan', tier: 'PRO', months: 12, price: 499000, active: true, playProductId: 'washly_pro', playBasePlanId: 'yearly' } },
+  promo: { enabled: false, codes: {} },
+  features: Object.fromEntries(FEAT_ORDER.map(k => [k, { free: ['cloud_projects'].includes(k) ? 'limited' : ['ded_print', 'structural_design', 'rehab_module', 'groundwater_analysis', 'dem_profile', 'manual_drawing', 'ai_assistant'].includes(k) ? false : true, pro: true }])),
+};
+const SUB_STATUS = { FREE: 'Gratis', ACTIVE: 'Aktif', PENDING: 'Menunggu pembayaran', PAST_DUE: 'Pembayaran tertunggak', GRACE_PERIOD: 'Masa tenggang', CANCELED: 'Dibatalkan (aktif sampai akhir periode)', EXPIRED: 'Berakhir', REFUNDED: 'Dana dikembalikan' };
+const PAY_STATUS = { PENDING: 'Menunggu', PAID: 'Lunas', FAILED: 'Gagal', EXPIRED: 'Kedaluwarsa', CANCELED: 'Dibatalkan', REFUNDED: 'Refund' };
+const PROVIDER = { midtrans: 'Web (Midtrans)', google_play: 'Google Play', admin: 'Pemberian admin' };
+const dateTxt = (t) => t ? new Date(t).toLocaleDateString(LOCALE, { day: '2-digit', month: 'short', year: 'numeric' }) : '–';
+
+// ---- Penyimpan hak akses (satu-satunya tempat aplikasi bertanya "boleh pakai fitur X?")
+const Billing = (() => {
+  let st = { managed: false, config: null, ent: null, usage: null, admin: false, ask: null, pricing: false, account: false, uid: null };
+  const subs = new Set(); const emit = () => subs.forEach(f => f());
+  const effEnt = () => { const e = st.ent; return e && e.tier === 'PRO' && e.accessUntil && e.accessUntil > Date.now() ? e : null; };
+  const api = {
+    get: () => st, subscribe: (f) => { subs.add(f); return () => subs.delete(f); },
+    set(p) { st = { ...st, ...p }; emit(); },
+    isPro() { return !!effEnt(); },
+    // hasAccess(feature): true bila fitur boleh dipakai (paket FREE bertanda 'limited' = boleh dengan batas)
+    has(f) { if (!st.managed || st.admin) return true; if (effEnt()) return true; const c = (st.config || BILLING_DEFAULT).features[f]; return !c || c.free === true || c.free === 'limited'; },
+    require(f) { if (api.has(f)) return true; api.set({ ask: f }); return false; },
+    cloudLimit() { return !st.managed || st.admin || effEnt() ? null : (st.config || BILLING_DEFAULT).freeLimits.cloudProjects; },
+    canCreateCloudProject() { const lim = api.cloudLimit(); return lim == null || (st.usage ?? 0) < lim; },
+  };
+  return api;
+})();
+function useBilling() { return React.useSyncExternalStore(Billing.subscribe, Billing.get); }
+const billingAvailable = (api) => AUTH_MODE === 'firebase' && !!(api && api.db) && BILLING_CFG.enabled === true;
+
+// Panggil Cloud Function (protokol callable) dengan token login Firebase pengguna
+async function callFn(name, data = {}) {
+  const u = window.firebase && firebase.auth().currentUser; if (!u) throw new Error('Silakan masuk terlebih dahulu.');
+  const base = BILLING_CFG.functionsUrl || `https://${BILLING_CFG.region || 'asia-southeast2'}-${AUTH_CFG.firebase.projectId}.cloudfunctions.net`;
+  const r = await fetch(`${base}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await u.getIdToken() }, body: JSON.stringify({ data }) })
+    .catch(() => { throw new Error('Tidak dapat terhubung ke server langganan. Periksa koneksi internet.'); });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error((j.error && j.error.message) || `Server langganan menolak permintaan (${r.status}).`);
+  return j.result;
+}
+// Jembatan Google Play Billing (plugin Android WashlyBilling)
+const PlayBilling = {
+  plugin: () => IS_NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.WashlyBilling,
+  async products(config) { const pl = PlayBilling.plugin(); if (!pl) return {};
+    const ids = [...new Set(Object.values(config.plans).map(p => p.playProductId).filter(Boolean))]; const out = {};
+    for (const id of ids) { const r = await pl.getProducts({ productId: id }).catch(() => ({ offers: [] })); (r.offers || []).forEach(o => { out[id + '/' + o.basePlanId] = o; }); }
+    return out; },
+  async verifyAll(purchases) { const res = []; for (const p of purchases || []) { if (p.purchaseState && p.purchaseState !== 'PURCHASED') continue; res.push(await callFn('playVerify', { purchaseToken: p.purchaseToken, productId: p.productId })); } return res; },
+  async buy(plan) { const pl = PlayBilling.plugin(); if (!pl) throw new Error('Google Play Billing tidak tersedia di perangkat ini.');
+    const { accountId } = await callFn('billingAccountId');
+    const owned = (await pl.queryPurchases().catch(() => ({ purchases: [] }))).purchases || [];
+    const old = owned.find(p => p.productId === plan.playProductId && p.purchaseState === 'PURCHASED');
+    const r = await pl.purchase({ productId: plan.playProductId, basePlanId: plan.playBasePlanId, accountId, oldPurchaseToken: old ? old.purchaseToken : undefined });
+    if (r.canceled) return { canceled: true };
+    if ((r.purchases || []).some(p => p.purchaseState === 'PENDING')) return { pending: true };
+    return { verified: await PlayBilling.verifyAll(r.purchases) }; },
+  async restore() { const pl = PlayBilling.plugin(); if (!pl) throw new Error('Pulihkan pembelian hanya tersedia di aplikasi Android.');
+    const r = await pl.queryPurchases(); const v = await PlayBilling.verifyAll(r.purchases); return v.length; },
+  manage(productId) { const pl = PlayBilling.plugin(); if (pl) return pl.manage({ productId: productId || 'washly_pro' });
+    window.open('https://play.google.com/store/account/subscriptions', '_blank', 'noopener'); },
+};
+
+// Mulai mendengarkan konfigurasi & hak akses dari Firestore (dipanggil sekali setelah login)
+function useBillingSync(api, user) {
+  useEffect(() => {
+    const key = 'washly-billing:' + user.uid;
+    if (!billingAvailable(api)) { Billing.set({ managed: false, uid: user.uid, admin: !!user.admin }); return; }
+    try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c) Billing.set({ ...c, uid: user.uid, admin: !!user.admin }); } catch (e) {}
+    const save = () => { try { const s = Billing.get(); localStorage.setItem(key, JSON.stringify({ managed: s.managed, config: s.config, ent: s.ent, usage: s.usage })); } catch (e) {} };
+    const db = api.db; const uns = [];
+    uns.push(db.collection('billing_config').doc('main').onSnapshot(d => { const c = d.exists ? d.data() : null; Billing.set({ config: c ? { ...BILLING_DEFAULT, ...c } : null, managed: !!(c && c.enforce) }); save(); }, () => {}));
+    uns.push(db.collection('entitlements').doc(user.uid).onSnapshot(d => { Billing.set({ ent: d.exists ? d.data() : null }); save(); }, () => {}));
+    uns.push(db.collection('usage').doc(user.uid).onSnapshot(d => { Billing.set({ usage: d.exists ? d.data().cloudProjects || 0 : 0 }); save(); }, () => {}));
+    Billing.set({ uid: user.uid, admin: !!user.admin });
+    // Android: pembelian yang selesai belakangan (mis. pembayaran tertunda) diverifikasi ke server
+    const pl = PlayBilling.plugin(); let h = null;
+    if (pl && pl.addListener) Promise.resolve(pl.addListener('purchasesUpdated', (r) => { PlayBilling.verifyAll(r.purchases).catch(() => {}); })).then(x => { h = x; });
+    return () => { uns.forEach(f => f()); if (h && h.remove) h.remove(); };
+  }, [api, user.uid]);
+}
+
+function ProBadge({ className = '' }) {
+  const b = useBilling(); if (!b.managed) return null; const pro = Billing.isPro();
+  return <span data-noi18n className={'inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold tracking-wide ' + (pro ? 'bg-amber-300 text-slate-900' : 'bg-white/15 text-white border border-white/25') + ' ' + className}>{b.admin && !pro ? 'ADMIN' : pro ? 'PRO' : 'FREE'}</span>;
+}
+// Bungkus bagian PRO: tampil normal bila boleh, atau kartu kunci yang sopan bila belum
+function ProGate({ feature, children, compact }) {
+  useBilling(); if (Billing.has(feature)) return children;
+  return <div className="rounded-md border border-dashed border-aqua-300 bg-aqua-50/60 px-3 py-2.5 text-[12.5px] flex items-center gap-2.5">
+    <Icon name="Lock" size={16} className="text-aqua-700 shrink-0" />
+    <div className="flex-1 min-w-0"><div className="font-semibold text-aqua-900">{FEAT[feature][0]} · PRO</div>{!compact && <div className="text-slate-600">{FEAT[feature][1]}</div>}</div>
+    <Btn variant="primary" icon="Sparkles" onClick={() => Billing.set({ ask: feature })}>Buka dengan PRO</Btn></div>;
+}
+const planPrice = (p) => p ? rp(p.price) : '–';
+function yearlySaving(cfg) { const m = cfg.plans.PRO_MONTHLY, y = cfg.plans.PRO_YEARLY; if (!m || !y) return null; const full = m.price * 12; const save = full - y.price; return save > 0 ? { save, pct: Math.round(save / full * 100), perMonth: Math.round(y.price / 12) } : null; }
+
+function UpgradeDialog({ feature, onClose }) {
+  const b = useBilling(); const cfg = b.config || BILLING_DEFAULT; const m = cfg.plans.PRO_MONTHLY, y = cfg.plans.PRO_YEARLY; const sv = yearlySaving(cfg);
+  const lim = cfg.freeLimits.cloudProjects; const f = FEAT[feature] || ['Fitur PRO', ''];
+  return <div className="fixed inset-0 z-[2300] bg-black/40 flex items-center justify-center p-3" onClick={onClose}>
+    <div id="upgrade-dlg" className="bg-white rounded-xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-deep text-white px-5 py-4"><div className="flex items-center gap-2"><Icon name="Sparkles" size={18} className="text-amber-300" /><span className="font-semibold">Buka lebih banyak kemungkinan dengan WASHLY PRO.</span></div>
+        <p className="text-[12.5px] text-aqua-100 mt-1">Akses alat rekayasa lanjutan, simpan proyek Anda, buat laporan, dan sederhanakan alur kerja Anda.</p></div>
+      <div className="p-5 space-y-3 text-[13px]">
+        <div className="rounded-md bg-aqua-50 border border-aqua-200 px-3 py-2"><div className="text-[11px] uppercase tracking-wide text-aqua-700 font-semibold">Fitur PRO</div><div className="font-semibold text-slate-900">{f[0]}</div>
+          <div className="text-slate-600 mt-0.5">{feature === 'cloud_projects' ? `Paket FREE menyimpan hingga ${lim} proyek di cloud dan Anda sudah mencapai batas itu. Proyek lama tetap bisa dibuka dan diedit; PRO tanpa batas (sesuai kapasitas sistem).` : f[1]}</div></div>
+        <div className="grid grid-cols-2 gap-2">
+          {m && m.active && <div className="rounded-md border border-line p-2.5"><div className="text-[11.5px] text-slate-500">Bulanan</div><div className="font-bold text-[16px] num">{planPrice(m)}</div><div className="text-[11px] text-slate-500">per bulan</div></div>}
+          {y && y.active && <div className="rounded-md border-2 border-aqua-500 p-2.5 relative"><div className="text-[11.5px] text-slate-500">Tahunan</div><div className="font-bold text-[16px] num">{planPrice(y)}</div><div className="text-[11px] text-slate-500">per tahun{sv ? ` · hemat ${sv.pct}%` : ''}</div></div>}
+        </div>
+        <div className="flex flex-col gap-2 pt-1">
+          <Btn variant="primary" icon="Sparkles" className="justify-center py-2" onClick={() => Billing.set({ ask: null, pricing: true })}>Upgrade ke PRO</Btn>
+          <Btn variant="outline" className="justify-center" onClick={onClose}>Lanjut dengan Free</Btn>
+        </div>
+      </div></div></div>;
+}
+
+function PricingDialog({ user, onClose }) {
+  const b = useBilling(); const cfg = b.config || BILLING_DEFAULT; const sv = yearlySaving(cfg);
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [msg, setMsg] = useState(''); const [promo, setPromo] = useState(''); const [play, setPlay] = useState({});
+  useEffect(() => { if (IS_NATIVE) PlayBilling.products(cfg).then(setPlay).catch(() => {}); }, []);
+  const pro = Billing.isPro(); const ent = b.ent || {};
+  const priceOf = (p) => { const o = p.playProductId && play[p.playProductId + '/' + p.playBasePlanId]; return IS_NATIVE && o && o.formattedPrice ? o.formattedPrice : planPrice(p); };
+  const buy = async (p) => {
+    setErr(''); setMsg(''); setBusy(p.code);
+    try {
+      if (IS_NATIVE) { const r = await PlayBilling.buy(p); if (r.canceled) setMsg('Pembelian dibatalkan.'); else if (r.pending) setMsg('Pembayaran Google Play sedang diproses. PRO aktif otomatis setelah pembayaran selesai.'); else setMsg('Pembelian terverifikasi. Selamat datang di WASHLY PRO!'); }
+      else { const r = await callFn('billingCheckout', { planCode: p.code, promoCode: promo.trim() || undefined });
+        try { sessionStorage.setItem('washly-pending-order', r.orderId); } catch (e) {}
+        window.location.assign(r.redirectUrl); return; }
+    } catch (e) { setErr(e.message || String(e)); }
+    setBusy('');
+  };
+  const cell = (k, tier) => { const f = cfg.features[k] || { free: true }; const v = tier === 'pro' ? true : f.free;
+    return v === true ? <Icon name="Check" size={16} className="text-emerald-600 mx-auto" /> : v === 'limited' ? <span className="text-[11.5px] text-amber-700">{k === 'cloud_projects' ? `Terbatas (${cfg.freeLimits.cloudProjects} proyek)` : 'Terbatas'}</span> : <span className="text-slate-400">—</span>; };
+  const card = (p, { cta, highlight, sub }) => <div className={'rounded-xl border p-4 flex flex-col ' + (highlight ? 'border-2 border-aqua-500 shadow-md relative' : 'border-line')}>
+    {highlight && sv && <span className="absolute -top-2.5 right-3 rounded-full bg-amber-300 text-slate-900 text-[11px] font-bold px-2 py-0.5">Hemat {sv.pct}%</span>}
+    <div className="text-[12px] font-semibold uppercase tracking-wide text-aqua-700">{p.tier === 'FREE' ? 'FREE' : p.months === 12 ? 'PRO Tahunan' : 'PRO Bulanan'}</div>
+    <div className="mt-1 text-[22px] font-bold num">{p.tier === 'FREE' ? 'Rp0' : priceOf(p)}<span className="text-[12px] font-medium text-slate-500">{p.tier === 'FREE' ? '' : p.months === 12 ? ' /tahun' : ' /bulan'}</span></div>
+    <div className="text-[11.5px] text-slate-500 min-h-[34px]">{sub}</div>
+    <div className="flex-1" />{cta}</div>;
+  const M = cfg.plans.PRO_MONTHLY, Y = cfg.plans.PRO_YEARLY;
+  const curCode = pro ? ent.planCode : 'FREE';
+  return <div className="fixed inset-0 z-[2250] bg-black/40 flex items-center justify-center p-3" onClick={onClose}>
+    <div id="pricing-dlg" className="bg-white rounded-lg w-full max-w-4xl max-h-[94vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-line"><Icon name="Sparkles" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Paket WASHLY</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="p-5 overflow-y-auto space-y-4 text-[13px]">
+        <p className="text-slate-600">Alat rekayasa yang bisa dipakai semua orang. Mulai gratis, upgrade saat Anda membutuhkan keluaran profesional.</p>
+        {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
+        {msg && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{msg}</div>}
+        <div className="grid sm:grid-cols-3 gap-3">
+          {card(cfg.plans.FREE, { sub: 'Untuk menjelajah & proyek kecil.', cta: <Btn variant="outline" className="justify-center" onClick={onClose}>{curCode === 'FREE' ? 'Lanjut dengan Free' : 'Paket dasar'}</Btn> })}
+          {M && M.active && card(M, { sub: 'Ditagih tiap bulan.', cta: <Btn id="buy-monthly" variant="primary" className="justify-center" disabled={!!busy || curCode === 'PRO_MONTHLY'} onClick={() => buy(M)}>{busy === M.code ? 'Memproses…' : curCode === 'PRO_MONTHLY' ? 'Paket Anda saat ini' : 'Upgrade ke PRO'}</Btn> })}
+          {Y && Y.active && card(Y, { highlight: true, sub: sv ? `Setara ${rp(sv.perMonth)}/bulan · hemat ${rp(sv.save)} per tahun dibanding bulanan.` : 'Ditagih tiap tahun.', cta: <Btn id="buy-yearly" variant="primary" className="justify-center" disabled={!!busy || curCode === 'PRO_YEARLY'} onClick={() => buy(Y)}>{busy === Y.code ? 'Memproses…' : curCode === 'PRO_YEARLY' ? 'Paket Anda saat ini' : 'Ambil PRO Tahunan'}</Btn> })}
+        </div>
+        {!IS_NATIVE && cfg.promo && cfg.promo.enabled && <div className="flex items-center gap-2"><input id="promo-code" className="tp-field max-w-[200px]" placeholder="Kode promo (opsional)" value={promo} onChange={e => setPromo(e.target.value.toUpperCase())} /><span className="text-[11.5px] text-slate-500">Potongan dihitung & diverifikasi di server saat pembayaran.</span></div>}
+        <div className="overflow-x-auto"><table className="w-full text-[12.5px] border border-line rounded-md">
+          <thead><tr className="bg-ground"><th className="text-left px-3 py-2">Fitur</th><th className="px-3 py-2 w-[130px]">Free</th><th className="px-3 py-2 w-[90px]">PRO</th></tr></thead>
+          <tbody>{FEAT_ORDER.map(k => <tr key={k} className="border-t border-line"><td className="px-3 py-1.5">{FEAT[k][0]}</td><td className="text-center">{cell(k, 'free')}</td><td className="text-center">{cell(k, 'pro')}</td></tr>)}</tbody></table></div>
+        <div className="rounded-md bg-ground px-3 py-2.5 text-[12px] text-slate-600 space-y-1">
+          {IS_NATIVE ? <>
+            <p>Pembayaran lewat <b>Google Play</b>. Langganan diperpanjang otomatis setiap periode sampai Anda membatalkannya di Google Play (Profil → Langganan → Kelola). Setelah dibatalkan, PRO tetap aktif sampai akhir periode yang sudah dibayar.</p>
+          </> : <>
+            <p>Pembayaran web lewat <b>Midtrans</b> (QRIS, Virtual Account, e-wallet, kartu). Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada {cfg.graceDays} hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.</p>
+          </>}
+          <p>Harga sudah termasuk pajak yang berlaku. PRO aktif setelah pembayaran diverifikasi oleh server. Langganan melekat pada akun WASHLY Anda, bukan perangkat.</p>
+        </div>
+      </div></div></div>;
+}
+
+function SubscriptionDialog({ api, user, onClose }) {
+  const b = useBilling(); const cfg = b.config || BILLING_DEFAULT; const pro = Billing.isPro(); const e = b.ent || {};
+  const [pays, setPays] = useState(null); const [subs, setSubs] = useState([]); const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [msg, setMsg] = useState('');
+  const load = () => { if (!billingAvailable(api)) return;
+    api.db.collection('payments').where('userId', '==', user.uid).get().then(q => setPays(q.docs.map(d => d.data()).sort((a, b2) => (b2.createdAt || 0) - (a.createdAt || 0)))).catch(() => setPays([]));
+    api.db.collection('subscriptions').where('userId', '==', user.uid).get().then(q => setSubs(q.docs.map(d => ({ id: d.id, ...d.data() })))).catch(() => {}); };
+  useEffect(load, [b.ent && b.ent.updatedAt]);
+  const run = async (label, fn) => { setErr(''); setMsg(''); setBusy(label); try { const m = await fn(); if (m) setMsg(m); load(); } catch (x) { setErr(x.message || String(x)); } setBusy(''); };
+  const sub = subs.find(s => s.id === e.subscriptionId) || null; const plan = cfg.plans[e.planCode] || null;
+  const cancel = () => run('cancel', async () => {
+    if (e.provider === 'google_play') { await PlayBilling.manage(plan && plan.playProductId); return 'Batalkan langganan di halaman Google Play yang terbuka. Status di WASHLY diperbarui otomatis.'; }
+    if (!window.confirm(`Batalkan perpanjangan WASHLY PRO? Anda tetap memakai PRO sampai ${dateTxt(e.currentPeriodEnd)}, lalu akun kembali ke FREE. Proyek tidak dihapus.`)) return '';
+    const r = await callFn('billingCancel'); return `Langganan dibatalkan. PRO tetap aktif sampai ${dateTxt(r.accessUntil)}.`; });
+  const row = (k, v) => <><span className="text-slate-500">{k}</span><span className="font-medium">{v}</span></>;
+  return <div className="fixed inset-0 z-[2200] bg-black/40 flex items-center justify-center p-3" onClick={onClose}>
+    <div id="sub-dlg" className="bg-white rounded-lg w-full max-w-2xl max-h-[94vh] flex flex-col" onClick={x => x.stopPropagation()}>
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-line"><Icon name="BadgeCheck" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Langganan saya</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="p-5 overflow-y-auto space-y-4 text-[13px]">
+        {!b.managed && <div className="rounded-md bg-aqua-50 border border-aqua-200 px-3 py-2">Langganan belum diaktifkan oleh admin organisasi; semua fitur WASHLY terbuka untuk akun Anda.</div>}
+        {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
+        {msg && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{msg}</div>}
+        <div className={'rounded-lg p-4 ' + (pro ? 'bg-deep text-white' : 'bg-ground')}>
+          <div className="flex items-center gap-2"><span className={'rounded-full px-2.5 py-0.5 text-[11px] font-bold ' + (pro ? 'bg-amber-300 text-slate-900' : 'bg-slate-700 text-white')} data-noi18n>{pro ? 'PRO' : 'FREE'}</span>
+            <span id="sub-headline" className="font-semibold">{pro ? 'Langganan WASHLY PRO Anda aktif.' : 'Anda sedang memakai WASHLY FREE.'}</span></div>
+          {pro ? <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-[12.5px]">
+            {row('Paket', plan ? plan.name : e.planCode)}{row('Status', SUB_STATUS[e.status] || e.status)}
+            {row('Metode tagihan', PROVIDER[e.provider] || e.provider || '–')}{row('Siklus', plan && plan.months === 12 ? 'Tahunan' : plan && plan.months === 1 ? 'Bulanan' : plan ? plan.months + ' bulan' : '–')}
+            {row('Mulai berlangganan', dateTxt(sub && sub.startedAt))}{row('Periode berjalan berakhir', dateTxt(e.currentPeriodEnd))}
+            {row('Jumlah per periode', e.provider === 'admin' ? 'Rp0 (pemberian admin)' : planPrice(plan))}
+            {row(e.provider === 'google_play' ? 'Perpanjangan otomatis' : 'Pembayaran berikutnya', e.status === 'CANCELED' ? `Tidak ada — berakhir ${dateTxt(e.currentPeriodEnd)}` : e.provider === 'google_play' ? (e.autoRenew ? dateTxt(e.currentPeriodEnd) : 'Mati') : e.provider === 'admin' ? 'Tidak ada' : `Bayar manual sebelum ${dateTxt(e.currentPeriodEnd)}`)}
+            {e.status === 'GRACE_PERIOD' && row('Masa tenggang sampai', dateTxt(e.graceEndsAt || e.accessUntil))}
+          </div> : <div className="mt-2 text-[12.5px] text-slate-600">Dengan PRO: {FEAT_ORDER.filter(k => (cfg.features[k] || {}).free !== true).map(k => FEAT[k][0]).join(' · ')}.</div>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {b.managed && <Btn id="sub-plans" variant="primary" icon="Sparkles" onClick={() => Billing.set({ pricing: true })}>{pro ? (plan && plan.months === 1 ? 'Ganti ke tahunan' : 'Lihat paket') : 'Upgrade ke PRO'}</Btn>}
+          {b.managed && pro && !IS_NATIVE && e.provider === 'midtrans' && <Btn variant="outline" icon="RefreshCw" onClick={() => Billing.set({ pricing: true })}>Perpanjang sekarang</Btn>}
+          {pro && ['midtrans', 'google_play'].includes(e.provider) && e.status !== 'CANCELED' && <Btn id="sub-cancel" variant="danger" icon="CircleX" disabled={!!busy} onClick={cancel}>{e.provider === 'google_play' ? 'Kelola / batalkan di Google Play' : 'Batalkan langganan'}</Btn>}
+          {IS_NATIVE && <Btn variant="outline" icon="RotateCcw" disabled={!!busy} onClick={() => run('restore', async () => { const n = await PlayBilling.restore(); return n ? `${n} pembelian Google Play dipulihkan & diverifikasi.` : 'Tidak ada pembelian Google Play aktif di akun Google perangkat ini.'; })}>Pulihkan pembelian</Btn>}
+          {IS_NATIVE && <Btn variant="outline" icon="ExternalLink" onClick={() => PlayBilling.manage()}>Kelola di Google Play</Btn>}
+          {billingAvailable(api) && <Btn variant="ghost" icon="RefreshCw" disabled={!!busy} onClick={() => run('refresh', async () => { await callFn('billingRefresh'); return 'Status langganan diperbarui dari server.'; })}>Segarkan status</Btn>}
+        </div>
+        {e.provider === 'google_play' && IS_NATIVE === false && <p className="text-[11.5px] text-slate-500">Langganan ini dibeli lewat Google Play; pembatalan & metode pembayaran diatur di Google Play (play.google.com → Langganan).</p>}
+        <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Riwayat pembayaran</div>
+          {pays === null ? <p className="text-slate-500">Memuat…</p> : !pays.length ? <p className="text-slate-500">Belum ada pembayaran.</p> :
+          <table className="w-full text-[12px]"><thead><tr className="text-left text-slate-500"><th className="py-1">Tanggal</th><th>Paket</th><th>Metode</th><th className="text-right">Jumlah</th><th className="text-right">Status</th></tr></thead>
+            <tbody>{pays.slice(0, 50).map(p => <tr key={p.id} className="border-t border-line"><td className="py-1">{dateTxt(p.paidAt || p.createdAt)}</td><td>{(cfg.plans[p.planCode] || {}).name || p.planCode}</td><td>{PROVIDER[p.provider] || p.provider}{p.method && p.method !== 'google_play' ? ' · ' + p.method : ''}</td><td className="text-right num">{rp(p.amount)}</td>
+              <td className="text-right"><span className={'rounded px-1.5 py-0.5 ' + (p.status === 'PAID' ? 'bg-emerald-50 text-emerald-800' : p.status === 'PENDING' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600')}>{PAY_STATUS[p.status] || p.status}</span>
+              {p.status === 'PENDING' && p.redirectUrl && <a className="ml-1 text-aqua-700 underline" href={p.redirectUrl}>bayar</a>}</td></tr>)}</tbody></table>}
+        </div>
+        <p className="text-[11.5px] text-slate-500">Batalkan kapan saja. Setelah dibatalkan, Anda tetap memakai PRO sampai akhir periode yang sudah dibayar, lalu akun otomatis kembali ke FREE; proyek Anda tidak dihapus.</p>
+      </div></div></div>;
+}
+
+/* ---------------- Dasbor pendapatan & langganan (khusus admin) ---------------- */
+function MiniBars({ series, h = 160 }) {
+  const max = Math.max(1, ...series.map(s => Math.max(s.revenue, s.refunds, s.pending))); const n = series.length || 1; const W = 640; const bw = Math.max(2, W / n * 0.7);
+  const maxN = Math.max(1, ...series.map(s => s.newSubs)); const pts = series.map((s, i) => `${(i + 0.5) * W / n},${h - 4 - s.newSubs / maxN * (h - 24)}`).join(' ');
+  return <svg viewBox={`0 0 ${W} ${h + 18}`} className="w-full h-auto" role="img" aria-label="Grafik pendapatan">
+    {[0.25, 0.5, 0.75, 1].map(f => <line key={f} x1="0" x2={W} y1={h - f * (h - 10)} y2={h - f * (h - 10)} stroke="#e2e8f0" strokeWidth="1" />)}
+    {series.map((s, i) => { const x = i * W / n + (W / n - bw) / 2; const rh = s.revenue / max * (h - 10); const fh = s.refunds / max * (h - 10); const ph = s.pending / max * (h - 10);
+      return <g key={s.key}><rect x={x} y={h - rh} width={bw} height={rh} fill="#0e7490"><title>{`${s.key}: ${rp(s.revenue)}`}</title></rect>
+        {ph > 0 && <rect x={x + bw * 0.6} y={h - ph} width={bw * 0.4} height={ph} fill="#fbbf24" opacity="0.8"><title>{`Tertunda ${rp(s.pending)}`}</title></rect>}
+        {fh > 0 && <rect x={x} y={h - fh} width={bw * 0.4} height={fh} fill="#dc2626"><title>{`Refund ${rp(s.refunds)}`}</title></rect>}
+        {(n <= 14 || i % Math.ceil(n / 12) === 0) && <text x={x + bw / 2} y={h + 13} fontSize="10" textAnchor="middle" fill="#64748b">{s.key.length > 7 ? s.key.slice(5) : s.key}</text>}</g>; })}
+    <polyline points={pts} fill="none" stroke="#7c3aed" strokeWidth="2" />
+  </svg>;
+}
+function AdminBillingDialog({ onClose }) {
+  const b = useBilling(); const [tab, setTab] = useState('overview'); const [err, setErr] = useState(''); const [busy, setBusy] = useState('');
+  const DAY = 864e5; const today = new Date(); const iso = (t) => new Date(t + 7 * 36e5).toISOString().slice(0, 10);
+  const [rg, setRg] = useState({ from: iso(Date.now() - 30 * DAY), to: iso(Date.now()), g: 'day' }); const [m, setM] = useState(null);
+  const loadM = async () => { setErr(''); setBusy('m'); try { setM(await callFn('adminBillingMetrics', { from: Date.parse(rg.from + 'T00:00:00+07:00'), to: Date.parse(rg.to + 'T00:00:00+07:00') + DAY, granularity: rg.g })); } catch (e) { setErr(e.message); } setBusy(''); };
+  useEffect(() => { if (tab === 'overview') loadM(); }, [tab, rg.from, rg.to, rg.g]);
+  const preset = (d) => setRg(r => ({ ...r, from: iso(Date.now() - d * DAY), to: iso(Date.now()), g: d > 120 ? 'month' : d > 31 ? 'week' : 'day' }));
+  const pct = (v) => v == null ? '–' : (v * 100).toFixed(1) + '%';
+  const delta = (a, b2) => { if (b2 == null || a == null) return null; if (!b2) return a ? '+∞' : '0%'; const d = (a - b2) / Math.abs(b2) * 100; return (d >= 0 ? '+' : '') + d.toFixed(0) + '%'; };
+  const kpi = (label, val, prevVal, hint, fmtF = (x) => x) => { const d = delta(val, prevVal); return <div className="rounded-lg border border-line bg-white px-3 py-2.5"><div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="text-[18px] font-bold num leading-tight">{fmtF(val)}</div><div className="text-[11px] text-slate-500 flex gap-1.5">{d && <span className={d.startsWith('-') ? 'text-red-600' : 'text-emerald-700'}>{d}</span>}{hint && <span>{hint}</span>}</div></div>; };
+  // pengguna
+  const [q, setQ] = useState(''); const [list, setList] = useState(null); const [det, setDet] = useState(null); const [grant, setGrant] = useState({ planCode: 'PRO_MONTHLY', months: 1, reason: '' });
+  const loadU = async () => { setErr(''); setBusy('u'); try { setList(await callFn('adminBillingUsers', { q })); } catch (e) { setErr(e.message); } setBusy(''); };
+  const openU = async (uid) => { setErr(''); setBusy('d'); try { setDet(await callFn('adminBillingUser', { uid })); } catch (e) { setErr(e.message); } setBusy(''); };
+  useEffect(() => { if (tab === 'users' && !list) loadU(); }, [tab]);
+  // konfigurasi
+  const [cfg, setCfg] = useState(() => JSON.parse(JSON.stringify(b.config || BILLING_DEFAULT))); const [reason, setReason] = useState(''); const [saved, setSaved] = useState('');
+  const setPlan = (code, k, v) => setCfg(c => ({ ...c, plans: { ...c.plans, [code]: { ...c.plans[code], [k]: v } } }));
+  const saveCfg = async () => { setErr(''); setSaved(''); setBusy('c'); try { const r = await callFn('adminBillingConfig', { config: cfg, reason }); setCfg(r.config); setSaved('Konfigurasi tersimpan & hak akses semua pengguna dihitung ulang.'); } catch (e) { setErr(e.message); } setBusy(''); };
+  const c = m && m.current, p = m && m.previous, o = m && m.overview;
+  const tabs = [['overview', 'Pendapatan & pelanggan', 'ChartColumn'], ['users', 'Pengguna & langganan', 'Users'], ['config', 'Paket & harga', 'Settings2']];
+  return <div className="fixed inset-0 z-[2150] bg-black/40 flex items-center justify-center p-2 sm:p-3" onClick={onClose}>
+    <div id="rev-dlg" className="bg-ground rounded-lg w-full max-w-6xl h-[96vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-line bg-white rounded-t-lg"><Icon name="ChartColumn" size={17} className="text-aqua-600" /><h2 className="font-semibold flex-1">Dasbor pendapatan & langganan</h2><Btn icon="X" onClick={onClose} title="Tutup" /></div>
+      <div className="flex gap-1 px-3 pt-2 bg-white border-b border-line overflow-x-auto">{tabs.map(([k, l, ic]) => <button key={k} type="button" onClick={() => setTab(k)} className={'flex items-center gap-1.5 px-3 py-2 text-[13px] border-b-2 whitespace-nowrap ' + (tab === k ? 'border-aqua-600 text-aqua-700 font-semibold' : 'border-transparent text-slate-600')}><Icon name={ic} size={14} />{l}</button>)}</div>
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 text-[13px]">
+        {err && <div className="rounded-md bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
+        {tab === 'overview' && <>
+          <div className="flex flex-wrap items-end gap-2">
+            {[[7, '7 hari'], [30, '30 hari'], [90, '90 hari'], [365, '12 bulan']].map(([d, l]) => <Btn key={d} variant="outline" onClick={() => preset(d)}>{l}</Btn>)}
+            <Field label="Dari"><input type="date" className="tp-field" value={rg.from} onChange={e => setRg(r => ({ ...r, from: e.target.value }))} /></Field>
+            <Field label="Sampai"><input type="date" className="tp-field" value={rg.to} onChange={e => setRg(r => ({ ...r, to: e.target.value }))} /></Field>
+            <Field label="Per"><select className="tp-field" value={rg.g} onChange={e => setRg(r => ({ ...r, g: e.target.value }))}><option value="day">Hari</option><option value="week">Minggu</option><option value="month">Bulan</option><option value="year">Tahun</option></select></Field>
+            <Btn variant="primary" icon="RefreshCw" disabled={busy === 'm'} onClick={loadM}>{busy === 'm' ? 'Memuat…' : 'Muat ulang'}</Btn>
+          </div>
+          {!m ? <p className="text-slate-500">{busy === 'm' ? 'Menghitung metrik…' : 'Belum ada data.'}</p> : <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {kpi('Pengguna terdaftar', o.totalUsers)}{kpi('Pengguna FREE', o.freeUsers)}{kpi('Pelanggan PRO', o.proUsers)}{kpi('Langganan aktif', o.activeSubscriptions, null, `${o.activeMonthly} bulanan · ${o.activeAnnual} tahunan`)}
+              {kpi('MRR', o.mrr, null, `berkomitmen ${rp(o.committedMrr)}`, rp)}{kpi('ARR', o.arr, null, 'MRR × 12', rp)}
+              {kpi('Pendapatan bersih', c.revenueNet, p.revenueNet, 'diterima − refund', rp)}{kpi('Pendapatan kotor', c.revenueGross, p.revenueGross, null, rp)}{kpi('Refund', c.refunds, p.refunds, null, rp)}{kpi('Tertunda (bukan pendapatan)', c.pendingAmount, p.pendingAmount, `${c.pendingCount} tagihan`, rp)}
+              {kpi('Pembayaran gagal', c.failedCount, p.failedCount, rp(c.failedAmount))}{kpi('Total transaksi', c.transactions, p.transactions)}{kpi('ARPPU', c.arppu, p.arppu, `${c.payingUsers} pembayar`, rp)}
+              {kpi('Langganan baru', c.newSubscriptions, p.newSubscriptions)}{kpi('Dibatalkan', c.canceled, p.canceled)}{kpi('Berakhir', c.expired, p.expired)}{kpi('Perpanjangan', c.renewed, p.renewed, c.renewalRate == null ? '' : 'tingkat ' + pct(c.renewalRate))}
+              {kpi('Konversi FREE→PRO', c.conversionRate, p.conversionRate, `${c.converted}/${c.eligible}`, pct)}{kpi('Churn langganan', c.churnRate, p.churnRate, `${c.ended}/${c.activeAtStart}`, pct)}
+            </div>
+            <div className="rounded-lg border border-line bg-white p-3"><div className="flex flex-wrap items-center gap-3 text-[12px] mb-1"><b className="text-[13px] flex-1">Pendapatan diterima per {({ day: 'hari', week: 'minggu', month: 'bulan', year: 'tahun' })[rg.g]}</b>
+              <span className="flex items-center gap-1"><i className="w-3 h-3 inline-block bg-[#0e7490]" />Diterima</span><span className="flex items-center gap-1"><i className="w-3 h-3 inline-block bg-[#fbbf24]" />Tertunda</span><span className="flex items-center gap-1"><i className="w-3 h-3 inline-block bg-[#dc2626]" />Refund</span><span className="flex items-center gap-1"><i className="w-3 h-0.5 inline-block bg-[#7c3aed]" />Langganan baru</span></div>
+              <MiniBars series={m.series} /></div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[['Per paket', m.byPlan, (k) => ((b.config || BILLING_DEFAULT).plans[k] || {}).name || k], ['Per penyedia pembayaran', m.byProvider, (k) => PROVIDER[k] || k]].map(([t, obj, lab]) => <div key={t} className="rounded-lg border border-line bg-white p-3"><b>{t}</b>
+                {!Object.keys(obj).length ? <p className="text-slate-500 mt-1">Belum ada pendapatan di rentang ini.</p> : Object.entries(obj).sort((a, b2) => b2[1] - a[1]).map(([k, v]) => { const tot = Object.values(obj).reduce((a, x) => a + x, 0);
+                  return <div key={k} className="mt-1.5"><div className="flex justify-between text-[12px]"><span>{lab(k)}</span><span className="num">{rp(v)} · {Math.round(v / tot * 100)}%</span></div><div className="h-1.5 bg-slate-100 rounded"><div className="h-1.5 bg-aqua-600 rounded" style={{ width: (v / tot * 100) + '%' }} /></div></div>; })}</div>)}
+            </div>
+            <details className="rounded-lg border border-line bg-white p-3 text-[12px] text-slate-600"><summary className="font-semibold cursor-pointer">Definisi metrik</summary>
+              <ul className="list-disc pl-5 mt-1 space-y-0.5"><li>Pendapatan = pembayaran lunas yang diterima di rentang; tagihan tertunda tidak dihitung. Google Play dicatat dengan harga daftar (bruto, sebelum potongan Google & pajak) — angka bersih resmi ada di laporan Play Console.</li>
+                <li>MRR = Σ harga paket ÷ jumlah bulan paket untuk langganan berbayar yang memberi akses saat ini (tahunan dibagi 12); MRR berkomitmen tanpa langganan yang sudah dibatalkan. ARR = MRR × 12.</li>
+                <li>ARPPU = pendapatan bersih ÷ pengguna unik yang membayar di rentang.</li><li>Konversi = pengguna yang pertama kali membayar di rentang ÷ pengguna terdaftar yang belum pernah membayar sebelum rentang.</li>
+                <li>Churn langganan = langganan berbayar yang berakhir/refund di rentang ÷ langganan berbayar aktif di awal rentang. Persentase di kartu = perubahan dibanding periode sebelumnya yang sama panjang.</li></ul></details>
+          </>}
+        </>}
+        {tab === 'users' && <div className="grid lg:grid-cols-[1fr_1.1fr] gap-3">
+          <div className="rounded-lg border border-line bg-white p-3 min-w-0"><div className="flex gap-2"><input id="rev-q" className="tp-field flex-1" placeholder="Cari nama / email…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadU()} /><Btn variant="primary" icon="Search" onClick={loadU}>Cari</Btn></div>
+            {!list ? <p className="text-slate-500 mt-2">{busy === 'u' ? 'Memuat…' : ''}</p> : <div className="mt-2 max-h-[60vh] overflow-y-auto"><table className="w-full text-[12px]"><thead><tr className="text-left text-slate-500"><th>Pengguna</th><th>Paket</th><th>Status</th><th>Sampai</th></tr></thead>
+              <tbody>{list.map(u => <tr key={u.uid} className={'border-t border-line cursor-pointer hover:bg-aqua-50 ' + (det && det.user && det.user.uid === u.uid ? 'bg-aqua-50' : '')} onClick={() => openU(u.uid)}><td className="py-1"><div className="font-medium">{u.name}</div><div className="text-slate-500">{u.email}</div></td>
+                <td><span className={'rounded px-1.5 py-0.5 text-[11px] font-bold ' + (u.tier === 'PRO' ? 'bg-amber-300' : 'bg-slate-100')}>{u.tier}</span></td><td>{SUB_STATUS[u.status] || u.status}{u.provider ? ' · ' + (PROVIDER[u.provider] || u.provider) : ''}</td><td>{dateTxt(u.accessUntil)}</td></tr>)}</tbody></table></div>}</div>
+          <div className="rounded-lg border border-line bg-white p-3 min-w-0 space-y-3">{!det ? <p className="text-slate-500">Pilih pengguna untuk melihat langganan, pembayaran, dan riwayatnya.</p> : <>
+            <div><b>{det.user ? det.user.name : '–'}</b> <span className="text-slate-500">{det.user && det.user.email}</span></div>
+            <div className="text-[12px]">Hak akses: <b>{det.entitlement ? det.entitlement.tier : 'FREE'}</b> · {det.entitlement ? SUB_STATUS[det.entitlement.status] : ''} · sampai {dateTxt(det.entitlement && det.entitlement.accessUntil)}</div>
+            <div><div className="text-[11px] font-semibold uppercase text-slate-500">Langganan</div>{!det.subscriptions.length ? <p className="text-slate-500">Tidak ada.</p> : det.subscriptions.map(s => <div key={s.id} className="flex items-center gap-2 text-[12px] border-t border-line py-1">
+              <span className="flex-1">{s.planCode} · {PROVIDER[s.provider] || s.provider} · {SUB_STATUS[s.status] || s.status} · {dateTxt(s.currentPeriodStart)} – {dateTxt(s.currentPeriodEnd)}{s.autoRenew ? ' · perpanjang otomatis' : ''}{s.canceledAt ? ' · batal ' + dateTxt(s.canceledAt) : ''}</span>
+              {s.provider === 'admin' && s.status === 'ACTIVE' && <Btn variant="danger" onClick={async () => { const r = window.prompt('Alasan mencabut langganan (wajib, tercatat di audit):'); if (!r) return; setBusy('d'); try { await callFn('adminBillingRevoke', { subscriptionId: s.id, reason: r }); await openU(det.user.uid); } catch (e) { setErr(e.message); } setBusy(''); }}>Cabut</Btn>}</div>)}</div>
+            <div><div className="text-[11px] font-semibold uppercase text-slate-500">Pembayaran</div>{!det.payments.length ? <p className="text-slate-500">Tidak ada.</p> : <table className="w-full text-[12px]"><tbody>{det.payments.map(x => <tr key={x.id} className="border-t border-line"><td className="py-1">{dateTxt(x.paidAt || x.createdAt)}</td><td>{x.planCode}</td><td>{PROVIDER[x.provider]}{x.method ? ' · ' + x.method : ''}</td><td className="text-right num">{rp(x.amount)}</td><td className="text-right">{PAY_STATUS[x.status] || x.status}{x.refundAmount ? ' · refund ' + rp(x.refundAmount) : ''}</td></tr>)}</tbody></table>}</div>
+            <div><div className="text-[11px] font-semibold uppercase text-slate-500">Riwayat peristiwa</div><div className="max-h-[180px] overflow-y-auto">{det.events.map((x, i) => <div key={i} className="text-[11.5px] border-t border-line py-0.5"><span className="text-slate-500">{new Date(x.at).toLocaleString(LOCALE)}</span> · {x.type}{x.reason ? ' · ' + x.reason : ''}{x.actor ? ' · oleh admin' : ''}</div>)}</div></div>
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-2.5 space-y-2"><div className="text-[12px] font-semibold text-amber-900">Beri PRO manual (tercatat di audit, tanpa pembayaran)</div>
+              <div className="grid grid-cols-3 gap-2"><select className="tp-field" value={grant.planCode} onChange={e => setGrant(g => ({ ...g, planCode: e.target.value }))}>{Object.values(b.config ? b.config.plans : BILLING_DEFAULT.plans).filter(x => x.tier === 'PRO').map(x => <option key={x.code} value={x.code}>{x.name}</option>)}</select>
+                <input type="number" min="1" max="36" className="tp-field" value={grant.months} onChange={e => setGrant(g => ({ ...g, months: +e.target.value }))} title="Lama (bulan)" /><span className="self-center text-[12px] text-slate-500">bulan</span></div>
+              <input className="tp-field" placeholder="Alasan (wajib, mis. sponsor program desa X)" value={grant.reason} onChange={e => setGrant(g => ({ ...g, reason: e.target.value }))} />
+              <Btn variant="primary" disabled={busy === 'g' || grant.reason.trim().length < 5} onClick={async () => { setBusy('g'); setErr(''); try { await callFn('adminBillingGrant', { uid: det.user.uid, ...grant }); setGrant(g => ({ ...g, reason: '' })); await openU(det.user.uid); } catch (e) { setErr(e.message); } setBusy(''); }}>Beri PRO</Btn></div>
+          </>}</div></div>}
+        {tab === 'config' && <div className="space-y-3">
+          {saved && <div className="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">{saved}</div>}
+          <div className="rounded-lg border border-line bg-white p-3 space-y-2"><label className="flex items-start gap-2"><input id="cfg-enforce" type="checkbox" className="mt-1" checked={!!cfg.enforce} onChange={e => setCfg(x => ({ ...x, enforce: e.target.checked }))} />
+            <span><b>Aktifkan pembatasan FREE/PRO</b><br /><span className="text-[12px] text-slate-500">Bila mati, semua pengguna memakai semua fitur seperti sebelumnya (pembayaran tetap bisa diterima). Nyalakan setelah Midtrans & Google Play siap.</span></span></label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <Field label="Proyek cloud paket FREE"><input type="number" className="tp-field" value={cfg.freeLimits.cloudProjects} onChange={e => setCfg(x => ({ ...x, freeLimits: { cloudProjects: +e.target.value } }))} /></Field>
+              <Field label="Masa tenggang web (hari)"><input type="number" className="tp-field" value={cfg.graceDays} onChange={e => setCfg(x => ({ ...x, graceDays: +e.target.value }))} /></Field>
+              <Field label="Pengingat (hari sebelum)"><input className="tp-field" value={(cfg.reminderDays || []).join(', ')} onChange={e => setCfg(x => ({ ...x, reminderDays: e.target.value.split(',').map(s => +s.trim()).filter(Boolean) }))} /></Field>
+              <Field label="Batas bayar tagihan (jam)"><input type="number" className="tp-field" value={cfg.pendingHours} onChange={e => setCfg(x => ({ ...x, pendingHours: +e.target.value }))} /></Field></div></div>
+          <div className="rounded-lg border border-line bg-white p-3"><b>Paket</b><p className="text-[12px] text-slate-500">Harga di sini dipakai untuk pembayaran web & laporan. Harga Google Play diatur di Play Console (Monetize → Subscriptions) dan harus disamakan secara manual.</p>
+            <div className="overflow-x-auto"><table className="w-full text-[12px] mt-1"><thead><tr className="text-left text-slate-500"><th>Kode</th><th>Nama</th><th>Bulan</th><th>Harga (Rp)</th><th>Aktif</th><th>Produk / base plan Play</th></tr></thead><tbody>
+              {Object.values(cfg.plans).map(pl => <tr key={pl.code} className="border-t border-line"><td className="py-1 font-mono">{pl.code}</td><td><input className="tp-field" value={pl.name} onChange={e => setPlan(pl.code, 'name', e.target.value)} /></td>
+                <td>{pl.tier === 'FREE' ? '–' : <input type="number" className="tp-field w-16" value={pl.months} onChange={e => setPlan(pl.code, 'months', +e.target.value)} />}</td>
+                <td>{pl.tier === 'FREE' ? '0' : <input id={'cfg-price-' + pl.code} type="number" className="tp-field w-28" value={pl.price} onChange={e => setPlan(pl.code, 'price', +e.target.value)} />}</td>
+                <td><input type="checkbox" checked={pl.active !== false} disabled={pl.tier === 'FREE'} onChange={e => setPlan(pl.code, 'active', e.target.checked)} /></td>
+                <td>{pl.tier === 'FREE' ? '–' : <div className="flex gap-1"><input className="tp-field w-28" value={pl.playProductId || ''} onChange={e => setPlan(pl.code, 'playProductId', e.target.value)} /><input className="tp-field w-24" value={pl.playBasePlanId || ''} onChange={e => setPlan(pl.code, 'playBasePlanId', e.target.value)} /></div>}</td></tr>)}</tbody></table></div></div>
+          <div className="rounded-lg border border-line bg-white p-3"><b>Fitur per paket</b><div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 mt-1">{FEAT_ORDER.map(k => <label key={k} className="flex items-center gap-2 text-[12px]"><span className="flex-1">{FEAT[k][0]}</span>
+            <select className="tp-field w-[150px]" value={String((cfg.features[k] || {}).free)} onChange={e => setCfg(x => ({ ...x, features: { ...x.features, [k]: { free: e.target.value === 'true' ? true : e.target.value === 'limited' ? 'limited' : false, pro: true } } }))}>
+              <option value="true">FREE & PRO</option><option value="limited">FREE terbatas</option><option value="false">Khusus PRO</option></select></label>)}</div></div>
+          <div className="rounded-lg border border-line bg-white p-3 space-y-2"><label className="flex items-center gap-2"><input type="checkbox" checked={!!(cfg.promo && cfg.promo.enabled)} onChange={e => setCfg(x => ({ ...x, promo: { ...(x.promo || { codes: {} }), enabled: e.target.checked } }))} /><b>Kode promo web</b></label>
+            <p className="text-[12px] text-slate-500">Potongan diverifikasi di server dan dibayar penuh lewat Midtrans (tidak ada jalan pintas tanpa pembayaran). Promo Google Play dibuat sebagai offer di Play Console.</p>
+            {Object.entries((cfg.promo && cfg.promo.codes) || {}).map(([code, pr]) => <div key={code} className="flex flex-wrap items-center gap-2 text-[12px]"><span className="font-mono w-24">{code}</span>
+              <input type="number" className="tp-field w-20" value={pr.percent} onChange={e => setCfg(x => ({ ...x, promo: { ...x.promo, codes: { ...x.promo.codes, [code]: { ...pr, percent: +e.target.value } } } }))} />%
+              <input type="date" className="tp-field w-36" value={pr.validUntil ? String(pr.validUntil).slice(0, 10) : ''} onChange={e => setCfg(x => ({ ...x, promo: { ...x.promo, codes: { ...x.promo.codes, [code]: { ...pr, validUntil: e.target.value || null } } } }))} title="Berlaku sampai" />
+              <input type="number" className="tp-field w-24" placeholder="Kuota" value={pr.maxUses || ''} onChange={e => setCfg(x => ({ ...x, promo: { ...x.promo, codes: { ...x.promo.codes, [code]: { ...pr, maxUses: +e.target.value || null } } } }))} />
+              <Btn variant="danger" icon="Trash2" onClick={() => setCfg(x => { const cs = { ...x.promo.codes }; delete cs[code]; return { ...x, promo: { ...x.promo, codes: cs } }; })} /></div>)}
+            <Btn variant="outline" icon="Plus" onClick={() => { const code = (window.prompt('Kode promo (3–20 huruf/angka, mis. HEMAT20):') || '').toUpperCase().trim(); if (!/^[A-Z0-9]{3,20}$/.test(code)) return; setCfg(x => ({ ...x, promo: { enabled: true, ...(x.promo || {}), codes: { ...((x.promo && x.promo.codes) || {}), [code]: { percent: 10, planCodes: [], active: true, validUntil: null, maxUses: null } } } })); }}>Tambah kode</Btn></div>
+          <div className="rounded-lg border border-line bg-white p-3 flex flex-wrap items-end gap-2"><div className="flex-1 min-w-[220px]"><Field label="Alasan perubahan (tercatat di audit)"><input id="cfg-reason" className="tp-field" value={reason} onChange={e => setReason(e.target.value)} placeholder="mis. Harga peluncuran" /></Field></div>
+            <Btn id="cfg-save" variant="primary" icon="Save" disabled={busy === 'c'} onClick={saveCfg}>{busy === 'c' ? 'Menyimpan…' : 'Simpan konfigurasi'}</Btn></div>
+        </div>}
+      </div></div></div>;
+}
+
 function App({ user, api }) {
+  useBillingSync(api, user); const bill = useBilling(); const [subOpen, setSubOpen] = useState(false); const [revOpen, setRevOpen] = useState(false);
   const [project, setProjectRaw] = useState(() => {
     const curId = lsGet(CURK(user.uid), null);
     let p = curId && localLib.get(curId);
@@ -9375,7 +9750,9 @@ function App({ user, api }) {
     if (n.kind === 'register') { if (user.admin) setUserAdmin(true); return; }
     if (n.projectId) { try { if (n.projectId !== projectRef.current.cloud.id) await openProject({ id: n.projectId, rev: 1e15 }); setReviewOpen(true); } catch (e) { setToast(e.message || 'Proyek tidak dapat dibuka'); } } };
   const openProject = async (it) => { saveCurrentLocal(); const p = await fetchProject(it); switchTo(p); setLibOpen(false); setToast(`Membuka "${p.meta.name}"`); };
-  const newProject = (base, label) => { saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
+  // Batas proyek cloud paket FREE (ditegakkan juga oleh firestore.rules)
+  const printAs = (m) => { if (m === 'ded' && !Billing.require('ded_print')) return; setPrintMode(m); };
+  const newProject = (base, label) => { if (store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
     if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
   const duplicateProject = async (it) => { const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
   const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
@@ -9407,6 +9784,14 @@ function App({ user, api }) {
     if (to === 'approved') N([owner, rv.checker], `Proyek disetujui: ${nm}`, `"${nm}" sudah disetujui dan ditandatangani ${me.name}.`, 'approved');
     if (to === 'revisi') N([owner], `Revisi diperlukan: ${nm}`, `${me.name} mengembalikan "${nm}" untuk revisi. Catatan: ${note}`, 'revisi');
   };
+  useEffect(() => { // kembali dari halaman pembayaran Midtrans: status dicek ke server, bukan dari parameter URL
+    const sp = new URLSearchParams(location.search); if (sp.get('billing') !== 'finish' || !billingAvailable(api)) return;
+    let order = sp.get('order'); try { order = order || sessionStorage.getItem('washly-pending-order'); sessionStorage.removeItem('washly-pending-order'); } catch (e) {}
+    history.replaceState(null, '', location.pathname); if (!order) return;
+    setToast('Memverifikasi pembayaran…'); setSubOpen(true);
+    callFn('billingRefreshOrder', { orderId: order }).then(r => setToast(r.status === 'PAID' ? 'Pembayaran terverifikasi. Selamat datang di WASHLY PRO!' : r.status === 'PENDING' ? 'Pembayaran belum diterima. PRO aktif otomatis setelah pembayaran dikonfirmasi.' : 'Pembayaran tidak berhasil. Anda bisa mencoba lagi.'))
+      .catch(e => setToast(e.message));
+  }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 2600); return () => clearTimeout(t); }, [toast]);
   useEffect(() => {
     const onKey = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) { e.preventDefault(); undo(); }
@@ -9487,6 +9872,8 @@ function App({ user, api }) {
           <button type="button" id="bell-d" onClick={() => setNotifOpen(true)} title="Notifikasi" className="relative inline-flex items-center rounded-md px-2.5 py-1.5 text-slate-200 hover:bg-white/10 border border-white/10"><Icon name="Bell" size={16} />
             {inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10.5px] font-bold flex items-center justify-center px-1">{inbox.unread + (user.admin ? pendU.pend.length : 0)}</span>}</button>
           {user.admin && <Btn variant="dark" icon="UserRound" onClick={() => setUserAdmin(true)} title="Setujui pendaftar & atur akses">Kelola pengguna{pendU.pend.length ? ` (${pendU.pend.length})` : ''}</Btn>}
+          {user.admin && bill.managed !== undefined && billingAvailable(api) && <Btn variant="dark" icon="ChartColumn" onClick={() => setRevOpen(true)} title="Dasbor pendapatan & langganan">Pendapatan</Btn>}
+          {billingAvailable(api) && <button type="button" id="my-plan" onClick={() => setSubOpen(true)} title="Langganan saya" className="flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10"><Icon name="Sparkles" size={14} />Langganan<ProBadge /></button>}
           <button type="button" id="my-profile" onClick={() => setProfileOf(user.uid)} title="Profil saya" className="relative flex items-center gap-1.5 rounded-md border border-white/15 px-2 py-1 text-[12.5px] hover:bg-white/10">
             <Avatar src={myProfile?.photo} name={myProfile?.fullName || user.name} size={22} />Profil{myProfile !== undefined && profileMissing(myProfile).length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400" title="Profil belum lengkap" />}</button>
           <LangSwitch dark />
@@ -9506,7 +9893,7 @@ function App({ user, api }) {
             <span className="w-px h-6 bg-white/15 mx-1" />
             <Btn variant="dark" icon="Calculator" onClick={() => setCalcOpen(true)} title="Kalkulator kebutuhan air, jumlah node & daya pompa">Kalkulator</Btn>
             <Btn variant="dark" icon="FileText" onClick={() => setPrintMode('report')}>Cetak laporan</Btn>
-            <Btn variant="dark" icon="Printer" onClick={() => setPrintMode('ded')}>Cetak DED</Btn>
+            <Btn variant="dark" icon="Printer" onClick={() => printAs('ded')}>Cetak DED</Btn>
           </div>
         </div>
         <nav className="flex overflow-x-auto px-2">
@@ -9529,7 +9916,7 @@ function App({ user, api }) {
           openDedSheet={(key) => { setProject(p => ({ ...p, ded: { ...p.ded, sheet: key } })); setTab('ded'); }}
           goMapBorehole={() => { setPrefs(p => ({ ...p, type: 'borehole' })); setTab('map'); setToast('Pilih alat Gambar pipa, ketuk lokasi sumur bor, lalu sambungkan ke reservoir'); }} />}
         {tab === 'boq' && <BoqWorkspace project={project} setProject={setProject} boq={boq} rab={rab} />}
-        {tab === 'ded' && <DedWorkspace locked={readOnly} project={project} setProject={setProject} hyd={hyd} boq={boq} onPrint={setPrintMode} />}
+        {tab === 'ded' && <DedWorkspace locked={readOnly} project={project} setProject={setProject} hyd={hyd} boq={boq} onPrint={printAs} />}
       </main>
       <footer className="shrink-0 bg-white border-t border-line px-4 py-1.5 hidden lg:flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-slate-600 num">
         <span className="flex items-center gap-1.5"><Icon name="Spline" size={13} />{project.nodes.length} node · {project.pipes.length} pipa · {fmt(hyd.totalLength, 1)} m</span>
@@ -9592,12 +9979,14 @@ function App({ user, api }) {
           ...(installEvt ? [['Smartphone', 'Pasang sebagai aplikasi', install]] : []),
           ['QrCode', 'Buka di perangkat lain', () => setDeviceDlg(true)],
           ['IdCard', 'Profil saya', () => setProfileOf(user.uid)],
+          ...(billingAvailable(api) ? [['Sparkles', 'Langganan saya', () => setSubOpen(true)]] : []),
+          ...(user.admin && billingAvailable(api) ? [['ChartColumn', 'Dasbor pendapatan', () => setRevOpen(true)]] : []),
           ['ShieldCheck', 'Kebijakan privasi', () => { window.location.href = 'privacy.html'; }],
           ...(user.admin ? [['UserRound', 'Kelola pengguna', () => setUserAdmin(true)]] : []),
           ['Building2', 'Data proyek', () => setDialog(true)],
           ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)],
           ['FileText', 'Cetak laporan', () => setPrintMode('report')],
-          ['Printer', 'Cetak DED', () => setPrintMode('ded')],
+          ['Printer', 'Cetak DED', () => printAs('ded')],
           ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())],
           ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')],
           ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true],
@@ -9605,6 +9994,10 @@ function App({ user, api }) {
         <p className="px-4 py-3 text-[11px] text-slate-500">{savedAt instanceof Date ? `Tersimpan otomatis di perangkat ini ${savedAt.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
       </div></div>}
     {coordTab && <CoordDialog tab={coordTab} setTab={setCoordTab} onClose={() => setCoordTab(null)} project={project} setProject={setProject} field={field} setSelection={setSelection} toast={setToast} />}
+    {bill.ask && <UpgradeDialog feature={bill.ask} onClose={() => Billing.set({ ask: null })} />}
+    {bill.pricing && <PricingDialog user={user} onClose={() => Billing.set({ pricing: false })} />}
+    {subOpen && <SubscriptionDialog api={api} user={user} onClose={() => setSubOpen(false)} />}
+    {revOpen && user.admin && <AdminBillingDialog onClose={() => setRevOpen(false)} />}
     {calcOpen && <CalcDialog project={project} setProject={setProject} hyd={hyd} onClose={() => setCalcOpen(false)} />}
     {dialog && <ProjectDialog locked={readOnly} ownerName={project.cloud?.ownerName} project={project} setProject={setProject} onClose={() => setDialog(false)} officerId={officerId} setOfficerId={setOfficerId} initialTab={typeof dialog === 'string' ? dialog : undefined} gps={gps} />}
     <input ref={camRef} id="photo-cam" type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFiles} />
