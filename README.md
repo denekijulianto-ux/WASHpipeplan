@@ -153,6 +153,12 @@ Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD 
 - **Interaksi:** kursor di grafik menandai lokasi di peta; klik untuk memusatkan peta.
 - **Detail DEM:** tombol *Profil tanah detail dari DEM* mengambil elevasi tiap ± 10 m sepanjang pipa.
 
+## Laporan: kurva & data pompa
+*Cetak laporan* memuat bagian khusus untuk setiap sumur bor:
+- kurva pompa H–Q, kurva sistem, dan titik kerja;
+- data operasi: muka air, kedalaman pompa, debit, rincian TDH, pipa riser, selubung, daya, energi & biaya listrik;
+- spesifikasi teknis pompa untuk pengadaan.
+
 ## Kolom kemasan / qty beli (tab BoQ & RAB)
 Setiap item RAB mendapat kolom **Kemasan / qty beli** yang mengubah volume menjadi jumlah barang yang dibeli:
 
@@ -188,6 +194,20 @@ Tiap gambar dilengkapi simbol denah, spesifikasi (ideal), dan daftar ukuran/juml
 - **Hitungan:** kecepatan air pendingin di sela motor–selubung (min. 0,08 m/dtk untuk motor 4", 0,16 m/dtk untuk motor 6", maks. 3 m/dtk) dan panjang selubung.
 - **Ikut ke:** RAB (item "Selubung pendingin pompa"), tabel spesifikasi pompa, dan gambar DED sumur bor.
 - **Diameter pompa:** pompa 4" dipakai sampai ± 16 m³/jam dan motor ≤ 7,5 kW. Pompa 6" butuh casing ≥ 8".
+
+## Pipa riser pompa (tab Olah Air → kartu sumur bor → "Pipa riser")
+- **Bahan:** GI medium, stainless SS304, uPVC column pipe, HDPE PN16, atau selang lay-flat (boreline).
+- **Diameter:** otomatis atau pilih 1" sampai 6". Otomatis memilih ukuran terkecil dengan kecepatan ≤ 1,8 m/dtk yang muat di casing.
+- **Pemeriksaan:**
+  - kecepatan air (ideal 1–2 m/dtk);
+  - kehilangan tekan (masuk ke head pompa);
+  - ruang di casing: Ø sambungan + kabel pipih + celah ≤ Ø dalam casing;
+  - kecocokan dengan outlet pompa (reducer/increaser);
+  - batas tekanan bahan terhadap tekanan tutup pompa.
+- **RAB:** pipa riser sesuai bahan & ukuran. Tali pengaman pompa otomatis ditambahkan untuk riser plastik/selang.
+
+## Logo WASHLY
+Logo bawaan aplikasi, kop setiap lembar DED, dan sampul laporan memakai logo WASHLY. Logo lain bisa diunggah per proyek (Data Proyek → Ganti logo), dan tombol *Kembalikan logo bawaan* mengembalikannya ke WASHLY.
 
 ## Paket sumur bor all-in (tab Olah Air → kartu sumur bor)
 - **Isi estimasi biaya** (dengan cadangan 10% dan harga per meter kedalaman):
