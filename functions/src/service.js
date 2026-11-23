@@ -92,6 +92,7 @@ function makeService(deps) {
     const subscriptionId = 'web_' + uid;
     const pay = { id: orderId, userId: uid, subscriptionId, provider: 'midtrans', planCode: plan.code, amount, listPrice: plan.price, currency: 'IDR', promoCode,
       status: 'PENDING', method: null, transactionId: null, paidAt: null, refundStatus: null, refundAmount: 0, refundedAt: null, invoiceRef: orderId, createdAt: now(), updatedAt: now() };
+    if (deps.midtrans.isProduction === false) pay.sandbox = true;
     await col('payments').doc(orderId).set(pay);
     let snap;
     try {
@@ -126,6 +127,7 @@ function makeService(deps) {
     const amount = plan.price; const hours = config.pendingHours;
     const pay = { id: orderId, userId: uid, subscriptionId: 'web_' + uid, provider: 'midtrans', planCode: plan.code, amount, listPrice: plan.price, currency: 'IDR', status: 'PENDING', method: 'va_' + bank,
       transactionId: null, paidAt: null, refundStatus: null, refundAmount: 0, refundedAt: null, invoiceRef: orderId, expiresAt: now() + hours * 36e5, createdAt: now(), updatedAt: now() };
+    if (deps.midtrans.isProduction === false) pay.sandbox = true;
     await col('payments').doc(orderId).set(pay);
     const base = { transaction_details: { order_id: orderId, gross_amount: amount }, item_details: [{ id: plan.code, price: amount, quantity: 1, name: plan.name.slice(0, 50) }],
       customer_details: { first_name: String(user.name || '').slice(0, 50), email: normEmail(auth.token && auth.token.email || user.email) }, custom_expiry: { expiry_duration: hours, unit: 'hour' }, custom_field1: uid };
@@ -143,8 +145,8 @@ function makeService(deps) {
   }
   function verifyMidtransSignature(n) {
     if (!n || !n.order_id || !n.status_code || n.gross_amount == null || !n.signature_key) return false;
-    const exp = crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + deps.midtrans.serverKey).digest('hex');
-    return safeEq(exp, String(n.signature_key).toLowerCase());
+    const keys = (deps.midtrans.signatureKeys && deps.midtrans.signatureKeys.length) ? deps.midtrans.signatureKeys : [deps.midtrans.serverKey];
+    return keys.some(k => safeEq(crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + k).digest('hex'), String(n.signature_key).toLowerCase()));
   }
 
   // Terapkan status transaksi yang SUDAH diambil langsung dari API Midtrans.
@@ -165,7 +167,7 @@ function makeService(deps) {
       if (newStatus === 'PAID') {
         if (p.status === 'PAID' || p.status === 'REFUNDED') return; // sudah diproses (idempotent)
         const plan = config.plans[p.planCode] || { code: p.planCode, months: 1 };
-        const r = L.applyWebPayment(sub, { ...p, id: orderId }, plan, now()); nextSub = r.sub; events = r.events;
+        const r = L.applyWebPayment(sub, { ...p, id: orderId }, plan, now()); nextSub = p.sandbox ? { ...r.sub, sandbox: true } : { ...r.sub, sandbox: false }; events = r.events;
         upd.paidAt = Date.parse((st.settlement_time || st.transaction_time || '').replace(' ', 'T') + '+07:00') || now();
       } else if (newStatus === 'REFUNDED') {
         if (p.status === 'REFUNDED') return;

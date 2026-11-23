@@ -2,12 +2,14 @@
 // Klien HTTP untuk Midtrans (Snap + API status) dan Google Play Developer API (subscriptionsv2).
 // Rahasia (server key) hanya dibaca dari Secret Manager di server; tidak pernah dikirim ke aplikasi.
 
-function midtransClient({ serverKey, isProduction, fetchImpl = fetch }) {
+function midtransClient({ serverKey, signatureKey, isProduction, fetchImpl = fetch }) {
   const snapBase = isProduction ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com';
   const apiBase = isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
   const headers = () => ({ Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(serverKey + ':').toString('base64') });
   return {
     serverKey, isProduction: !!isProduction,
+    // Midtrans (2026): notifikasi ditandatangani dengan Signature Secret Key; Server Key hanya untuk API. Terima keduanya selama transisi.
+    signatureKeys: [signatureKey, serverKey].filter(k => k && k !== 'NOT_CONFIGURED'),
     async createSnap(payload) {
       const r = await fetchImpl(snapBase + '/snap/v1/transactions', { method: 'POST', headers: headers(), body: JSON.stringify(payload) });
       const j = await r.json().catch(() => ({}));

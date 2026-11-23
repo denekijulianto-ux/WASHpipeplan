@@ -1,0 +1,26 @@
+# Uji pembayaran Midtrans Sandbox dari ujung ke ujung (manual: Actions → Uji pembayaran Sandbox → Run workflow)
+name: Uji pembayaran Sandbox
+on:
+  workflow_dispatch:
+    inputs:
+      mode: { description: 'run atau probe', default: 'run' }
+      bank: { description: 'bni / bca / bri / permata', default: 'bni' }
+  push:
+    branches: [main]
+    paths: ['.sandbox-test-trigger']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Uji
+        run: |
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"; export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          cd functions && npm ci --no-audit --no-fund >/dev/null
+          MODE="${{ github.event.inputs.mode || '' }}"; [ -z "$MODE" ] && MODE=$(head -1 ../.sandbox-test-trigger | cut -d' ' -f1)
+          BANK="${{ github.event.inputs.bank || '' }}"; [ -z "$BANK" ] && BANK=$(head -1 ../.sandbox-test-trigger | cut -d' ' -f2)
+          node test-live/sandbox-e2e.js "${MODE:-run}" "${BANK:-bni}"

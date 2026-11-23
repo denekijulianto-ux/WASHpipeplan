@@ -15,6 +15,7 @@ jobs:
       PROJECT_ID: washpipe-93f48
       SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       MIDTRANS_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
+      MIDTRANS_SIG: ${{ secrets.MIDTRANS_SIGNATURE_KEY }}
     steps:
       - name: Periksa kredensial
         id: cred
@@ -77,6 +78,15 @@ jobs:
             echo "::notice::MIDTRANS_SERVER_KEY belum ada; diisi penanda NOT_CONFIGURED (pembayaran web belum aktif)."
             printf 'NOT_CONFIGURED' | firebase functions:secrets:set MIDTRANS_SERVER_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
           fi
+      - name: Secret Signature Key Midtrans
+        if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
+        run: |
+          if [ -n "$MIDTRANS_SIG" ]; then
+            printf '%s' "$MIDTRANS_SIG" | firebase functions:secrets:set MIDTRANS_SIGNATURE_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
+          elif ! firebase functions:secrets:access MIDTRANS_SIGNATURE_KEY --project "$PROJECT_ID" >/dev/null 2>&1; then
+            echo "::notice::MIDTRANS_SIGNATURE_KEY belum ada; diisi penanda NOT_CONFIGURED (server memakai Server Key untuk verifikasi)."
+            printf 'NOT_CONFIGURED' | firebase functions:secrets:set MIDTRANS_SIGNATURE_KEY --data-file - --project "$PROJECT_ID" --non-interactive --force
+          fi
       - name: Deploy Cloud Functions
         if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1'
         run: |
@@ -88,7 +98,8 @@ jobs:
         if: steps.cred.outputs.skip == '0' && steps.billing.outputs.blaze == '1' && env.MIDTRANS_KEY != ''
         run: |
           if [ "${{ vars.MIDTRANS_IS_PRODUCTION }}" = "true" ]; then API=https://api.midtrans.com; else API=https://api.sandbox.midtrans.com; fi
-          case "$MIDTRANS_KEY" in SB-Mid-server-*) KIND=Sandbox;; Mid-server-*) KIND=Production;; *) KIND="format tidak dikenal";; esac
+          case "$MIDTRANS_KEY" in SB-Mid-server-*) KIND="Sandbox (awalan SB-)";; Mid-server-*) KIND="tanpa awalan SB- (Production, atau Signature Secret Key tertukar)";; *) KIND="format tidak dikenal";; esac
+          [ -n "$MIDTRANS_SIG" ] && echo "Signature Secret Key: terisi" || echo "Signature Secret Key: kosong"
           echo "Jenis kunci: $KIND · API: $API"
           OUT=$(curl -s -u "$MIDTRANS_KEY:" "$API/v2/WASHLY-CEK-KONEKSI-$(date +%s)/status")
           echo "Jawaban Midtrans: $(echo "$OUT" | head -c 200)"

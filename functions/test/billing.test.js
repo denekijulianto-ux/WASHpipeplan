@@ -340,3 +340,19 @@ test('Sandbox Midtrans: hanya admin yang boleh membuat transaksi (cegah PRO grat
   assert.equal((await sv.createVaCharge(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' })).va.number, '111');
   assert.ok((await sv.createCheckout(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY' })).redirectUrl);
 });
+
+test('Midtrans 2026: notifikasi bertanda tangan Signature Secret Key diterima; kunci lain ditolak; transaksi sandbox tidak dihitung pendapatan', async () => {
+  const db = makeDb(); const SIG = 'sig-secret-XYZ'; const st = {};
+  await db.collection('users').doc('boss').set({ email: 'boss@x.org', name: 'Boss', status: 'approved', createdAt: T0 });
+  const sv = makeService({ db, now: () => T0, adminEmails: ['boss@x.org'], midtrans: { serverKey: 'SB-Mid-server-API', signatureKeys: [SIG, 'SB-Mid-server-API'], isProduction: false,
+    charge: async () => ({ status_code: '201', va_numbers: [{ va_number: '9' }] }), getStatus: async (id) => st[id] } });
+  const A = { uid: 'boss', token: { email: 'boss@x.org', email_verified: true } };
+  const r = await sv.createVaCharge(A, { planCode: 'PRO_MONTHLY', bank: 'bni' });
+  const n = { order_id: r.orderId, status_code: '200', gross_amount: '125000.00', transaction_status: 'settlement', transaction_id: 'x', payment_type: 'bank_transfer', settlement_time: '2026-01-10 10:00:00' }; st[r.orderId] = n;
+  const bad = { ...n, signature_key: crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + 'kunci-lain').digest('hex') };
+  await assert.rejects(sv.handleMidtransNotification(bad), { code: 'permission-denied' });
+  await sv.handleMidtransNotification({ ...n, signature_key: crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + SIG).digest('hex') });
+  assert.equal((await db.collection('entitlements').doc('boss').get()).data().tier, 'PRO');
+  const m = await sv.adminMetrics(A, { from: T0 - 864e5, to: T0 + 864e5 });
+  assert.equal(m.current.revenueGross, 0, 'sandbox bukan pendapatan'); assert.equal(m.overview.mrr, 0);
+});

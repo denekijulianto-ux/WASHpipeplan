@@ -44,6 +44,8 @@ function mrrAt(subs, config, t, committed) {
 }
 
 function computeMetrics({ users = [], subs = [], payments = [], events = [] }, config, { from, to, granularity = 'day' }) {
+  // Uji coba Sandbox Midtrans bukan uang sungguhan: tidak dihitung pendapatan, MRR, maupun pelanggan berbayar
+  payments = payments.filter(p => !p.sandbox); subs = subs.filter(s => !s.sandbox);
   users = users.map(u => ({ ...u, createdAt: ms(u.createdAt) }));
   payments = payments.map(p => ({ ...p, createdAt: ms(p.createdAt), paidAt: ms(p.paidAt), refundedAt: ms(p.refundedAt) }));
   events = events.map(e => ({ ...e, at: ms(e.at) }));
