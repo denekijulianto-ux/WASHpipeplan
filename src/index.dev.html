@@ -3726,7 +3726,7 @@ function PriceField({ value, onChange, edited, id }) {
 function Field({ label, children, hint }) {
   return <label className="block"><span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">{label}</span>{children}{hint && <span className="block text-[11px] text-slate-400 mt-0.5">{hint}</span>}</label>;
 }
-function Btn({ icon, children, onClick, variant = 'ghost', className = '', title, active, disabled }) {
+function Btn({ id, icon, children, onClick, variant = 'ghost', className = '', title, active, disabled }) {
   const v = {
     ghost: 'text-slate-700 hover:bg-slate-100 border border-transparent',
     outline: 'border border-line bg-white text-slate-700 hover:border-aqua-400 hover:text-aqua-700',
@@ -3734,7 +3734,7 @@ function Btn({ icon, children, onClick, variant = 'ghost', className = '', title
     dark: 'text-slate-200 hover:bg-white/10 border border-white/10',
     danger: 'border border-red-200 bg-white text-red-700 hover:bg-red-50',
   }[variant];
-  return <button type="button" title={title} disabled={disabled} onClick={onClick}
+  return <button type="button" id={id} title={title} disabled={disabled} onClick={onClick}
     className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-aqua-400 disabled:opacity-40 ${v} ${active ? '!bg-aqua-600 !text-white !border-aqua-600' : ''} ${className}`}>
     {icon && <Icon name={icon} size={15} />}{children}</button>;
 }
@@ -7796,6 +7796,7 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'langganan pro free bayar harga paket bulanan tahunan upgrade batal perpanjang midtrans google play pulihkan pembelian', t: 'Langganan WASHLY PRO', a: 'Tekan **Langganan** di bilah atas (di HP: menu → *Langganan saya*) untuk melihat paket, status, tanggal berakhir, dan riwayat pembayaran. Di web, bayar lewat **Midtrans** (QRIS, VA, e-wallet, kartu); tidak ada penagihan otomatis — Anda diingatkan sebelum periode berakhir dan bisa memperpanjang. Di Android, bayar lewat **Google Play** (diperpanjang otomatis; batalkan di Google Play). PRO aktif setelah server memverifikasi pembayaran dan berlaku di semua perangkat dengan akun yang sama. Setelah dibatalkan, PRO tetap aktif sampai akhir periode, lalu akun kembali ke FREE tanpa menghapus proyek.' },
   { k: 'bahasa language english inggris indonesia ganti terjemahan', t: 'Mengganti bahasa (Indonesia / English)', a: 'Tekan **ID | EN** di bilah atas (di HP: menu ☰) atau di layar masuk. Aplikasi dimuat ulang dalam bahasa yang dipilih; pilihan tersimpan di perangkat. Isi proyek (nama, label, catatan) tidak diterjemahkan.' },
   { k: 'lokasi saya posisi sekarang gps peta temukan my location tombol ikuti', t: 'Menemukan lokasi saat ini di peta', a: 'Tekan tombol bulat **Lokasi saya** (ikon ⌖) di peta. GPS dinyalakan otomatis, peta dibawa ke posisi Anda dan terus mengikuti; akurasi tampil di sebelah tombol. Geser peta untuk berhenti mengikuti, tekan lagi untuk kembali. Izinkan akses *Lokasi* dan buka aplikasi lewat HTTPS.' },
   { k: 'pipa riser pipa naik pompa diameter casing column pipe gi hdpe lay-flat', t: 'Mengatur pipa riser pompa', a: 'Tab **Olah Air** → kartu sumur bor → kotak **Pipa riser**: pilih bahan (GI, SS304, uPVC column, HDPE PN16, lay-flat) dan diameter (otomatis atau 1"–6"). Aplikasi mengecek kecepatan, kehilangan tekan, ruang di dalam casing (sambungan + kabel), kecocokan outlet pompa, dan batas tekanan bahan. Hasilnya masuk ke head pompa, RAB, DED, dan laporan.' },
@@ -9077,7 +9078,7 @@ function ConflictDialog({ info, canOverwrite, onCloud, onMine, onCopy, onClose }
    Sumber kebenaran: dokumen Firestore entitlements/{uid} yang HANYA ditulis server (Cloud Functions)
    setelah pembayaran diverifikasi ke Midtrans / Google Play. Aplikasi hanya membaca.
    =================================================================== */
-const BILLING_CFG = AUTH_CFG.billing || {};
+const BILLING_CFG = (AUTH_CFG && AUTH_CFG.billing) || {}; // mode lokal: AUTH_CFG bisa null
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 // Label fitur (kuncinya sama dengan functions/src/config.js)
 const FEAT = {
@@ -9142,7 +9143,7 @@ const PlayBilling = {
   plugin: () => IS_NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.WashlyBilling,
   async products(config) { const pl = PlayBilling.plugin(); if (!pl) return {};
     const ids = [...new Set(Object.values(config.plans).map(p => p.playProductId).filter(Boolean))]; const out = {};
-    for (const id of ids) { const r = await pl.getProducts({ productId: id }).catch(() => ({ offers: [] })); (r.offers || []).forEach(o => { out[id + '/' + o.basePlanId] = o; }); }
+    for (const id of ids) { const r = await pl.getProducts({ productId: id }).catch(() => ({ offers: [] })); (r.offers || []).forEach(o => { const k = id + '/' + o.basePlanId; if (!o.offerId || !out[k]) out[k] = o; }); }
     return out; },
   async verifyAll(purchases) { const res = []; for (const p of purchases || []) { if (p.purchaseState && p.purchaseState !== 'PURCHASED') continue; res.push(await callFn('playVerify', { purchaseToken: p.purchaseToken, productId: p.productId })); } return res; },
   async buy(plan) { const pl = PlayBilling.plugin(); if (!pl) throw new Error('Google Play Billing tidak tersedia di perangkat ini.');
@@ -9298,7 +9299,7 @@ function SubscriptionDialog({ api, user, onClose }) {
             {row('Jumlah per periode', e.provider === 'admin' ? 'Rp0 (pemberian admin)' : planPrice(plan))}
             {row(e.provider === 'google_play' ? 'Perpanjangan otomatis' : 'Pembayaran berikutnya', e.status === 'CANCELED' ? `Tidak ada — berakhir ${dateTxt(e.currentPeriodEnd)}` : e.provider === 'google_play' ? (e.autoRenew ? dateTxt(e.currentPeriodEnd) : 'Mati') : e.provider === 'admin' ? 'Tidak ada' : `Bayar manual sebelum ${dateTxt(e.currentPeriodEnd)}`)}
             {e.status === 'GRACE_PERIOD' && row('Masa tenggang sampai', dateTxt(e.graceEndsAt || e.accessUntil))}
-          </div> : <div className="mt-2 text-[12.5px] text-slate-600">Dengan PRO: {FEAT_ORDER.filter(k => (cfg.features[k] || {}).free !== true).map(k => FEAT[k][0]).join(' · ')}.</div>}
+          </div> : <div className="mt-2 text-[12.5px] text-slate-600">Dengan PRO: {FEAT_ORDER.filter(k => (cfg.features[k] || {}).free !== true).map(k => (window.washlyT || (x => x))(FEAT[k][0])).join(' · ')}.</div>}
         </div>
         <div className="flex flex-wrap gap-2">
           {b.managed && <Btn id="sub-plans" variant="primary" icon="Sparkles" onClick={() => Billing.set({ pricing: true })}>{pro ? (plan && plan.months === 1 ? 'Ganti ke tahunan' : 'Lihat paket') : 'Upgrade ke PRO'}</Btn>}
@@ -9322,9 +9323,9 @@ function SubscriptionDialog({ api, user, onClose }) {
 
 /* ---------------- Dasbor pendapatan & langganan (khusus admin) ---------------- */
 function MiniBars({ series, h = 160 }) {
-  const max = Math.max(1, ...series.map(s => Math.max(s.revenue, s.refunds, s.pending))); const n = series.length || 1; const W = 640; const bw = Math.max(2, W / n * 0.7);
+  const max = Math.max(1, ...series.map(s => Math.max(s.revenue, s.refunds, s.pending))); const n = series.length || 1; const W = 640, PAD = 18; const bw = Math.max(2, W / n * 0.7);
   const maxN = Math.max(1, ...series.map(s => s.newSubs)); const pts = series.map((s, i) => `${(i + 0.5) * W / n},${h - 4 - s.newSubs / maxN * (h - 24)}`).join(' ');
-  return <svg viewBox={`0 0 ${W} ${h + 18}`} className="w-full h-auto" role="img" aria-label="Grafik pendapatan">
+  return <svg viewBox={`${-PAD} 0 ${W + 2 * PAD} ${h + 18}`} className="w-full h-auto" role="img" aria-label="Grafik pendapatan">
     {[0.25, 0.5, 0.75, 1].map(f => <line key={f} x1="0" x2={W} y1={h - f * (h - 10)} y2={h - f * (h - 10)} stroke="#e2e8f0" strokeWidth="1" />)}
     {series.map((s, i) => { const x = i * W / n + (W / n - bw) / 2; const rh = s.revenue / max * (h - 10); const fh = s.refunds / max * (h - 10); const ph = s.pending / max * (h - 10);
       return <g key={s.key}><rect x={x} y={h - rh} width={bw} height={rh} fill="#0e7490"><title>{`${s.key}: ${rp(s.revenue)}`}</title></rect>
@@ -9342,7 +9343,7 @@ function AdminBillingDialog({ onClose }) {
   useEffect(() => { if (tab === 'overview') loadM(); }, [tab, rg.from, rg.to, rg.g]);
   const preset = (d) => setRg(r => ({ ...r, from: iso(Date.now() - d * DAY), to: iso(Date.now()), g: d > 120 ? 'month' : d > 31 ? 'week' : 'day' }));
   const pct = (v) => v == null ? '–' : (v * 100).toFixed(1) + '%';
-  const delta = (a, b2) => { if (b2 == null || a == null) return null; if (!b2) return a ? '+∞' : '0%'; const d = (a - b2) / Math.abs(b2) * 100; return (d >= 0 ? '+' : '') + d.toFixed(0) + '%'; };
+  const delta = (a, b2) => { if (b2 == null || a == null) return null; if (!b2) return a ? 'baru' : null; const d = (a - b2) / Math.abs(b2) * 100; return (d >= 0 ? '+' : '') + d.toFixed(0) + '%'; };
   const kpi = (label, val, prevVal, hint, fmtF = (x) => x) => { const d = delta(val, prevVal); return <div className="rounded-lg border border-line bg-white px-3 py-2.5"><div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
     <div className="text-[18px] font-bold num leading-tight">{fmtF(val)}</div><div className="text-[11px] text-slate-500 flex gap-1.5">{d && <span className={d.startsWith('-') ? 'text-red-600' : 'text-emerald-700'}>{d}</span>}{hint && <span>{hint}</span>}</div></div>; };
   // pengguna
@@ -9787,7 +9788,7 @@ function App({ user, api }) {
   useEffect(() => { // kembali dari halaman pembayaran Midtrans: status dicek ke server, bukan dari parameter URL
     const sp = new URLSearchParams(location.search); if (sp.get('billing') !== 'finish' || !billingAvailable(api)) return;
     let order = sp.get('order'); try { order = order || sessionStorage.getItem('washly-pending-order'); sessionStorage.removeItem('washly-pending-order'); } catch (e) {}
-    history.replaceState(null, '', location.pathname); if (!order) return;
+    window.history.replaceState(null, '', window.location.pathname); if (!order) return;
     setToast('Memverifikasi pembayaran…'); setSubOpen(true);
     callFn('billingRefreshOrder', { orderId: order }).then(r => setToast(r.status === 'PAID' ? 'Pembayaran terverifikasi. Selamat datang di WASHLY PRO!' : r.status === 'PENDING' ? 'Pembayaran belum diterima. PRO aktif otomatis setelah pembayaran dikonfirmasi.' : 'Pembayaran tidak berhasil. Anda bisa mencoba lagi.'))
       .catch(e => setToast(e.message));

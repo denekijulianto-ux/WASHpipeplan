@@ -4,7 +4,7 @@ Bagian yang bisa dikerjakan dari sisi kode **sudah selesai**:
 
 | Status | Pekerjaan |
 |---|---|
-| ✅ | APK & AAB 1.1.0 sudah ditandatangani |
+| ✅ | APK & AAB 1.2.0 sudah ditandatangani |
 | ✅ | Login Firebase sudah dicek bisa dipakai dari aplikasi Android |
 | ✅ | Kebijakan privasi & halaman hapus akun sudah lengkap: Tim WASHLY, washlywater@gmail.com, 30 hari |
 | ✅ | Jawaban Data Safety sudah diputuskan |
@@ -50,7 +50,7 @@ Buka kedua alamat ini di browser HP atau laptop. Pastikan halamannya tampil dan 
 Bila muncul "404", tunggu 5–10 menit (GitHub Pages sedang memperbarui), lalu muat ulang.
 
 ## Langkah 4 — Coba aplikasi di HP Android (30 menit)
-1. Kirim file **`WASHLY-1.1.0-debug.apk`** ke HP, misalnya lewat WhatsApp ke diri sendiri atau Google Drive.
+1. Kirim file **`WASHLY-1.2.0-debug.apk`** ke HP, misalnya lewat WhatsApp ke diri sendiri atau Google Drive.
 2. Buka file APK itu. Bila diminta, izinkan "Instal aplikasi tidak dikenal", lalu **Instal**.
 3. Coba hal-hal berikut dan catat yang tidak berjalan:
    - [ ] Splash WASHLY muncul, lalu halaman login.
@@ -113,7 +113,7 @@ Semuanya di **Policy → App content**.
 
 ## Langkah 9 — Unggah AAB & uji (1 hari – 14 hari)
 1. **Test and release → Testing → Internal testing → Create new release**.
-2. Pilih **Use Google-managed key (Play App Signing)** → unggah **`WASHLY-1.1.0-release.aab`**.
+2. Pilih **Use Google-managed key (Play App Signing)** → unggah **`WASHLY-1.2.0-release.aab`**.
 3. **Release notes (id-ID):**
    `Rilis pertama WASHLY untuk Android: pemetaan GPS, analisis hidrolis, pompa & pengolahan air, RAB, gambar DED, sinkron cloud HP↔PC, dan bekerja tanpa sinyal.`
 4. *Testers* → buat daftar e-mail penguji → simpan → bagikan *opt-in link* ke penguji.

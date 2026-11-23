@@ -29,6 +29,7 @@
 <tr><td>Profil petugas: foto profil, alamat saat ini, asal organisasi/instansi, riwayat penugasan (opsional)</td><td>Dikenali admin & tim saat penugasan; hanya dapat dibaca pemilik dan admin</td><td>Cloud Firestore</td></tr>
 <tr><td>Data proyek: titik & jalur pipa, koordinat GPS, jejak GPS, elevasi, data bangunan, RAB, gambar, foto asesmen (termasuk lokasi foto), tanda tangan elektronik, catatan review</td><td>Fungsi utama perencanaan jaringan air & kerja tim</td><td>Perangkat Anda dan Cloud Firestore (dibagikan ke anggota tim yang disetujui)</td></tr>
 <tr><td>Lokasi presisi perangkat (GPS)</td><td>Hanya saat Anda memakai fitur GPS (tandai titik, rekam jejak, foto). Tidak dikumpulkan di latar belakang.</td><td>Menjadi bagian dari data proyek bila Anda menyimpannya</td></tr>
+<tr><td>Data langganan WASHLY PRO: paket, status, periode, riwayat pembayaran (jumlah, metode, nomor transaksi). Kami <b>tidak</b> menyimpan nomor kartu, rekening, atau PIN.</td><td>Mengaktifkan & memperpanjang PRO, kuitansi, pembukuan, pencegahan penyalahgunaan; hanya dapat dibaca pemilik akun dan admin</td><td>Cloud Firestore (ditulis server)</td></tr>
 <tr><td>Notifikasi dalam aplikasi & laporan jawaban AI</td><td>Alur review, persetujuan akun, laporan jawaban Asisten AI ke admin</td><td>Cloud Firestore</td></tr>
 </table>
 <p>WASHLY tidak memakai iklan, tidak menjual data, dan tidak memakai analitik pihak ketiga.</p>
@@ -36,6 +37,9 @@
 <h2>3. Layanan pihak ketiga</h2>
 <ul>
   <li><b>Google Firebase</b> (Authentication, Cloud Firestore) — penyimpanan akun & data proyek.</li>
+  <li><b>Google Cloud Functions</b> — server langganan yang memverifikasi pembayaran.</li>
+  <li><b>Midtrans</b> (pembayaran web, PT Midtrans) — memproses pembayaran QRIS, virtual account, e-wallet & kartu di halaman Midtrans; WASHLY hanya menerima status & nomor transaksi.</li>
+  <li><b>Google Play</b> (aplikasi Android) — memproses pembayaran langganan; WASHLY menerima status langganan & nomor pesanan untuk memverifikasi pembelian.</li>
   <li><b>Peta</b>: Esri ArcGIS, OpenStreetMap, OpenTopoMap — gambar peta untuk area yang Anda lihat.</li>
   <li><b>Open-Meteo</b> (elevasi) — koordinat titik dikirim untuk mengambil ketinggian tanah.</li>
   <li><b>OpenStreetMap Nominatim & Overpass</b> — pencarian lokasi dan data sungai/mata air di sekitar area analisis.</li>
@@ -55,6 +59,7 @@
 <ul>
   <li>Data disimpan selama akun aktif atau sampai Anda / admin menghapusnya.</li>
   <li><b>Hapus akun</b>: di aplikasi, buka <i>Menu → Profil saya → Hapus akun</i>. Akun login, profil, dan notifikasi Anda dihapus; Anda dapat memilih untuk menghapus juga semua proyek & foto yang Anda buat. Bila Anda memilih tidak menghapus proyek, proyek tersebut tetap tersimpan sebagai data kerja tim/organisasi (nama pembuat tetap tercatat pada proyek).</li>
+  <li>Catatan transaksi pembayaran disimpan sesuai kewajiban pembukuan dan tidak ikut terhapus saat akun dihapus. Menghapus akun <b>tidak</b> membatalkan langganan Google Play; batalkan dulu di Google Play.</li>
   <li>Petunjuk & permintaan penghapusan tanpa aplikasi: <a href="hapus-akun.html">hapus-akun.html</a>.</li>
 </ul>
 
@@ -72,6 +77,6 @@
 <p>Perubahan kebijakan ini akan diumumkan di halaman ini dengan tanggal berlaku yang baru.</p>
 
 <h2>English summary</h2>
-<p>WASHLY collects account data (name, e-mail, role, organisation, optional phone), optional staff profiles, project data including GPS coordinates and photos, and in-app notifications, stored in Google Firebase to provide the app's planning and team features. Location is used only while the app is in use. No ads, no sale of data, no third-party analytics. Optional services (Anthropic AI with the user's own key, notification services) are used only when enabled. Users can delete their account in the app (Menu → Profil saya → Hapus akun) or via <a href="hapus-akun.html">this page</a>. Contact: <a href="mailto:washlywater@gmail.com">washlywater@gmail.com</a>.</p>
+<p>WASHLY collects account data (name, e-mail, role, organisation, optional phone), optional staff profiles, project data including GPS coordinates and photos, and in-app notifications, stored in Google Firebase to provide the app's planning and team features. Location is used only while the app is in use. No ads, no sale of data, no third-party analytics. Optional WASHLY PRO subscriptions are paid through Midtrans (web) or Google Play (Android); WASHLY stores plan, status and transaction references but never card or bank details, and keeps payment records for bookkeeping after account deletion. Optional services (Anthropic AI with the user's own key, notification services) are used only when enabled. Users can delete their account in the app (Menu → Profil saya → Hapus akun) or via <a href="hapus-akun.html">this page</a>. Contact: <a href="mailto:washlywater@gmail.com">washlywater@gmail.com</a>.</p>
 </main></body>
 </html>

@@ -9,6 +9,11 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - `manifest.webmanifest`, `sw.js`, `icons/`: membuat aplikasi bisa dipasang di HP dan tetap jalan offline.
 - `build.js`, `package.json`: skrip build.
 
+## Langganan WASHLY PRO (FREE / PRO bulanan / PRO tahunan)
+Paket FREE tetap memuat semua alat inti (peta & survei, hidrolis, pompa & olah air, kalkulator, RAB, cetak laporan, 3 proyek cloud). PRO membuka cetak DED, penulangan & jembatan pipa, rehabilitasi, analisis air tanah, profil DEM detail, gambar manual, mode AI, dan proyek cloud tanpa batas.
+Pembayaran web lewat **Midtrans**, Android lewat **Google Play Billing**; status PRO diverifikasi server (Cloud Functions) dan berlaku di semua perangkat. Admin punya **dasbor pendapatan** (MRR, ARR, ARPPU, konversi, churn, grafik) dan bisa mengubah harga tanpa deploy.
+Belum aktif sampai Cloud Functions di-deploy dan `billing.enabled` dinyalakan. Panduan lengkap, skema database, dan hasil uji ada di **[BILLING.md](BILLING.md)**.
+
 ## Bahasa Indonesia / English
 Tombol **ID | EN** ada di layar masuk, bilah atas (PC) dan menu ☰ (HP). Pilihan disimpan di perangkat; saat pertama dibuka, bahasa mengikuti bahasa browser/HP (Indonesia → ID, lainnya → EN). Isi proyek (nama, label, catatan) tidak diterjemahkan. Asisten AI menjawab dalam bahasa yang dipilih.
 Kamus ada di `src/i18n-en-dict.js` (`t` = teks persis, `p` = template dengan `{0}`), mesinnya di `src/i18n.js`. Bila menambah teks UI baru, tambahkan terjemahannya di kamus lalu `npm run build`.
