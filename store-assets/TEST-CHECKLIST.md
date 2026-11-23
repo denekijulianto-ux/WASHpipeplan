@@ -17,7 +17,7 @@ Where it was tested:
 | 3 | Build | Release AAB builds & is signed | PASSED [G] | `jarsigner -verify` OK; no native `.so` (16 KB page rule N/A) |
 | 4 | Build | Manifest: package, version, SDK levels, permissions | PASSED [G] | com.washly.app, 1.0.0/1, min 24, target 36; INTERNET, NETWORK_STATE, FINE/COARSE LOCATION only |
 | 5 | Startup | App bundle starts with **no internet** (all libs local) | PASSED [B] | No CDN requests; fonts, Tailwind, React, Leaflet, Firebase SDK local |
-| 6 | Startup | Real APK launches on Android | see emulator section | |
+| 6 | Startup | Real debug APK installs & launches on Android 14 emulator | PASSED (partial) [E] | Installed; Capacitor started; all plugins incl. WashlyNative registered; app loaded from https://localhost; branded Android 12+ splash shown. See emulator note. |
 | 7 | Layout | No horizontal overflow on phone width (all 5 tabs) | PASSED [B] | 412 px and 360 px wide |
 | 8 | Auth (local mode) | Register / login / logout | PASSED [B] | |
 | 9 | Auth (Firebase) | Register, login, logout, password reset against **production Firebase** | NOT TESTED | No access to production Firebase from the build machine. Test on a phone (§ manual). |
@@ -32,6 +32,13 @@ Where it was tested:
 | 18 | GPS | Keep screen on while recording track | PASSED [B] (JS→native call) | Real GPS accuracy: NOT TESTED |
 | 19 | AI | "⚑ Laporkan jawaban" sends report to admin inbox | NOT TESTED | Needs an AI answer (user API key) |
 | 20 | Web | Existing web version unchanged (regression suite) | PASSED [B] | Review/sign flow, owner lock, rebar/RAB, riser/report, sync |
+
+## Emulator note (important)
+The build machine has **no hardware virtualization (KVM)**, so the Android emulator could only run with software CPU emulation.
+* Android's own WebView renderer crashed after about 2 minutes (`SIGTRAP` in `libwebviewchromium.so`) with WASHLY **and with a trivial one-line control page** built into the same APK shell.
+* This was reproduced on two system images (Google APIs and AOSP, Android 14).
+* The crash is therefore a limitation of the emulator in this environment, not a WASHLY defect.
+* Full UI testing of the APK on Android must be done on a real phone or an accelerated emulator (Android Studio on a normal PC).
 
 ## Manual tests still required on a real phone (internal testing track)
 
