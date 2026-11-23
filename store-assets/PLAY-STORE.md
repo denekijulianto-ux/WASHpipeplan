@@ -58,9 +58,9 @@ New accounts become active after approval by an organisation admin.
 
 * **Category:** *Productivity*. Alternatives: *Tools*, *Business*. **[YOU]** pick one.
 * **Tags:** engineering, water, maps, productivity.
-* **Contact e-mail (required):** **[YOU]**
+* **Contact e-mail (required):** `washlywater@gmail.com`
 * **Website:** `https://denekijulianto-ux.github.io/WASHpipeplan/` (optional).
-* **Privacy policy URL (required):** after you finish the draft `privacy.html` and it is pushed, it is served at `https://denekijulianto-ux.github.io/WASHpipeplan/privacy.html`. **[YOU]** Fill in the `[ISI]` placeholders and open the URL to confirm it works before entering it.
+* **Privacy policy URL (required):** `https://denekijulianto-ux.github.io/WASHpipeplan/privacy.html` (completed; check the page opens before entering it).
 
 ## 3. App content declarations (Play Console → Policy → App content)
 
@@ -100,15 +100,15 @@ New accounts become active after approval by an organisation admin.
 | Personal info → **Phone number** | Yes | No | Optional | Account management |
 | Personal info → **Address** (staff profile) | Yes | No | Optional | App functionality |
 | Personal info → **Other info** (role, organisation, PMI origin, assignment history) | Yes | No | Optional | App functionality |
-| Location → **Precise location** | Yes | **See note A** | Optional (GPS features) | App functionality |
+| Location → **Precise location** | Yes | **Yes** (note A) | Optional (GPS features) | App functionality |
 | Photos and videos → **Photos** (survey photos, profile photo, signatures) | Yes | No | Optional | App functionality |
 | Files and docs (project files, drawings) | Yes | No | Required for cloud sync | App functionality |
-| App activity → **Other user-generated content** (projects, review notes, AI reports) | Yes | **See note B** | — | App functionality |
+| App activity → **Other user-generated content** (projects, review notes, AI reports) | Yes | **Yes** (note B) | — | App functionality |
 | Messages → **Other in-app messages** (notifications inbox) | Yes | No | — | App functionality |
 
 **Notes**
-* **Note A.** When the elevation profile / DEM features are used, the coordinates of network points are sent to *Open-Meteo*, and OpenStreetMap services are queried for the map area. Google treats transfers to service providers that process data on your behalf, and user-initiated transfers the user would expect, as *not* "sharing". Decide whether this applies; when in doubt, declare **Location → shared → App functionality**.
-* **Note B.** The optional AI mode sends the user's questions plus a project summary to *Anthropic*, using the **user's own API key**, only after the user turns it on. Declare it as shared ("Other user-generated content → App functionality") unless you conclude the user-initiated exemption applies.
+* **Note A.** When the elevation profile / DEM features are used, the coordinates of network points are sent to *Open-Meteo*, and OpenStreetMap services are queried for the map area. Google treats transfers to service providers that process data on your behalf, and user-initiated transfers the user would expect, as *not* "sharing". **Decision: declare Location → shared → App functionality.**
+* **Note B.** The optional AI mode sends the user's questions plus a project summary to *Anthropic*, using the **user's own API key**, only after the user turns it on. **Decision: declare it as shared ("Other user-generated content → App functionality").**
 * **Not collected:** device IDs, analytics, crash logs, contacts, financial info, health, audio, web history.
 * Location is **not** collected in the background.
 
