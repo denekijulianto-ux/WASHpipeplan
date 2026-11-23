@@ -9,6 +9,13 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - `manifest.webmanifest`, `sw.js`, `icons/`: membuat aplikasi bisa dipasang di HP dan tetap jalan offline.
 - `build.js`, `package.json`: skrip build.
 
+## Bahasa Indonesia / English
+Tombol **ID | EN** ada di layar masuk, bilah atas (PC) dan menu ☰ (HP). Pilihan disimpan di perangkat; saat pertama dibuka, bahasa mengikuti bahasa browser/HP (Indonesia → ID, lainnya → EN). Isi proyek (nama, label, catatan) tidak diterjemahkan. Asisten AI menjawab dalam bahasa yang dipilih.
+Kamus ada di `src/i18n-en-dict.js` (`t` = teks persis, `p` = template dengan `{0}`), mesinnya di `src/i18n.js`. Bila menambah teks UI baru, tambahkan terjemahannya di kamus lalu `npm run build`.
+
+## Lokasi saya (tab Peta)
+Tombol bulat **⌖ Lokasi saya** di peta (PC: kanan, di bawah "Profil elevasi"; HP: kanan bawah di atas tombol Asisten) menyalakan GPS bila belum aktif, lalu membawa peta ke posisi Anda dan terus mengikuti saat berjalan. Akurasi tampil di sebelah tombol (±m). Geser peta untuk berhenti mengikuti; tekan lagi untuk kembali ke posisi Anda. Butuh izin Lokasi dan alamat HTTPS.
+
 ## Aplikasi Android (Google Play)
 WASHLY juga tersedia sebagai aplikasi Android (`com.washly.app`, Capacitor 8). Aplikasinya sama dengan versi web: satu kode sumber, backend Firebase yang sama.
 - Build APK/AAB, penandatanganan, dan cara update: lihat **[ANDROID.md](ANDROID.md)**.

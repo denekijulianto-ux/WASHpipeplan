@@ -6,7 +6,7 @@ WASHLY (*Simplify the Flow.*) is packaged for Android with **Capacitor 8**. This
 |---|---|
 | Application ID (package name) | `com.washly.app` (debug builds: `com.washly.app.debug`) |
 | App name | WASHLY |
-| Version | `versionName 1.0.0`, `versionCode 1` (in `android/app/build.gradle`) |
+| Version | `versionName 1.1.0`, `versionCode 2` (in `android/app/build.gradle`) |
 | minSdk / targetSdk / compileSdk | 24 (Android 7.0) / 36 (Android 16) / 36 |
 | Web assets | `www/` (generated — never edit by hand) |
 | Native shell | `android/` (Gradle project, open it in Android Studio) |
