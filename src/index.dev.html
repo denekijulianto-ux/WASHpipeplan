@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d2a31">
+<meta name="theme-color" content="#06284d">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="WASH PMI">
+<meta name="apple-mobile-web-app-title" content="WASHLY">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
 <script>
   // PWA: manifest & service worker hanya saat disajikan lewat http(s) (bukan file://)
   if (/^https?:$/.test(location.protocol)) {
@@ -16,7 +17,7 @@
     if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
 </script>
-<title>WASH PMI - Water for life</title>
+<title>WASHLY - Simplify the flow</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -28,11 +29,11 @@
       theme: {
         extend: {
           colors: {
-            ink: '#10232a',
-            deep: '#0d2a31',
-            ground: '#eef2f1',
-            line: '#d3dddb',
-            aqua: { 50: '#ecf7f7', 100: '#cfeced', 200: '#a3dadb', 400: '#3fa7ab', 500: '#178a90', 600: '#0b6e74', 700: '#0a585d', 800: '#0b474b' },
+            ink: '#0b1d33',
+            deep: '#06284d',
+            ground: '#eef3f9',
+            line: '#d4deea',
+            aqua: { 50: '#ecf5fe', 100: '#d3e8fc', 200: '#a9d2f8', 400: '#3a9ae6', 500: '#1a7fd1', 600: '#0d66b5', 700: '#0b5293', 800: '#0c4277' },
           },
           fontFamily: {
             sans: ['"IBM Plex Sans"', 'system-ui', 'Segoe UI', 'Arial', 'sans-serif'],
@@ -52,16 +53,16 @@
 <script src="auth-config.js"></script>
 <style>
   html, body, #root { height: 100%; }
-  body { margin: 0; background: #eef2f1; color: #10232a; font-family: "IBM Plex Sans", system-ui, "Segoe UI", Arial, sans-serif; }
+  body { margin: 0; background: #eef3f9; color: #0b1d33; font-family: "IBM Plex Sans", system-ui, "Segoe UI", Arial, sans-serif; }
   .num { font-variant-numeric: tabular-nums; }
   input[type=number]::-webkit-inner-spin-button { opacity: .35; }
-  .tp-field { width: 100%; border: 1px solid #d3dddb; border-radius: 6px; padding: 4px 8px; font-size: 13px; background: #fff; color: #10232a; }
-  .tp-field:focus { outline: 2px solid #3fa7ab; outline-offset: -1px; border-color: #3fa7ab; }
+  .tp-field { width: 100%; border: 1px solid #d4deea; border-radius: 6px; padding: 4px 8px; font-size: 13px; background: #fff; color: #0b1d33; }
+  .tp-field:focus { outline: 2px solid #3a9ae6; outline-offset: -1px; border-color: #3a9ae6; }
   .tp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .tp-table th { position: sticky; top: 0; background: #f5f8f7; text-align: left; font-weight: 600; color: #3b5257; padding: 6px 8px; border-bottom: 1px solid #d3dddb; white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; z-index: 1; }
+  .tp-table th { position: sticky; top: 0; background: #f5f8f7; text-align: left; font-weight: 600; color: #3b5257; padding: 6px 8px; border-bottom: 1px solid #d4deea; white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; z-index: 1; }
   .tp-table td { padding: 5px 8px; border-bottom: 1px solid #e6ecea; white-space: nowrap; }
-  .tp-table tr.clickable:hover td { background: #ecf7f7; cursor: pointer; }
-  .tp-table tr.active td { background: #cfeced; }
+  .tp-table tr.clickable:hover td { background: #ecf5fe; cursor: pointer; }
+  .tp-table tr.active td { background: #d3e8fc; }
   .tp-table td.r, .tp-table th.r { text-align: right; font-variant-numeric: tabular-nums; }
   .rab-table td { vertical-align: top; } .rab-table td.r { white-space: nowrap; } .rab-table .tp-field { min-width: 0; }
   .pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -70,18 +71,18 @@
   .s-high, .s-neg { background: #fee2e2; color: #991b1b; }
   .s-hp { background: #ede9fe; color: #5b21b6; }
   .s-idle, .s-iso { background: #e2e8f0; color: #475569; }
-  .s-src { background: #cfeced; color: #0a585d; }
+  .s-src { background: #d3e8fc; color: #0b5293; }
   /* Leaflet markers */
   .tp-node-wrap { background: transparent; border: 0; }
-  .tp-node { width: 100%; height: 100%; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 1px 4px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; font: 700 9px/1 "IBM Plex Mono", monospace; color: #10232a; box-sizing: border-box; }
-  .tp-node.res { border-radius: 4px; background: #0b6e74; color: #fff; border-color: #fff; outline: 3px solid var(--c); }
+  .tp-node { width: 100%; height: 100%; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 1px 4px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; font: 700 9px/1 "IBM Plex Mono", monospace; color: #0b1d33; box-sizing: border-box; }
+  .tp-node.res { border-radius: 4px; background: #0d66b5; color: #fff; border-color: #fff; outline: 3px solid var(--c); }
   .tp-node.sel { box-shadow: 0 0 0 4px rgba(255,255,255,.95), 0 0 0 7px #f97316; }
   .tp-node.act { animation: tp-pulse 1.1s ease-in-out infinite; }
   @keyframes tp-pulse { 50% { box-shadow: 0 0 0 7px rgba(249,115,22,.45); } }
   @media (prefers-reduced-motion: reduce) { .tp-node.act { animation: none; box-shadow: 0 0 0 5px #f97316; } }
   .tp-label { background: rgba(13,42,49,.86); color: #fff; border: 0; border-radius: 4px; padding: 1px 6px; font: 600 11px "IBM Plex Sans", sans-serif; box-shadow: none; }
   .tp-label::before { display: none; }
-  .tp-plabel { background: rgba(255,255,255,.92); color: #10232a; border: 1px solid #d3dddb; border-radius: 4px; padding: 0 5px; font: 500 10px "IBM Plex Mono", monospace; box-shadow: none; }
+  .tp-plabel { background: rgba(255,255,255,.92); color: #0b1d33; border: 1px solid #d4deea; border-radius: 4px; padding: 0 5px; font: 500 10px "IBM Plex Mono", monospace; box-shadow: none; }
   .tp-plabel::before { display: none; }
   .tp-arrow { background: transparent; border: 0; }
   @media (pointer: coarse) { .tp-node { font-size: 11px; } .tp-struct { font-size: 11px; line-height: 22px; } .tp-label { font-size: 12px; } }
@@ -123,12 +124,12 @@
     #print-root { display: block !important; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
-  #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 500 14px "IBM Plex Sans", sans-serif; color: #10232a; background: #eef2f1; padding: 16px; text-align: center; }
+  #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 500 14px "IBM Plex Sans", sans-serif; color: #0b1d33; background: #eef3f9; padding: 16px; text-align: center; }
 </style>
 </head>
 <body>
 <div id="root"></div>
-<div id="boot">Memuat WASH PMI - Water for life…</div>
+<div id="boot">Memuat WASHLY - Simplify the flow…</div>
 <script>
   // Pemeriksaan library: tampilkan pesan jelas bila CDN tidak dapat diakses.
   window.addEventListener('load', function () {
@@ -208,9 +209,12 @@ const DEFAULT_SETTINGS = {
   elevSource: 'dem', geoidOffset: 0, gpsMaxAcc: 20, gpsMinStep: 3, autoNodes: true, autoTol: 6, autoMaxSeg: 100, flexCurve: true, srPeople: 5, srLpcd: 100, srPeak: 2, srPmin: 5, srMat: 'PE', srDia: 20, srMaxLen: 150,
 };
 const DEFAULT_DED = { sheet: 'layout', paper: 'A3', lsEnd: '', csDiameter: 0 };
-const STATUS_COLORS = { ok: '#16a34a', low: '#eab308', high: '#dc2626', neg: '#dc2626', hp: '#7c3aed', idle: '#94a3b8', iso: '#94a3b8', src: '#0b6e74' };
+const STATUS_COLORS = { ok: '#16a34a', low: '#eab308', high: '#dc2626', neg: '#dc2626', hp: '#7c3aed', idle: '#94a3b8', iso: '#94a3b8', src: '#0d66b5' };
 
 const uid = (p = 'id') => p + '_' + Math.random().toString(36).slice(2, 9);
+// Identitas perangkat (untuk sinkron otomatis HP ↔ PC): perubahan dari perangkat lain dimuat langsung
+const DEVICE_ID = (() => { try { let d = localStorage.getItem('washly-device'); if (!d) { d = uid('dev'); localStorage.setItem('washly-device', d); } return d; } catch (e) { return uid('dev'); } })();
+const DEVICE_KIND = (() => { try { return /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent) ? 'HP' : 'PC'; } catch (e) { return 'PC'; } })();
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const fmt = (n, d = 2) => (n === undefined || n === null || !isFinite(n)) ? '–' : Number(n).toLocaleString('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d });
 const rp = (n) => 'Rp ' + fmt(Math.round(n || 0), 0);
@@ -1015,7 +1019,7 @@ function computeBoQ(project, hyd) {
     return { node: n, pr, allin, items: allin ? [allinItem(n, pr)] : [...pumpItems(n, pr), ...pumpExtras(n, pr)] }; });
   const sr = srItems(project, hyd);
   // Bangunan existing: rehabilitasi → item perbaikan saja; baik → tanpa item (newItems = pembanding biaya bangun baru)
-  const structures = structures0.map(x => { const c = x.st.cond; return c === 'fix' || c === 'ok' ? { ...x, newItems: x.items, items: c === 'fix' ? rehabItems(x.st) : [] } : x; });
+  const structures = structures0.map(x => rcApply(x, rcDesign(x.st, x.g, x.q))).map(x => { const c = x.st.cond; return c === 'fix' || c === 'ok' ? { ...x, newItems: x.items, items: c === 'fix' ? rehabItems(x.st) : [] } : x; });
   const rehab = rehabNetItems(project, hyd);
   return { pipeGroups, earth, totalLength, fittings, counts, waste, structures, pumps, treat, sr, rehab };
 }
@@ -1039,7 +1043,7 @@ function buildRAB(project, boq) {
       edDesc: DS[ek] !== undefined, edVol: VO[ek] !== undefined && VO[ek] !== '', edUnit: UN[ek] !== undefined, hidden: !!H[ek] };
   };
   const L = boq.totalLength;
-  const sec = (sid, title, rows, extra = {}) => { const it = mk(sid); return { sid, autoTitle: title, title: TT[sid] ?? title, items: rows.map(r => ({ ...it(r[0], r[1], r[2], r[3], r[4]), ...(r[5] || {}) })), ...extra }; };
+  const sec = (sid, title, rows, extra = {}) => { const it = mk(sid); return { sid, autoTitle: title, title: TT[sid] ?? title, items: rows.map(r => { const o = { ...it(r[0], r[1], r[2], r[3], r[4]), ...(r[5] || {}) }; if (o.packAuto) { o.autoPack = o.packAuto; if (!o.edPack) o.pack = o.packAuto; delete o.packAuto; } return o; }), ...extra }; };
   const sections = [
     sec('prep', 'PEKERJAAN PERSIAPAN', [
       ['mob', 'Mobilisasi dan demobilisasi peralatan & tenaga kerja', 1, 'ls', 7500000],
@@ -1090,6 +1094,8 @@ function specOf(key, desc, unit) {
   const k = String(key || ''), d = String(desc || '');
   if (NO_SPEC.test(d) && !/pipa|pompa|katup|valve/i.test(d.split(' ').slice(0, 2).join(' '))) return null;
   const p = k.split('|');
+  // Pembesian dari daftar potong: mutu dipilih di setting rangka beton; tingkat = kualitas pemasok / pengujian
+  if (p[0] === 'rb') { const gr = (d.match(/BJT[SP] \d+B?/) || ['BJTS 420B'])[0]; return tierSpec(`${gr}, toleransi diameter SNI minimum`, `${gr} SNI 2052:2017, ukuran penuh, bersertifikat pabrik`, `${gr} SNI 2052:2017 + uji tarik & lengkung laboratorium per lot`, [0.95, 1, 1.06]); }
   // Rehabilitasi: penggantian pipa ikut spesifikasi pipa; jasa / pekerjaan perbaikan tanpa tingkat spesifikasi
   if (p[0] === 'rh') { if (p[1] === 'repl') return specOf(`pipe|${p[2]}|${p[3]}`, `Pipa ${p[2]} Ø${p[3]}`, "m'");
     if (/^(leak|raise|dism|ndis|survey|flush|clean|dismantle|crack|test|catch|plaster|concrete|slab|steel|paint)$/.test(p[1])) return null; }
@@ -1593,18 +1599,18 @@ function drawGwLayers(L, map, g, gw, onCand) {
   const res = gw.result;
   if (res && gw.show.grid) { let img = GW_IMG.get(res.at); if (!img) { img = gwImage(res); GW_IMG.set(res.at, img); }
     const b = gwBounds(res); L.imageOverlay(img, b, { pane: 'gw', opacity: gw.opacity, interactive: false }).addTo(g);
-    L.rectangle(b, { pane: 'gw', color: '#0d2a31', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(g); }
+    L.rectangle(b, { pane: 'gw', color: '#06284d', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(g); }
   if (gw.osm && gw.show.osm) {
     gw.osm.waters.forEach(w => L.polygon(w.g, { pane: 'gw', color: '#2b8cbe', weight: 1, fillColor: '#a6cee3', fillOpacity: 0.5, interactive: false }).addTo(g));
     gw.osm.streams.forEach(s => L.polyline(s.g, { pane: 'gw', color: '#1f78b4', weight: s.k === 'river' ? 3.5 : s.k === 'canal' ? 2.5 : 1.6, opacity: 0.9 }).bindTooltip(`${{ river: 'Sungai', stream: 'Anak sungai / alur', canal: 'Saluran irigasi', ditch: 'Parit', drain: 'Drainase', brook: 'Alur kecil' }[s.k] || s.k}${s.name ? ': ' + s.name : ''}`, { sticky: true }).addTo(g));
-    gw.osm.springs.forEach(s => L.circleMarker([s.lat, s.lng], { pane: 'gwtop', radius: 6, color: '#0b6e74', fillColor: '#7fd1c9', fillOpacity: 1, weight: 2 }).bindTooltip('Mata air' + (s.name ? ': ' + s.name : '') + ' (OSM)').addTo(g));
+    gw.osm.springs.forEach(s => L.circleMarker([s.lat, s.lng], { pane: 'gwtop', radius: 6, color: '#0d66b5', fillColor: '#7fd1c9', fillOpacity: 1, weight: 2 }).bindTooltip('Mata air' + (s.name ? ': ' + s.name : '') + ' (OSM)').addTo(g));
     gw.osm.wells.forEach(s => L.circleMarker([s.lat, s.lng], { pane: 'gwtop', radius: 5, color: '#1d4ed8', fillColor: '#fff', fillOpacity: 1, weight: 2 }).bindTooltip('Sumur (OSM)' + (s.name ? ': ' + s.name : '')).addTo(g)); }
   if (gw.show.field) {
     gw.wells.forEach(w => L.circleMarker([+w.lat, +w.lng], { pane: 'gwtop', radius: 7, color: w.dry ? '#b91c1c' : '#1d4ed8', fillColor: '#bfdbfe', fillOpacity: 1, weight: 2.5 })
       .bindTooltip(`<b>${w.label || 'Sumur'}</b><br>kedalaman ${fmt(w.depth, 0)} m · muka air ${fmt(w.mat, 1)} m${+w.yield ? ` · ${fmt(w.yield, 2)} L/dtk` : ''}${w.dry ? '<br>kering saat kemarau' : ''}`).addTo(g));
     gw.ves.forEach(v => { const vi = vesInterp(v); L.marker([+v.lat, +v.lng], { pane: 'gwtop', icon: L.divIcon({ className: '', html: `<div style="width:14px;height:14px;background:#7c3aed;border:2px solid #fff;box-shadow:0 0 0 1px #4c1d95"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] }) })
       .bindTooltip(`<b>${v.label || 'VES'}</b> (geolistrik)<br>akuifer ${fmt(vi.aqThick, 0)} m${vi.aqTop != null ? ` · ${fmt(vi.aqTop, 0)}–${fmt(vi.aqBot, 0)} m` : ''}${vi.salty ? '<br>⚠ lapisan sangat konduktif' : ''}`).addTo(g); }); }
-  if (res && gw.show.grid) res.candidates.forEach(c => L.marker([c.lat, c.lng], { pane: 'gwtop', icon: L.divIcon({ className: '', html: `<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:${c.color};color:#0d2a31;border:2px solid #0d2a31;border-radius:6px;padding:1px 5px;font:700 11px 'IBM Plex Sans',sans-serif;white-space:nowrap">${c.id} · ${fmt(c.score, 1)}</div><div style="width:2px;height:8px;background:#0d2a31"></div></div>`, iconSize: [0, 0] }) })
+  if (res && gw.show.grid) res.candidates.forEach(c => L.marker([c.lat, c.lng], { pane: 'gwtop', icon: L.divIcon({ className: '', html: `<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:${c.color};color:#06284d;border:2px solid #06284d;border-radius:6px;padding:1px 5px;font:700 11px 'IBM Plex Sans',sans-serif;white-space:nowrap">${c.id} · ${fmt(c.score, 1)}</div><div style="width:2px;height:8px;background:#06284d"></div></div>`, iconSize: [0, 0] }) })
     .on('click', () => onCand && onCand(c)).bindTooltip(`${c.id}: potensi ${c.cls.toLowerCase()} · ${c.type === 'shallow' ? 'sumur dangkal' : 'sumur bor'} ${c.depth[0]}–${c.depth[1]} m`).addTo(g));
 }
 
@@ -1896,7 +1902,7 @@ function profileSeries(rg, dem) {
   const off = dem && dem.length ? pts.reduce((a, p) => { let b = ser[0]; ser.forEach(x => { if (Math.abs(x.d - p.dist) < Math.abs(b.d - p.dist)) b = x; }); return a + Math.abs(b.z - p.ground); }, 0) / pts.length : 0;
   return { ser, iMax, iMin, off, peaks: peaks.filter(i => !near(i, 'air_valve')).slice(0, 6), vals: vals.filter(i => !near(i, 'wash_out')).slice(0, 6), neg };
 }
-function ProfilePanel({ project, hyd, embedded, onClose, setHover, focus }) {
+function ProfilePanel({ project, hyd, embedded, docked, compact, onClose, setHover, focus }) {
   const ends = project.nodes.filter(n => hyd.nodes[n.id]?.dist > 0).sort((a, b) => hyd.nodes[b.id].dist - hyd.nodes[a.id].dist);
   const [endId, setEndId] = useState(''); const [dem, setDem] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [hov, setHov] = useState(null);
   const rg = useMemo(() => routeGeom(project, hyd, endId || ends[0]?.id), [project.nodes, project.pipes, hyd, endId]);
@@ -1906,14 +1912,14 @@ function ProfilePanel({ project, hyd, embedded, onClose, setHover, focus }) {
   const P = profileSeries(rg, dem); const ser = P.ser; const total = rg.path.total;
   const loadDem = async () => { setBusy(true); setErr(''); try { const step = Math.max(10, total / 160); const samp = []; for (let d = 0; d <= total + 0.01; d += step) samp.push({ d: Math.min(d, total), ...posAt(rg.line, Math.min(d, total)) });
       if (samp[samp.length - 1].d < total) samp.push({ d: total, ...posAt(rg.line, total) }); const z = await fetchDem(samp); setDem(samp.map((s, i) => ({ d: s.d, z: +z[i] }))); } catch (e) { setErr('Elevasi DEM tidak dapat diambil (perlu internet).'); } setBusy(false); };
-  const W = 900, H = 240, m = { l: 52, r: 16, t: 18, b: 36 }; const all = ser.flatMap(s => [s.z, s.h]).filter(isFinite);
+  const W = compact ? 470 : 900, H = compact ? 270 : 240, m = { l: compact ? 40 : 52, r: compact ? 10 : 16, t: 18, b: compact ? 44 : 36 }; const all = ser.flatMap(s => [s.z, s.h]).filter(isFinite);
   const lo = Math.floor(Math.min(...all) - 4), hi = Math.ceil(Math.max(...all) + 6); const X = d => m.l + d / (total || 1) * (W - m.l - m.r), Y = z => m.t + (hi - z) / ((hi - lo) || 1) * (H - m.t - m.b);
   const step = niceStep((hi - lo) / 5); const ticks = []; for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) ticks.push(t);
   const gl = ser.map(s => `${X(s.d)},${Y(s.z)}`).join(' '); const hl = ser.map(s => `${X(s.d)},${Y(s.h)}`).join(' ');
   const mx = ser[P.iMax], mn = ser[P.iMin];
   const onMove = (e) => { const r = e.currentTarget.getBoundingClientRect(); const d = clamp(((e.clientX - r.left) / r.width * W - m.l) / (W - m.l - m.r) * total, 0, total);
     let best = ser[0]; ser.forEach(s => { if (Math.abs(s.d - d) < Math.abs(best.d - d)) best = s; }); setHov(best); setHover && setHover(posAt(rg.line, best.d)); };
-  const mark = (s, txt, color, up) => <g><circle cx={X(s.d)} cy={Y(s.z)} r={4.5} fill={color} stroke="#fff" strokeWidth={1.5} /><text x={clamp(X(s.d), m.l + 60, W - m.r - 60)} y={Y(s.z) + (up ? -9 : 17)} fontSize={11.5} fontWeight={700} textAnchor="middle" fill={color}>{txt}</text></g>;
+  const mark = (s, txt, color, up) => <g><circle cx={X(s.d)} cy={Y(s.z)} r={4.5} fill={color} stroke="#fff" strokeWidth={1.5} /><text x={clamp(X(s.d), m.l + (compact ? 70 : 60), W - m.r - (compact ? 70 : 60))} y={Y(s.z) + (up ? -9 : 17)} fontSize={compact ? 10 : 11.5} fontWeight={700} textAnchor="middle" fill={color}>{txt}</text></g>;
   const body = <div className="p-3 space-y-2 text-[12px]">
     <div className="flex flex-wrap items-center gap-2">
       <label className="flex items-center gap-1.5">Jalur: <b>{rg.path.points[0].node.label}</b> →<select id="pf-end" className="tp-field !py-1 !w-auto" value={endId || rg.path.endId} onChange={e => setEndId(e.target.value)}>{ends.map(n => <option key={n.id} value={n.id}>{n.label} ({fmt(hyd.nodes[n.id].dist, 0)} m)</option>)}</select></label>
@@ -1926,15 +1932,16 @@ function ProfilePanel({ project, hyd, embedded, onClose, setHover, focus }) {
       {ticks.map(t => <g key={t}><line x1={m.l} x2={W - m.r} y1={Y(t)} y2={Y(t)} stroke="#e2e8e6" /><text x={m.l - 6} y={Y(t) + 4} fontSize={11} textAnchor="end" fill="#64748b">{fmt(t, 0)}</text></g>)}
       <polygon points={`${X(0)},${H - m.b} ${gl} ${X(total)},${H - m.b}`} fill="#e9e1d3" />
       <polyline points={gl} fill="none" stroke="#7c5c2e" strokeWidth={2} />
-      <polyline points={hl} fill="none" stroke="#0b6e74" strokeWidth={2} strokeDasharray={dem ? '6 3' : ''} />
+      <polyline points={hl} fill="none" stroke="#0d66b5" strokeWidth={2} strokeDasharray={dem ? '6 3' : ''} />
       {P.peaks.map(i => <path key={'p' + i} d={`M${X(ser[i].d)} ${Y(ser[i].z) - 5} l-4 -7 h8 z`} fill="#7c3aed" />)}
       {P.vals.map(i => <path key={'v' + i} d={`M${X(ser[i].d)} ${Y(ser[i].z) + 5} l-4 7 h8 z`} fill="#0b4fa8" />)}
-      {rg.path.points.map((p, i) => <g key={i}><line x1={X(p.dist)} x2={X(p.dist)} y1={H - m.b} y2={Y(p.ground)} stroke="#94a3b8" strokeDasharray="2 3" /><text x={X(p.dist)} y={H - m.b + 14} fontSize={10.5} textAnchor="middle" fontWeight={600} fill="#10232a">{p.node.label}</text><text x={X(p.dist)} y={H - m.b + 27} fontSize={9.5} textAnchor="middle" fill="#64748b">{sta(p.dist)}</text></g>)}
-      {mark(mx, `▲ Tertinggi ${fmt(mx.z, 1)} m · ${sta(mx.d)}`, '#c8102e', true)}{mark(mn, `▼ Terendah ${fmt(mn.z, 1)} m · ${sta(mn.d)}`, '#0b4fa8', false)}
+      {(() => { let last = -1e9; const gap = compact ? 30 : 46; return rg.path.points.map((p, i) => { const xx = X(p.dist); const show = xx - last >= gap || i === rg.path.points.length - 1; if (show) last = xx;
+        return <g key={i}><line x1={xx} x2={xx} y1={H - m.b} y2={Y(p.ground)} stroke="#94a3b8" strokeDasharray="2 3" />{show && <><text x={xx} y={H - m.b + 13} fontSize={compact ? 9.5 : 10.5} textAnchor="middle" fontWeight={600} fill="#0b1d33">{p.node.label}</text><text x={xx} y={H - m.b + (compact ? 25 : 27)} fontSize={compact ? 8.5 : 9.5} textAnchor="middle" fill="#64748b">{sta(p.dist)}</text></>}<title>{p.node.label} · {sta(p.dist)}</title></g>; }); })()}
+      {mark(mx, `▲ Tertinggi ${fmt(mx.z, 1)} m · ${sta(mx.d)}`, '#c8102e', true)}{mark(mn, `▼ Terendah ${fmt(mn.z, 1)} m · ${sta(mn.d)}`, '#0b4fa8', !!compact)}
       {hov && <g><line x1={X(hov.d)} x2={X(hov.d)} y1={m.t} y2={H - m.b} stroke="#f97316" /><circle cx={X(hov.d)} cy={Y(hov.z)} r={4} fill="#f97316" />
         <rect x={clamp(X(hov.d) + 6, m.l, W - 190)} y={m.t} width={180} height={44} rx={4} fill="#fff" stroke="#f97316" />
         <text x={clamp(X(hov.d) + 12, m.l + 6, W - 184)} y={m.t + 15} fontSize={11} fontWeight={700}>{sta(hov.d)} · tanah {fmt(hov.z, 1)} m</text>
-        <text x={clamp(X(hov.d) + 12, m.l + 6, W - 184)} y={m.t + 32} fontSize={11} fill={hov.h - hov.z < 0 ? '#dc2626' : '#0a585d'}>garis tekanan {fmt(hov.h, 1)} m · P {fmt(hov.h - hov.z, 1)} mka</text></g>}
+        <text x={clamp(X(hov.d) + 12, m.l + 6, W - 184)} y={m.t + 32} fontSize={11} fill={hov.h - hov.z < 0 ? '#dc2626' : '#0b5293'}>garis tekanan {fmt(hov.h, 1)} m · P {fmt(hov.h - hov.z, 1)} mka</text></g>}
     </svg>
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-slate-600">
       <span className="flex items-center gap-1"><span className="w-5 h-0.5 bg-[#7c5c2e]" />Muka tanah</span><span className="flex items-center gap-1"><span className="w-5 h-0.5 bg-aqua-600" />Garis tekanan (HGL)</span>
@@ -1944,6 +1951,8 @@ function ProfilePanel({ project, hyd, embedded, onClose, setHover, focus }) {
     {(P.peaks.length > 0 || P.vals.length > 0) && <p className="text-[11.5px] text-slate-600">Saran: pasang <b>air valve</b> di titik tinggi (udara terjebak) dan <b>wash out</b> di titik rendah (endapan) — arahkan kursor ke grafik untuk melihat lokasinya di peta, klik untuk memusatkan peta.</p>}
   </div>;
   if (embedded) return body;
+  if (docked) return <div><div className="sticky top-0 bg-white flex items-center gap-2 px-3 py-2 border-b border-line z-10"><Icon name="Activity" size={16} className="text-aqua-600" /><span className="font-semibold text-[13px] flex-1">Profil elevasi jalur pipa</span>
+    <button type="button" title="Tutup profil" onClick={onClose} className="p-1 rounded hover:bg-slate-100"><Icon name="X" size={15} /></button></div>{body}</div>;
   return <div className="absolute left-3 right-3 bottom-8 z-[650] bg-white rounded-lg shadow-xl border border-line max-h-[60%] overflow-y-auto">
     <div className="sticky top-0 bg-white flex items-center gap-2 px-3 py-2 border-b border-line z-10"><Icon name="Activity" size={16} className="text-aqua-600" /><span className="font-semibold text-[13px] flex-1">Profil elevasi jalur pipa</span><button type="button" title="Tutup profil" onClick={onClose} className="p-1 rounded hover:bg-slate-100"><Icon name="X" size={15} /></button></div>
     {body}</div>;
@@ -2226,6 +2235,350 @@ function SheetRehabNet({ project, hyd, sheetNo, sheetTotal }) {
       rows={(rows.length ? rows : [['-', 'Belum ada aset existing ditandai', '', '', '', '']]).slice(0, 26)} />
     <SvgTable x={20} y={Math.min(160, 40 + Math.min(26, Math.max(1, rows.length)) * 4.4)} w={308} title="PEKERJAAN REHABILITASI JARINGAN" head={['No', 'Uraian', 'Volume', 'Sat.']} cols={[0.05, 0.7, 0.13, 0.12]} left={[1, 3]} rh={4.4} fs={1.7}
       rows={net.items.length ? net.items.slice(0, 18).map((x, i) => [String(i + 1), x[1].slice(0, 110), fmt(x[2], 2), x[3]]) : [['-', 'Tidak ada pekerjaan', '', '']]} />
+  </Sheet>;
+}
+
+/* =====================================================================
+   RANGKA BETON BERTULANG & PEMBESIAN: desain tulangan (metode kekuatan, SNI 2847:2019; bangunan penampung air
+   mengikuti ACI 350: faktor durabilitas 1,3, tulangan minimum 0,3 % dibagi dua muka) → daftar potong besi (BBS)
+   → berat per diameter untuk RAB & jumlah batang 12 m. Hasil indikatif: wajib diperiksa ahli struktur.
+   ===================================================================== */
+const RC_CONC = { 'K-175': { fc: 14.5, f: 0.9 }, 'K-225': { fc: 18.7, f: 0.96 }, 'K-250': { fc: 20.75, f: 1 }, 'K-300': { fc: 24.9, f: 1.07 }, 'K-350': { fc: 29.05, f: 1.13 } };
+const RC_STEEL = {
+  bjts420: { label: 'BJTS 420B (ulir, fy 420 MPa)', fy: 420, sym: 'D', dias: [10, 13, 16, 19, 22, 25], f: 1 },
+  bjts280: { label: 'BJTS 280 (ulir, fy 280 MPa)', fy: 280, sym: 'D', dias: [10, 13, 16, 19, 22, 25], f: 0.97 },
+  bjtp280: { label: 'BJTP 280 (polos, fy 280 MPa)', fy: 280, sym: 'Ø', dias: [8, 10, 12, 14, 16, 19, 22], f: 0.95 },
+};
+const RC_DEF = { conc: 'K-250', steel: 'bjts420', cover: 0, ov: {} };
+const rcCfg = (st) => { const r = st.rc || {}; return { ...RC_DEF, ...r, ov: r.ov || {} }; };
+const barA = (d) => Math.PI * d * d / 4; // mm²
+const barKg = (d) => 0.00617 * d * d; // kg/m
+const RC_STIR_FY = 240; // sengkang BJTP 280 polos (fy desain 240 MPa, konservatif)
+// Luas tulangan perlu per meter lebar (mm²/m) untuk momen Mu (kNm/m), tebal h (m), tinggi efektif d (mm)
+function asNeed(Mu, d, fc, fy, b = 1000) {
+  if (!(Mu > 0) || !(d > 0)) return 0; const Rn = Mu * 1e6 / (0.9 * b * d * d); const k = 1 - 2 * Rn / (0.85 * fc);
+  if (k <= 0) return Infinity; return 0.85 * fc / fy * (1 - Math.sqrt(k)) * b * d;
+}
+// Pilih diameter & jarak: diameter terkecil (≥ dMin) dengan jarak ≥ 100 mm, jarak dibulatkan ke 25 mm, ≤ sMax
+function pickMesh(As, S, dMin, sMax, ov) {
+  if (ov && +ov.d > 0 && +ov.s > 0) return { d: +ov.d, s: +ov.s, prov: barA(+ov.d) * 1000 / +ov.s, manual: true };
+  for (const d of S.dias.filter(x => x >= dMin)) { const s = Math.min(sMax, Math.floor(barA(d) * 1000 / Math.max(As, 1) / 25) * 25); if (s >= 100) return { d, s, prov: barA(d) * 1000 / s }; }
+  const d = S.dias[S.dias.length - 1]; return { d, s: 100, prov: barA(d) * 10, short: true };
+}
+// Pilih n batang memanjang (kolom/balok)
+function pickBars(As, S, opts, nOpts, dMin, ov) {
+  if (ov && +ov.n > 0 && +ov.d > 0) return { n: +ov.n, d: +ov.d, prov: +ov.n * barA(+ov.d), manual: true };
+  const c = []; nOpts.forEach(n => S.dias.filter(d => d >= dMin && d <= (opts.dMax || 25)).forEach(d => { if (n * barA(d) >= As) c.push({ n, d, prov: n * barA(d) }); }));
+  c.sort((a, b) => a.prov - b.prov || a.n - b.n); if (c.length) return c[0];
+  const d = S.dias.filter(x => x <= (opts.dMax || 25)).pop(); return { n: nOpts[nOpts.length - 1], d, prov: nOpts[nOpts.length - 1] * barA(d), short: true };
+}
+const lapOf = (d, sym) => (sym === 'Ø' ? 48 : 40) * d / 1000; // panjang sambungan lewatan (m)
+const hookOf = (d) => 12 * d / 1000; // kait 90° (m)
+const lblMesh = (m, S) => `${S.sym}${m.d}-${m.s}`;
+const lblBars = (b, S) => `${b.n}${S.sym}${b.d}`;
+// Tambah sambungan lewatan bila batang > 12 m
+const withLaps = (len, d, sym) => len <= 12 ? len : len + (Math.ceil(len / 11.5) - 1) * lapOf(d, sym);
+function rcPush(out, el, mark, shape, d, sym, len, n, note = '') { if (!(n > 0) || !(len > 0)) return; out.push({ el, mark, shape, d, sym, len: round2(len), n: Math.round(n), tot: round2(len * Math.round(n)), kg: round2(len * Math.round(n) * barKg(d)), note }); }
+// ---- Kotak beton penampung air (reservoir, bak, BPT, hidran, broncaptering, bak menara) ----
+function rcBox(g, cfg, S, C, out, pre = '', opts = {}) {
+  const fy = S.fy, fc = C.fc; const cv = (cfg.cover > 0 ? cfg.cover : 40) / 1000; const ov = cfg.ov; const des = [];
+  const L = g.L, B = g.B, Hin = g.Hin, Hw = Math.min(g.Hw, Hin), tw = g.tw, tb = opts.tb ?? g.tb, tr = g.tr, embed = Math.max(0, Math.min(opts.embed ?? g.embed ?? 0, g.Htot || Hin));
+  const gw = 9.81, gs = 18, Ka = 0.33, Sd = 1.3, roofed = tr > 0;
+  // Dinding: tekanan air (dalam) & tanah aktif + beban tambahan 10 kPa (luar, bak kosong); balok jepit-sendi bila beratap
+  const Mw = gw * Hw ** 3 / (roofed ? 15 : 6), Ms = Ka * gs * embed ** 3 / (roofed ? 15 : 6) + Ka * 10 * embed ** 2 / (roofed ? 8 : 2);
+  const MuW = 1.4 * Sd * Math.max(Mw, Ms); const two = tw >= 0.15;
+  const dW = tw * 1000 - cv * 1000 - 8; const AsMinW = two ? 0.0015 * 1000 * tw * 1000 : 0.0025 * 1000 * tw * 1000;
+  const AsW = Math.max(asNeed(MuW, two ? dW : tw * 500, fc, fy), AsMinW);
+  const wv = pickMesh(AsW, S, 10, two ? 200 : 250, ov[pre + 'wall']);
+  // Tulangan horizontal: tarik langsung dari dinding tegak lurus (T = γ·Hw·L/2) + minimum
+  const T = gw * Hw * Math.max(L, B) / 2; const AsT = 1.4 * Sd * T * 1000 / (0.9 * fy) / (two ? 2 : 1);
+  const wh = pickMesh(Math.max(AsMinW, AsT + (two ? 0 : 0)), S, 10, two ? 200 : 250, ov[pre + 'wallH']);
+  des.push({ el: 'Dinding vertikal', Mu: MuW, need: AsW, m: wv, lbl: lblMesh(wv, S) + (two ? ' (2 lapis)' : ' (1 lapis)') });
+  des.push({ el: 'Dinding horizontal', Mu: null, need: Math.max(AsMinW, AsT), m: wh, lbl: lblMesh(wh, S) + (two ? ' (2 lapis)' : '') });
+  // Pelat dasar: momen jepit dari dinding + minimum
+  const dB = tb * 1000 - 50 - 8; const AsB = Math.max(asNeed(MuW, dB, fc, fy), 0.0015 * 1000 * tb * 1000);
+  const bm = pickMesh(AsB, S, 10, 200, ov[pre + 'base']);
+  des.push({ el: opts.baseName || 'Pelat dasar (2 lapis, 2 arah)', Mu: MuW, need: AsB, m: bm, lbl: lblMesh(bm, S) });
+  // Pelat atap: pelat dua arah tertumpu sederhana (Grashof)
+  let rm = null, rt = null;
+  if (roofed) { const Lx = Math.min(L, B) + tw, Ly = Math.max(L, B) + tw; const qu = 1.2 * (24 * tr + 0.5) + 1.6 * 1.0; const Mx = qu * Lx * Lx / 8 * Ly ** 4 / (Lx ** 4 + Ly ** 4);
+    const dR = tr * 1000 - 25 - 6; const AsR = Math.max(asNeed(Mx, dR, fc, fy), 0.0018 * 1000 * tr * 1000); rm = pickMesh(AsR, S, 10, Math.min(250, 3 * tr * 1000), ov[pre + 'roof']);
+    rt = pickMesh(0.0018 * 1000 * tr * 1000 * 0.5, S, S.sym === 'Ø' ? 8 : 10, 250, ov[pre + 'roofT']);
+    des.push({ el: 'Pelat atap bawah (2 arah)', Mu: Mx, need: AsR, m: rm, lbl: lblMesh(rm, S) }); des.push({ el: 'Pelat atap atas (susut)', Mu: null, need: 0.0009 * 1000 * tr * 1000, m: rt, lbl: lblMesh(rt, S) }); }
+  // ---- Daftar potong ----
+  const Lo = L + 2 * tw, Bo = B + 2 * tw, ovh = opts.ov ?? (g.ov || 0); const Lb = Lo + 2 * ovh, Bb = Bo + 2 * ovh; const sym = S.sym; const nf = two ? 2 : 1;
+  const Pc = 2 * (L + tw + B + tw);
+  rcPush(out, 'Dinding', pre + 'W1', 'L', wv.d, sym, withLaps(tb - 0.05 - cv + Hin + (roofed ? tr - cv : -cv) + hookOf(wv.d) * (roofed ? 2 : 1), wv.d, sym), nf * Math.ceil(Pc / (wv.s / 1000)), 'vertikal, kait ke pelat dasar' + (roofed ? ' & atap' : ''));
+  const nh = Math.ceil((Hin - 0.05) / (wh.s / 1000)) + 1;
+  if (two) { rcPush(out, 'Dinding', pre + 'W2', 'ring', wh.d, sym, withLaps(2 * (Lo + Bo) - 8 * cv + lapOf(wh.d, sym), wh.d, sym), nh, 'horizontal muka luar');
+    rcPush(out, 'Dinding', pre + 'W3', 'ring', wh.d, sym, withLaps(2 * (L + B) + 8 * cv + lapOf(wh.d, sym), wh.d, sym), nh, 'horizontal muka dalam'); }
+  else rcPush(out, 'Dinding', pre + 'W2', 'ring', wh.d, sym, withLaps(2 * (L + tw + B + tw) + lapOf(wh.d, sym), wh.d, sym), nh, 'horizontal tengah');
+  rcPush(out, 'Dinding', pre + 'W4', 'L', Math.max(10, wv.d), sym, 2 * 40 * Math.max(10, wv.d) / 1000, 4 * nf * nh, 'tulangan sudut (L)');
+  const cb = 0.05; const nx = Math.ceil((Bb - 2 * cb) / (bm.s / 1000)) + 1, ny = Math.ceil((Lb - 2 * cb) / (bm.s / 1000)) + 1;
+  rcPush(out, opts.baseEl || 'Pelat dasar', pre + 'B1', 'U', bm.d, sym, withLaps(Lb - 2 * cb + 2 * Math.max(hookOf(bm.d), tb - 2 * cb), bm.d, sym), 2 * nx, 'arah panjang, atas + bawah');
+  rcPush(out, opts.baseEl || 'Pelat dasar', pre + 'B2', 'U', bm.d, sym, withLaps(Bb - 2 * cb + 2 * Math.max(hookOf(bm.d), tb - 2 * cb), bm.d, sym), 2 * ny, 'arah lebar, atas + bawah');
+  rcPush(out, opts.baseEl || 'Pelat dasar', pre + 'B3', 'kaki ayam', S.sym === 'Ø' ? 10 : 10, sym, 2 * (tb - 0.1) + 0.3, Math.ceil(Lb * Bb), 'penyangga tulangan atas (1/m²)');
+  if (roofed) { const ca = 0.025; const mh = g.mh || 0.6;
+    rcPush(out, 'Pelat atap', pre + 'R1', 'lurus', rm.d, sym, withLaps(Lo - 2 * ca + 2 * hookOf(rm.d), rm.d, sym), Math.ceil((Bo - 2 * ca) / (rm.s / 1000)) + 1, 'bawah arah panjang');
+    rcPush(out, 'Pelat atap', pre + 'R2', 'lurus', rm.d, sym, withLaps(Bo - 2 * ca + 2 * hookOf(rm.d), rm.d, sym), Math.ceil((Lo - 2 * ca) / (rm.s / 1000)) + 1, 'bawah arah lebar');
+    rcPush(out, 'Pelat atap', pre + 'R3', 'L', rt.d, sym, Math.min(Lo, Bo) / 4 + 0.15 + hookOf(rt.d), 2 * (Math.ceil(2 * (Lo + Bo) / (rt.s / 1000))), 'tumpuan atas (¼ bentang) keliling');
+    rcPush(out, 'Pelat atap', pre + 'R4', 'lurus', Math.max(10, rm.d), sym, mh + 2 * lapOf(Math.max(10, rm.d), sym), 8, 'tambahan tepi lubang manhole (2 per sisi)'); }
+  // Sekat / ambang
+  (g.parts || []).forEach((pt, i) => { const t = pt.t || 0.1; const len = pt.axis === 'x' ? B : (pt.to - pt.from); const h = (pt.h || Hin) - (pt.z0 || 0); if (!(len > 0 && h > 0)) return;
+    const Mu = 1.4 * Sd * gw * h ** 3 / 6; const two2 = t >= 0.15; const AsP = Math.max(asNeed(Mu, t * 1000 - 30, fc, fy), (two2 ? 0.0015 : 0.0025) * 1000 * t * 1000);
+    const pm = pickMesh(AsP, S, 10, 250, ov[pre + 'part']); if (i === 0) des.push({ el: 'Sekat / ambang', Mu, need: AsP, m: pm, lbl: lblMesh(pm, S) + (two2 ? ' (2 lapis)' : ' (1 lapis)') });
+    rcPush(out, 'Sekat', `${pre}S${i + 1}a`, 'L', pm.d, sym, h + tb - 0.1 + hookOf(pm.d), (two2 ? 2 : 1) * (Math.ceil(len / (pm.s / 1000)) + 1), 'vertikal');
+    rcPush(out, 'Sekat', `${pre}S${i + 1}b`, 'lurus', pm.d, sym, len + 2 * (tw - cv), (two2 ? 2 : 1) * (Math.ceil(h / (pm.s / 1000)) + 1), 'horizontal'); });
+  return des;
+}
+// ---- Rangka beton menara (kolom, sloof, balok ring, pelat lantai, pondasi telapak) ----
+function rcTower(g, q, cfg, S, C, out) {
+  const fy = S.fy, fc = C.fc, ov = cfg.ov, sym = S.sym, des = []; const cc = (cfg.cover > 0 ? cfg.cover : 40) / 1000, cf = 0.075;
+  const ck = q.check || {}; const colB = g.steel ? g.ped : g.colB; const nCol = 4; const p = g.p;
+  // Kolom (aksial terfaktor + 1 % minimum; SRPMM untuk daerah gempa)
+  const Ag = colB * colB * 1e6; const Pu = (ck.Pu || 0) * 1000; const AsC = Math.max(0.01 * Ag, (Pu / (0.65 * 0.8) - 0.85 * fc * Ag) / (fy - 0.85 * fc));
+  const cb = pickBars(AsC, S, { dMax: 22 }, colB <= 0.3 ? [4, 6, 8] : [8, 12], S.sym === 'Ø' ? 12 : 13, ov.col);
+  const ds = cb.d >= 19 ? 10 : 8; const hLev = g.steel ? 0 : (g.Ht - g.z0) / g.nLev; const hb = Math.max(0.2, +p.beamH || 0.35), bb = Math.max(0.15, +p.beamB || 0.2);
+  const so = ov.colS && +ov.colS.s0 > 0 ? +ov.colS.s0 : Math.max(50, Math.floor(Math.min(8 * cb.d, 24 * ds, colB * 500, 300) / 25) * 25);
+  const sm = ov.colS && +ov.colS.s > 0 ? +ov.colS.s : Math.max(100, Math.floor(Math.min(16 * cb.d, 48 * ds, colB * 1000) / 25) * 25);
+  des.push({ el: g.steel ? 'Pedestal kolom baja' : 'Kolom', Mu: null, Pu: ck.Pu, need: AsC, m: cb, lbl: `${colB * 100}/${colB * 100} · ${lblBars(cb, S)}`, ratio: cb.prov / Ag });
+  des.push({ el: 'Sengkang kolom', Mu: null, need: null, m: null, lbl: `Ø${ds}-${so} (tumpuan) / Ø${ds}-${sm} (lapangan)` });
+  const colTop = g.steel ? g.z0 : g.Ht + g.ts; const colLen = g.footD - cf - 0.02 + colTop - cc + hookOf(cb.d) * 2;
+  rcPush(out, g.steel ? 'Pedestal' : 'Kolom', 'K1', 'L', cb.d, sym, withLaps(colLen, cb.d, sym), nCol * cb.n, 'memanjang, kait ke pondasi' + (g.steel ? '' : ' & balok puncak'));
+  const hoop = 4 * (colB - 2 * cc) + 2 * Math.max(6 * ds / 1000, 0.075) + 0.05;
+  let nh = 0;
+  if (g.steel) nh = Math.ceil((g.footD - g.footT + g.z0) / 0.15) + 1;
+  else { for (let i = 0; i < g.nLev; i++) { const clear = Math.max(0.3, hLev - hb); const lo = Math.max(colB, clear / 6, 0.45); nh += 2 * Math.ceil(lo / (so / 1000)) + Math.max(0, Math.ceil((clear - 2 * lo) / (sm / 1000))) + 1 + 2; }
+    nh += Math.ceil((g.footD - g.footT) / (so / 1000)) + 2; }
+  rcPush(out, g.steel ? 'Pedestal' : 'Kolom', 'K2', 'sengkang', ds, 'Ø', hoop, nCol * nh, 'sengkang kait 135°');
+  if (cb.n >= 8) rcPush(out, g.steel ? 'Pedestal' : 'Kolom', 'K3', 'kait', ds, 'Ø', colB - 2 * cc + 2 * 6 * ds / 1000, nCol * nh, 'sengkang ikat (cross tie)');
+  // Balok & sloof
+  if (!g.steel) {
+    const perim = 2 * (g.Sx + g.Sy); const nBeam = g.nLev + 1; const dB = hb * 1000 - cc * 1000 - ds - 8;
+    const topKN = (ck.Dl || 0) + (ck.water || 0) + g.W * g.Dp; const wTop = 1.4 * topKN / perim; const wSelf = 1.2 * 24 * bb * hb;
+    const Lc = Math.max(g.Sx, g.Sy) - colB; const AsMinB = Math.max(0.25 * Math.sqrt(fc) / fy, 1.4 / fy) * bb * 1000 * dB;
+    const design = (Mu, ovk) => { const As = Math.max(Mu * 1e6 / (0.9 * fy * 0.875 * dB), AsMinB); return { As, b: pickBars(As, S, { dMax: 22 }, [2, 3, 4], S.sym === 'Ø' ? 12 : 13, ov[ovk]) }; };
+    const Mlat = (ck.M || 0) / Math.max(1, nBeam) / 4;
+    const beams = [['Balok puncak', (wTop + wSelf) * Lc * Lc / 10, 'beamTop', 1], ['Balok ring', wSelf * Lc * Lc / 10 + Mlat, 'beam', Math.max(0, g.nLev - 1)], ['Sloof', (wSelf + 2) * Lc * Lc / 10 + Mlat, 'sloof', 1]];
+    beams.forEach(([nm, Mu, k, cnt], bi) => { if (!cnt) return; const top = design(Mu, k + 'T'), bot = design(Mu * (bi === 0 ? 1 : 0.6), k + 'B');
+      const s0 = Math.max(50, Math.floor(Math.min(dB / 4, 8 * Math.min(top.b.d, bot.b.d), 24 * 8, 300) / 10) * 10), s1 = Math.max(100, Math.floor(dB / 2 / 10) * 10);
+      des.push({ el: `${nm} ${bb * 100}/${hb * 100}`, Mu, need: top.As, m: top.b, lbl: `atas ${lblBars(top.b, S)} · bawah ${lblBars(bot.b, S)} · Ø8-${s0}/${s1}` });
+      const bl = (S0) => S0 + colB - 2 * cc + 2 * hookOf(Math.max(top.b.d, bot.b.d));
+      [[g.Sx, 'x'], [g.Sy, 'y']].forEach(([S0, ax], j) => {
+        rcPush(out, nm, `${k.toUpperCase().slice(0, 2)}${bi}${ax}1`, 'L', top.b.d, sym, withLaps(bl(S0), top.b.d, sym), 2 * cnt * top.b.n, `atas, bentang ${fmt(S0, 2)} m`);
+        rcPush(out, nm, `${k.toUpperCase().slice(0, 2)}${bi}${ax}2`, 'L', bot.b.d, sym, withLaps(bl(S0), bot.b.d, sym), 2 * cnt * bot.b.n, `bawah, bentang ${fmt(S0, 2)} m`);
+        const clear = S0 - colB; const nS = 2 * Math.ceil(2 * hb / (s0 / 1000)) + Math.max(0, Math.ceil((clear - 4 * hb) / (s1 / 1000))) + 1;
+        rcPush(out, nm, `${k.toUpperCase().slice(0, 2)}${bi}${ax}3`, 'sengkang', 8, 'Ø', 2 * (bb - 2 * cc) + 2 * (hb - 2 * cc) + 0.16, 2 * cnt * nS, 'sengkang kait 135°'); }); });
+    // Pelat lantai menara
+    const ts = g.ts; const Lx = Math.min(g.W, g.Dp), Ly = Math.max(g.W, g.Dp); const wl = g.rcTank ? 9.81 * g.Hw : ((ck.water || 0) + (g.tank?.w || 0) * g.n * 0.00981) / (g.W * g.Dp);
+    const qu = 1.2 * (24 * ts + 0.5) + 1.4 * wl; const Mx = qu * Lx * Lx / 8 * Ly ** 4 / (Lx ** 4 + Ly ** 4) * (g.rcTank ? 1.3 : 1);
+    const dS = ts * 1000 - 25 - 8; const AsS = Math.max(asNeed(Mx, dS, fc, fy), 0.0018 * 1000 * ts * 1000); const sm2 = pickMesh(AsS, S, 10, Math.min(200, 3 * ts * 1000), ov.floor);
+    des.push({ el: `Pelat lantai menara t=${fmt(ts * 100, 0)} cm (2 lapis)`, Mu: Mx, need: AsS, m: sm2, lbl: lblMesh(sm2, S) });
+    rcPush(out, 'Pelat lantai', 'PL1', 'U', sm2.d, sym, withLaps(g.W - 0.05 + 2 * (ts - 0.05), sm2.d, sym), 2 * (Math.ceil((g.Dp - 0.05) / (sm2.s / 1000)) + 1), 'arah X, atas + bawah');
+    rcPush(out, 'Pelat lantai', 'PL2', 'U', sm2.d, sym, withLaps(g.Dp - 0.05 + 2 * (ts - 0.05), sm2.d, sym), 2 * (Math.ceil((g.W - 0.05) / (sm2.s / 1000)) + 1), 'arah Y, atas + bawah');
+  }
+  // Pondasi telapak
+  const fb = g.footB, ft = g.footT; const sig = (ck.Pu || 0) / (fb * fb); const cA = (fb - colB) / 2; const MuF = sig * cA * cA / 2; const dF = ft * 1000 - cf * 1000 - 13;
+  const AsF = Math.max(asNeed(MuF, dF, fc, fy), 0.0018 * 1000 * ft * 1000); const fm = pickMesh(AsF, S, S.sym === 'Ø' ? 12 : 13, 200, ov.foot);
+  const vu = sig * (cA - dF / 1000) ; const phiVc = 0.75 * 0.17 * Math.sqrt(fc) * dF; // kN/m (satu arah)
+  des.push({ el: `Pondasi telapak ${fmt(fb, 2)}×${fmt(fb, 2)}×${fmt(ft, 2)} m`, Mu: MuF, need: AsF, m: fm, lbl: lblMesh(fm, S) + ' 2 arah', shear: { vu, phiVc } });
+  const nF = Math.ceil((fb - 2 * cf) / (fm.s / 1000)) + 1;
+  rcPush(out, 'Pondasi', 'F1', 'U', fm.d, sym, fb - 2 * cf + 2 * Math.max(hookOf(fm.d), ft - 2 * cf), 4 * 2 * nF, 'tulangan bawah 2 arah, ujung ditekuk');
+  // Bak beton di atas menara
+  if (g.rcTank) { const t = g.tank; const tg = { L: t.L, B: t.B, Hin: t.Hin, Hw: g.Hw, tw: t.tw, tb: g.ts, tr: t.tr, embed: 0, mh: t.mh, ov: 0, Htot: t.Hin + t.tr + g.ts };
+    des.push(...rcBox(tg, cfg, S, C, out, 'T', { tb: g.ts, embed: 0, ov: 0, baseEl: 'Lantai bak', baseName: 'Lantai bak (= pelat lantai)' }).filter(d => !/^Lantai bak/.test(d.el)));
+    for (let i = out.length - 1; i >= 0; i--) if (/^TB/.test(out[i].mark)) out.splice(i, 1); } // lantai bak = pelat lantai menara (sudah dihitung)
+  return des;
+}
+function rcDesign(st, g, q) {
+  if (!['reservoir', 'broncaptering', 'bak_pembagi', 'bpt', 'hidran', 'tower'].includes(st.type)) return null;
+  const cfg = rcCfg(st); const S = RC_STEEL[cfg.steel] || RC_STEEL.bjts420; const C = RC_CONC[cfg.conc] || RC_CONC['K-250']; const bars = [];
+  const des = st.type === 'tower' ? rcTower(g, q, cfg, S, C, bars) : rcBox(g, cfg, S, C, bars);
+  const byD = {}; bars.forEach(b => { const k = b.sym + b.d; const x = byD[k] = byD[k] || { sym: b.sym, d: b.d, len: 0, kg: 0, sticks: 0 };
+    x.len += b.tot; x.kg += b.kg; x.sticks += b.len <= 12 ? Math.ceil(b.n / Math.max(1, Math.floor(12 / b.len))) : Math.ceil(b.n * b.len / 12 * 1.02); });
+  const dias = Object.values(byD).sort((a, b) => (a.sym === b.sym ? 0 : a.sym === 'Ø' ? 1 : -1) || a.d - b.d); dias.forEach(x => { x.len = round2(x.len); x.kg = round2(x.kg); });
+  const kg = round2(dias.reduce((a, x) => a + x.kg, 0)); const warn = [];
+  des.forEach(d => { if (d.m && d.m.manual && d.need && d.m.prov < d.need * 0.999) warn.push(`${d.el}: tulangan manual ${d.lbl} (${fmt(d.m.prov, 0)} mm²) < perlu ${fmt(d.need, 0)} mm²`); if (d.m && d.m.short) warn.push(`${d.el}: tulangan maksimum belum cukup, perbesar tebal / dimensi`); if (d.shear && d.shear.vu > d.shear.phiVc) warn.push(`${d.el}: geser satu arah ${fmt(d.shear.vu, 1)} > φVc ${fmt(d.shear.phiVc, 1)} kN/m, pertebal pondasi`); });
+  if (st.type !== 'tower' && C.fc < 20) warn.push(`Mutu ${cfg.conc} terlalu rendah untuk bangunan penampung air (min. K-250 / fc' 20 MPa agar kedap air).`);
+  const conc = q.concrete || 0;
+  return { cfg, S, C, des, bars, dias, kg, warn, ratio: conc > 0 ? kg / conc : 0, wire: round2(kg * 0.015), lbl: Object.fromEntries(des.map(d => [d.el, d.lbl])) };
+}
+// Item RAB pembesian per diameter (menggantikan perkiraan rasio kg/m³) + mutu beton
+function rcApply(x, rc) {
+  if (!rc) return x; const S = rc.S; const fc = RC_CONC[rc.cfg.conc] || RC_CONC['K-250'];
+  const out = []; x.items.forEach(it => {
+    if (/^(st\|besi|tw\|rebar)$/.test(it[0])) { rc.dias.forEach(dx => { const polos = dx.sym === 'Ø'; const fy = polos ? 'BJTP 280' : S.label.split(' (')[0];
+        out.push([`rb|${dx.sym === 'Ø' ? 'P' : 'D'}${dx.d}`, `Pembesian ${fy} ${dx.sym}${dx.d} (daftar potong besi DED)`, dx.kg, 'kg', Math.round(17500 * (polos ? 0.95 : S.f) / 100) * 100,
+          { packAuto: `${dx.sticks} btg × 12 m · ${fmt(dx.len, 1)} m' · bendrat ± ${fmt(dx.kg * 0.015, 1)} kg` }]); });
+      return; }
+    if (/K-250/.test(it[1]) && rc.cfg.conc !== 'K-250') { out.push([it[0], it[1].replace(/K-250/g, rc.cfg.conc), it[2], it[3], Math.round(it[4] * fc.f / 100) * 100, ...(it[5] ? [it[5]] : [])]); return; }
+    out.push(it); });
+  // Label tulangan pada gambar mengikuti hasil desain
+  const P = x.g.p; const L = rc.lbl; const S2 = rc.S;
+  if (x.st.type === 'tower') { const c = rc.des.find(d => /^Kolom|^Pedestal/.test(d.el)); const sk = rc.des.find(d => d.el === 'Sengkang kolom'); const bm = rc.des.find(d => /^Balok ring|^Balok puncak/.test(d.el)); const ft = rc.des.find(d => /^Pondasi/.test(d.el));
+    if (c) P.rebarCol = `${lblBars(c.m, S2)}, sk. ${sk ? sk.lbl.split(' (')[0] : ''}`; if (bm) P.rebarBeam = bm.lbl.replace(/^atas /, '').replace(' · bawah ', ' + '); if (ft) P.rebarFoot = ft.lbl; }
+  else { const w = rc.des.find(d => d.el === 'Dinding vertikal'), b = rc.des.find(d => /^Pelat dasar/.test(d.el)), r = rc.des.find(d => /^Pelat atap bawah/.test(d.el)); if (w) P.rebarWall = w.lbl.split(' (')[0]; if (b) P.rebarSlab = b.lbl; if (r) P.rebarRoof = r.lbl; }
+  return { ...x, items: out, rc, q: { ...x.q, steel: rc.kg + (x.q.profile || 0), rebar: rc.kg } };
+}
+
+const RC_OV_BOX = [['wall', 'Dinding vertikal', 'mesh'], ['wallH', 'Dinding horizontal', 'mesh'], ['base', 'Pelat dasar', 'mesh'], ['roof', 'Pelat atap bawah', 'mesh'], ['roofT', 'Pelat atap atas', 'mesh'], ['part', 'Sekat / ambang', 'mesh']];
+const RC_OV_TOWER = [['col', 'Kolom (n × Ø)', 'bars'], ['colS', 'Sengkang kolom', 'stir'], ['beamTopT', 'Balok puncak – atas', 'bars'], ['beamTopB', 'Balok puncak – bawah', 'bars'], ['beamT', 'Balok ring – atas', 'bars'], ['beamB', 'Balok ring – bawah', 'bars'],
+  ['sloofT', 'Sloof – atas', 'bars'], ['sloofB', 'Sloof – bawah', 'bars'], ['floor', 'Pelat lantai menara', 'mesh'], ['foot', 'Pondasi telapak', 'mesh']];
+const RC_OV_TANK = [['Twall', 'Dinding bak – vertikal', 'mesh'], ['TwallH', 'Dinding bak – horizontal', 'mesh'], ['Troof', 'Atap bak – bawah', 'mesh'], ['TroofT', 'Atap bak – atas', 'mesh']];
+function RcPanel({ s, setProject }) {
+  const rc = s.rc; const [open, setOpen] = useState(false); if (!rc) return null; const cfg = rc.cfg; const S = rc.S;
+  const setRc = (patch) => setProject(pr => ({ ...pr, structures: pr.structures.map(x => x.id === s.st.id ? { ...x, rc: { ...rcCfg(x), ...patch } } : x) }));
+  const setOv = (k, f, v) => setRc({ ov: { ...cfg.ov, [k]: { ...(cfg.ov[k] || {}), [f]: v } } });
+  const list = s.st.type === 'tower' ? [...RC_OV_TOWER.filter(x => !s.g.steel || ['col', 'colS', 'foot'].includes(x[0])), ...(s.g.rcTank ? RC_OV_TANK : [])] : RC_OV_BOX.filter(x => x[0] !== 'part' || (s.g.parts || []).length);
+  const diaSel = (k, f, val, dias) => <select className="tp-field num !px-1" value={val || 0} onChange={e => setOv(k, f, +e.target.value)}><option value={0}>auto</option>{dias.map(d => <option key={d} value={d}>{S.sym}{d}</option>)}</select>;
+  return <div className="rounded-md border border-sky-300 bg-sky-50/40 p-2.5 space-y-2">
+    <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">Setting rangka beton & pembesian</div>
+    <div className="grid grid-cols-3 gap-2">
+      <Field label="Mutu beton"><select id="rc-conc" className="tp-field" value={cfg.conc} onChange={e => setRc({ conc: e.target.value })}>{Object.entries(RC_CONC).map(([k, c]) => <option key={k} value={k}>{k} (fc' {fmt(c.fc, 1)})</option>)}</select></Field>
+      <Field label="Mutu besi"><select id="rc-steel" className="tp-field" value={cfg.steel} onChange={e => setRc({ steel: e.target.value })}>{Object.entries(RC_STEEL).map(([k, c]) => <option key={k} value={k}>{c.label.split(' (')[0]}</option>)}</select></Field>
+      <Field label="Selimut (mm)" hint="0 = auto 40 mm"><NumField id="rc-cover" value={cfg.cover || 0} step={5} min={0} onChange={v => setRc({ cover: Math.max(0, v) })} /></Field>
+    </div>
+    <table className="w-full text-[11.5px]"><thead><tr className="text-slate-500 text-left"><th className="font-medium">Elemen</th><th className="font-medium">Tulangan</th><th className="font-medium text-right">As perlu / pasang</th></tr></thead>
+      <tbody>{rc.des.map((d, i) => { const ok = !d.need || !d.m || d.m.prov >= d.need * 0.999; return <tr key={i} className="border-t border-sky-100 align-top"><td className="py-0.5 pr-1">{d.el}</td><td className="font-mono">{d.lbl}{d.m && d.m.manual ? ' ✎' : ''}</td>
+        <td className={'text-right font-mono num ' + (ok ? 'text-green-700' : 'text-red-700 font-semibold')}>{d.need && d.m ? `${fmt(d.need, 0)} / ${fmt(d.m.prov, 0)} ${ok ? '✓' : '✗'}` : '–'}</td></tr>; })}</tbody></table>
+    <div className="rounded bg-white border border-line px-2 py-1.5 text-[12px]">
+      <div className="flex justify-between"><span className="text-slate-500">Berat besi (daftar potong)</span><span className="font-mono num font-semibold">{fmt(rc.kg, 1)} kg{rc.ratio ? ` · ${fmt(rc.ratio, 0)} kg/m³` : ''}</span></div>
+      {rc.dias.map(x => <div key={x.sym + x.d} className="flex justify-between text-slate-600"><span>{x.sym}{x.d}</span><span className="font-mono num">{fmt(x.kg, 1)} kg · {x.sticks} batang 12 m</span></div>)}
+      <div className="flex justify-between text-slate-600"><span>Kawat bendrat (± 1,5 %)</span><span className="font-mono num">{fmt(rc.wire, 1)} kg</span></div>
+    </div>
+    {rc.warn.map((w, i) => <div key={i} className="rounded bg-red-50 border border-red-200 text-red-800 text-[12px] px-2 py-1">{w}</div>)}
+    <button type="button" className="text-[12px] font-semibold text-aqua-700 hover:underline" onClick={() => setOpen(!open)}>{open ? '▾' : '▸'} Atur tulangan manual (kosongkan / auto = hasil hitungan)</button>
+    {open && <div className="space-y-1">{list.map(([k, l, kind]) => { const o = cfg.ov[k] || {}; return <div key={k} className="grid grid-cols-[1fr_74px_74px] gap-1 items-center text-[12px]"><span className="leading-tight">{l}</span>
+      {kind === 'mesh' && <>{diaSel(k, 'd', o.d, S.dias)}<NumField id={`rc-${k}-s`} value={o.s || 0} step={25} min={0} onChange={v => setOv(k, 's', Math.max(0, v))} /></>}
+      {kind === 'bars' && <><NumField id={`rc-${k}-n`} value={o.n || 0} step={1} min={0} onChange={v => setOv(k, 'n', Math.max(0, Math.round(v)))} />{diaSel(k, 'd', o.d, S.dias)}</>}
+      {kind === 'stir' && <><NumField id={`rc-${k}-s0`} value={o.s0 || 0} step={25} min={0} onChange={v => setOv(k, 's0', Math.max(0, v))} /><NumField id={`rc-${k}-s`} value={o.s || 0} step={25} min={0} onChange={v => setOv(k, 's', Math.max(0, v))} /></>}
+    </div>; })}
+      <p className="text-[11px] text-slate-500">Kolom: Ø + jarak (mm) untuk pelat/dinding; jumlah + Ø untuk kolom/balok; jarak tumpuan + lapangan (mm) untuk sengkang. 0 = otomatis.</p>
+      {Object.keys(cfg.ov).length > 0 && <button type="button" className="text-[12px] text-red-700 hover:underline" onClick={() => setRc({ ov: {} })}>Kembalikan semua ke hasil hitungan</button>}
+    </div>}
+  </div>;
+}
+// ---- Gambar detail penulangan ----
+function RcBar({ x1, y1, x2, y2, w = 0.35, c = '#c8102e' }) { return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={c} strokeWidth={w} strokeLinecap="round" />; }
+function RcDot({ x, y, r = 0.45 }) { return <circle cx={x} cy={y} r={r} fill="#c8102e" />; }
+function RcLbl({ x, y, tx, ty, t, anchor = 'start' }) { return <g><line x1={x} y1={y} x2={tx} y2={ty} stroke="#000" strokeWidth={0.13} /><circle cx={x} cy={y} r={0.35} fill="#000" /><HaloText x={tx + (anchor === 'end' ? -0.6 : 0.6)} y={ty + 0.6} fontSize={1.7} textAnchor={anchor}>{t}</HaloText></g>; }
+// Penampang persegi (kolom / balok / sloof) dengan tulangan & sengkang
+function RcSection({ x, y, W, title, b, h, cv, top, bot, side, ds, stirLbl, sym }) {
+  const k = Math.min((W - 22) / b, 38 / h); const bw = b * k, hh = h * k; const x0 = x + 4, y0 = y + 7; const c = cv * k; const bars = [];
+  const row = (n, d, yy) => { for (let i = 0; i < n; i++) bars.push([x0 + c + (bw - 2 * c) * (n === 1 ? 0.5 : i / (n - 1)), yy, d]); };
+  row(top.n, top.d, y0 + c); row(bot.n, bot.d, y0 + hh - c);
+  if (side) for (let i = 1; i <= side.n; i++) { const yy = y0 + c + (hh - 2 * c) * i / (side.n + 1); bars.push([x0 + c, yy, side.d]); bars.push([x0 + bw - c, yy, side.d]); }
+  return <g>
+    <text x={x} y={y + 3} fontSize={2.1} fontWeight={700}>{title}</text>
+    <rect x={x0} y={y0} width={bw} height={hh} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+    <rect x={x0 + c - 0.4} y={y0 + c - 0.4} width={bw - 2 * c + 0.8} height={hh - 2 * c + 0.8} fill="none" stroke="#c8102e" strokeWidth={0.3} rx={0.6} />
+    <line x1={x0 + c} y1={y0 + c + 1.6} x2={x0 + c + 1.6} y2={y0 + c - 0.2} stroke="#c8102e" strokeWidth={0.3} />
+    {bars.map((q, i) => <circle key={i} cx={q[0]} cy={q[1]} r={Math.max(0.45, q[2] / 1000 * k / 2)} fill="#c8102e" />)}
+    <DimLine x1={x0} y1={y0 + hh} x2={x0 + bw} y2={y0 + hh} off={3} size={1.6} text={fmt(b * 100, 0)} />
+    <DimLine x1={x0} y1={y0} x2={x0} y2={y0 + hh} off={-3} size={1.6} vertical text={fmt(h * 100, 0)} />
+    <HaloText x={x0 + bw + 2} y={y0 + 2} fontSize={1.7}>{side ? `${top.n * 2 + side.n * 2}${sym}${top.d}` : `atas ${top.n}${sym}${top.d}`}</HaloText>
+    {!side && <HaloText x={x0 + bw + 2} y={y0 + hh - 0.5} fontSize={1.7}>bawah {bot.n}{sym}{bot.d}</HaloText>}
+    <HaloText x={x0 + bw + 2} y={y0 + hh / 2 + 0.6} fontSize={1.7}>{stirLbl}</HaloText>
+    <HaloText x={x0 + bw + 2} y={y0 + hh / 2 + 3} fontSize={1.5} fill="#444">selimut {fmt(cv * 1000, 0)} mm</HaloText>
+  </g>;
+}
+function RcBoxDetail({ g, rc, x, y, w, h }) {
+  const S = rc.S; const lb = (re) => (rc.des.find(d => re.test(d.el)) || {}).lbl || '-';
+  const cv = (rc.cfg.cover > 0 ? rc.cfg.cover : 40) / 1000; const ov = g.ov || 0.1; const Ls = Math.min(g.L, 1.6); const tlk = g.tlk || 0.05;
+  const Wr = ov + g.tw + Ls + 0.2, Hr = tlk + g.tb + g.Hin + g.tr; const k = Math.min((w - 46) / Wr, (h - 12) / Hr); const X = (m) => x + 4 + (m + ov) * k, Z = (m) => y + 6 + (Hr - tlk - m) * k;
+  const wm = rc.des.find(d => d.el === 'Dinding vertikal')?.m, hm = rc.des.find(d => d.el === 'Dinding horizontal')?.m, bm = rc.des.find(d => /^Pelat dasar/.test(d.el))?.m, rm = rc.des.find(d => /^Pelat atap bawah/.test(d.el))?.m;
+  const two = g.tw >= 0.15; const xi = X(g.tw - cv), xo = X(cv); const zb = Z(-g.tb + 0.05), zt = Z(-0.05), zr = Z(g.Hin + g.tr - 0.025), zrb = Z(g.Hin + 0.025);
+  const nDot = (len, s) => Math.min(30, Math.max(2, Math.floor(len / (s / 1000)) + 1));
+  return <g>
+    <text x={x} y={y + 2} fontSize={2.3} fontWeight={700}>DETAIL PENULANGAN DINDING, PELAT DASAR & ATAP</text>
+    <rect x={X(-ov)} y={Z(-g.tb)} width={(ov + g.tw + Ls + 0.2) * k} height={tlk * k} fill="#e5e5e5" stroke="#000" strokeWidth={0.2} />
+    <rect x={X(-ov)} y={Z(0)} width={(ov + g.tw + Ls + 0.2) * k} height={g.tb * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+    <rect x={X(0)} y={Z(g.Hin)} width={g.tw * k} height={g.Hin * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+    <rect x={X(0)} y={Z(g.Hin + g.tr)} width={(g.tw + Ls + 0.2) * k} height={g.tr * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+    <line x1={X(g.tw)} y1={Z(Math.min(g.Hw, g.Hin))} x2={X(g.tw + Ls + 0.2)} y2={Z(Math.min(g.Hw, g.Hin))} stroke="#0b4fa8" strokeWidth={0.3} strokeDasharray="1.5 0.8" />
+    <HaloText x={X(g.tw + Ls * 0.6)} y={Z(Math.min(g.Hw, g.Hin)) - 0.8} fontSize={1.6} fill="#0b4fa8">▽ muka air</HaloText>
+    {/* tulangan vertikal dinding */}
+    {wm && <>{two && <><RcBar x1={xo} y1={zb} x2={xo} y2={zr} /><RcBar x1={xo} y1={zb} x2={xo + 12 * wm.d / 1000 * k + 1} y2={zb} /></>}
+      <RcBar x1={two ? xi : X(g.tw / 2)} y1={zb} x2={two ? xi : X(g.tw / 2)} y2={zr} /><RcBar x1={two ? xi : X(g.tw / 2)} y1={zb} x2={(two ? xi : X(g.tw / 2)) + 12 * wm.d / 1000 * k + 1} y2={zb} />
+      <RcBar x1={two ? xi : X(g.tw / 2)} y1={zr} x2={(two ? xi : X(g.tw / 2)) + 12 * wm.d / 1000 * k + 1} y2={zr} /></>}
+    {hm && Array.from({ length: nDot(g.Hin, hm.s) }, (_, i) => { const zz = Z(0.05 + (g.Hin - 0.1) * i / Math.max(1, nDot(g.Hin, hm.s) - 1)); return <g key={i}>{two && <RcDot x={xo + 0.9} y={zz} />}<RcDot x={(two ? xi : X(g.tw / 2)) - (two ? 0.9 : 0)} y={zz} /></g>; })}
+    {/* pelat dasar */}
+    {bm && <><RcBar x1={X(-ov + 0.05)} y1={zb} x2={X(g.tw + Ls + 0.2)} y2={zb} /><RcBar x1={X(-ov + 0.05)} y1={zt} x2={X(g.tw + Ls + 0.2)} y2={zt} /><RcBar x1={X(-ov + 0.05)} y1={zb} x2={X(-ov + 0.05)} y2={zt} />
+      {Array.from({ length: nDot(ov + g.tw + Ls + 0.1, bm.s) }, (_, i) => { const xx = X(-ov + 0.07 + (ov + g.tw + Ls + 0.08) * i / Math.max(1, nDot(ov + g.tw + Ls + 0.1, bm.s) - 1)); return <g key={i}><RcDot x={xx} y={zb - 0.9} /><RcDot x={xx} y={zt + 0.9} /></g>; })}</>}
+    {/* pelat atap */}
+    {rm && <><RcBar x1={X(0.03)} y1={zrb} x2={X(g.tw + Ls + 0.2)} y2={zrb} /><RcBar x1={X(0.03)} y1={zr} x2={X(g.tw + Math.min(g.L, g.B) / 4 + 0.15)} y2={zr} />
+      {Array.from({ length: nDot(g.tw + Ls, rm.s) }, (_, i) => <RcDot key={i} x={X(0.05 + (g.tw + Ls + 0.1) * i / Math.max(1, nDot(g.tw + Ls, rm.s) - 1))} y={zrb - 0.9} />)}</>}
+    <RcLbl x={xi} y={Z(g.Hin * 0.55)} tx={X(g.tw + Ls * 0.35)} ty={Z(g.Hin * 0.72)} t={`${lb(/^Dinding vertikal/)} vertikal`} />
+    <RcLbl x={xi - 0.9} y={Z(g.Hin * 0.3)} tx={X(g.tw + Ls * 0.35)} ty={Z(g.Hin * 0.4)} t={`${lb(/^Dinding horizontal/)} horizontal`} />
+    <RcLbl x={X(g.tw + Ls * 0.5)} y={zt} tx={X(g.tw + Ls * 0.4)} ty={Z(g.Hin * 0.16)} t={`${lb(/^Pelat dasar/)} atas & bawah, 2 arah`} />
+    {rm && <RcLbl x={X(g.tw + Ls * 0.7)} y={zrb} tx={X(g.tw + Ls * 0.45)} ty={Z(g.Hin * 0.9)} t={`${lb(/^Pelat atap bawah/)} bawah · ${lb(/^Pelat atap atas/)} atas`} />}
+    <DimLine x1={X(0)} y1={Z(g.Hin + g.tr)} x2={X(g.tw)} y2={Z(g.Hin + g.tr)} off={-3} size={1.6} text={fmt(g.tw * 100, 0)} />
+    <DimLine x1={X(-ov)} y1={Z(-g.tb)} x2={X(-ov)} y2={Z(0)} off={-3} size={1.6} vertical text={fmt(g.tb * 100, 0)} />
+    <DimLine x1={X(-ov)} y1={Z(0)} x2={X(-ov)} y2={Z(g.Hin)} off={-3} size={1.6} vertical text={fmt(g.Hin * 100, 0)} />
+    <DimLine x1={X(-ov)} y1={Z(g.Hin)} x2={X(-ov)} y2={Z(g.Hin + g.tr)} off={-3} size={1.6} vertical text={fmt(g.tr * 100, 0)} />
+    <HaloText x={X(-ov)} y={Z(-g.tb - tlk) + 3} fontSize={1.6}>Lantai kerja K-100 t = {fmt(tlk * 100, 0)} cm · selimut {fmt(cv * 1000, 0)} mm (dinding/atap), 50 mm (pelat dasar)</HaloText>
+  </g>;
+}
+function RcTowerDetail({ g, rc, x, y, w }) {
+  const S = rc.S; const cv = (rc.cfg.cover > 0 ? rc.cfg.cover : 40) / 1000; const col = rc.des.find(d => /^Kolom|^Pedestal/.test(d.el)); const sk = rc.des.find(d => d.el === 'Sengkang kolom');
+  const beam = (re) => rc.des.find(d => re.test(d.el)); const p = g.p; const bb = Math.max(0.15, +p.beamB || 0.2), hb = Math.max(0.2, +p.beamH || 0.35); const colB = g.steel ? g.ped : g.colB;
+  const sBars = (lbl) => { const m = String(lbl || '').match(/atas (\d+)\D+(\d+) · bawah (\d+)\D+(\d+)/); return m ? { top: { n: +m[1], d: +m[2] }, bot: { n: +m[3], d: +m[4] }, st: (String(lbl).match(/Ø8-\d+\/\d+/) || [''])[0] } : null; };
+  const pw = w / 3; const cn = col.m.n; const per = Math.max(2, Math.round(cn / 4) + 1); const side = cn > 4 ? { n: Math.max(0, (cn - 2 * per) / 2), d: col.m.d } : null;
+  const panels = [];
+  panels.push(<RcSection key="c" x={x} y={y} W={pw} title={`PENAMPANG ${g.steel ? 'PEDESTAL' : 'KOLOM'} ${fmt(colB * 100, 0)}/${fmt(colB * 100, 0)}`} b={colB} h={colB} cv={cv} top={{ n: per, d: col.m.d }} bot={{ n: per, d: col.m.d }} side={side} sym={S.sym} stirLbl={sk ? sk.lbl.split(' / ')[0] : ''} />);
+  [[/^Balok puncak/, 'BALOK PUNCAK'], [/^Balok ring/, 'BALOK RING'], [/^Sloof/, 'SLOOF']].forEach(([re, t], i) => { const d = beam(re); const sb = d && sBars(d.lbl); if (!sb) return;
+    panels.push(<RcSection key={t} x={x + pw * ((panels.length) % 3)} y={y + 58 * Math.floor(panels.length / 3)} W={pw} title={`${t} ${fmt(bb * 100, 0)}/${fmt(hb * 100, 0)}`} b={bb} h={hb} cv={cv} top={sb.top} bot={sb.bot} sym={S.sym} stirLbl={sb.st} />); });
+  // Pondasi telapak (potongan)
+  const ft = rc.des.find(d => /^Pondasi/.test(d.el)); const px = x + pw * (panels.length % 3), py = y + 58 * Math.floor(panels.length / 3); const k = Math.min((pw - 14) / g.footB, 40 / (g.footD + 0.3));
+  const fx = px + 6, fz = py + 8 + 0.3 * k, X = (m) => fx + m * k, Z = (m) => fz + m * k; const c = 0.075;
+  panels.push(<g key="f"><text x={px} y={py + 3} fontSize={2.1} fontWeight={700}>POTONGAN PONDASI TELAPAK</text>
+    <line x1={X(-0.15)} y1={Z(0)} x2={X(g.footB + 0.15)} y2={Z(0)} stroke="#000" strokeWidth={0.3} />
+    <rect x={X((g.footB - colB) / 2)} y={Z(-0.3)} width={colB * k} height={(g.footD - g.footT + 0.3) * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.3} />
+    <rect x={X(0)} y={Z(g.footD - g.footT)} width={g.footB * k} height={g.footT * k} fill="url(#pat-concrete)" stroke="#000" strokeWidth={0.35} />
+    <RcBar x1={X(c)} y1={Z(g.footD - c)} x2={X(g.footB - c)} y2={Z(g.footD - c)} /><RcBar x1={X(c)} y1={Z(g.footD - c)} x2={X(c)} y2={Z(g.footD - g.footT + c)} /><RcBar x1={X(g.footB - c)} y1={Z(g.footD - c)} x2={X(g.footB - c)} y2={Z(g.footD - g.footT + c)} />
+    {Array.from({ length: 9 }, (_, i) => <RcDot key={i} x={X(c + (g.footB - 2 * c) * i / 8)} y={Z(g.footD - c) - 0.9} />)}
+    {[0.25, 0.75].map((f, i) => <g key={i}><RcBar x1={X((g.footB - colB) / 2 + colB * f)} y1={Z(-0.3)} x2={X((g.footB - colB) / 2 + colB * f)} y2={Z(g.footD - c - 0.03)} /><RcBar x1={X((g.footB - colB) / 2 + colB * f)} y1={Z(g.footD - c - 0.03)} x2={X((g.footB - colB) / 2 + colB * f + (i ? 0.25 : -0.25))} y2={Z(g.footD - c - 0.03)} /></g>)}
+    <DimLine x1={X(0)} y1={Z(g.footD)} x2={X(g.footB)} y2={Z(g.footD)} off={3} size={1.6} text={fmt(g.footB * 100, 0)} />
+    <DimLine x1={X(g.footB)} y1={Z(g.footD - g.footT)} x2={X(g.footB)} y2={Z(g.footD)} off={3} size={1.6} vertical text={fmt(g.footT * 100, 0)} />
+    <DimLine x1={X(-0.15)} y1={Z(0)} x2={X(-0.15)} y2={Z(g.footD)} off={-2} size={1.6} vertical text={fmt(g.footD * 100, 0)} />
+    <HaloText x={X(0)} y={Z(g.footD) + 7} fontSize={1.7}>{ft ? ft.lbl : ''} · kait kolom 12d · selimut 75 mm</HaloText></g>);
+  return <g>{panels}</g>;
+}
+const RC_BBS_ROWS = 56;
+const RC_FIRST = 28;
+function rcPages(rc) { if (!rc) return 0; return 1 + Math.max(0, Math.ceil((rc.bars.length - RC_FIRST) / RC_BBS_ROWS)); }
+function SheetRebar({ project, s, page = 0, pages = 1, sheetNo, sheetTotal }) {
+  const rc = s.rc, g = s.g, S = rc.S; const tower = s.st.type === 'tower';
+  const first = page === 0; const from = first ? 0 : RC_FIRST + (page - 1) * RC_BBS_ROWS; const rows = rc.bars.slice(from, first ? RC_FIRST : from + RC_BBS_ROWS);
+  const bbsY = first ? (tower ? 150 : 152) : 26;
+  return <Sheet meta={project.meta} std={stdLine(project, ['bangunan', 'umum'])} title={`DETAIL PENULANGAN ${s.st.label}${pages > 1 ? ` (${page + 1}/${pages})` : ''}`} scaleText="-" sheetNo={sheetNo} sheetTotal={sheetTotal}
+    legend={noteLegend([['#c8102e', 'Tulangan baja'], ['#0b4fa8', 'Muka air']], [`1. Beton ${rc.cfg.conc} (fc' ${fmt(rc.C.fc, 1)} MPa), besi ${S.label.split(' (')[0]};`, '    sengkang BJTP 280 polos.', `2. Sambungan lewatan ${S.sym === 'Ø' ? '48' : '40'}d, kait 90° 12d,`, '    kait sengkang 135° 6d (min. 75 mm).', '3. Sambungan berselang-seling, tidak di', '    daerah momen maksimum.', '4. Penampung air: faktor durabilitas 1,3,', '    tulangan min. 0,3 % dibagi dua muka.', '5. Kolom/balok: ketentuan SRPMM (gempa).', '6. Panjang potong termasuk kait & lewatan;', '    berat = 0,00617 × d² × panjang.', '7. Hitungan indikatif: wajib diperiksa', '    ahli struktur sebelum pelaksanaan.'])}>
+    {first && <>
+      {tower ? <RcTowerDetail g={g} rc={rc} x={22} y={20} w={150} /> : <RcBoxDetail g={g} rc={rc} x={22} y={20} w={155} h={124} />}
+      <SvgTable x={182} y={24} w={146} title="HASIL DESAIN TULANGAN" head={['Elemen', 'Mu', 'As perlu', 'Tulangan', 'As pasang']} cols={[0.3, 0.1, 0.13, 0.33, 0.14]} rh={4.2} fs={1.55} left={[3]}
+        rows={rc.des.map(d => [d.el.slice(0, 26), d.Mu ? fmt(d.Mu, 1) : '-', d.need ? fmt(d.need, 0) : '-', String(d.lbl).slice(0, 34), d.m && d.need ? `${d.m.prov >= d.need * 0.999 ? '' : '✗ '}${fmt(d.m.prov, 0)}` : '-'])} />
+      <text x={182} y={24 + (rc.des.length + 1) * 4.2 + 3} fontSize={1.5} fill="#444">Mu: kNm/m (pelat/dinding) atau kNm (balok) · As: mm²/m (pelat/dinding) atau mm² (kolom/balok)</text>
+      <SvgTable x={182} y={24 + (rc.des.length + 1) * 4.2 + 10} w={146} title="REKAP BESI PER DIAMETER" head={['Diameter', 'Panjang (m)', 'Berat (kg)', 'Batang 12 m']} cols={[0.25, 0.25, 0.25, 0.25]} rh={4.2} fs={1.6}
+        rows={[...rc.dias.map(x => [`${x.sym}${x.d}`, fmt(x.len, 1), fmt(x.kg, 1), String(x.sticks)]), ['Total', '', fmt(rc.kg, 1), String(rc.dias.reduce((a, x) => a + x.sticks, 0))], ['Kawat bendrat', '', fmt(rc.wire, 1), ''], ['Rasio', '', `${fmt(rc.ratio, 0)} kg/m³`, '']]} />
+    </>}
+    <SvgTable x={20} y={bbsY} w={308} title={`DAFTAR POTONG BESI (BAR BENDING SCHEDULE)${pages > 1 ? ` · baris ${from + 1}–${from + rows.length} dari ${rc.bars.length}` : ''}`} head={['No', 'Kode', 'Elemen', 'Bentuk', 'Ø', 'Panjang (m)', 'Jumlah', 'Total (m)', 'Berat (kg)', 'Keterangan']}
+      cols={[0.04, 0.06, 0.11, 0.08, 0.05, 0.09, 0.07, 0.09, 0.09, 0.32]} rh={first ? 4.2 : 4.4} fs={1.6} left={[2, 3, 9]}
+      rows={rows.map((b, i) => [String(from + i + 1), b.mark, b.el, b.shape, `${b.sym}${b.d}`, fmt(b.len, 2), String(b.n), fmt(b.tot, 1), fmt(b.kg, 1), b.note.slice(0, 52)])} />
+  </Sheet>;
+}
+// ---- Rekap volume & biaya DED = RAB (harga SHS / IKK / manual) ----
+const COST_ROWS = 52;
+function costRows(rab, ppn) { const out = []; rab.sections.forEach(sx => { if (!sx.items.length) return; out.push({ h: true, t: [sx.code, sx.title.slice(0, 92), '', '', '', '', fmt(sx.subtotal, 0)] });
+  sx.items.forEach((it, i) => out.push({ t: [String(i + 1), String(it.desc).slice(0, 92), fmt(it.vol, 2), it.unit, fmt(it.price, 0), it.psrc === 'shs' ? `SHS ${it.shsCode}` : it.psrc === 'ikk' ? 'Bawaan × IKK' : it.psrc === 'manual' ? 'Manual' : 'Bawaan', fmt(it.amount, 0)] })); });
+  out.push({ h: true, t: ['', 'JUMLAH', '', '', '', '', fmt(rab.total, 0)] }, { h: true, t: ['', `PPN ${fmt(+ppn || 0, 0)}%`, '', '', '', '', fmt(rab.ppn, 0)] }, { h: true, t: ['', 'TOTAL (dibulatkan)', '', '', '', '', fmt(rab.rounded, 0)] }); return out; }
+function SheetCost({ project, rab, page, pages, sheetNo, sheetTotal }) {
+  const all = costRows(rab, project.settings.ppnPct); const rows = all.slice(page * COST_ROWS, (page + 1) * COST_ROWS); const sh = rab.shs || {};
+  return <Sheet meta={project.meta} std={stdLine(project, ['umum'])} title={`REKAP VOLUME & BIAYA${pages > 1 ? ` (${page + 1}/${pages})` : ''}`} scaleText="-" sheetNo={sheetNo} sheetTotal={sheetTotal}
+    legend={noteLegend([], ['1. Volume & harga sama persis dengan tab', '    BoQ & RAB (satu sumber hitungan).', `2. Harga: SHS ${sh.name || ''} ${sh.year || ''}`.slice(0, 44), `    (${sh.n || 0} item SHS tertaut), sisanya harga`, `    bawaan × IKK ${fmt(sh.ikk || 0, 2)}.`, '3. Volume besi dari daftar potong besi,', '    volume beton/bekisting dari dimensi DED.', '4. Ubah harga di tab RAB / SHS; lembar ini', '    ikut berubah otomatis.'])}>
+    <text x={22} y={17} fontSize={3.2} fontWeight={700}>REKAP VOLUME & BIAYA PEKERJAAN (SESUAI RAB / SHS)</text>
+    <SvgTable x={20} y={24} w={308} head={['No', 'Uraian pekerjaan', 'Volume', 'Sat.', 'Harga satuan (Rp)', 'Sumber harga', 'Jumlah (Rp)']} cols={[0.05, 0.49, 0.08, 0.05, 0.11, 0.1, 0.12]} rh={4.7} fs={1.6} left={[1, 3, 5]}
+      rows={rows.map(r => r.t)} />
+    {rows.map((r, i) => r.h ? <rect key={i} x={20} y={24 + (i + 1) * 4.7} width={308} height={4.7} fill="#0b66b8" fillOpacity={0.09} /> : null)}
   </Sheet>;
 }
 
@@ -3483,7 +3836,7 @@ function LeafletMap(props) {
     });
     project.nodes.forEach(n => {
       const r = hyd.nodes[n.id];
-      const color = isSrc(n) ? '#0b6e74' : STATUS_COLORS[r.status] || '#94a3b8';
+      const color = isSrc(n) ? '#0d66b5' : STATUS_COLORS[r.status] || '#94a3b8';
       const sel = selection?.kind === 'node' && selection.id === n.id;
       const ns = props.mobile ? 32 : 24;
       const icon = L.divIcon({ className: 'tp-node-wrap', iconSize: [ns, ns], iconAnchor: [ns / 2, ns / 2],
@@ -3564,7 +3917,7 @@ function CanvasMap(props) {
           <polyline points={ptsStr} fill="none" stroke="transparent" strokeWidth={u * 14} />
           {sel && <polyline points={ptsStr} fill="none" stroke="#f97316" strokeWidth={u * 10} strokeLinecap="round" strokeLinejoin="round" opacity={0.5} />}
           <polyline points={ptsStr} fill="none" stroke={STATUS_COLORS[st === 'src' ? 'ok' : st]} strokeWidth={u * (3 + Math.min(6, p.diameter / 40))} strokeLinecap="round" strokeLinejoin="round" />
-          {showLabels && <text x={M.x} y={M.y - u * 8} fontSize={u * 11} textAnchor="middle" fill="#10232a" stroke="#fff" strokeWidth={u * 3} paintOrder="stroke" fontFamily="IBM Plex Mono, monospace">{p.label} Ø{p.diameter} · {fmt(r.length, 0)} m</text>}
+          {showLabels && <text x={M.x} y={M.y - u * 8} fontSize={u * 11} textAnchor="middle" fill="#0b1d33" stroke="#fff" strokeWidth={u * 3} paintOrder="stroke" fontFamily="IBM Plex Mono, monospace">{p.label} Ø{p.diameter} · {fmt(r.length, 0)} m</text>}
         </g>;
       })}
       {(props.tracks || []).map(t => t.points.length > 1 && <polyline key={t.id} points={t.points.map(q => { const p = P.toXY(q[0], q[1]); return `${p.x},${-p.y}`; }).join(' ')} fill="none" stroke="#f97316" strokeWidth={u * 3} strokeDasharray={`${u} ${u * 6}`} strokeLinecap="round" pointerEvents="none" />)}
@@ -3572,19 +3925,19 @@ function CanvasMap(props) {
         return <g key={st.id} onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); props.onStructClick(st.id); }} style={{ cursor: 'pointer' }}>
           <rect x={q.x - u * 16} y={-q.y - u * 10} width={u * 32} height={u * 20} rx={u * 3} fill="#3730a3" stroke={sel ? '#f97316' : '#fff'} strokeWidth={u * (sel ? 4 : 2)} />
           <text x={q.x} y={-q.y + u * 3.5} fontSize={u * 9} textAnchor="middle" fontWeight={700} fill="#fff" fontFamily="IBM Plex Mono, monospace" pointerEvents="none">{STRUCT_TYPES[st.type].short}</text>
-          {showLabels && <text x={q.x + u * 20} y={-q.y + u * 4} fontSize={u * 11} fontWeight={600} fill="#0d2a31" stroke="#fff" strokeWidth={u * 3} paintOrder="stroke" pointerEvents="none">{st.label}</text>}</g>; })}
+          {showLabels && <text x={q.x + u * 20} y={-q.y + u * 4} fontSize={u * 11} fontWeight={600} fill="#06284d" stroke="#fff" strokeWidth={u * 3} paintOrder="stroke" pointerEvents="none">{st.label}</text>}</g>; })}
       {props.gpsPos && (() => { const q = P.toXY(props.gpsPos.lat, props.gpsPos.lng); return <g pointerEvents="none"><circle cx={q.x} cy={-q.y} r={props.gpsPos.acc || 10} fill="#3b82f6" opacity={0.12} /><circle cx={q.x} cy={-q.y} r={u * 8} fill="#2563eb" stroke="#fff" strokeWidth={u * 3} /></g>; })()}
       {act && tool === 'draw' && hover && <polyline points={[xy(act), ...(props.pending || []).map(q => { const t = P.toXY(q[0], q[1]); return { x: t.x, y: -t.y }; }), hover].map(q => `${q.x},${q.y}`).join(' ')} fill="none" stroke="#f97316" strokeWidth={u * 2.5} strokeDasharray={`${u * 6} ${u * 6}`} pointerEvents="none" />}
       {project.nodes.map(n => {
         const p = xy(n); const r = hyd.nodes[n.id]; const sel = selection?.kind === 'node' && selection.id === n.id;
-        const color = isSrc(n) ? '#0b6e74' : STATUS_COLORS[r.status];
+        const color = isSrc(n) ? '#0d66b5' : STATUS_COLORS[r.status];
         return <g key={n.id} onPointerDown={e => onDown(e, n.id)} style={{ cursor: 'pointer' }}>
           {(sel || activeNode === n.id) && <circle cx={p.x} cy={p.y} r={u * 17} fill="none" stroke="#f97316" strokeWidth={u * 3} />}
           {isSrc(n)
-            ? <rect x={p.x - u * 11} y={p.y - u * 11} width={u * 22} height={u * 22} rx={u * 3} fill="#0b6e74" stroke="#fff" strokeWidth={u * 2.5} />
+            ? <rect x={p.x - u * 11} y={p.y - u * 11} width={u * 22} height={u * 22} rx={u * 3} fill="#0d66b5" stroke="#fff" strokeWidth={u * 2.5} />
             : <circle cx={p.x} cy={p.y} r={u * 11} fill="#fff" stroke={color} strokeWidth={u * 3.5} />}
-          <text x={p.x} y={p.y + u * 3.5} fontSize={u * 9} textAnchor="middle" fontWeight={700} fill={isSrc(n) ? '#fff' : '#10232a'} fontFamily="IBM Plex Mono, monospace" pointerEvents="none">{NODE_TYPES[n.type].short}</text>
-          {showLabels && <text x={p.x + u * 15} y={p.y + u * 4} fontSize={u * 11} fontWeight={600} fill="#0d2a31" stroke="#fff" strokeWidth={u * 3} paintOrder="stroke" pointerEvents="none">{n.label}{r.pressure !== null && n.type !== 'reservoir' ? ` · ${fmt(r.pressure, 1)} mka` : ''}</text>}
+          <text x={p.x} y={p.y + u * 3.5} fontSize={u * 9} textAnchor="middle" fontWeight={700} fill={isSrc(n) ? '#fff' : '#0b1d33'} fontFamily="IBM Plex Mono, monospace" pointerEvents="none">{NODE_TYPES[n.type].short}</text>
+          {showLabels && <text x={p.x + u * 15} y={p.y + u * 4} fontSize={u * 11} fontWeight={600} fill="#06284d" stroke="#fff" strokeWidth={u * 3} paintOrder="stroke" pointerEvents="none">{n.label}{r.pressure !== null && n.type !== 'reservoir' ? ` · ${fmt(r.pressure, 1)} mka` : ''}</text>}
         </g>;
       })}
     </svg>
@@ -3837,7 +4190,7 @@ function MapWorkspace({ project, setProject, hyd, selection, setSelection, field
     <div className={mobile ? 'grid grid-cols-2 gap-1' : 'flex flex-col gap-0.5'}>
       {Object.entries(NODE_TYPES).map(([k, t]) => <button key={k} type="button" onClick={() => pickType(k)}
         className={`flex items-center gap-2 rounded px-2 text-[12px] text-left ${mobile ? 'py-2.5 border border-line' : 'py-1'} ${newType === k ? 'bg-aqua-50 text-aqua-800 ring-1 ring-aqua-400' : 'hover:bg-slate-50 text-slate-700'}`}>
-        <svg width="22" height="16" viewBox="-5 -4.5 10 9" className="shrink-0"><line x1={-5} x2={5} y1={0} y2={0} stroke="#64748b" strokeWidth={0.4} /><DedSymbol type={k} x={0} y={0} s={k === 'reservoir' ? 0.9 : 1.1} color="#0d2a31" /></svg>
+        <svg width="22" height="16" viewBox="-5 -4.5 10 9" className="shrink-0"><line x1={-5} x2={5} y1={0} y2={0} stroke="#64748b" strokeWidth={0.4} /><DedSymbol type={k} x={0} y={0} s={k === 'reservoir' ? 0.9 : 1.1} color="#06284d" /></svg>
         {t.label}</button>)}
     </div>
     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5 mt-3">Bangunan</div>
@@ -3936,7 +4289,7 @@ function MapWorkspace({ project, setProject, hyd, selection, setSelection, field
           {sheet === 'gw' && <GwPanel embedded project={project} setProject={setProject} field={field} pick={gwPick} setPick={(v) => { setGwPick(v); if (v) setSheet(null); }} />}
           {sheet === 'list' && <>{listTabsJsx}{listJsx}</>}
           {sheet === 'view' && <div className="p-4 space-y-4">{viewJsx}<Legend mode={colorMode} settings={project.settings} />
-            <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Profil elevasi jalur pipa</div><div className="-mx-3"><ProfilePanel embedded project={project} hyd={hyd} setHover={setHoverPt} focus={(ll) => { field.setFocus({ ...ll, t: Date.now() }); setSheet(null); }} /></div></div></div>}
+            <div><div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Profil elevasi jalur pipa</div><div className="-mx-3"><ProfilePanel embedded compact project={project} hyd={hyd} setHover={setHoverPt} focus={(ll) => { field.setFocus({ ...ll, t: Date.now() }); setSheet(null); }} /></div></div></div>}
         </div>
       </div>}
       <nav className="absolute left-0 right-0 bottom-0 h-14 z-[900] bg-white border-t border-line flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
@@ -3972,11 +4325,11 @@ function MapWorkspace({ project, setProject, hyd, selection, setSelection, field
       {engine === 'leaflet' && (gwOpen ? <GwPanel project={project} setProject={setProject} field={field} pick={gwPick} setPick={setGwPick} onClose={() => { setGwOpen(false); setGwPick(null); }} />
         : <button type="button" onClick={() => setGwOpen(true)} className="absolute right-3 top-14 z-[600] flex items-center gap-2 bg-white border border-line rounded-full pl-3 pr-4 py-2 shadow-lg text-[13px] font-semibold text-ink"><Icon name="Droplets" size={16} className="text-aqua-600" />Air tanah & hidrologi</button>)}
       {!profOpen && !gwOpen && <button type="button" onClick={() => setProfOpen(true)} className="absolute right-3 top-28 z-[600] flex items-center gap-2 bg-white border border-line rounded-full pl-3 pr-4 py-2 shadow-lg text-[13px] font-semibold text-ink"><Icon name="Activity" size={16} className="text-aqua-600" />Profil elevasi</button>}
-      {gwOpen && !profOpen && <button type="button" onClick={() => setProfOpen(true)} className="absolute left-1/2 -translate-x-1/2 bottom-8 z-[600] flex items-center gap-2 bg-white border border-line rounded-full pl-3 pr-4 py-2 shadow-lg text-[13px] font-semibold text-ink"><Icon name="Activity" size={16} className="text-aqua-600" />Profil elevasi</button>}
-      {profOpen && <ProfilePanel project={project} hyd={hyd} setHover={setHoverPt} focus={(ll) => field.setFocus({ ...ll, t: Date.now() })} onClose={() => { setProfOpen(false); setHoverPt(null); }} />}
+      {gwOpen && !profOpen && <button type="button" onClick={() => setProfOpen(true)} className="absolute right-3 bottom-8 z-[600] flex items-center gap-2 bg-white border border-line rounded-full pl-3 pr-4 py-2 shadow-lg text-[13px] font-semibold text-ink"><Icon name="Activity" size={16} className="text-aqua-600" />Profil elevasi</button>}
     </div>
 
-    <aside className="lg:w-[340px] shrink-0 bg-white border-t lg:border-t-0 lg:border-l border-line flex flex-col min-h-0">
+    <aside className={(profOpen ? 'lg:w-[500px]' : 'lg:w-[340px]') + ' shrink-0 bg-white border-t lg:border-t-0 lg:border-l border-line flex flex-col min-h-0'}>
+      {profOpen && <div id="prof-dock" className="border-b-2 border-aqua-200 overflow-y-auto max-h-[52%] shrink-0"><ProfilePanel docked compact project={project} hyd={hyd} setHover={setHoverPt} focus={(ll) => field.setFocus({ ...ll, t: Date.now() })} onClose={() => { setProfOpen(false); setHoverPt(null); }} /></div>}
       <div className="p-4 border-b border-line overflow-y-auto max-h-[62%]">{inspectorJsx}</div>
       {listTabsJsx}
       <div className="flex-1 overflow-auto min-h-[160px]">{listJsx}</div>
@@ -4106,13 +4459,13 @@ function NetworkSchematic({ project, hyd, mode = 'velocity', height = 360, onSel
       const mx = M2.x, my = M2.y; const ll = Math.hypot(B2.x - A2.x, B2.y - A2.y) || 1; let nx = -(B2.y - A2.y) / ll, ny = (B2.x - A2.x) / ll; if (nx > 0) { nx = -nx; ny = -ny; }
       return <g key={p.id} onClick={() => onSelect && onSelect({ kind: 'pipe', id: p.id })} style={{ cursor: 'pointer' }}>
         <polyline points={line.map(q => { const t = xyL(q); return t.x + ',' + t.y; }).join(' ')} fill="none" stroke={col} strokeWidth={u * (4 + p.diameter / 30)} strokeLinecap="round" strokeLinejoin="round" />
-        <text x={mx + nx * u * 9} y={my + ny * u * 9 + u * 4} fontSize={u * 11} textAnchor="end" fill="#10232a" stroke="#fff" strokeWidth={u * 4} paintOrder="stroke" fontFamily="IBM Plex Mono, monospace">{p.label} · {mode === 'velocity' ? fmt(r.v) + ' m/s' : 'Ø' + p.diameter}</text>
+        <text x={mx + nx * u * 9} y={my + ny * u * 9 + u * 4} fontSize={u * 11} textAnchor="end" fill="#0b1d33" stroke="#fff" strokeWidth={u * 4} paintOrder="stroke" fontFamily="IBM Plex Mono, monospace">{p.label} · {mode === 'velocity' ? fmt(r.v) + ' m/s' : 'Ø' + p.diameter}</text>
       </g>; })}
-    {project.nodes.map(n => { const p = pts[n.id]; const r = hyd.nodes[n.id]; const col = isSrc(n) ? '#0b6e74' : STATUS_COLORS[r.status];
+    {project.nodes.map(n => { const p = pts[n.id]; const r = hyd.nodes[n.id]; const col = isSrc(n) ? '#0d66b5' : STATUS_COLORS[r.status];
       return <g key={n.id} onClick={() => onSelect && onSelect({ kind: 'node', id: n.id })} style={{ cursor: 'pointer' }}>
         {isSrc(n) ? <rect x={p.x - u * 10} y={p.y - u * 10} width={u * 20} height={u * 20} fill={col} stroke="#fff" strokeWidth={u * 2} rx={u * 2} />
           : <circle cx={p.x} cy={p.y} r={u * 9} fill="#fff" stroke={col} strokeWidth={u * 4} />}
-        <text x={p.x + u * 14} y={p.y + u * 4} fontSize={u * 12.5} fontWeight={600} fill="#0d2a31" stroke="#fff" strokeWidth={u * 4} paintOrder="stroke">{n.label}{!isSrc(n) && r.pressure !== null ? ` · ${fmt(r.pressure, 1)} mka` : isSrc(n) && r.head !== null ? ` · HWL ${fmt(r.head, 1)}` : ''}</text>
+        <text x={p.x + u * 14} y={p.y + u * 4} fontSize={u * 12.5} fontWeight={600} fill="#06284d" stroke="#fff" strokeWidth={u * 4} paintOrder="stroke">{n.label}{!isSrc(n) && r.pressure !== null ? ` · ${fmt(r.pressure, 1)} mka` : isSrc(n) && r.head !== null ? ` · HWL ${fmt(r.head, 1)}` : ''}</text>
       </g>; })}
   </svg>;
 }
@@ -4131,13 +4484,13 @@ function ProfileChart({ path, settings, height = 260 }) {
     <polygon points={`${x(0)},${H - m.b} ${ground} ${x(path.total)},${H - m.b}`} fill="#e9e1d3" />
     <polyline points={ground} fill="none" stroke="#7c5c2e" strokeWidth={2} />
     <polyline points={minLine} fill="none" stroke="#eab308" strokeWidth={1.2} strokeDasharray="5 4" />
-    <polyline points={hgl} fill="none" stroke="#0b6e74" strokeWidth={2.4} />
+    <polyline points={hgl} fill="none" stroke="#0d66b5" strokeWidth={2.4} />
     {path.points.map((p, i) => <g key={i}>
       <line x1={x(p.dist)} x2={x(p.dist)} y1={y(p.head)} y2={y(p.ground)} stroke={STATUS_COLORS[p.pressure < 0 ? 'neg' : p.pressure < settings.pMin && i > 0 ? 'low' : 'ok']} strokeWidth={1.5} strokeDasharray="2 2" />
-      <circle cx={x(p.dist)} cy={y(p.head)} r={3.5} fill="#0b6e74" />
-      <text x={x(p.dist)} y={H - m.b + 14} fontSize={11} textAnchor="middle" fontWeight={600} fill="#10232a">{p.node.label}</text>
+      <circle cx={x(p.dist)} cy={y(p.head)} r={3.5} fill="#0d66b5" />
+      <text x={x(p.dist)} y={H - m.b + 14} fontSize={11} textAnchor="middle" fontWeight={600} fill="#0b1d33">{p.node.label}</text>
       <text x={x(p.dist)} y={H - m.b + 27} fontSize={10} textAnchor="middle" fill="#64748b" className="num">{sta(p.dist)}</text>
-      {i > 0 && <text x={x(p.dist) + 4} y={(y(p.head) + y(p.ground)) / 2} fontSize={10.5} fill="#0a585d" fontWeight={600} className="num">{fmt(p.pressure, 1)}</text>}
+      {i > 0 && <text x={x(p.dist) + 4} y={(y(p.head) + y(p.ground)) / 2} fontSize={10.5} fill="#0b5293" fontWeight={600} className="num">{fmt(p.pressure, 1)}</text>}
     </g>)}
     <text x={12} y={m.t + 4} fontSize={10.5} fill="#64748b" transform={`rotate(-90 12 ${m.t + 4})`} textAnchor="end">Elevasi (mdpl)</text>
   </svg>;
@@ -4157,9 +4510,9 @@ function PumpCurveChart({ pr, height = 230 }) {
     {tH.map(h => <g key={'h' + h}><line x1={m.l} x2={W - m.r} y1={Y(h)} y2={Y(h)} stroke="#e2e8e6" /><text x={m.l - 5} y={Y(h) + 4} fontSize={10.5} textAnchor="end" fill="#64748b">{fmt(h, 0)}</text></g>)}
     {tQ.map(q => <text key={'q' + q} x={X(q)} y={Hh - m.b + 15} fontSize={10.5} textAnchor="middle" fill="#64748b">{fmt(q, tq < 1 ? 1 : 0)}</text>)}
     <polyline points={sc.join(' ')} fill="none" stroke="#7c5c2e" strokeWidth={2} strokeDasharray="6 4" />
-    <polyline points={pc.join(' ')} fill="none" stroke="#0b6e74" strokeWidth={2.4} />
+    <polyline points={pc.join(' ')} fill="none" stroke="#0d66b5" strokeWidth={2.4} />
     <circle cx={X(pr.Q)} cy={Y(pr.H)} r={5.5} fill="#f97316" stroke="#fff" strokeWidth={2} />
-    <text x={X(pr.Q) + 8} y={Y(pr.H) - 8} fontSize={11} fontWeight={600} fill="#10232a">Titik kerja {fmt(pr.Q, 2)} L/dt · {fmt(pr.H, 1)} m</text>
+    <text x={X(pr.Q) + 8} y={Y(pr.H) - 8} fontSize={11} fontWeight={600} fill="#0b1d33">Titik kerja {fmt(pr.Q, 2)} L/dt · {fmt(pr.H, 1)} m</text>
     <text x={(m.l + W - m.r) / 2} y={Hh - 4} fontSize={10.5} textAnchor="middle" fill="#64748b">Debit Q (L/dtk)</text>
     <text x={11} y={(m.t + Hh - m.b) / 2} fontSize={10.5} textAnchor="middle" fill="#64748b" transform={`rotate(-90 11 ${(m.t + Hh - m.b) / 2})`}>Head (m)</text>
   </svg>;
@@ -4741,12 +5094,12 @@ function CrossSectionMini({ s, d }) {
     <rect x={0} y={gy} width={220} height={130 - gy} fill="#d9cbb1" />
     <rect x={X(-W / 2)} y={Y(0)} width={W * k} height={(H - sz) * k} fill="#b49a6e" />
     <rect x={X(-W / 2)} y={Y(H - sz)} width={W * k} height={sz * k} fill="#f3e3a6" />
-    <circle cx={cx} cy={Y(H - bed - D / 2)} r={Math.max(2, D / 2 * k)} fill="#0b6e74" />
+    <circle cx={cx} cy={Y(H - bed - D / 2)} r={Math.max(2, D / 2 * k)} fill="#0d66b5" />
     <line x1={0} x2={220} y1={gy} y2={gy} stroke="#5b4421" strokeWidth={1.2} />
-    <text x={cx} y={gy - 5} fontSize={8} textAnchor="middle" fill="#10232a">W = {fmt(W, 2)} m</text>
-    <text x={X(W / 2) + 4} y={Y(H / 2)} fontSize={8} fill="#10232a">H = {fmt(H, 2)} m</text>
-    <text x={X(-W / 2) - 4} y={Y(H - bed / 2) + 3} fontSize={7} textAnchor="end" fill="#10232a">alas {fmt(bed, 2)}</text>
-    <text x={X(-W / 2) - 4} y={Y(H - sz) + 6} fontSize={7} textAnchor="end" fill="#10232a">pasir</text>
+    <text x={cx} y={gy - 5} fontSize={8} textAnchor="middle" fill="#0b1d33">W = {fmt(W, 2)} m</text>
+    <text x={X(W / 2) + 4} y={Y(H / 2)} fontSize={8} fill="#0b1d33">H = {fmt(H, 2)} m</text>
+    <text x={X(-W / 2) - 4} y={Y(H - bed / 2) + 3} fontSize={7} textAnchor="end" fill="#0b1d33">alas {fmt(bed, 2)}</text>
+    <text x={X(-W / 2) - 4} y={Y(H - sz) + 6} fontSize={7} textAnchor="end" fill="#0b1d33">pasir</text>
   </g>;
 }
 
@@ -4930,7 +5283,7 @@ function SheetLongSection({ project, hyd, endId, sheetTotal }) {
       <line x1={x + 3} x2={x + 13} y1={y + 2} y2={y + 2} stroke="#5b4421" strokeWidth={0.6} /><text x={x + 16} y={y + 2.7}>Muka tanah asli</text>
       <line x1={x + 3} x2={x + 13} y1={y + 8} y2={y + 8} stroke="#0b4fa8" strokeWidth={0.8} /><text x={x + 16} y={y + 8.7}>Dasar pipa (elevasi tanam)</text>
       <line x1={x + 3} x2={x + 13} y1={y + 14} y2={y + 14} stroke="#000" strokeWidth={0.25} strokeDasharray="1 0.6" /><text x={x + 16} y={y + 14.7}>Dasar galian</text>
-      <line x1={x + 3} x2={x + 13} y1={y + 20} y2={y + 20} stroke="#0b6e74" strokeWidth={0.45} strokeDasharray="2.5 1" /><text x={x + 16} y={y + 20.7}>Garis tekanan hidrolis (HGL)</text>
+      <line x1={x + 3} x2={x + 13} y1={y + 20} y2={y + 20} stroke="#0d66b5" strokeWidth={0.45} strokeDasharray="2.5 1" /><text x={x + 16} y={y + 20.7}>Garis tekanan hidrolis (HGL)</text>
       <g fontSize={1.75} fill="#222">{['CATATAN:', `1. Kedalaman galian ${fmt(H, 2)} m, pasir alas ${fmt(bed, 2)} m.`, `2. Patok bantu tiap ${s.staInterval} m (STA).`, '3. Skala vertikal dilebihkan agar profil terbaca.', `4. Tekanan minimum rencana ${s.pMin} mka.`, '5. Air valve di titik tinggi, wash out di titik', '    rendah jalur pipa.'].map((t, i) => <text key={i} x={x + 3} y={y + 30 + i * 3.4} fontWeight={i === 0 ? 700 : 400}>{t}</text>)}</g>
     </g>}>
     <text x={22} y={17} fontSize={3.2} fontWeight={700}>POTONGAN MEMANJANG (LONG SECTION) JALUR {path.points.map(p => p.node.label).join(' – ')}</text>
@@ -4944,8 +5297,8 @@ function SheetLongSection({ project, hyd, endId, sheetTotal }) {
     <polyline points={trench} fill="none" stroke="#000" strokeWidth={0.25} strokeDasharray="1 0.6" />
     <polyline points={ground} fill="none" stroke="#5b4421" strokeWidth={0.6} />
     <polyline points={pipeLine} fill="none" stroke="#0b4fa8" strokeWidth={0.8} />
-    <polyline points={hgl} fill="none" stroke="#0b6e74" strokeWidth={0.45} strokeDasharray="2.5 1" />
-    {path.points.map((p, i) => <g key={i}><text x={X(p.dist) + (i === path.points.length - 1 ? -1 : 1)} y={Y(p.head) - 1.2} fontSize={1.8} fill="#0b6e74" textAnchor={i === path.points.length - 1 ? 'end' : 'start'}>HGL {fmt(p.head, 2)}</text>
+    <polyline points={hgl} fill="none" stroke="#0d66b5" strokeWidth={0.45} strokeDasharray="2.5 1" />
+    {path.points.map((p, i) => <g key={i}><text x={X(p.dist) + (i === path.points.length - 1 ? -1 : 1)} y={Y(p.head) - 1.2} fontSize={1.8} fill="#0d66b5" textAnchor={i === path.points.length - 1 ? 'end' : 'start'}>HGL {fmt(p.head, 2)}</text>
       <g transform={`translate(${X(p.dist)},${Math.min(Y(p.head), Y(p.ground)) - 6})`}><DedSymbol type={p.node.type} x={0} y={0} s={0.8} /></g></g>)}
     {/* garis vertikal & tabel */}
     {stations.map((st, i) => <line key={'v' + i} x1={X(st.dist)} x2={X(st.dist)} y1={Y(st.ground)} y2={acc} stroke="#000" strokeWidth={st.isNode ? 0.3 : 0.12} strokeDasharray={st.isNode ? '' : '0.8 0.6'} />)}
@@ -5634,7 +5987,7 @@ function SheetBorehole({ project, hyd, node, sheetNo, sheetTotal }) {
     {/* pompa, riser, kabel */}
     <line x1={cx - 1.2} x2={cx - 1.2} y1={Y(-2.2)} y2={Y(pr.setting) - 1} stroke="#0b4fa8" strokeWidth={1.4} />
     <line x1={cx + 3.2} x2={cx + 3.2} y1={Y(-1.2)} y2={Y(pr.setting) + 2} stroke="#b45309" strokeWidth={0.3} strokeDasharray="1 0.6" />
-    <rect x={cx - 4.4} y={Y(pr.setting) - 1} width={6.4} height={14} rx={1} fill="#0b6e74" stroke="#000" strokeWidth={0.25} />
+    <rect x={cx - 4.4} y={Y(pr.setting) - 1} width={6.4} height={14} rx={1} fill="#0d66b5" stroke="#000" strokeWidth={0.25} />
     <rect x={cx - 4.4} y={Y(pr.setting) + 6} width={6.4} height={1.2} fill="#fff" opacity={0.5} />
     {(() => { const sl = boreSleeve(node, pr); return sl.on && sl.sz ? <g><rect x={cx - 5.6} y={Y(pr.setting) + 4.6} width={8.8} height={11.4} fill="none" stroke="#7c3aed" strokeWidth={0.45} />
       <line x1={cx - 5.6} x2={cx + 3.2} y1={Y(pr.setting) + 4.6} y2={Y(pr.setting) + 4.6} stroke="#7c3aed" strokeWidth={0.9} />
@@ -5667,12 +6020,12 @@ function SheetBorehole({ project, hyd, node, sheetNo, sheetTotal }) {
         return <g><rect x={12} y={2} width={W - 14} height={Hh - 10} fill="none" stroke="#000" strokeWidth={0.25} />
           {Array.from({ length: Math.floor(Hmax / th) + 1 }).map((_, i) => <g key={i}><line x1={12} x2={W - 2} y1={Yc(i * th)} y2={Yc(i * th)} stroke="#ddd" strokeWidth={0.12} /><text x={11} y={Yc(i * th) + 0.6} fontSize={1.6} textAnchor="end">{fmt(i * th, 0)}</text></g>)}
           {Array.from({ length: Math.floor(Qmax / tq) + 1 }).map((_, i) => <text key={i} x={X(i * tq)} y={Hh - 4.5} fontSize={1.6} textAnchor="middle">{fmt(i * tq, tq < 1 ? 1 : 0)}</text>)}
-          <polyline points={pts(q => pumpCurve(pr.Hd, pr.Qd, q))} fill="none" stroke="#0b6e74" strokeWidth={0.6} />
+          <polyline points={pts(q => pumpCurve(pr.Hd, pr.Qd, q))} fill="none" stroke="#0d66b5" strokeWidth={0.6} />
           <polyline points={pts(sys)} fill="none" stroke="#7c5c2e" strokeWidth={0.5} strokeDasharray="2 1" />
           <circle cx={X(pr.Q)} cy={Yc(pr.H)} r={1.2} fill="#f97316" stroke="#000" strokeWidth={0.2} />
           <text x={X(pr.Q) + 2} y={Yc(pr.H) - 1.5} fontSize={1.8} fontWeight={700}>Titik kerja {fmt(pr.Q, 2)} L/dt; {fmt(pr.H, 1)} m</text>
           <text x={(W + 12) / 2} y={Hh - 1} fontSize={1.7} textAnchor="middle">Debit (L/dtk)</text><text x={2} y={Hh / 2} fontSize={1.7} transform={`rotate(-90 2 ${Hh / 2})`} textAnchor="middle">Head (m)</text>
-          <line x1={20} x2={26} y1={8} y2={8} stroke="#0b6e74" strokeWidth={0.6} /><text x={27} y={8.6} fontSize={1.7}>Kurva pompa</text>
+          <line x1={20} x2={26} y1={8} y2={8} stroke="#0d66b5" strokeWidth={0.6} /><text x={27} y={8.6} fontSize={1.7}>Kurva pompa</text>
           <line x1={48} x2={54} y1={8} y2={8} stroke="#7c5c2e" strokeWidth={0.5} strokeDasharray="2 1" /><text x={55} y={8.6} fontSize={1.7}>Kurva sistem</text></g>; })()}
     </g>
     <SvgTable x={172} y={120} w={152} title="DATA SUMUR & POMPA" head={['Uraian', 'Nilai']} cols={[0.58, 0.42]} rows={[
@@ -6011,7 +6364,7 @@ function SheetFittings({ project, boq, keys, use, page, pages, sheetNo, sheetTot
     {keys.map((k, i) => { const F = FIT_DRAW[k]; const cx = x0 + (i % 4) * cw, cy = y0 + Math.floor(i / 4) * ch; const sp = specOf(F.key, F.t, 'bh'); const u = use[k] || [];
       return <g key={k}>
         <rect x={cx} y={cy} width={cw - 2} height={ch - 2} fill="none" stroke="#000" strokeWidth={0.25} />
-        <rect x={cx} y={cy} width={cw - 2} height={6} fill="#0d2a31" /><text x={cx + 2} y={cy + 4.2} fontSize={2} fontWeight={700} fill="#fff">{String.fromCharCode(65 + i)}. {F.t.toUpperCase().slice(0, 44)}</text>
+        <rect x={cx} y={cy} width={cw - 2} height={6} fill="#06284d" /><text x={cx + 2} y={cy + 4.2} fontSize={2} fontWeight={700} fill="#fff">{String.fromCharCode(65 + i)}. {F.t.toUpperCase().slice(0, 44)}</text>
         <g transform={`translate(${cx + 6} ${cy + 8})`}>{F.d()}</g>
         <rect x={cx + cw - 15} y={cy + 8} width={11} height={8} fill="#fff" stroke="#94a3b8" strokeWidth={0.2} /><DrawSym o={{ x: cx + cw - 9.5, y: cy + 12, sym: F.sym, s: 0.9, c: '#000' }} /><text x={cx + cw - 9.5} y={cy + 18.4} fontSize={1.2} textAnchor="middle" fill="#64748b">simbol denah</text>
         <g fontSize={1.55}><text x={cx + 2} y={cy + 72} fontWeight={700}>Spesifikasi (ideal):</text>
@@ -6025,7 +6378,7 @@ function SheetFittings({ project, boq, keys, use, page, pages, sheetNo, sheetTot
 
 /* ---------- Gambar DED jembatan pipa / perlintasan ---------- */
 function BrDetailBox({ x, y, w, h, title, children }) {
-  return <g><rect x={x} y={y} width={w} height={h} fill="none" stroke="#000" strokeWidth={0.25} /><rect x={x} y={y} width={w} height={5.5} fill="#0d2a31" />
+  return <g><rect x={x} y={y} width={w} height={h} fill="none" stroke="#000" strokeWidth={0.25} /><rect x={x} y={y} width={w} height={5.5} fill="#06284d" />
     <text x={x + 2} y={y + 3.9} fontSize={1.9} fontWeight={700} fill="#fff">{title}</text><g transform={`translate(${x} ${y + 6})`}>{children}</g></g>;
 }
 const brNote = (x, y, t, a = 'start', size = 1.5) => <text x={x} y={y} fontSize={size} textAnchor={a} fill="#222">{t}</text>;
@@ -6826,6 +7179,7 @@ function extraSheets(project, hyd, boq) {
     render: (no, tot) => <SheetFittings project={project} boq={boq} keys={keys} use={fl.use} page={i + 1} pages={fl.pages.length} sheetNo={no} sheetTotal={tot} /> })); }
   boq.structures.forEach(x => { out.push({ key: 'st:' + x.st.id, label: x.st.label, sub: STRUCT_TYPES[x.st.type].label.split(' (')[0], icon: x.st.type === 'tower' ? 'TowerControl' : x.st.type === 'bridge' ? 'Cable' : 'Building2', group: 'Bangunan pelengkap',
     render: (no, tot) => x.st.type === 'tower' ? <SheetTower project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bc_v' ? <SheetBroncapV project={project} s={x} sheetNo={no} sheetTotal={tot} /> : x.st.type === 'bridge' ? <SheetBridge project={project} s={x} sheetNo={no} sheetTotal={tot} /> : <SheetStructure project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
+    if (x.rc && project.ded.rcSheet !== false) { const np = rcPages(x.rc); for (let i = 0; i < np; i++) out.push({ key: `rc:${x.st.id}:${i}`, label: x.st.label, sub: 'Detail penulangan' + (np > 1 ? ` ${i + 1}/${np}` : ''), icon: 'Grid3x3', group: 'Bangunan pelengkap', render: (no, tot) => <SheetRebar project={project} s={x} page={i} pages={np} sheetNo={no} sheetTotal={tot} /> }); }
     if (x.st.cond === 'fix') out.push({ key: 'rh:' + x.st.id, label: x.st.label, sub: 'Rencana rehabilitasi', icon: 'Hammer', group: 'Rehabilitasi existing', render: (no, tot) => <SheetRehab project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
     if (x.st.type === 'tower') out.push({ key: 'sv:' + x.st.id, label: x.st.label, sub: 'Tampak depan & belakang', icon: 'TowerControl', group: 'Bangunan pelengkap', render: (no, tot) => <SheetTowerViews project={project} s={x} sheetNo={no} sheetTotal={tot} /> });
     if ((x.st.extras || []).length) out.push({ key: 'sx:' + x.st.id, label: x.st.label, sub: 'Konstruksi tambahan', icon: 'Boxes', group: 'Bangunan pelengkap', render: (no, tot) => <SheetExtras project={project} s={x} sheetNo={no} sheetTotal={tot} /> }); });
@@ -6844,6 +7198,8 @@ function extraSheets(project, hyd, boq) {
       if (fm === 'basin' && (x.d.sz.cart || x.d.sz.mem)) out.push({ key: 'tm:' + x.t.id, label: x.t.label, sub: 'Cartridge & membran', icon: 'Factory', group: 'Sumber & pengolahan air', render: (no, tot) => <SheetFilterFrp project={project} t={x.t} d={x.d} sheetNo={no} sheetTotal={tot} /> });
     }
   });
+  if (project.ded.costSheet !== false) { const rab = buildRAB(project, boq); const np = Math.max(1, Math.ceil(costRows(rab, 0).length / COST_ROWS));
+    for (let i = 0; i < np; i++) out.push({ key: 'cost:' + i, label: 'Rekap volume & biaya', sub: `sesuai RAB / SHS${np > 1 ? ` · ${i + 1}/${np}` : ''}`, icon: 'Calculator', group: 'Rekap volume & biaya', render: (no, tot) => <SheetCost project={project} rab={rab} page={i} pages={np} sheetNo={no} sheetTotal={tot} /> }); }
   drawOf(project).sheets.forEach(m => out.push({ key: 'mn:' + m.id, label: m.title || 'Gambar manual', sub: 'Gambar manual', icon: 'PenTool', group: 'Gambar manual', manual: m,
     render: (no, tot) => <Sheet meta={project.meta} std={m.std || ''} title={(m.title || 'GAMBAR MANUAL').toUpperCase()} scaleText={m.scaleText || (m.scale ? fmtScale(+m.scale) : '-')} sheetNo={no} sheetTotal={tot}
       legend={noteLegend([], (m.notes || '').split('\n').filter(Boolean).slice(0, 18).map(l => l.slice(0, 44)))} /> }));
@@ -7039,8 +7395,8 @@ function TowerEditor({ s, project, setProject, onDelete, onDuplicate }) {
     </div>
     <H>Perpipaan (mm)</H>
     <div className="grid grid-cols-2 gap-2">{dia('dIn', 'Ø inlet')}{dia('dOut', 'Ø outlet')}{dia('dOf', 'Ø peluap')}{dia('dDr', 'Ø penguras')}</div>
-    <H>Penulangan</H>
-    <div className="grid grid-cols-2 gap-2">{!g.steel && txt('rebarCol', 'Tulangan kolom')}{!g.steel && txt('rebarBeam', 'Tulangan balok')}{txt('rebarFoot', 'Tulangan pondasi')}{num('steelRatio', 'Rasio besi (kg/m³)', 5, 40)}</div>
+    <H>Rangka beton & penulangan</H>
+    <RcPanel s={s} setProject={setProject} />
     <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
       <span className="text-slate-500">Kapasitas</span><span className="text-right font-mono num">{fmt(g.cap, 2)} m³</span>
       <span className="text-slate-500">Kebutuhan tampungan</span><span className="text-right"><span className={'pill ' + (g.cap >= q.need ? 's-ok' : 's-low')}>{fmt(q.need, 1)} m³</span></span>
@@ -7122,10 +7478,8 @@ function StructureEditorMain({ s, project, setProject, onDelete, onDuplicate }) 
       {['reservoir', 'bak_pembagi', 'bpt', 'hidran'].includes(st.type) && dia('dIn', 'Ø inlet')}
       {st.type !== 'hidran' && dia('dOut', 'Ø outlet')}{dia('dOf', 'Ø peluap')}{dia('dDr', 'Ø penguras')}
     </div>
-    <H>Penulangan</H>
-    <div className="grid grid-cols-2 gap-2">
-      {txt('rebarWall', 'Tulangan dinding')}{txt('rebarSlab', 'Tulangan pelat dasar')}{txt('rebarRoof', 'Tulangan pelat atap')}{num('steelRatio', 'Rasio besi (kg/m³)', 5, 40)}
-    </div>
+    <H>Rangka beton & penulangan</H>
+    <RcPanel s={s} setProject={setProject} />
     <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
       <span className="text-slate-500">Kapasitas efektif</span><span className="text-right font-mono num">{fmt(q.cap, 2)} m³</span>
       {q.need !== null && <><span className="text-slate-500">Kebutuhan tampungan</span><span className="text-right"><span className={'pill ' + (q.cap >= q.need ? 's-ok' : 's-high')}>{fmt(q.need, 1)} m³</span></span></>}
@@ -7219,6 +7573,8 @@ function DedWorkspace({ locked = false, project, setProject, hyd, boq, onPrint }
             <Field label="Jalur potongan memanjang"><select id="ded-lsend" className="tp-field" value={ded.lsEnd || path?.endId || ''} onChange={e => setDed('lsEnd', e.target.value)}>{ends.map(n => <option key={n.id} value={n.id}>{path?.points[0].node.label || 'R'} → {n.label}</option>)}</select></Field>
             <Field label="Interval patok STA (m)"><select id="ded-sta" className="tp-field" value={project.settings.staInterval} onChange={e => setProject(p => ({ ...p, settings: { ...p.settings, staInterval: +e.target.value } }))}>{[0, 25, 50, 100, 200].map(v => <option key={v} value={v}>{v === 0 ? 'Hanya titik node' : v + ' m'}</option>)}</select></Field>
             <Field label="Diameter potongan melintang"><select id="ded-cs" className="tp-field" value={ded.csDiameter || ''} onChange={e => setDed('csDiameter', +e.target.value)}><option value="">Terbesar ({boq.pipeGroups.length ? Math.max(...boq.pipeGroups.map(g => g.diameter)) : '-'} mm)</option>{[...new Set(boq.pipeGroups.map(g => g.diameter))].map(d => <option key={d} value={d}>Ø{d} mm</option>)}</select></Field>
+            <label className="flex items-center gap-2 text-[12.5px]"><input id="ded-rcsheet" type="checkbox" checked={ded.rcSheet !== false} onChange={e => setDed('rcSheet', e.target.checked)} />Lembar detail penulangan & daftar potong besi</label>
+            <label className="flex items-center gap-2 text-[12.5px]"><input id="ded-costsheet" type="checkbox" checked={ded.costSheet !== false} onChange={e => setDed('costSheet', e.target.checked)} />Lembar rekap volume & biaya (sesuai RAB / SHS)</label>
             <label className="flex items-center gap-2 text-[12.5px]"><input id="ded-fitsheet" type="checkbox" checked={ded.fitSheet !== false} onChange={e => setDed('fitSheet', e.target.checked)} />Lembar detail fitting & aksesoris (gambar visual)</label>
             {ded.fitSheet !== false && <label className="flex items-center gap-2 text-[12.5px] pl-5"><input id="ded-fitall" type="checkbox" checked={!!ded.fitAll} onChange={e => setDed('fitAll', e.target.checked)} />Tampilkan semua jenis (bukan hanya yang dipakai)</label>}</>}
       </div>
@@ -7336,6 +7692,8 @@ function PhotoReport({ project }) {
    ===================================================================== */
 const KB = [
   // --- pemakaian aplikasi / troubleshooting ---
+  { k: 'penulangan pembesian tulangan besi rangka beton kolom balok sloof sengkang daftar potong bbs mutu beton k-250 bjts', t: 'Rangka beton & penulangan', a: 'Tab **DED** → pilih reservoir/bak/BPT/hidran/menara → bagian **Rangka beton & penulangan**: pilih mutu beton, mutu besi, selimut. Aplikasi menghitung tulangan dinding, pelat, kolom, balok, sloof, sengkang (SRPMM) dan pondasi, membuat **daftar potong besi** (panjang potong, jumlah, berat, batang 12 m) dan lembar DED *Detail penulangan*. Berat besi di RAB diambil dari daftar potong per diameter. Tulangan bisa diatur manual; bila kurang dari kebutuhan ditandai merah. Hasil indikatif, wajib dicek ahli struktur.' },
+  { k: 'sinkron hp pc otomatis import tersimpan cloud perangkat lain', t: 'Sinkron otomatis HP ↔ PC', a: 'Login dengan akun yang sama di HP dan PC (mode cloud). Setiap perubahan di HP tersimpan ke cloud ± 1–2 detik (atau saat sinyal kembali). PC yang membuka proyek yang sama memuat perubahan otomatis; proyek baru dari HP muncul sebagai kotak **Proyek baru dari HP → Buka**. Tidak perlu impor .json.' },
   { k: 'rehabilitasi renovasi perbaikan existing lama rusak bocor intake reservoir bak broncaptering asesmen kerusakan', t: 'Rehabilitasi / renovasi sistem existing', a: '**Pipa / aksesoris lama:** pilih di peta → *Status*: Existing baik, Existing rehabilitasi (isi titik bocor, panjang diganti, pipa terbuka, C pipa lama), atau Bongkar & ganti. Pipa existing tidak dihitung lagi sebagai pipa baru. **Bangunan lama** (intake, reservoir, bak, BPT, menara, jembatan): tab **DED** → pilih bangunan → *Kondisi bangunan* = Existing direhabilitasi → isi tingkat kerusakan & catatan → **Isi otomatis** volume pekerjaan. RAB memuat bagian *Rehabilitasi*, DED memuat lembar *Rencana rehabilitasi* (foto asesmen diambil dari peta). Bila biaya > 60% bangun baru, pertimbangkan bangun baru.' },
   { k: 'jembatan pipa sling kabel baja gantung suspension menyeberang sungai lembah tebing jurang jalan raya perlintasan rangka', t: 'Jembatan pipa / perlintasan', a: 'Tab **DED** → pilih bangunan **Jembatan Pipa / Perlintasan** → *Tambah*. Pilih jenis: **pipa gantung kabel baja (sling)** untuk sungai/lembah/tebing lebar, **jembatan rangka baja** untuk bentang ≤ 25 m, atau **perlintasan bawah jalan** (pipa selubung). Isi bentang, elevasi tanah kedua tepi, dasar sungai/jalan, muka air banjir. Aplikasi menghitung sag & tarik kabel, diameter wire rope (faktor keamanan), tinggi menara, kolom, pondasi, blok angkur, jumlah hanger, lalu membuat gambar DED (tampak samping + detail sadel, hanger, angkur) dan item RAB. Hasilnya indikatif — wajib dicek ahli struktur.' },
   { k: 'kemasan qty beli roll batang zak semen sak karung lembar pcs rab', t: 'Kolom kemasan / qty beli di RAB', a: 'Tabel RAB punya kolom **Kemasan / qty beli** yang mengubah volume menjadi jumlah barang yang dibeli: pipa HDPE per roll (Ø ≤ 63: 100 m, Ø75–110: 50 m, ≥ Ø125 batang 6 m), PVC batang 4 m, GI batang 6 m, beton → zak semen 50 kg + pasir + kerikil, besi → batang 12 m + kawat bendrat, bekisting → lembar multiplek, plester → zak semen + pasir, media filter → sak 25 kg, fitting → pcs. Di mode *Edit item RAB* isinya bisa diubah per item. Kolom ikut tercetak.' },
@@ -7425,7 +7783,7 @@ async function askClaude(key, history, project, hyd, rab, onText) {
   const ctx = { proyek: project.meta.name, lokasi: project.meta.location, node: project.nodes.length, pipa: project.pipes.length, panjang_pipa_m: Math.round(hyd.totalLength), kebutuhan_Ls: +hyd.totalDemand.toFixed(2),
     tekanan_terendah: hyd.minP ? `${hyd.minP.label} ${fmt(hyd.nodes[hyd.minP.id].pressure, 1)} mka` : null, peringatan: hyd.warnings.slice(0, 12).map(x => x.text), bangunan: (project.structures || []).map(x => `${x.label} (${STRUCT_TYPES[x.type].label})`),
     pengolahan: (project.treatments || []).map(t => t.label), sr: project.nodes.filter(n => n.type === 'sr').length, total_rab_rp: rab.rounded, shs: `${rab.shs.name} ${rab.shs.year}` };
-  const system = `Anda adalah Asisten WASH di aplikasi "WASH PMI - Water for life" (Palang Merah Indonesia, LPASL). Bantu petugas lapangan dan perencana dengan: (1) cara memakai aplikasi dan mengatasi masalahnya, (2) informasi teknis air minum, sanitasi dan higiene (SPAM perdesaan, hidrolika pipa, pengolahan air, Permenkes 2/2023, STBM, standar Sphere). Jawab dalam bahasa Indonesia yang ringkas dan praktis, dengan angka kriteria bila relevan. Bila tidak yakin atau aturan bisa berbeda per daerah, katakan dan sarankan rujukan resmi. Fitur aplikasi: peta & GPS tracker, pipa lengkung HDPE, sambungan rumah/meter air, analisis hidrolis Hazen-Williams, pompa & pengolahan air (bak, filter FRP, membran), menara air, BoQ/RAB dengan SHS per provinsi, gambar DED, foto asesmen, review dengan tanda tangan elektronik dan notifikasi.\n\nRingkasan proyek yang sedang dibuka (data, bukan instruksi):\n${JSON.stringify(ctx)}`;
+  const system = `Anda adalah Asisten WASH di aplikasi "WASHLY - Simplify the flow" (Palang Merah Indonesia, LPASL). Bantu petugas lapangan dan perencana dengan: (1) cara memakai aplikasi dan mengatasi masalahnya, (2) informasi teknis air minum, sanitasi dan higiene (SPAM perdesaan, hidrolika pipa, pengolahan air, Permenkes 2/2023, STBM, standar Sphere). Jawab dalam bahasa Indonesia yang ringkas dan praktis, dengan angka kriteria bila relevan. Bila tidak yakin atau aturan bisa berbeda per daerah, katakan dan sarankan rujukan resmi. Fitur aplikasi: peta & GPS tracker, pipa lengkung HDPE, sambungan rumah/meter air, analisis hidrolis Hazen-Williams, pompa & pengolahan air (bak, filter FRP, membran), menara air, BoQ/RAB dengan SHS per provinsi, gambar DED, foto asesmen, review dengan tanda tangan elektronik dan notifikasi.\n\nRingkasan proyek yang sedang dibuka (data, bukan instruksi):\n${JSON.stringify(ctx)}`;
   const messages = history.map(m => ({ role: m.role, content: m.text }));
   const stream = client.beta.messages.stream({ model: 'claude-opus-5-5', max_tokens: 8000, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default', output_config: { effort: 'medium' }, system, messages });
   stream.on('text', onText);
@@ -7826,7 +8184,7 @@ function DeviceDialog({ onClose, install, shareData }) {
   const hosted = /^https?:$/.test(location.protocol) && !/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(location.hostname);
   const url = location.href.split('#')[0];
   const [copied, setCopied] = useState(false);
-  useEffect(() => { if (hosted && qrRef.current && window.QRCode) { qrRef.current.innerHTML = ''; new window.QRCode(qrRef.current, { text: url, width: 176, height: 176, colorDark: '#0d2a31', colorLight: '#ffffff' }); } }, [hosted]);
+  useEffect(() => { if (hosted && qrRef.current && window.QRCode) { qrRef.current.innerHTML = ''; new window.QRCode(qrRef.current, { text: url, width: 176, height: 176, colorDark: '#06284d', colorLight: '#ffffff' }); } }, [hosted]);
   const copy = () => { try { navigator.clipboard.writeText(url).then(() => setCopied(true), () => {}); } catch (e) {} };
   const Step = ({ n, children }) => <li className="flex gap-2.5"><span className="w-5 h-5 rounded-full bg-aqua-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">{n}</span><span className="flex-1">{children}</span></li>;
   return <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
@@ -7989,10 +8347,10 @@ const getAuthApi = async () => AUTH_API || (AUTH_API = AUTH_MODE === 'firebase' 
 function AuthShell({ children }) {
   return <div className="min-h-full flex flex-col items-center justify-start sm:justify-center bg-deep px-4 py-8" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top, 0px))' }}>
     <div className="w-full max-w-md">
-      <div className="bg-white rounded-xl px-4 py-3 mb-4 flex justify-center"><OrgLogos meta={{}} height={38} gap={14} className="flex-wrap justify-center" /></div>
+      <div className="bg-white rounded-xl px-4 py-3 mb-4 flex justify-center"><img src="icons/washly-logo.png" alt="WASHLY – Simplify the flow" className="h-[52px] w-auto" /></div>
       <div className="flex items-center gap-2.5 mb-4 text-white">
-        <div className="w-10 h-10 rounded-lg bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={22} /></div>
-        <div><div className="text-[18px] font-semibold leading-tight">WASH PMI - Water for life</div><div className="text-[12.5px] text-aqua-100">Perencanaan & survei jaringan air bersih</div></div>
+        <img src="icons/washly-mark.png" alt="" className="w-10 h-10 rounded-lg bg-white p-0.5 shrink-0" />
+        <div><div className="text-[18px] font-semibold leading-tight">WASHLY - Simplify the flow</div><div className="text-[12.5px] text-aqua-100">Perencanaan & survei jaringan air bersih</div></div>
       </div>
       <div className="bg-white rounded-xl shadow-xl">{children}</div>
       <p className="text-[11.5px] text-aqua-100/80 mt-3 text-center">{AUTH_MODE === 'firebase' ? 'Akun baru aktif setelah disetujui admin organisasi.' : 'Mode lokal: akun tersimpan di perangkat ini saja. Akun pertama menjadi admin perangkat.'}</p>
@@ -8017,7 +8375,7 @@ function AuthScreen({ api }) {
     if (f.password.length < 8) return setErr('Kata sandi minimal 8 karakter.');
     if (f.password !== f.password2) return setErr('Konfirmasi kata sandi tidak sama.');
     return run(async () => { await api.signUp({ ...f, name: f.name.trim(), email: f.email.trim() });
-      sendNotify(api, { to: ADMIN_EMAILS.filter(e => e !== normEmail(f.email)).map(email => ({ email, name: 'Admin' })), title: 'Pendaftar baru menunggu persetujuan', body: `${f.name.trim()} (${f.email.trim()})${f.role ? ', ' + f.role : ''}${f.org ? ', ' + f.org : ''} mendaftar di WASH PMI. Tinjau di Menu → Kelola pengguna.`, kind: 'register', from: { name: f.name.trim() } }).catch(() => {}); });
+      sendNotify(api, { to: ADMIN_EMAILS.filter(e => e !== normEmail(f.email)).map(email => ({ email, name: 'Admin' })), title: 'Pendaftar baru menunggu persetujuan', body: `${f.name.trim()} (${f.email.trim()})${f.role ? ', ' + f.role : ''}${f.org ? ', ' + f.org : ''} mendaftar di WASHLY. Tinjau di Menu → Kelola pengguna.`, kind: 'register', from: { name: f.name.trim() } }).catch(() => {}); });
   };
   return <AuthShell>
     <div className="flex border-b border-line">{[['in', 'Masuk'], ['up', 'Daftar akun']].map(([k, l]) => <button key={k} type="button" onClick={() => { setTab(k); setErr(''); setMsg(''); }} className={`flex-1 py-3 text-[14px] font-semibold ${tab === k || (k === 'in' && tab === 'reset') ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}</div>
@@ -8246,12 +8604,15 @@ function makeCloudStore(api) {
           const rev = (cur?.rev || 0) + 1;
           tx.set(mRef, { name: p.meta.name || 'Tanpa nama', location: p.meta.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName || '', ownerEmail: c.ownerEmail || '',
             status: c.status || 'draft', checkerUid: c.reviewers?.checker?.uid || '', approverUid: c.reviewers?.approver?.uid || '', surveyorUid: c.reviewers?.surveyor?.uid || '', drafterUid: c.reviewers?.drafter?.uid || '', rev, nodes: p.nodes.length, pipes: p.pipes.length, size: bytes, checkedName: p.meta.checkedName || '', approvedName: p.meta.approvedName || '',
-            updatedByUid: user.uid, updatedByName: user.name || user.email, updatedAt: FS.FieldValue.serverTimestamp(), createdAt: cur?.createdAt || FS.FieldValue.serverTimestamp() });
+            updatedByUid: user.uid, updatedByName: user.name || user.email, updatedByDev: DEVICE_ID, updatedFrom: DEVICE_KIND, updatedAt: FS.FieldValue.serverTimestamp(), createdAt: cur?.createdAt || FS.FieldValue.serverTimestamp() });
           tx.set(dRef, { ownerUid: c.ownerUid, rev, fmt: pk.fmt, ...(pk.bytes ? { data: FS.Blob.fromUint8Array(pk.bytes) } : { text: pk.text }) });
           return { rev };
         });
       } catch (e) { if (e.conflict) throw e; throw wrap(e); }
     },
+    // Dengarkan perubahan proyek (realtime): cb(meta) setiap kali versi di cloud berubah
+    watch(id, cb) { try { return db.collection('projects').doc(id).onSnapshot(s => { if (s.exists && !(s.metadata && s.metadata.hasPendingWrites)) cb(metaOf(s)); }, () => {}); } catch (e) { return () => {}; } },
+    watchMine(user, cb) { try { return db.collection('projects').where('ownerUid', '==', user.uid).onSnapshot(s => cb(s.docs.map(metaOf)), () => {}); } catch (e) { return () => {}; } },
     async remove(id) { try { await db.collection('projectData').doc(id).delete(); await db.collection('projects').doc(id).delete(); } catch (e) { throw wrap(e); } },
     async putPhoto(id, rec) { try { await db.collection('photos').doc(id).set({ ...rec, at: FS.FieldValue.serverTimestamp() }); } catch (e) { throw wrap(e); } },
     async getPhoto(id) { const s = await db.collection('photos').doc(id).get(); return s.exists ? s.data().data : null; },
@@ -8427,7 +8788,7 @@ async function sendNotify(api, { to, title, body, kind = 'info', projectId = '',
       else { const l = JSON.parse(localStorage.getItem(LOCAL_INBOX) || '[]'); l.push({ ...rec, id: uid('nt'), at: Date.now() }); localStorage.setItem(LOCAL_INBOX, JSON.stringify(l.slice(-300))); window.dispatchEvent(new Event('tp-inbox')); }
       out.inbox++; } catch (e) {}
     const topic = await ntfyTopicFor(email).catch(() => null);
-    if (topic) try { const rs = await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic, title: 'WASH PMI', message: NTFY_TEXT[kind] || NTFY_TEXT.info, click: appUrl(), tags: ['droplet'] }) }); if (rs.ok) out.push++; } catch (e) {}
+    if (topic) try { const rs = await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic, title: 'WASHLY', message: NTFY_TEXT[kind] || NTFY_TEXT.info, click: appUrl(), tags: ['droplet'] }) }); if (rs.ok) out.push++; } catch (e) {}
     const ej = NOTIFY.emailjs; if (ej && ej.serviceId && ej.templateId && ej.publicKey) try {
       const rs = await fetch('https://api.emailjs.com/api/v1.0/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ service_id: ej.serviceId, template_id: ej.templateId, user_id: ej.publicKey, template_params: { to_email: email, to_name: r.name || email, subject: title, message: body, link: appUrl() } }) }); if (rs.ok) out.email++; } catch (e) {}
@@ -8548,7 +8909,7 @@ function SignReport({ project }) {
     <td style={{ fontFamily: 'monospace', fontSize: '7pt' }}>{s ? `${s.hash.slice(0, 16)}… ${cur ? (cur === s.hash ? '✓ sesuai' : '✗ isi berubah') : ''}` : ''}</td></tr>; };
   return <><h3>Lembar pengesahan</h3><table><thead><tr><th>Peran</th><th>Nama</th><th>Tanda tangan</th><th>Waktu</th><th>Sidik dokumen (SHA-256)</th></tr></thead>
     <tbody>{row('surveyor', 'Disurvei (surveyor)')}{row('drafter', 'Digambar (drafter)')}{row('checker', `Diperiksa (${project.meta.checkedBy || 'Staf LPASL'})`)}{row('approver', `Disetujui (${project.meta.approvedBy || 'Kepala LPASL'})`)}</tbody></table>
-    <p style={{ fontSize: '8pt', color: '#555' }}>Tanda tangan elektronik internal aplikasi WASH PMI (bukan TTE tersertifikasi BSrE). Sidik dokumen menunjukkan isi desain tidak berubah sejak ditandatangani.</p></>;
+    <p style={{ fontSize: '8pt', color: '#555' }}>Tanda tangan elektronik internal aplikasi WASHLY (bukan TTE tersertifikasi BSrE). Sidik dokumen menunjukkan isi desain tidak berubah sejak ditandatangani.</p></>;
 }
 function ConflictDialog({ info, canOverwrite, onCloud, onMine, onCopy, onClose }) {
   return <div className="fixed inset-0 z-[2150] bg-black/40 flex items-center justify-center p-4">
@@ -8827,6 +9188,31 @@ function App({ user, api }) {
   }, [store, user, pushCloud]);
   useEffect(() => { syncAll(); const on = () => syncAll(); window.addEventListener('online', on); const off = () => setSync(s => store ? { state: 'offline' } : s); window.addEventListener('offline', off);
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); }; }, [syncAll]);
+  // ---- Sinkron otomatis HP ↔ PC: muat versi terbaru begitu perangkat lain menyimpan ----
+  const [remoteNew, setRemoteNew] = useState(null);
+  const pullRef = useRef(false);
+  useEffect(() => {
+    if (!store || !store.watch) return; const id = project.cloud.id;
+    return store.watch(id, async (m) => {
+      if (!m || m.updatedByDev === DEVICE_ID || pullRef.current) return; const s = localLib.sync(id);
+      if (s.rev != null && (m.rev || 0) <= s.rev) return;
+      if (s.dirty || freshRef.current || id !== projectRef.current.cloud.id) return; // sedang diedit di sini: penyelesaian lewat dialog konflik saat menyimpan
+      pullRef.current = true;
+      try { const r = await store.load(id); if (id !== projectRef.current.cloud.id || localLib.sync(id).dirty) return;
+        localLib.put(user.uid, r.project); localLib.setSync(id, { rev: r.rev, dirty: false }); cleanRef.current = { id, str: JSON.stringify(r.project) };
+        setProjectRaw(r.project); history.current = []; setHistLen(0); setSync({ state: 'saved', at: new Date() });
+        setToast(`Data terbaru dari ${m.updatedFrom || 'perangkat lain'} (${m.updatedByName || 'petugas'}) dimuat otomatis`); }
+      catch (e) {} finally { pullRef.current = false; }
+    });
+  }, [store, project.cloud.id]);
+  useEffect(() => {
+    if (!store || !store.watchMine) return; const seen = new Set(); let first = true;
+    return store.watchMine(user, (list) => {
+      list.forEach(m => { if (first) { seen.add(m.id); return; } if (seen.has(m.id)) return; seen.add(m.id);
+        if (m.updatedByDev !== DEVICE_ID && m.id !== projectRef.current.cloud.id) setRemoteNew(m); });
+      first = false; });
+  }, [store, user]);
+  useEffect(() => { const v = () => { if (document.visibilityState === 'visible') syncAll(); }; document.addEventListener('visibilitychange', v); return () => document.removeEventListener('visibilitychange', v); }, [syncAll]);
   // ---- Buka / buat / salin / hapus proyek ----
   const switchTo = (p) => { if (p.__fresh) { p = { ...p }; delete p.__fresh; } stopRec(); setActiveNode(null); history.current = []; setHistLen(0); cleanRef.current = { id: p.cloud.id, str: localLib.sync(p.cloud.id).dirty ? '' : JSON.stringify(p) };
     setProjectRaw(p); lsSet(CURK(user.uid), JSON.stringify(p.cloud.id)); setSelection(null); setConflict(null); setSync({ state: store ? 'idle' : 'local' }); setTab('map'); };
@@ -8921,9 +9307,9 @@ function App({ user, api }) {
     <div id="app-shell" className="h-full flex flex-col">
       {mobile ? <header className="bg-deep text-white shrink-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="flex items-center gap-2 px-3 py-2">
-          <div className="w-8 h-8 rounded-md bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={18} /></div>
+          <img src="icons/washly-mark.png" alt="WASHLY" className="w-8 h-8 rounded-md bg-white p-0.5 shrink-0" />
           <button type="button" onClick={() => setDialog(true)} className="min-w-0 flex-1 text-left">
-            <div className="text-[11px] tracking-[0.04em] text-aqua-200 font-semibold">WASH PMI - Water for life</div>
+            <div className="text-[11px] tracking-[0.04em] text-aqua-200 font-semibold">WASHLY - Simplify the flow</div>
             <div className="text-[13px] font-semibold truncate">{project.meta.name}</div></button>
           <button type="button" onClick={() => setReviewOpen(true)} className={'pill shrink-0 !text-[10px] ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]}>{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</button>
           {rec && <span className="flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 bg-red-500"><span className="tp-rec w-1.5 h-1.5 rounded-full bg-white" />REC</span>}
@@ -8940,14 +9326,14 @@ function App({ user, api }) {
       </header> : <header className="bg-deep text-white shrink-0">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-md bg-aqua-500 flex items-center justify-center shrink-0"><Icon name="Droplets" size={18} /></div>
+            <img src="icons/washly-mark.png" alt="WASHLY" className="w-8 h-8 rounded-md bg-white p-0.5 shrink-0" />
             <div className="min-w-0">
-              <div className="text-[12px] tracking-[0.04em] text-aqua-200 font-semibold">WASH PMI - Water for life</div>
+              <div className="text-[12px] tracking-[0.04em] text-aqua-200 font-semibold">WASHLY - Simplify the flow</div>
               <div className="flex items-center gap-2 min-w-0"><button type="button" onClick={() => setDialog(true)} className="block text-[14px] font-semibold truncate max-w-[52vw] lg:max-w-[460px] hover:underline text-left" title="Ubah data proyek">{project.meta.name}</button>
                 <button type="button" onClick={() => setReviewOpen(true)} className={'pill shrink-0 ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]} title="Status & review proyek">{(PSTATUS[project.cloud.status] || PSTATUS.draft)[0]}</button></div>
             </div>
           </div>
-          <div className="hidden xl:flex bg-white rounded-md px-2.5 py-1"><OrgLogos meta={project.meta} height={26} gap={12} /></div>
+          <div className="hidden md:flex bg-white rounded-md px-2.5 py-1"><img src="icons/washly-logo.png" alt="WASHLY – Simplify the flow" className="h-[30px] w-auto" /></div>
           <div className="flex-1" />
           <button type="button" id="bell-d" onClick={() => setNotifOpen(true)} title="Notifikasi" className="relative inline-flex items-center rounded-md px-2.5 py-1.5 text-slate-200 hover:bg-white/10 border border-white/10"><Icon name="Bell" size={16} />
             {inbox.unread + (user.admin ? pendU.pend.length : 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10.5px] font-bold flex items-center justify-center px-1">{inbox.unread + (user.admin ? pendU.pend.length : 0)}</span>}</button>
@@ -9093,6 +9479,10 @@ function App({ user, api }) {
     {pickOfficer && !readOnly && <OfficerPicker project={project} setProject={setProject} officerId={officerId} onCancel={() => setPickOfficer(null)}
       onPick={(m) => { setOfficerId(m.id); officerRef.current = m; const fn = pickOfficer.then; setPickOfficer(null); setToast(`Petugas aktif: ${m.name}`); fn && fn(); }} />}
     {confirm && <ConfirmDialog text={confirm.text} onNo={() => setConfirm(null)} onYes={() => { confirm.yes(); setConfirm(null); }} />}
+    {remoteNew && <div id="remote-new" className="fixed bottom-20 lg:bottom-12 right-3 z-[2250] bg-white border border-aqua-300 rounded-lg shadow-xl px-3 py-2 text-[13px] flex items-center gap-2 max-w-[92vw]">
+      <Icon name="Smartphone" size={18} className="text-aqua-600 shrink-0" /><span>Proyek baru dari {remoteNew.updatedFrom || 'perangkat lain'}: <b>{remoteNew.name}</b></span>
+      <Btn icon="FolderOpen" onClick={async () => { const it = remoteNew; setRemoteNew(null); try { await openProject({ id: it.id, rev: it.rev }); } catch (e) { setToast(e.message || 'Proyek tidak dapat dibuka'); } }}>Buka</Btn>
+      <button type="button" className="p-1 text-slate-500" title="Tutup" onClick={() => setRemoteNew(null)}><Icon name="X" size={15} /></button></div>}
     {toast && <div className="fixed bottom-20 lg:bottom-12 max-w-[92vw] text-center left-1/2 -translate-x-1/2 z-[2200] bg-deep text-white text-[13px] rounded-md px-4 py-2 shadow-lg">{toast}</div>}
     <div id="print-root">{printMode && <PrintRoot mode={printMode} project={project} hyd={hyd} boq={boq} rab={rab} />}</div>
   </>;

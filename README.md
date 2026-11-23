@@ -1,4 +1,4 @@
-# TirtaPlan Studio
+# WASHLY – Simplify the flow
 
 Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dalam satu aplikasi web.
 
@@ -8,6 +8,13 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 - `auth-config.js`, `firestore.rules`: pengaturan login daring (lihat bagian Akun & login).
 - `manifest.webmanifest`, `sw.js`, `icons/`: membuat aplikasi bisa dipasang di HP dan tetap jalan offline.
 - `build.js`, `package.json`: skrip build.
+
+## Sinkron otomatis HP ↔ PC
+- Data yang dipetakan di HP (titik, pipa, jejak GPS, foto, bangunan) tersimpan ke cloud ± 1–2 detik setelah diubah. Bila HP offline, data disimpan di HP dan dikirim begitu ada sinyal.
+- PC yang membuka proyek yang sama memuat perubahan itu **otomatis**, tanpa impor: muncul pesan *"Data terbaru dari HP (nama petugas) dimuat otomatis"*.
+- Proyek baru yang dibuat di HP memunculkan kotak *"Proyek baru dari HP: … — Buka"* di PC.
+- Syarat: login dengan akun yang sama (atau akun yang ditunjuk pada proyek itu) di HP dan PC, mode cloud (Firebase) aktif.
+- Bila PC sedang mengedit proyek yang sama dan belum tersimpan, aplikasi tidak menimpa: dialog konflik menawarkan versi cloud, salinan, atau timpa.
 
 ## Berkas kerja (daftar proyek) & review
 - Tombol **Proyek** membuka daftar berkas kerja: buat proyek baru, buka, salin, hapus. Setiap perubahan tersimpan otomatis ke cloud (login daring) dan ke perangkat untuk kerja offline; setelah login di perangkat mana pun, semua proyek tetap bisa dibuka.
@@ -72,6 +79,29 @@ Kedua tampak memuat keterangan finishing (cat rangka baja / plester & cat beton,
 - **RAB:** semua item masuk otomatis.
 - **Catatan:** perhitungan indikatif, wajib diverifikasi ahli struktur dan survei geoteknik.
 
+## Rangka beton & penulangan (tab DED → bangunan → "Rangka beton & penulangan")
+Untuk reservoir, bak penangkap mata air, bak pembagi, BPT, hidran umum, dan menara air (rangka beton/kolom, termasuk pedestal menara baja).
+- **Setting:** mutu beton (K-175 … K-350), mutu besi (BJTS 420B / BJTS 280 / BJTP 280), selimut beton. Tulangan bisa diatur manual per elemen; kosong / auto = hasil hitungan.
+- **Hitungan (SNI 2847:2019, metode kekuatan):**
+  - Dinding bak: tekanan air & tanah, faktor 1,4 × durabilitas 1,3, tulangan horizontal termasuk tarik langsung. Tulangan minimum 0,3 % dibagi dua muka (ACI 350).
+  - Pelat dasar & atap: pelat dua arah.
+  - Kolom: beban aksial terfaktor dengan tulangan minimum 1 %. Sengkang mengikuti SRPMM (daerah gempa): jarak rapat di tumpuan, renggang di lapangan.
+  - Balok puncak, balok ring & sloof: momen lentur dengan tulangan minimum.
+  - Pelat lantai menara dan pondasi telapak: lentur + cek geser.
+  - Tulangan manual yang kurang dari kebutuhan ditandai merah.
+- **Daftar potong besi (BBS):** kode, bentuk, diameter, panjang potong (termasuk kait 12d & lewatan 40d), jumlah, berat per elemen. Rekap per diameter mencakup jumlah batang 12 m dan kawat bendrat.
+- **RAB:** item pembesian per diameter dari berat BBS (bukan lagi perkiraan kg/m³); harga & uraian beton ikut mutu yang dipilih.
+- **DED:** lembar *Detail penulangan*:
+  - bangunan bak: potongan dinding, pelat dasar & atap;
+  - menara: penampang kolom, balok puncak, balok ring, sloof, potongan pondasi;
+  - tabel hasil desain, rekap besi, dan daftar potong.
+- **Catatan:** hitungan indikatif; wajib diperiksa ahli struktur.
+
+## Rekap volume & biaya di DED
+- Lembar *Rekap volume & biaya* memuat semua item RAB: volume, harga satuan, sumber harga (kode SHS / bawaan × IKK / manual), dan jumlah.
+- Angkanya sama persis dengan tab BoQ & RAB karena berasal dari satu hitungan. Harga yang diubah di RAB/SHS langsung ikut berubah di gambar.
+- Lembar ini dan lembar penulangan dapat dimatikan di tab DED → opsi lembar.
+
 ## Rehabilitasi / renovasi sistem existing
 Untuk desa yang sudah punya jaringan atau bangunan air lama:
 - **Pipa** (pilih pipa di peta → *Status pipa*): Baru, Existing baik (dipakai apa adanya), Existing rehabilitasi, atau Bongkar & ganti baru.
@@ -117,6 +147,7 @@ Pipa HDPE/PE tidak memerlukan fitting bend selama radius lengkungnya ≥ 25×OD 
   - tambahkan bendung & intake (sungai) atau intake embung ke RAB.
 
 ## Profil elevasi di peta (tab Peta → "Profil elevasi")
+- **Posisi:** di PC, grafik menempel di panel kanan (di atas data node/pipa), jadi peta jaringan tetap terlihat penuh. Di HP: menu Tampilan.
 - **Grafik:** muka tanah dan garis tekanan dari sumber ke node ujung yang dipilih.
 - **Penanda:** titik tertinggi & terendah, serta titik tinggi/rendah lokal yang belum diberi air valve / wash out.
 - **Interaksi:** kursor di grafik menandai lokasi di peta; klik untuk memusatkan peta.

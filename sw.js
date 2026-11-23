@@ -1,8 +1,8 @@
 // Service worker TirtaPlan Studio: aplikasi tetap terbuka tanpa sinyal di lapangan.
-const APP = 'tirtaplan-app-v32';
+const APP = 'tirtaplan-app-v33';
 const TILES = 'tirtaplan-tiles-v1';
 const MAX_TILES = 3000;
-const SHELL = ['./', './index.html', './auth-config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
+const SHELL = ['./', './index.html', './auth-config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/washly-logo.png', './icons/washly-mark.png'];
 const LIBS = [
   'https://cdn.tailwindcss.com/3.4.17',
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js',
