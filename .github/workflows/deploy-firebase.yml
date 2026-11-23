@@ -43,7 +43,14 @@ jobs:
         if: steps.cred.outputs.skip == '0'
         run: |
           TOKEN=$(node -e "const {GoogleAuth}=require('./functions/node_modules/google-auth-library');new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform']}).getAccessToken().then(t=>console.log(t))")
-          OUT=$(curl -s -H "Authorization: Bearer $TOKEN" "https://cloudbilling.googleapis.com/v1/projects/$PROJECT_ID/billingInfo")
+          # Firebase CLI memeriksa paket Blaze lewat Cloud Billing API; aktifkan API itu bila belum
+          for API in cloudbilling.googleapis.com serviceusage.googleapis.com; do
+            curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' "https://serviceusage.googleapis.com/v1/projects/$PROJECT_ID/services/$API:enable" | grep -E '"name"|"error"|"message"' | head -3 || true
+          done
+          for i in 1 2 3 4 5 6; do
+            OUT=$(curl -s -H "Authorization: Bearer $TOKEN" "https://cloudbilling.googleapis.com/v1/projects/$PROJECT_ID/billingInfo")
+            echo "$OUT" | grep -q '"billingEnabled"' && break; echo "menunggu Cloud Billing API aktif ($i)…"; sleep 20
+          done
           echo "billingInfo: $OUT" | sed -E 's/"billingAccountName": "[^"]*"/"billingAccountName": "(disembunyikan)"/'
           if echo "$OUT" | grep -q '"billingEnabled": true'; then echo "blaze=1" >> "$GITHUB_OUTPUT"; else echo "blaze=0" >> "$GITHUB_OUTPUT"; echo "::warning::Billing belum terdeteksi aktif untuk $PROJECT_ID; Cloud Functions belum bisa di-deploy."; fi
       - name: Parameter functions (.env, tidak di-commit)
