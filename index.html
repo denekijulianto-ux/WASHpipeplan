@@ -38217,19 +38217,21 @@ function App({
     src: "icons/washly-mark.png",
     alt: "WASHLY",
     className: "w-8 h-8 rounded-md bg-white p-0.5 shrink-0"
-  }), React.createElement("button", {
+  }), React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, React.createElement("button", {
     type: "button",
     onClick: () => setDialog(true),
-    className: "min-w-0 flex-1 text-left"
+    className: "block w-full min-w-0 text-left"
   }, React.createElement("div", {
-    className: "text-[11px] tracking-[0.04em] text-aqua-200 font-semibold"
+    className: "text-[11px] tracking-[0.02em] text-aqua-200 font-semibold whitespace-nowrap truncate"
   }, "WASHLY - Simplify the flow"), React.createElement("div", {
-    className: "text-[13px] font-semibold truncate"
+    className: "text-[13px] font-semibold truncate leading-tight"
   }, project.meta.name)), React.createElement("button", {
     type: "button",
     onClick: () => setReviewOpen(true),
-    className: 'pill shrink-0 !text-[10px] ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]
-  }, (PSTATUS[project.cloud.status] || PSTATUS.draft)[0]), rec && React.createElement("span", {
+    className: 'pill mt-0.5 !text-[10px] !py-0 ' + (PSTATUS[project.cloud.status] || PSTATUS.draft)[1]
+  }, (PSTATUS[project.cloud.status] || PSTATUS.draft)[0])), rec && React.createElement("span", {
     className: "flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 bg-red-500"
   }, React.createElement("span", {
     className: "tp-rec w-1.5 h-1.5 rounded-full bg-white"
