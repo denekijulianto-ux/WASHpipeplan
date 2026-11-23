@@ -99,7 +99,7 @@ New accounts become active after approval by an organisation admin.
 | Personal info → **Email address** | Yes | No | Required | Account management, App functionality |
 | Personal info → **Phone number** | Yes | No | Optional | Account management |
 | Personal info → **Address** (staff profile) | Yes | No | Optional | App functionality |
-| Personal info → **Other info** (role, organisation, PMI origin, assignment history) | Yes | No | Optional | App functionality |
+| Personal info → **Other info** (role, organisation, assignment history) | Yes | No | Optional | App functionality |
 | Location → **Precise location** | Yes | **Yes** (note A) | Optional (GPS features) | App functionality |
 | Photos and videos → **Photos** (survey photos, profile photo, signatures) | Yes | No | Optional | App functionality |
 | Files and docs (project files, drawings) | Yes | No | Required for cloud sync | App functionality |

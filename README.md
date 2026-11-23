@@ -27,7 +27,7 @@ WASHLY juga tersedia sebagai aplikasi Android (`com.washly.app`, Capacitor 8). A
 - Tombol **Proyek** membuka daftar berkas kerja: buat proyek baru, buka, salin, hapus. Setiap perubahan tersimpan otomatis ke cloud (login daring) dan ke perangkat untuk kerja offline; setelah login di perangkat mana pun, semua proyek tetap bisa dibuka.
 - **Semua proyek tim** dapat dibuka oleh anggota yang disetujui; yang bukan pemilik/admin membukanya hanya-baca dan dapat menyimpan salinan.
 - Bila proyek diubah di dua tempat, aplikasi menawarkan: pakai versi cloud, simpan versi sendiri sebagai salinan, atau timpa.
-- **Status & review**: Sedang dikerjakan → Menunggu pemeriksaan → Sudah diperiksa (**Staf LPASL**) → Disetujui (**Kepala LPASL**), dengan opsi kembalikan untuk revisi. Pemeriksaan & persetujuan dilakukan akun admin; akun ber-peran "Staf LPASL" hanya dapat memeriksa. Nama pemeriksa & penyetuju masuk otomatis ke laporan dan kop gambar DED. Mengubah isi proyek yang sudah diperiksa/disetujui mengembalikan statusnya ke "Sedang dikerjakan".
+- **Status & review**: Sedang dikerjakan → Menunggu pemeriksaan → Sudah diperiksa (**Pemeriksa**) → Disetujui (**Penyetuju**), dengan opsi kembalikan untuk revisi. Pemeriksaan & persetujuan dilakukan akun admin; akun ber-peran "Pemeriksa" hanya dapat memeriksa. Nama pemeriksa & penyetuju masuk otomatis ke laporan dan kop gambar DED. Mengubah isi proyek yang sudah diperiksa/disetujui mengembalikan statusnya ke "Sedang dikerjakan".
 - Penyimpanan cloud memerlukan aturan terbaru di `firestore.rules` (tempel ulang ke Firestore → Rules → Publish).
 
 ## Menara air (tab DED)
@@ -62,7 +62,7 @@ Tanda tangan surveyor & penggambar tercetak di kop gambar (DISURVEI / DIGAMBAR) 
 ## Profil petugas
 - **Cara membuka:** tombol **Profil** di bilah atas (di HP: menu → *Profil saya*). Tanda kuning muncul bila profil belum lengkap.
 - **Isi profil:**
-  - foto profil, nama lengkap, alamat saat ini, asal PMI;
+  - foto profil, nama lengkap, alamat saat ini, asal organisasi/instansi;
   - riwayat penugasan pipanisasi (tahun, lokasi, proyek, peran, panjang pipa, jiwa terlayani), bisa diambil dari proyek di aplikasi.
 - **Untuk admin:** *Kelola pengguna → Lihat profil*.
 - **Penyimpanan (mode daring):** profil disimpan di koleksi `profiles` dan hanya bisa dibaca pemilik dan admin; **perbarui `firestore.rules` di Firebase Console**.
@@ -301,7 +301,7 @@ Setiap item bahan punya tiga rekomendasi spesifikasi (mis. HDPE PE80 PN8 / PE100
 - **Cetak & tanda tangan:** gambar manual ikut tercetak dan termasuk dalam sidik dokumen tanda tangan.
 
 ## Hak pemeriksa & penyetuju (custom)
-Di *Menu → Kelola pengguna*, admin mencentang **Pemeriksa** dan/atau **Penyetuju** per pengguna. Saat mengajukan review, daftar pilihan hanya berisi pengguna yang dicentang. Tidak semua Staf LPASL otomatis menjadi pemeriksa. Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.
+Di *Menu → Kelola pengguna*, admin mencentang **Pemeriksa** dan/atau **Penyetuju** per pengguna. Saat mengajukan review, daftar pilihan hanya berisi pengguna yang dicentang. Tidak semua staf otomatis menjadi pemeriksa. Bila belum ada yang dicentang, semua pengguna aktif bisa dipilih.
 
 ## Unggah gambar tanda tangan
 Di jendela tanda tangan elektronik, tekan **Unggah gambar tanda tangan** (PNG/JPG hasil foto/scan). Latar putih dihapus otomatis bila opsi dicentang.
@@ -323,14 +323,14 @@ Di jendela tanda tangan elektronik, tekan **Unggah gambar tanda tangan** (PNG/JP
 - **Impor daftar SHS** resmi (Pergub/Perbup) dengan menempel dari Excel/PDF atau memuat berkas CSV (kolom: kode, uraian, satuan, harga). Lalu tekan **Cocokkan otomatis**. Pencocokan memperhatikan diameter/ukuran dan jenis material. Tautan per item bisa diperiksa dan diubah lewat tombol **SHS** di tabel RAB (mode Edit item RAB).
 - Urutan harga: harga yang diisi manual → item SHS tertaut → harga bawaan × faktor IKK. Acuan SHS tercantum di laporan cetak.
 
-## Asisten WASH (chatbot)
+## Asisten WASHLY (chatbot)
 - Tombol **Asisten** di pojok kanan bawah.
 - **Mode luring** (tanpa biaya): menjawab dari basis pengetahuan (cara memakai aplikasi, troubleshooting, kriteria teknis SPAM, baku mutu Permenkes 2/2023, STBM, standar Sphere). Tombol **Periksa proyek ini** memberi diagnosis cepat dari analisis hidrolis.
 - **Mode AI (opsional)**: isi kunci API Anthropic di pengaturan asisten. Kunci disimpan hanya di perangkat itu. Pertanyaan dan ringkasan proyek dikirim ke Claude (model `claude-opus-5-5`), dan biaya ditagihkan ke kunci API tersebut.
 
 ## Notifikasi & alur review dengan tanda tangan elektronik
 - **Pendaftar baru**: admin mendapat pop-up di aplikasi, notifikasi browser, dan entri di kotak masuk (ikon lonceng). Bila dikonfigurasi, admin juga mendapat push **ntfy** dan **email**.
-- **Review**: pemilik proyek memilih **pemeriksa** (Staf LPASL) dan **penyetuju** (Kepala LPASL) di *Status, review & tanda tangan*, lalu menekan **Ajukan untuk diperiksa**. Alurnya:
+- **Review**: pemilik proyek memilih **pemeriksa** dan **penyetuju** di *Status, review & tanda tangan*, lalu menekan **Ajukan untuk diperiksa**. Alurnya:
   1. Pemeriksa mendapat notifikasi, membuka proyek, lalu **Periksa & tanda tangani** (tanda tangan digambar di layar).
   2. Proyek otomatis diteruskan ke penyetuju, yang kemudian **Setujui & tanda tangani**.
   3. Pemilik dan pemeriksa diberi tahu bahwa proyek disetujui.
@@ -415,7 +415,7 @@ Aplikasi meminta **Daftar / Masuk** sebelum dipakai. Data proyek dipisah per aku
 2. *Build → Authentication → Get started → Email/Password* → aktifkan.
 3. *Build → Firestore Database → Create database* (mode produksi, lokasi `asia-southeast2` / Jakarta).
 4. *Firestore → Rules*: tempel isi `firestore.rules`, ganti `admin@organisasi.org` dengan email admin → *Publish*.
-5. *Authentication → Settings → Authorized domains*: tambahkan `denekijulianto-ux.github.io`.
+5. *Authentication → Settings → Authorized domains*: tambahkan domain GitHub Pages Anda (mis. `washly-ux.github.io`).
 6. *Project settings → General → Your apps → Web (</>)* → daftarkan aplikasi → salin `firebaseConfig`.
 7. Edit `auth-config.js` di GitHub: tempel konfigurasi ke `firebase: {...}` dan isi `adminEmails` → *Commit*. Situs diperbarui dalam 1–2 menit.
 8. Admin mendaftar dengan email admin, klik tautan verifikasi di email, keluar lalu masuk lagi. Pendaftar lain disetujui lewat **Kelola pengguna**.

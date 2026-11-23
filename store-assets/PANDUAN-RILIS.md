@@ -13,6 +13,30 @@ Langkah di bawah ini butuh akun, perangkat, atau tanda tangan Anda sendiri. Kerj
 
 ---
 
+## Langkah 0 (opsional, disarankan sebelum Play Store) — Alamat web tanpa nama pribadi
+Alamat GitHub Pages selalu berbentuk `<pemilik>.github.io/<nama-repo>`. Supaya tidak memuat nama pribadi, pindahkan repositori ke **organisasi GitHub** bernama `washly-ux`. Gratis.
+
+1. Buka <https://github.com/account/organizations/new?plan=free>.
+   - *Organization name:* `washly-ux`. Bila sudah dipakai orang lain, coba `washlyapp` / `washly-water`.
+   - *Contact email:* `washlywater@gmail.com`.
+   - *This organization belongs to:* **My personal account** → *Next* → lewati undangan anggota.
+2. Buka repo <https://github.com/denekijulianto-ux/WASHpipeplan> → **Settings** → **General**.
+3. **Ganti nama repo** (*Repository name*) menjadi `washly-ux.github.io` → *Rename*. Dengan nama ini alamatnya menjadi **https://washly-ux.github.io/** tanpa garis miring tambahan.
+   - Bila lebih suka `https://washly-ux.github.io/washly/`, beri nama repo `washly` saja.
+4. Masih di Settings → **Danger Zone** → **Transfer ownership** → pilih organisasi `washly-ux` → ketik nama repo untuk konfirmasi → *Transfer*.
+5. Di repo yang sudah pindah: **Settings → Pages** → *Source*: **Deploy from a branch**, *Branch*: `main` / `(root)` → *Save*. Tunggu ± 5 menit, lalu buka `https://washly-ux.github.io/`.
+6. Firebase Console → **Authentication → Settings → Authorized domains** → *Add domain* → `washly-ux.github.io`.
+7. Kabari saya di chat. Saya akan:
+   - mengganti semua alamat di dokumen dan panduan Play Store;
+   - menyambungkan sesi ini ke repo baru.
+
+Catatan:
+* Alamat lama `denekijulianto-ux.github.io/WASHpipeplan` **berhenti bekerja** setelah transfer (GitHub tidak mengalihkannya).
+  - Data cloud (Firebase) **tidak hilang**; pengguna cukup membuka alamat baru dan login lagi.
+  - Ikon web-app yang sudah terpasang di HP dari alamat lama perlu dipasang ulang dari alamat baru.
+* Aplikasi Android **tidak terpengaruh**, karena semua berkasnya ada di dalam aplikasi.
+* Nama di repo Git untuk penyimpanan kode tetap terlihat oleh Anda saja bila repo dibuat privat. GitHub Pages pada repo privat memerlukan paket berbayar, jadi biarkan repo **publik**.
+
 ## Langkah 1 — Amankan kunci upload (5 menit) ⚠️ PALING PENTING
 File `washly-upload.jks` dan `keystore.properties` sudah dikirim ke chat.
 
@@ -106,7 +130,7 @@ Semuanya di **Policy → App content**.
 3. **Release notes (id-ID):**
    `Rilis pertama WASHLY untuk Android: pemetaan GPS, analisis hidrolis, pompa & pengolahan air, RAB, gambar DED, sinkron cloud HP↔PC, dan bekerja tanpa sinyal.`
 4. *Testers* → buat daftar e-mail penguji → simpan → bagikan *opt-in link* ke penguji.
-5. **Akun pribadi:** buat juga rilis **Closed testing** dengan **≥ 12 penguji** yang tetap ikut **14 hari berturut-turut**, misalnya rekan PMI. Setelah itu klik *Apply for production* di Dashboard dan jawab pertanyaan Google tentang pengujian.
+5. **Akun pribadi:** buat juga rilis **Closed testing** dengan **≥ 12 penguji** yang tetap ikut **14 hari berturut-turut**, misalnya rekan kerja / mitra lapangan. Setelah itu klik *Apply for production* di Dashboard dan jawab pertanyaan Google tentang pengujian.
 
 ## Langkah 10 — Rilis publik
 1. **Production → Create new release** → *Add from library* (AAB yang sama) → isi release notes.
