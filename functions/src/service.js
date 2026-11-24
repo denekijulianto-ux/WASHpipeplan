@@ -461,11 +461,16 @@ function makeService(deps) {
   async function adminSetMidtrans(auth, data = {}) {
     needAdmin(auth); if (!deps.midtransFactory) throw new BillingError('failed-precondition', 'Server belum mendukung pengaturan Midtrans dari aplikasi.');
     const mode = data.mode === 'production' ? 'production' : 'sandbox';
-    const serverKey = String(data.serverKey || '').trim(), signatureKey = String(data.signatureKey || '').trim();
-    if (!/^(SB-)?Mid-server-[A-Za-z0-9_-]{8,}$/.test(serverKey)) throw new BillingError('invalid-argument', 'Server Key tidak dikenali. Salin dari Midtrans → Settings → Access Keys → General Credentials → Server Keys (diawali "SB-Mid-server-" untuk Sandbox atau "Mid-server-" untuk Production).');
-    if (mode === 'sandbox' && !serverKey.startsWith('SB-')) throw new BillingError('invalid-argument', 'Mode Sandbox memerlukan Server Key Sandbox (diawali "SB-Mid-server-"). Pastikan Environment di dashboard Midtrans: Sandbox.');
+    // buang spasi, baris baru & karakter tak terlihat yang sering ikut tersalin dari dashboard
+    const clean = (v) => String(v || '').replace(/[\s\u200B-\u200D\uFEFF\u00A0]+/g, '').replace(/^["'`]+|["'`]+$/g, '');
+    const serverKey = clean(data.serverKey), signatureKey = clean(data.signatureKey);
+    if (/^(SB-)?Mid-client-/i.test(serverKey)) throw new BillingError('invalid-argument', 'Yang ditempel adalah Client Key (diawali "Mid-client-"). Kolom pertama harus diisi Server Key dari bagian Server Keys → Generate server key.');
+    if (/^(SB-)?Mid-client-|^(SB-)?Mid-server-/i.test(signatureKey) && signatureKey === serverKey) throw new BillingError('invalid-argument', 'Kolom Signature Secret Key berisi kunci yang sama dengan Server Key. Salin dari baris "Signature Secret Key", atau kosongkan kolom itu.');
+    // Format kunci Midtrans bisa berubah (kunci baru hasil "Generate server key"): cukup cek wajar, kebenarannya diuji langsung ke Midtrans
+    if (serverKey.length < 16 || serverKey.length > 300 || !/^[\x21-\x7E]+$/.test(serverKey)) throw new BillingError('invalid-argument', 'Server Key tidak dikenali. Salin dari Midtrans → Settings → Access Keys → General Credentials → Server Keys (diawali "SB-Mid-server-" untuk Sandbox atau "Mid-server-" untuk Production).');
+    if (mode === 'sandbox' && /^Mid-server-/.test(serverKey)) throw new BillingError('invalid-argument', 'Mode Sandbox memerlukan Server Key Sandbox (diawali "SB-Mid-server-"). Pastikan Environment di dashboard Midtrans: Sandbox.');
     if (mode === 'production' && serverKey.startsWith('SB-')) throw new BillingError('invalid-argument', 'Ini Server Key Sandbox. Untuk Production, ganti Environment di dashboard Midtrans ke Production lalu salin Server Key Production.');
-    if (signatureKey && !/^[A-Za-z0-9_-]{10,200}$/.test(signatureKey)) throw new BillingError('invalid-argument', 'Signature Secret Key tidak dikenali. Salin dari baris "Signature Secret Key" (ikon salin).');
+    if (signatureKey && (signatureKey.length < 10 || signatureKey.length > 300 || !/^[\x21-\x7E]+$/.test(signatureKey))) throw new BillingError('invalid-argument', 'Signature Secret Key tidak dikenali. Salin dari baris "Signature Secret Key" (ikon salin).');
     // Uji ke Midtrans: kunci yang benar menjawab 404 (order uji memang tidak ada), kunci salah menjawab 401
     const client = deps.midtransFactory({ serverKey, signatureKey, isProduction: mode === 'production' });
     const ping = await client.ping().catch(e => ({ ok: false, error: String(e.message || e) }));

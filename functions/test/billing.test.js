@@ -378,6 +378,11 @@ test('Pengaturan Midtrans dari aplikasi: hanya admin, format & lingkungan divali
   assert.ok(!JSON.stringify((await db.collection('admin_audit').get()).docs.map(d => d.data())).includes('BENAR9999'), 'audit tanpa kunci utuh');
   const va = await sv.createVaCharge(A, { planCode: 'PRO_MONTHLY', bank: 'bni' }); assert.equal(va.va.number, 'VA-9999', 'memakai kunci yang disimpan admin');
   await assert.rejects(sv.createVaCharge(U, { planCode: 'PRO_MONTHLY', bank: 'bni' }), { code: 'failed-precondition' }); // sandbox: hanya admin
+  // format kunci baru / tersalin dengan spasi & baris baru: dibersihkan, lalu diuji ke Midtrans (bukan ditolak karena format)
+  const r2 = await sv.adminSetMidtrans(A, { serverKey: ' Mid-server-new.Format:Key/AB12\n', signatureKey: ' SigKey_2026.xyz \u200B', mode: 'production' });
+  assert.equal(r2.ok !== false, true); assert.equal(made[made.length - 1].serverKey, 'Mid-server-new.Format:Key/AB12'); assert.equal(made[made.length - 1].signatureKey, 'SigKey_2026.xyz');
+  await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'SB-Mid-server-BENAR9999', mode: 'production' }), { code: 'invalid-argument' });
+  await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'Mid-server-ABCDEFGH12', signatureKey: 'Mid-server-ABCDEFGH12', mode: 'production' }), { code: 'invalid-argument' });
 });
 
 test('Webhook: notifikasi uji dari dashboard (order tak dikenal Midtrans) diabaikan tanpa error', async () => {
