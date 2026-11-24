@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#3f7d3a">
+<title>Desa Tangguh WASH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+/* VOICE  playful village RPG, but the content is serious training
+   IDEA   a Harvest Moon style disaster village: walk to places, take on missions, radio (HT) between roles
+   PICTURE the live pixel map of the village that changes with the WASH indicators
+   COLOUR grass green, wood brown frames, cream parchment dialogs, Red Cross red accent
+   TYPE   Pixelify Sans for game UI + Nunito for longer text
+   LAYOUT phone: HUD / map / controls, menu sheet slides up; facilitator: map + control panels */
+:root{--grass:#5fa44a;--wood:#7a4b23;--wood2:#a86a35;--paper:#fff4d6;--paper2:#f6e2b3;--ink:#2b1d10;--red:#c8102e;--blue:#2d7fc1;--ok:#2e8b3e;--warn:#c27a00;--bad:#c0392b;--mute:#6b5a45}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%}
+body{background:#2f5d2b;color:var(--ink);font:16px/1.45 Nunito,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
+h1,h2,h3,.px{font-family:"Pixelify Sans",Nunito,monospace;font-weight:700;line-height:1.1;margin:0}
+button,input,select,textarea{font:inherit;font-size:16px;color:var(--ink)}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #ffd447;outline-offset:2px}
+[hidden]{display:none!important}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column}
+.scrollable{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.frame{background:var(--paper);border:4px solid var(--wood);border-radius:10px;box-shadow:0 0 0 3px var(--paper2) inset,0 6px 0 rgba(0,0,0,.25)}
+.btn{font-family:"Pixelify Sans",Nunito,sans-serif;font-weight:700;background:var(--wood2);color:#fff;border:0;border-bottom:4px solid var(--wood);border-radius:8px;min-height:44px;padding:8px 16px}
+.btn:active{transform:translateY(2px);border-bottom-width:2px}
+.btn.red{background:var(--red);border-color:#7d0a1d}
+.btn.blue{background:var(--blue);border-color:#1b4f7a}
+.btn.green{background:var(--ok);border-color:#1c5a27}
+.btn.ghost{background:var(--paper2);color:var(--ink);border-color:#c9a76a}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.sm{min-height:36px;padding:4px 10px;font-size:14px}
+label{display:block;font-weight:800;font-size:14px;margin:10px 0 4px}
+input,select,textarea{width:100%;background:#fffdf5;border:2px solid #c9a76a;border-radius:8px;padding:9px 10px}
+textarea{min-height:80px}
+.note{font-size:14px;color:var(--mute)}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* home */
+#home{background:linear-gradient(#8fd3f4 0 38%,#5fa44a 38%);align-items:center;justify-content:center;padding:16px}
+#home .frame{width:min(520px,100%);max-height:100%;padding:22px}
+#home h1{font-size:clamp(30px,7vw,44px);color:var(--red)}
+.avs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.avs button{background:#fffdf5;border:3px solid #c9a76a;border-radius:8px;padding:4px;min-height:56px}
+.avs button[aria-pressed=true]{border-color:var(--red);background:#ffe9ec}
+.avs canvas{width:100%;image-rendering:pixelated}
+.tabs{display:flex;gap:4px;margin:16px 0 4px}
+.tabs button{flex:1;background:var(--paper2);border:0;border-radius:8px 8px 0 0;min-height:44px;font-family:"Pixelify Sans",sans-serif;font-weight:700}
+.tabs button[aria-current=true]{background:var(--wood2);color:#fff}
+/* play */
+#play{background:#2f5d2b}
+.hud{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:calc(6px + env(safe-area-inset-top)) 8px 6px;background:var(--wood);color:#fff;font-family:"Pixelify Sans",sans-serif;font-size:14px}
+.hud .chip{background:rgba(0,0,0,.25);border-radius:6px;padding:3px 8px;white-space:nowrap}
+.hud .en{display:inline-block;width:56px;height:9px;background:#3b2412;border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:4px}
+.hud .en i{display:block;height:100%;background:#ffcf3f}
+.stage{position:relative;flex:1;min-height:0}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.pad{position:absolute;left:10px;bottom:calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:2px;touch-action:none;user-select:none;-webkit-user-select:none}
+.pad button,.ab button{background:rgba(43,29,16,.55);color:#fff;border:2px solid rgba(255,255,255,.5);border-radius:12px;font-family:"Pixelify Sans",sans-serif;font-size:20px;touch-action:none;user-select:none;-webkit-user-select:none}
+.pad button:active,.ab button:active{background:rgba(43,29,16,.85)}
+.ab{position:absolute;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;align-items:flex-end}
+.ab button{width:66px;height:66px;border-radius:50%;font-size:22px}
+.ab .a{background:rgba(200,16,46,.8);width:76px;height:76px;margin-bottom:22px}
+.ab small{display:block;font-size:11px}
+.hint{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--paper);border:3px solid var(--wood);border-radius:8px;padding:4px 10px;font-family:"Pixelify Sans",sans-serif;font-size:14px;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-block;min-width:20px;padding:0 5px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;text-align:center}
+.dlg{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));padding:14px 16px;max-height:62%;display:flex;flex-direction:column;z-index:5}
+.dlg h3{font-size:18px;color:var(--red);margin-bottom:6px}
+.dlg .txt{overflow-y:auto;flex:1}
+.dlg .btns{justify-content:flex-end;margin-top:10px}
+.toasts{position:absolute;top:44px;left:8px;right:8px;display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:6;align-items:center}
+.toast{background:#fffdf5;border:3px solid var(--wood);border-radius:8px;padding:6px 12px;font-size:14px;max-width:440px;box-shadow:0 4px 0 rgba(0,0,0,.2);animation:pop .25s ease-out}
+@keyframes pop{from{transform:translateY(-8px);opacity:0}}
+.sheet{position:fixed;inset:auto 0 0 0;top:max(8%,40px);z-index:10;display:flex;flex-direction:column;border-radius:16px 16px 0 0;border-bottom:0;padding:0 0 env(safe-area-inset-bottom)}
+.sheet header{display:flex;align-items:center;gap:8px;padding:10px 12px 0}
+.sheet header .tabs{margin:0;flex:1;overflow-x:auto}
+.sheet header .tabs button{flex:1 0 auto;padding:0 10px}
+.sheet .body{flex:1;padding:12px 14px 24px;border-top:4px solid var(--wood2)}
+.close{background:var(--red);color:#fff;border:0;border-radius:8px;width:44px;height:44px;font-size:20px;font-family:"Pixelify Sans",sans-serif;flex:none}
+.item{background:#fffdf5;border:2px solid #e2c992;border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.item h3{font-size:17px;margin-bottom:4px}
+.tag{display:inline-block;font-size:12px;font-weight:800;border-radius:5px;padding:1px 7px;background:#efe0bb;margin:0 4px 4px 0}
+.tag.r{background:#ffd9df;color:#8c0b20}.tag.b{background:#d7e9fa;color:#174a75}.tag.g{background:#d7f0d9;color:#1c5a27}.tag.y{background:#ffefc2;color:#7a4b00}
+.opt{display:block;width:100%;text-align:left;background:#fffdf5;border:3px solid #e2c992;border-radius:10px;padding:10px 12px;margin-top:8px;min-height:44px}
+.opt:hover{border-color:var(--wood2)}
+.opt b{font-family:"Pixelify Sans",sans-serif;color:var(--red);margin-right:6px}
+.fb{border-radius:10px;padding:10px 12px;margin-top:10px;background:#f3ead2}
+.good{color:var(--ok)}.warnc{color:var(--warn)}.badc{color:var(--bad)}
+.ind{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 0;border-top:2px dashed #e2c992;font-size:15px}
+.ind .v{font-weight:800;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.bar{grid-column:1/-1;height:8px;border-radius:4px;background:#e9d9b0;overflow:hidden}
+.bar i{display:block;height:100%}
+.bar i.good{background:var(--ok)}.bar i.warnc{background:var(--warn)}.bar i.badc{background:var(--bad)}
+.big{font:700 40px/1 "Pixelify Sans",sans-serif}
+.ov{position:absolute;inset:0;background:rgba(20,30,15,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:4}
+.ov .frame{padding:18px;max-width:440px;width:100%;text-align:center}
+/* gm */
+#gm{background:var(--paper2);overflow:hidden}
+#gm .top{background:var(--wood);color:#fff;padding:10px max(16px,2vw);display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+#gm .code{font:700 34px/1 "Pixelify Sans",sans-serif;letter-spacing:.08em;background:var(--paper);color:var(--red);padding:6px 12px;border-radius:8px}
+#gm nav{display:flex;flex-wrap:wrap;gap:4px;padding:8px max(16px,2vw) 0;background:var(--wood2)}
+#gm nav button{background:transparent;color:#fff;border:0;border-radius:8px 8px 0 0;min-height:44px;padding:0 14px;font-family:"Pixelify Sans",sans-serif;font-weight:700}
+#gm nav button[aria-current=true]{background:var(--paper2);color:var(--ink)}
+#gm main{flex:1;overflow-y:auto;padding:16px max(16px,2vw) 40px}
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
+.panel{background:var(--paper);border:3px solid var(--wood);border-radius:10px;padding:14px;margin-bottom:14px}
+.panel h2{font-size:22px;margin-bottom:8px}
+.gmmap{position:relative;aspect-ratio:32/22;border:4px solid var(--wood);border-radius:8px;overflow:hidden;background:#2f5d2b}
+.gmmap canvas{position:absolute;inset:0;width:100%;height:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e2c992;vertical-align:top}
+th{font-size:13px;color:var(--mute)}
+.tw{overflow-x:auto}
+.qr svg{width:120px;height:120px;background:#fff;border-radius:6px}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5em,1fr));gap:10px;margin:8px 0 16px}
+.score div{background:#fffdf5;border:2px solid #e2c992;border-radius:10px;padding:10px}
+.score b{display:block;font:700 34px/1 "Pixelify Sans",sans-serif}
+@media(max-width:860px){.cols{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:380px){.pad{grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px)}.ab .a{width:66px;height:66px}.ab button{width:58px;height:58px}}
+@media(prefers-reduced-motion:reduce){.toast{animation:none}}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<section id="home" class="screen">
+<div class="frame scrollable">
+<h1>Desa Tangguh WASH</h1>
+<p>Game simulasi table top exercise respons air, sanitasi dan kebersihan saat bencana. Setiap peserta bermain dari HP sesuai perannya.</p>
+<div class="tabs" role="tablist"><button id="t-join" aria-current="true" type="button">Saya peserta</button><button id="t-gm" type="button">Saya fasilitator</button></div>
+<div id="f-join">
+<label for="j-code">Kode ruang</label><input id="j-code" autocomplete="off" maxlength="5" style="text-transform:uppercase;font-family:'Pixelify Sans';font-size:22px;letter-spacing:.1em" placeholder="mis. K7QXP">
+<label for="j-name">Nama kamu</label><input id="j-name" maxlength="30" autocomplete="name">
+<label>Pilih karakter</label><div class="avs" id="avs"></div>
+<p class="btns" style="margin-top:14px"><button class="btn red" id="j-go" type="button">Masuk desa</button><span class="note" id="j-msg"></span></p>
+<p class="note" id="j-resume"></p>
+</div>
+<div id="f-gm" hidden>
+<h3 style="margin-top:12px">Buat ruang latihan baru</h3>
+<label for="g-title">Judul latihan</label><input id="g-title" value="TTX Respons WASH">
+<div class="row2"><div><label for="g-haz">Skenario</label><select id="g-haz"><option value="gempa">Gempa bumi</option><option value="banjir">Banjir bandang dan longsor</option></select></div>
+<div><label for="g-pop">Pengungsi awal</label><input id="g-pop" type="number" value="6000" min="500" step="100"></div></div>
+<label for="g-bud">Anggaran awal (Rp juta)</label><input id="g-bud" type="number" value="1000" min="100" step="50">
+<p class="btns" style="margin-top:14px"><button class="btn red" id="g-new" type="button">Buat ruang</button></p>
+<h3 style="margin-top:18px">Buka ruang yang sudah ada</h3>
+<div class="row2"><div><label for="g-code">Kode ruang</label><input id="g-code" maxlength="5" style="text-transform:uppercase"></div><div><label for="g-pin">PIN fasilitator</label><input id="g-pin" autocomplete="off"></div></div>
+<p class="btns" style="margin-top:12px"><button class="btn" id="g-open" type="button">Buka sebagai fasilitator</button><span class="note" id="g-msg"></span></p>
+</div>
+</div>
+</section>
+
+<!-- PLAY -->
+<section id="play" class="screen" hidden>
+<div class="hud" id="hud"></div>
+<div class="stage" id="stage">
+<canvas id="cv"></canvas>
+<div class="hint" id="hint" hidden></div>
+<div class="toasts" id="toasts"></div>
+<div class="pad" id="pad">
+<span></span><button data-dir="up" aria-label="Atas">▲</button><span></span>
+<button data-dir="left" aria-label="Kiri">◀</button><span></span><button data-dir="right" aria-label="Kanan">▶</button>
+<span></span><button data-dir="down" aria-label="Bawah">▼</button><span></span>
+</div>
+<div class="ab"><button id="bB" type="button">B<small>Menu</small></button><button class="a" id="bA" type="button">A<small>Aksi</small></button></div>
+<div class="ov" id="wait" hidden><div class="frame"><h2 id="w-t">Menunggu</h2><p id="w-p"></p><button class="btn ghost sm" id="w-x" type="button">Jalan-jalan dulu</button></div></div>
+<div class="dlg frame" id="dlg" hidden><h3 id="dlg-t"></h3><div class="txt" id="dlg-x"></div><div class="btns"><span class="note" id="dlg-n"></span><button class="btn red" id="dlg-ok" type="button">Lanjut ▶</button></div></div>
+</div>
+<div class="sheet frame" id="sheet" hidden>
+<header><div class="tabs" id="stabs"><button data-s="misi" type="button">Misi</button><button data-s="ht" type="button">HT <span class="badge" id="unread" hidden></span></button><button data-s="status" type="button">Status</button><button data-s="peran" type="button">Peran</button></div><button class="close" id="sclose" type="button" aria-label="Tutup">✕</button></header>
+<div class="body scrollable" id="sbody"></div>
+</div>
+</section>
+
+<!-- GM -->
+<section id="gm" class="screen" hidden>
+<div class="top">
+<div><div class="note" style="color:#f3dcb5">Kode ruang</div><div class="code" id="gm-code">-----</div></div>
+<div style="flex:1;min-width:14em"><h2 id="gm-title" style="font-size:24px">Latihan</h2><div id="gm-sub" style="color:#f3dcb5;font-size:14px"></div></div>
+<div class="qr" id="gm-qr"></div>
+</div>
+<nav id="gmnav"><button data-g="pemain" type="button">Pemain</button><button data-g="kendali" type="button">Kendali fase</button><button data-g="peta" type="button">Peta langsung</button><button data-g="log" type="button">Log &amp; penilaian</button><button data-g="debrief" type="button">Debrief</button></nav>
+<main id="gmmain"></main>
+</section>
+
+<script>
+{
+/* ============ KONFIGURASI SUPABASE ============ */
+const SB_URL='https://pzoueizgwgccacixelgi.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6b3VlaXpnd2djY2FjaXhlbGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMTIxNDAsImV4cCI6MjExMDU4ODE0MH0.UjD00q9TXgoxiK6Owet5D3YJtwTts00OBaK_XL91SHg';
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Math.round(+n||0).toLocaleString('id-ID');
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const LS={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+let sb=null;try{sb=window.supabase.createClient(SB_URL,SB_KEY,{realtime:{params:{eventsPerSecond:8}}})}catch(e){}
+
+/* ============ DATA GAME ============ */
+const HAZ={
+gempa:{name:'Gempa bumi',kab:'Kabupaten Teluk Damai',intro:'Gempa M6,9 mengguncang {kab} pukul 04.12 WIB. Ribuan rumah rusak berat, pipa transmisi PDAM putus di tiga titik, dan banyak sumur gali retak atau tertimbun.',src:'Sungai Lembang (kekeruhan 80–150 NTU) dan dua sumur bor desa yang casing-nya retak'},
+banjir:{name:'Banjir bandang dan longsor',kab:'Kabupaten Sungai Rawa',intro:'Hujan ekstrem 18 jam memicu banjir bandang dan longsor di {kab}. Instalasi PDAM terendam lumpur, sumur warga tercemar air banjir dan limpasan tangki septik.',src:'Sungai Rawa yang sangat keruh (300–600 NTU) dan mata air perbukitan berjarak 3 km'}};
+
+const GROUPS={wash:{n:'Tim WASH',shirt:'#c8102e',vest:0},gerakan:{n:'Gerakan Palang Merah',shirt:'#f4f4f0',vest:1},pemerintah:{n:'Pemerintah',shirt:'#c9a96a',vest:0},mitra:{n:'Mitra kemanusiaan',shirt:'#3c7dd9',vest:0},media:{n:'Media',shirt:'#3a3a3a',vest:0},masyarakat:{n:'Masyarakat',shirt:'#5a9e4b',vest:0}};
+
+const ROLES=[
+{id:'mgr',g:'wash',n:'Manajer layanan WASH',t:'Memimpin respons WASH, menetapkan prioritas, menyetujui rencana operasi dan anggaran, mewakili tim di posko.',k:'Capaian vs Standar Sphere; anggaran tepat sasaran.'},
+{id:'koord',g:'wash',n:'Koordinator',t:'Penghubung ke posko BPBD, Klaster WASH, Dinkes dan mitra; matriks 4W; laporan situasi harian.',k:'Laporan tepat waktu; tidak ada tumpang tindih layanan.'},
+{id:'olah',g:'wash',n:'Tim pengolah air',t:'Asesmen sumber air, jar test, operasi unit pengolah, uji kualitas harian.',k:'Kekeruhan <5 NTU; sisa klor 0,2–0,5 mg/L di kran; 0 E. coli.'},
+{id:'dist',g:'wash',n:'Tim distribusi air',t:'Bladder, tap stand, truk tangki, jadwal distribusi, antrean.',k:'≥15 L/orang/hari; ≤250 orang per kran; ≤500 m; antre ≤30 menit.'},
+{id:'san',g:'wash',n:'Tim sanitasi',t:'Jamban darurat, cuci tangan, kamar mandi, sampah, penyedotan tinja, vektor.',k:'Jamban 1:50 menuju 1:20; terpisah gender; ≤50 m dari hunian; ≥30 m dari sumber air.'},
+{id:'promkes',g:'wash',n:'Tim promosi kebersihan',t:'Kader kebersihan, cuci tangan pakai sabun, air rumah tangga, hygiene kit, kebersihan menstruasi, umpan balik warga.',k:'Cakupan sesi dan kit; keluhan ditindaklanjuti.'},
+{id:'log',g:'wash',n:'Logistik',t:'Pengadaan, gudang, kartu stok, transportasi, bahan kimia, suku cadang.',k:'Stok penyangga bahan kimia ≥2 minggu.'},
+{id:'camp',g:'wash',n:'Camp',t:'Tata letak lokasi, keamanan, akses kelompok rentan, kesejahteraan relawan.',k:'Fasilitas aman dan dapat diakses; rotasi relawan berjalan.'},
+{id:'adm',g:'wash',n:'Administrasi',t:'Keuangan, uang muka, bukti pengeluaran, data relawan, laporan donor.',k:'Pertanggungjawaban lengkap dan tepat waktu.'},
+{id:'pmipusat',g:'gerakan',n:'PMI Pusat',t:'Menetapkan status operasi nasional, mobilisasi sumber daya, menghubungi IFRC dan Palang Merah mitra.',k:'Butuh laporan situasi cepat untuk appeal.'},
+{id:'pmiprov',g:'gerakan',n:'PMI Provinsi',t:'Mendukung PMI kabupaten: gudang regional, unit pengolah air, SATGANA.',k:'Aset provinsi dipakai tepat dan aman.'},
+{id:'pmikab',g:'gerakan',n:'PMI Kabupaten/Kota',t:'Responder pertama: relawan, mobil tangki, data awal.',k:'Relawan lokal lelah dan sebagian terdampak.'},
+{id:'pns',g:'gerakan',n:'Partner National Societies',t:'Palang Merah negara mitra: tenaga ahli, ERU, dana bilateral.',k:'Ingin kontribusinya terlihat dan dilaporkan.'},
+{id:'bnpb',g:'pemerintah',n:'BNPB/BPBD',t:'Komando penanganan darurat, posko, dana siap pakai, logistik berat.',k:'Satu data terpadu; semua bantuan tercatat di posko.'},
+{id:'pemkab',g:'pemerintah',n:'Pemerintah Kabupaten/Kota',t:'Status tanggap darurat, lahan, izin, dinas teknis.',k:'Tekanan politik untuk terlihat cepat bekerja.'},
+{id:'pemprov',g:'pemerintah',n:'Pemerintah Provinsi',t:'Mendukung kabupaten, menggerakkan dinas provinsi.',k:'Butuh angka capaian untuk gubernur.'},
+{id:'pempusat',g:'pemerintah',n:'Pemerintah Pusat (Kemenkes/PU)',t:'Kebijakan kesehatan lingkungan, surveilans, infrastruktur air.',k:'Khawatir KLB diare dan kolera.'},
+{id:'dinkes',g:'pemerintah',n:'Dinas Kesehatan/Puskesmas',t:'Surveilans penyakit, layanan kesehatan pengungsi, pengawasan kualitas air.',k:'Ingin data diare dikaitkan dengan titik air.'},
+{id:'pdam',g:'pemerintah',n:'PDAM',t:'Operator air perpipaan, pemulihan jaringan.',k:'Ingin aset diserahkan dan operator dilatih.'},
+{id:'tni',g:'pemerintah',n:'TNI/Polri',t:'Transportasi, keamanan, tenaga.',k:'Siap membantu bila permintaan jelas.'},
+{id:'klaster',g:'mitra',n:'Klaster/Subklaster WASH',t:'Koordinasi antarlembaga, 4W, standar teknis bersama, analisis kesenjangan.',k:'Mencegah tumpang tindih dan kesenjangan.'},
+{id:'ngo',g:'mitra',n:'NGO lokal',t:'Dekat dengan masyarakat, cepat bergerak, sumber daya terbatas.',k:'Butuh dukungan material dan pengakuan.'},
+{id:'ingo',g:'mitra',n:'INGO',t:'Dana dan keahlian teknis besar, prosedur sendiri.',k:'Ingin data penerima dan lokasi eksklusif.'},
+{id:'donor',g:'mitra',n:'Donor',t:'Pendanaan dengan syarat akuntabilitas dan visibilitas.',k:'Ingin bukti dampak, foto dan logo.'},
+{id:'media',g:'media',n:'Wartawan',t:'Memberitakan situasi kepada publik.',k:'Mencari cerita: keluhan warga, kesalahan, angka besar.'},
+{id:'warga',g:'masyarakat',n:'Tokoh masyarakat/pengungsi',t:'Menyuarakan kebutuhan dan keluhan warga.',k:'Ingin dilibatkan dan didengar.'},
+{id:'disab',g:'masyarakat',n:'Kelompok perempuan & disabilitas',t:'Mewakili kelompok rentan.',k:'Akses yang setara dan aman.'}];
+const R=id=>ROLES.find(r=>r.id===id);
+const RN=id=>id==='semua'?'Semua':(R(id)||{}).n||id||'Fasilitator';
+const isWash=id=>(R(id)||{}).g==='wash';
+
+const ZONES=[
+{id:'sungai',n:'Sungai & unit olah air',x:5,y:2,w:5,h:5,blk:0,tip:'Air baku keruh perlu koagulasi dan filtrasi sebelum klorinasi. Target kekeruhan <5 NTU dan sisa klor 0,2–0,5 mg/L di kran.'},
+{id:'posko',n:'Posko BPBD',x:13,y:2,w:6,h:5,blk:1,tip:'Laporkan kegiatan ke posko dan klaster setiap hari. Matriks 4W: siapa, melakukan apa, di mana, kapan.'},
+{id:'puskesmas',n:'Puskesmas',x:23,y:2,w:6,h:5,blk:1,tip:'Data diare per titik pengungsian membantu menemukan masalah air dan sanitasi.'},
+{id:'gudang',n:'Gudang logistik',x:5,y:10,w:5,h:4,blk:1,tip:'Kartu stok, FIFO, dan stok penyangga bahan kimia minimal 2 minggu.'},
+{id:'basecamp',n:'Base camp PMI',x:13,y:10,w:6,h:4,blk:1,tip:'Istirahat memulihkan energi. Relawan yang lelah mudah celaka dan salah ambil keputusan.'},
+{id:'tenda',n:'Pengungsian & titik air',x:22,y:10,w:9,h:5,blk:0,tip:'Maksimal 250 orang per kran, jarak ke titik air ≤500 m, antre ≤30 menit, 15 L/orang/hari.'},
+{id:'masjid',n:'Masjid Agung',x:5,y:18,w:5,h:3,blk:1,tip:'Pengurus masjid dan tokoh agama adalah mitra kuat promosi kebersihan.'},
+{id:'sekolah',n:'SD Negeri 3',x:13,y:18,w:6,h:3,blk:1,tip:'Rencanakan pemulihan fungsi sekolah sejak awal.'},
+{id:'jamban',n:'Area jamban darurat',x:23,y:18,w:8,h:3,blk:0,tip:'Jamban ≤50 m dari hunian, ≥30 m dari sumber air, terpisah laki-laki/perempuan, berpenerangan, bisa dikunci dari dalam.'}];
+const ZN=id=>(ZONES.find(z=>z.id===id)||{}).n||id;
+
+const PH=[
+{n:'Kejadian',w:'H+0 s.d. 6 jam',inj:'{intro} Data awal BPBD: sekitar {pop} jiwa mengungsi di 4 titik: Lapangan Kecamatan ({p1}), Masjid Agung ({p2}), SD Negeri 3 ({p3}) dan tenda mandiri ({p4}). Listrik padam, sinyal putus-sambung.',
+msg:[['bnpb','Bupati menetapkan status tanggap darurat 14 hari. Posko utama di kantor bupati, rapat koordinasi pukul 19.00.'],['pmipusat','Operasi diaktifkan. Kirim laporan situasi awal dalam 6 jam, termasuk kebutuhan WASH.'],['pmikab','25 relawan siap, 1 mobil tangki 5.000 L, stok tablet penjernih untuk ±500 keluarga.'],['media','Warga mengeluh belum ada air bersih. PMI sudah turun ke mana saja?']],
+d:[
+{who:'mgr',loc:'basecamp',q:'Apa langkah pertama tim WASH?',o:[
+{t:'Langsung kirim mobil tangki dan air kemasan ke titik terbesar tanpa menunggu asesmen.',fx:{prod:15000,dist:10000,b:-60,ko:-5,ak:-5,efi:-5},s:'cukup',f:'Cepat, tetapi tanpa data distribusi bisa tidak merata dan tumpang tindih dengan lembaga lain.'},
+{t:'Aktifkan rencana kontinjensi: kirim tim asesmen cepat sambil mengirim mobil tangki ke titik prioritas dari BPBD, lapor ke PMI Provinsi dan posko.',fx:{prod:12000,dist:10000,b:-50,ko:10,ak:5,tim:5,efi:5},s:'baik',f:'Menyeimbangkan bantuan penyelamatan jiwa dengan pengumpulan data. Praktik yang dianjurkan di 72 jam pertama.'},
+{t:'Tunggu instruksi tertulis PMI Pusat dan asesmen lengkap sebelum bergerak.',fx:{ko:-5,ak:-10,tim:-5,efi:-5},s:'kurang',f:'Kehilangan waktu emas. Pengungsi minum air tidak aman dan risiko diare naik.'}]},
+{who:'koord',loc:'posko',q:'Bagaimana tim masuk ke sistem koordinasi?',o:[
+{t:'Hadir di rapat posko BPBD, melapor ke Klaster WASH, mengisi matriks 4W sejak hari pertama.',fx:{ko:15,ak:5,b:-5,efi:5},s:'baik',f:'Koordinasi sejak awal mencegah duplikasi dan membuka akses data dan logistik pemerintah.'},
+{t:'Cukup koordinasi lewat grup WhatsApp internal PMI.',fx:{ko:-10},s:'kurang',f:'Aktor lain tidak tahu apa yang PMI kerjakan. Kesenjangan tidak terdeteksi.'},
+{t:'Hanya hadir rapat bila diundang, fokus ke lapangan.',fx:{ko:-5,tim:5},s:'cukup',f:'Lapangan tertangani, tetapi tim kehilangan informasi penting (lahan, izin, data pengungsi).'}]},
+{who:'adm',loc:'basecamp',q:'Bagaimana mengelola dana awal dan pengadaan darurat?',o:[
+{t:'Ajukan uang muka dengan prosedur darurat, catat semua pengeluaran dengan bukti sejak awal.',fx:{ak:10,tim:5,efi:5},s:'baik',f:'Cepat tanpa mengorbankan akuntabilitas.'},
+{t:'Relawan memakai uang pribadi dulu, diganti nanti.',fx:{ak:-10,tim:-10},s:'kurang',f:'Membebani relawan dan sulit dipertanggungjawabkan.'},
+{t:'Tetap pakai pengadaan normal (tiga penawaran) untuk semua barang.',fx:{ak:5,dist:-5000,tim:-5,efi:-5},s:'cukup',f:'Akuntabel, tetapi barang penting terlambat berhari-hari.'}]}]},
+{n:'Asesmen cepat',w:'H+6 s.d. 24 jam',inj:'Sumber air yang tersedia: {src}. Puskesmas melaporkan 12 kasus diare, sebagian balita. Sebagian warga mengambil air langsung dari sungai.',
+msg:[['dinkes','Kami butuh data kualitas air di tiap titik pengungsian untuk surveilans.'],['ingo','Kami punya 2.000 hygiene kit, siap kirim bila ada data penerima.'],['media','Kami dengar warga minum air sungai. Apa tanggapan PMI?'],['pns','Kami bisa mengirim tenaga ahli WASH dalam 5 hari.']],
+d:[
+{who:'olah',loc:'sungai',q:'Bagaimana tim menilai sumber air?',o:[
+{t:'Uji lapangan cepat (kekeruhan, pH, sisa klor, E. coli), petakan sumber, debit dan jaraknya.',fx:{frc:10,ko:5,b:-15,efi:5},s:'baik',f:'Data kualitas dan kuantitas menentukan pengolahan dan dosis.'},
+{t:'Pilih sumber berdasarkan keterangan warga tanpa pengujian.',fx:{frc:-5},s:'kurang',f:'Sumber yang tampak jernih bisa tercemar tinja.'},
+{t:'Kirim sampel ke laboratorium kabupaten (hasil 3 hari).',fx:{b:-10,tim:-5,efi:-5},s:'cukup',f:'Akurat tetapi terlambat. Uji lapangan dulu, lab untuk konfirmasi.'}]},
+{who:'promkes',loc:'tenda',q:'Metode asesmen kebutuhan apa yang dipakai?',o:[
+{t:'Asesmen cepat bersama BPBD, Dinkes dan mitra; data terpilah gender, usia, disabilitas; wawancara perempuan.',fx:{ko:10,ak:10,hyg:10,b:-20,efi:5},s:'baik',f:'Satu data bersama dan kebutuhan kelompok rentan terlihat.'},
+{t:'Survei sendiri dengan formulir PMI saja.',fx:{ak:3,ko:-3,b:-15},s:'cukup',f:'Berguna bagi PMI, tetapi tidak sebanding dengan data mitra.'},
+{t:'Pakai perkiraan dari pemberitaan media.',fx:{ak:-10,efi:-5},s:'kurang',f:'Angka media sering tidak terverifikasi.'}]},
+{who:'mgr',loc:'posko',q:'Bagaimana merespons pertanyaan wartawan?',o:[
+{t:'Juru bicara/humas PMI memberi keterangan faktual singkat, imbauan mengolah air, dan saluran pengaduan.',fx:{ak:10,ko:5},s:'baik',f:'Media menjadi saluran pesan kesehatan.'},
+{t:'Tidak berkomentar sampai ada rilis resmi.',fx:{ak:-5},s:'cukup',f:'Aman dari salah ucap, tetapi ruang kosong diisi rumor.'},
+{t:'Relawan lapangan diwawancarai spontan dan menyebut angka korban yang belum diverifikasi.',fx:{ak:-15,ko:-10},s:'kurang',f:'Angka berbeda dengan pemerintah merusak reputasi.'}]}]},
+{n:'Pemasangan layanan',w:'H+24 s.d. 72 jam',inj:'Unit pengolah air, bladder dan bahan kimia tiba di gudang. Akses jalan ke SD Negeri 3 terputus sebagian oleh longsoran.',
+msg:[['pemkab','Lahan untuk instalasi air sudah kami siapkan di tepi sungai, di sebelah kandang ternak warga.'],['tni','Kami siap mengangkut logistik ke SD Negeri 3. Kirim daftar muatan.'],['ngo','Kami sudah membangun 10 jamban di Masjid Agung, belum dipisah laki-laki dan perempuan.'],['pmiprov','Unit hanya kami lepas bila operator bersertifikat ikut mendampingi.']],
+d:[
+{who:'olah',loc:'sungai',q:'Di mana dan bagaimana air diolah?',o:[
+{t:'Pasang unit di hulu kandang ternak, jar test untuk dosis koagulan, filtrasi lalu klorinasi. Target <5 NTU dan sisa klor 0,2–0,5 mg/L di kran.',fx:{prod:70000,frc:35,b:-180,efi:5},s:'baik',f:'Lokasi hulu mengurangi kontaminasi; jar test menghemat bahan kimia.'},
+{t:'Pasang di lahan yang disediakan (hilir kandang) tanpa jar test, klorin dosis tetap.',fx:{prod:70000,frc:5,b:-170,efi:-10},s:'kurang',f:'Air keruh melindungi kuman dari klor; bahan kimia terbuang.'},
+{t:'Tidak memasang unit; bagikan tablet penjernih ke tiap keluarga.',fx:{frc:10,hyg:5,b:-40},s:'cukup',f:'Kualitas rumah tangga membaik, tetapi kuantitas air tidak bertambah.'}]},
+{who:'dist',loc:'tenda',q:'Sistem distribusi air apa yang dibangun?',o:[
+{t:'Bladder 5.000–10.000 L dan tap stand di setiap titik (≤250 orang/kran, ≤500 m), truk tangki ke titik terisolasi dengan bantuan TNI.',fx:{dist:85000,b:-150,ko:5,efi:5},s:'baik',f:'Titik air dekat hunian mengurangi antrean dan beban perempuan serta anak.'},
+{t:'Truk tangki saja, mengisi langsung jeriken warga.',fx:{dist:45000,b:-220,tim:-5,efi:-10},s:'cukup',f:'Fleksibel tetapi mahal dan antre panjang.'},
+{t:'Satu titik distribusi pusat di Lapangan Kecamatan.',fx:{dist:30000,b:-60,ak:-10},s:'kurang',f:'Lansia dan penyandang disabilitas tertinggal.'}]},
+{who:'san',loc:'jamban',q:'Bagaimana membangun jamban darurat?',o:[
+{t:'Jamban terpisah laki-laki/perempuan, berpenerangan, berkunci dari dalam, ≤50 m dari tenda, ≥30 m dari sumber air; konsultasi perempuan dan disabilitas; cuci tangan di tiap blok.',fx:{lat:120,hyg:5,b:-160,ak:10,efi:5},s:'baik',f:'Jamban yang aman benar-benar dipakai sehingga buang air sembarangan turun.'},
+{t:'Bangun cepat di belakang tenda, tanpa pemisahan, dekat sumur warga.',fx:{lat:120,b:-140,frc:-10,ak:-10,efi:-5},s:'kurang',f:'Mencemari sumur; perempuan enggan memakai malam hari.'},
+{t:'Tunggu lembaga lain; pakai toilet masjid dan sekolah.',fx:{ko:-5},s:'kurang',f:'Kapasitas jauh di bawah kebutuhan.'}]}]},
+{n:'Operasi',w:'Hari 4 s.d. 7',inj:'Monitoring menemukan beberapa tap stand dengan sisa klor 0 mg/L. Sebagian warga menolak air karena bau klor dan kembali ke sungai.',
+msg:[['klaster','Dua lembaga membagikan hygiene kit di Masjid Agung pada hari yang sama, tenda mandiri belum menerima.'],['donor','Kami akan berkunjung lusa. Mohon siapkan spanduk dan sesi foto penyerahan.'],['warga','Antrean di kran pagi hari bisa satu jam.'],['dinkes','Kasus diare perlu dipantau per titik pengungsian.']],
+d:[
+{who:'promkes',loc:'tenda',q:'Strategi promosi kebersihan apa yang dijalankan?',o:[
+{t:'Kader kebersihan dari pengungsi; sesi cuci tangan pakai sabun, penyimpanan air aman, penjelasan bau klor; hygiene kit dan kebutuhan menstruasi berdasarkan data.',fx:{hyg:45,frc:5,b:-90,ak:5,efi:5},s:'baik',f:'Perubahan perilaku butuh tatap muka dan pelaku dari komunitas sendiri.'},
+{t:'Bagikan leaflet dan hygiene kit massal tanpa sesi.',fx:{hyg:15,b:-110,efi:-5},s:'cukup',f:'Barang sampai, praktik tidak banyak berubah.'},
+{t:'Pasang spanduk dan pengeras suara.',fx:{hyg:5,b:-20},s:'kurang',f:'Jangkauan rendah dan tanpa interaksi.'}]},
+{who:'koord',loc:'posko',q:'Bagaimana menangani tumpang tindih hygiene kit?',o:[
+{t:'Bawa ke rapat klaster: bagi wilayah (4W), standar isi kit, daftar penerima bersama.',fx:{ko:15,ak:5,b:40,efi:10},s:'baik',f:'Kit dialihkan ke titik yang belum terlayani; lebih hemat dan merata.'},
+{t:'Tetap distribusi sesuai rencana sendiri.',fx:{ko:-10,ak:-5,efi:-10},s:'kurang',f:'Sebagian dapat ganda, sebagian tidak dapat.'},
+{t:'Hentikan seluruh distribusi PMI sampai situasi jelas.',fx:{hyg:-5,ko:-3},s:'kurang',f:'Solusinya koordinasi, bukan berhenti.'}]},
+{who:'olah',loc:'tenda',q:'Sisa klor 0 di tap stand. Apa tindakannya?',o:[
+{t:'Monitoring harian sisa klor dan kekeruhan di produksi dan kran, sesuaikan dosis (0,5–1 mg/L saat risiko wabah), bersihkan tangki, jelaskan ke warga.',fx:{frc:30,b:-20,tim:3,efi:5},s:'baik',f:'Sisa klor di kran adalah bukti air aman sampai ke warga.'},
+{t:'Naikkan dosis klor dua kali lipat tanpa pengujian.',fx:{frc:5,hyg:-5,ak:-5,efi:-5},s:'kurang',f:'Rasa makin tajam, warga makin menolak, penyebab tidak diketahui.'},
+{t:'Biarkan dan cek mingguan saja.',fx:{frc:-15},s:'kurang',f:'Air tanpa sisa klor dapat tercemar kembali.'}]}]},
+{n:'Penguatan',w:'Minggu ke-2',grow:1.1,inj:'Pengungsi bertambah sekitar 10% karena warga dari desa terisolasi turun. Jumlah kini {pop} jiwa. Sisa anggaran mulai menipis.',
+msg:[['donor','Kami butuh laporan capaian dan foto sebelum memutuskan dana tambahan.'],['pns','Tim ahli dan satu unit tambahan sudah tiba di bandara.'],['disab','Jamban perempuan gelap di malam hari dan tidak bisa dimasuki kursi roda.'],['pemprov','Gubernur minta rekap harian: liter air dan jumlah jamban.']],
+d:[
+{who:'mgr',loc:'posko',q:'Pengungsi bertambah dan anggaran terbatas. Apa keputusannya?',o:[
+{t:'Revisi rencana operasi berbasis data; ajukan revisi anggaran ke PMI Pusat dan donor dengan laporan capaian vs Standar Sphere.',fx:{b:300,ak:10,ko:5,efi:5},s:'baik',f:'Laporan berbasis bukti membuka dana tambahan.'},
+{t:'Pangkas promosi kebersihan untuk menghemat.',fx:{b:60,hyg:-15,efi:-5},s:'kurang',f:'Promosi kebersihan murah tetapi berdampak besar menekan diare.'},
+{t:'Terus belanja, urus dana belakangan.',fx:{b:-100,ak:-10,efi:-10},s:'kurang',f:'Risiko defisit dan temuan audit.'}]},
+{who:'san',loc:'jamban',q:'Keluhan keamanan jamban dan sampah menumpuk. Apa tindakannya?',o:[
+{t:'Mekanisme umpan balik (hotline, kotak saran, diskusi perempuan); tambah lampu, kunci, jamban aksesibel hingga 1:20; jadwal sampah dan penyedotan tinja.',fx:{lat:200,ak:15,hyg:10,b:-200,efi:5},s:'baik',f:'Akuntabilitas pada penerima manfaat membuat layanan aman dan sesuai kebutuhan.'},
+{t:'Tambah jamban saja tanpa konsultasi.',fx:{lat:200,b:-190},s:'cukup',f:'Rasio membaik, tetapi keamanan dan aksesibilitas belum terjawab.'},
+{t:'Abaikan dulu, prioritas tetap air.',fx:{ak:-15,hyg:-5},s:'kurang',f:'Tanpa sanitasi, air bersih tetap tidak mencegah diare.'}]},
+{who:'log',loc:'gudang',q:'Tawaran tenaga ahli dan unit dari Palang Merah mitra, plus kondisi stok?',o:[
+{t:'Terima lewat mekanisme koordinasi Gerakan (PMI Pusat dan IFRC), integrasikan ke struktur tim; kartu stok, FIFO, stok penyangga 2 minggu.',fx:{tim:15,prod:15000,dist:15000,frc:5,ko:10,b:-30,efi:5},s:'baik',f:'Satu struktur komando; stok penyangga mencegah layanan terhenti.'},
+{t:'Tolak, tim lokal sudah cukup.',fx:{tim:-10},s:'cukup',f:'Tim lokal kelelahan dan kapasitas tidak bertambah.'},
+{t:'Biarkan mereka bekerja paralel di lokasi pilihan sendiri.',fx:{prod:15000,dist:15000,ko:-10,efi:-5},s:'kurang',f:'Kapasitas naik, tetapi standar dan data terpecah.'}]}]},
+{n:'Transisi',w:'Minggu ke-3 s.d. 4',inj:'Pemerintah mengumumkan masa transisi ke pemulihan. PDAM pulih sekitar 40%. Sebagian warga mulai pulang. Dana donor berakhir akhir bulan.',
+msg:[['pdam','Kami siap menerima unit bila operator kami dilatih.'],['pmipusat','Siapkan laporan akhir dan rencana keluar operasi.'],['media','Apakah PMI akan meninggalkan pengungsi?'],['pemkab','Lahan sekolah harus dikembalikan sebelum tahun ajaran baru.']],
+d:[
+{who:'mgr',loc:'posko',q:'Bagaimana strategi keluar dari operasi?',o:[
+{t:'Rencana transisi bersama PDAM dan dinas: serah terima aset terdokumentasi, latih operator lokal, perbaiki sumur dan sambungan PDAM, kurangi truk tangki bertahap.',fx:{ko:10,ak:10,b:-100,tim:5,prod:20000,dist:20000,efi:5},s:'baik',f:'Layanan berlanjut setelah PMI keluar.'},
+{t:'Tarik semua unit saat dana habis.',fx:{ak:-15,ko:-10,prod:-40000,dist:-40000},s:'kurang',f:'Warga kehilangan layanan mendadak.'},
+{t:'Tetap beroperasi tanpa batas waktu.',fx:{b:-200,efi:-15},s:'kurang',f:'Menciptakan ketergantungan dan menghambat pemulihan.'}]},
+{who:'camp',loc:'sekolah',q:'Bagaimana menutup lokasi dan jamban?',o:[
+{t:'Sedot dan tutup jamban sesuai standar, bersihkan lokasi, kembalikan lahan dengan berita acara.',fx:{ak:10,hyg:5,b:-50},s:'baik',f:'Mencegah pencemaran dan menjaga hubungan dengan pemilik lahan.'},
+{t:'Tinggalkan apa adanya.',fx:{ak:-15,hyg:-10},s:'kurang',f:'Lubang terbuka berbahaya bagi anak dan mencemari air.'}]},
+{who:'adm',loc:'basecamp',q:'Bagaimana pelaporan dan pembelajaran?',o:[
+{t:'Laporan akhir naratif dan keuangan, lokakarya pembelajaran, umpan balik ke warga.',fx:{ak:15,ko:5,b:-10},s:'baik',f:'Menutup siklus akuntabilitas.'},
+{t:'Laporan keuangan saja.',fx:{ak:3},s:'cukup',f:'Kewajiban formal terpenuhi, pembelajaran hilang.'},
+{t:'Tidak ada laporan, tim kembali ke tugas rutin.',fx:{ak:-20},s:'kurang',f:'Peluang dana berikutnya hilang.'}]}]}];
+
+/* tugas rutin tim WASH (sekali per fase per peran) */
+const CHORES={
+mgr:[{l:'Briefing harian tim',loc:'basecamp',fx:{tim:4,ko:2},tip:'Briefing singkat menyamakan prioritas dan menjaga keselamatan.'}],
+koord:[{l:'Perbarui matriks 4W',loc:'posko',fx:{ko:4},tip:'4W yang terbarui membantu klaster menemukan kesenjangan.'}],
+olah:[{l:'Uji sisa klor dan kekeruhan',loc:'sungai',fx:{frc:5},tip:'Uji di titik produksi dan di kran, catat di lembar monitoring.'},{l:'Backwash filter',loc:'sungai',fx:{prod:3000},tip:'Filter bersih menjaga debit produksi.'}],
+dist:[{l:'Periksa kebocoran kran dan bladder',loc:'tenda',fx:{dist:4000},tip:'Kebocoran kecil bisa membuang ribuan liter per hari.'},{l:'Atur antrean prioritas lansia/disabilitas',loc:'tenda',fx:{ak:3},tip:'Jadwal dan jalur prioritas mengurangi konflik antrean.'}],
+san:[{l:'Bersihkan dan disinfeksi jamban',loc:'jamban',fx:{hyg:3},tip:'Jamban kotor tidak akan dipakai.'},{l:'Cek isi lubang dan jadwal penyedotan',loc:'jamban',fx:{frc:2},tip:'Lubang penuh mencemari tanah dan air.'}],
+promkes:[{l:'Sesi cuci tangan pakai sabun',loc:'tenda',fx:{hyg:5},tip:'Lima waktu penting cuci tangan pakai sabun.'},{l:'Kumpulkan umpan balik warga',loc:'masjid',fx:{ak:4},tip:'Keluhan yang ditindaklanjuti membangun kepercayaan.'}],
+log:[{l:'Hitung stok (kartu stok)',loc:'gudang',fx:{efi:3},tip:'FIFO: yang masuk dulu keluar dulu.'},{l:'Kirim bahan kimia ke unit olah',loc:'gudang',fx:{frc:3},tip:'Jangan biarkan stok klorin habis di lapangan.'}],
+camp:[{l:'Patroli malam dan cek penerangan',loc:'tenda',fx:{ak:3},tip:'Penerangan jalur ke jamban mencegah kekerasan berbasis gender.'},{l:'Atur rotasi relawan',loc:'basecamp',fx:{tim:5},tip:'Rotasi dan dukungan psikososial mencegah kelelahan.'}],
+adm:[{l:'Rekap bukti pengeluaran',loc:'basecamp',fx:{ak:3,efi:2},tip:'Bukti yang rapi memudahkan laporan donor.'}]};
+
+/* aksi pemangku kepentingan */
+const ACTS={
+pmipusat:[{l:'Minta laporan situasi',loc:'posko',to:'mgr',m:'PMI Pusat meminta laporan situasi terbaru: jiwa terlayani, liter/orang/hari, jamban, kendala, kebutuhan dana.'},{l:'Luncurkan dana darurat',loc:'posko',to:'semua',fx:{b:100},once:1,m:'PMI Pusat meluncurkan dana darurat. Tambahan Rp100 juta untuk WASH, laporan wajib tiap minggu.'}],
+pmiprov:[{l:'Periksa operator unit olah',loc:'sungai',to:'olah',m:'Tunjukkan sertifikat operator dan hasil jar test sebelum unit beroperasi penuh.'},{l:'Kirim relawan SATGANA',loc:'basecamp',to:'mgr',fx:{tim:6},once:1,m:'PMI Provinsi mengirim 10 relawan SATGANA. Mohon atur penugasannya.'}],
+pmikab:[{l:'Laporkan kondisi relawan',loc:'basecamp',to:'camp',m:'Enam relawan kami keluarganya terdampak dan mulai kelelahan. Mohon jadwal rotasi.'},{l:'Pandu ke titik terisolasi',loc:'sekolah',to:'dist',fx:{ak:3},m:'Relawan lokal bisa memandu ke dusun terisolasi lewat jalur setapak.'}],
+pns:[{l:'Tawarkan tim ahli dan unit',loc:'posko',to:'mgr',m:'Kami siap mengirim tenaga ahli WASH dan satu unit tambahan, dengan lokasi kerja khusus untuk tim kami.'},{l:'Minta data untuk laporan',loc:'posko',to:'koord',m:'Mohon data penerima manfaat dan foto kegiatan untuk laporan publik di negara kami.'}],
+bnpb:[{l:'Pimpin rapat koordinasi',loc:'posko',to:'semua',fx:{ko:4},m:'Rapat koordinasi posko dimulai. Semua organisasi wajib melapor kegiatan dan kebutuhan.'},{l:'Wajibkan registrasi organisasi',loc:'posko',to:'koord',m:'Semua organisasi harus terdaftar di posko sebelum bekerja di titik pengungsian.'}],
+pemkab:[{l:'Tawarkan lahan instalasi air',loc:'posko',to:'olah',m:'Lahan instalasi air tersedia di hilir kandang ternak warga. Silakan dipakai.'},{l:'Minta prioritas air untuk posko pejabat',loc:'posko',to:'dist',m:'Pimpinan meminta truk air diprioritaskan ke posko dan rumah dinas.'}],
+pemprov:[{l:'Minta rekap harian',loc:'posko',to:'koord',m:'Gubernur minta rekap harian liter air dan jumlah jamban yang dibangun.'},{l:'Kerahkan dinas provinsi',loc:'posko',to:'semua',fx:{ko:3},once:1,m:'Dinas provinsi dikerahkan membantu air bersih dan sanitasi.'}],
+pempusat:[{l:'Terbitkan pedoman kewaspadaan diare',loc:'puskesmas',to:'olah',fx:{frc:3},once:1,m:'Kemenkes: selama risiko KLB, sisa klor di titik distribusi 0,5–1 mg/L.'},{l:'Minta data kualitas air',loc:'puskesmas',to:'koord',m:'Kirim data kualitas air harian per titik pengungsian.'}],
+dinkes:[{l:'Laporkan surveilans diare',loc:'puskesmas',to:'semua',dyn:'diare'},{l:'Ajak buka pojok oralit bersama',loc:'puskesmas',to:'promkes',fx:{ko:2},m:'Mari buka pojok oralit di dekat titik air dan gabungkan dengan sesi cuci tangan.'}],
+pdam:[{l:'Tawarkan serah terima aset',loc:'sungai',to:'mgr',m:'Kami siap menerima unit setelah darurat bila operator kami dilatih.'},{l:'Pulihkan sambungan pipa',loc:'tenda',to:'dist',fx:{dist:8000},once:1,m:'Satu jalur pipa sementara pulih ke titik pengungsian.'}],
+tni:[{l:'Tawarkan angkutan',loc:'gudang',to:'log',m:'Truk dan helikopter siap. Kirim daftar muatan dan prioritas.'},{l:'Bantu tertibkan antrean',loc:'tenda',to:'camp',fx:{tim:3},m:'Personel kami membantu menertibkan antrean di titik air.'}],
+klaster:[{l:'Tunjukkan peta 4W',loc:'posko',to:'koord',m:'Peta 4W: dua lembaga membagikan hygiene kit di titik yang sama, tenda mandiri belum terlayani.'},{l:'Sepakati standar teknis bersama',loc:'posko',to:'semua',fx:{ko:4,efi:3},once:1,m:'Klaster menyepakati standar isi hygiene kit dan desain jamban darurat.'}],
+ngo:[{l:'Laporkan jamban yang dibangun',loc:'jamban',to:'san',fx:{lat:10},once:1,m:'Kami sudah membangun 10 jamban di Masjid Agung, belum dipisah laki-laki dan perempuan.'},{l:'Minta bantuan material',loc:'gudang',to:'log',m:'Kami butuh semen dan pipa untuk menambah jamban.'}],
+ingo:[{l:'Tawarkan hygiene kit',loc:'gudang',to:'promkes',m:'2.000 hygiene kit siap, tapi kami minta daftar penerima lengkap dengan NIK.'},{l:'Usulkan lokasi eksklusif',loc:'posko',to:'koord',m:'Kami ingin bekerja sendiri di SD Negeri 3.'}],
+donor:[{l:'Kunjungan lapangan',loc:'tenda',to:'mgr',fx:{tim:-3},m:'Kami datang berkunjung. Mohon siapkan spanduk dan sesi foto penyerahan.'},{l:'Minta laporan capaian',loc:'posko',to:'adm',m:'Kirim laporan capaian dan keuangan sebelum dana tahap berikutnya.'}],
+media:[{l:'Wawancara tim WASH',loc:'tenda',to:'mgr',m:'Apakah air bantuan aman diminum? Warga bilang ada yang sakit perut.'},{l:'Terbitkan berita apresiasi',loc:'posko',to:'semua',fx:{ak:4},ask:1,m:''},{l:'Terbitkan berita kritis',loc:'posko',to:'semua',fx:{ak:-6},ask:1,m:''}],
+warga:[{l:'Sampaikan keluhan antrean',loc:'tenda',to:'dist',m:'Antrean di kran pagi hari bisa satu jam.'},{l:'Ajak gotong royong kebersihan',loc:'tenda',to:'promkes',fx:{hyg:3},m:'Warga siap kerja bakti membersihkan lokasi bila ada alat.'}],
+disab:[{l:'Laporkan akses jamban',loc:'jamban',to:'san',m:'Pengguna kursi roda tidak bisa masuk jamban darurat, dan jamban perempuan gelap di malam hari.'},{l:'Tawarkan audit aksesibilitas',loc:'jamban',to:'camp',fx:{ak:2},m:'Kami bisa ikut menilai aksesibilitas fasilitas WASH.'}]};
+
+/* permintaan tim WASH ke pemangku kepentingan */
+const REQ=[
+{id:'dana_pusat',l:'Tambahan dana operasi',from:['mgr','adm'],to:'pmipusat',fx:{b:150}},
+{id:'dana_donor',l:'Dana dari donor',from:['mgr','adm'],to:'donor',fx:{b:250}},
+{id:'unit',l:'Unit pengolah air tambahan',from:['log','olah','mgr'],to:'pmiprov',fx:{prod:30000,b:-40}},
+{id:'relawan',l:'Relawan tambahan',from:['mgr','camp'],to:'pmikab',fx:{tim:10}},
+{id:'ahli',l:'Tenaga ahli WASH',from:['mgr','log'],to:'pns',fx:{tim:8,prod:10000}},
+{id:'truk',l:'Angkutan truk/helikopter',from:['dist','log'],to:'tni',fx:{dist:15000}},
+{id:'lahan',l:'Lahan aman di hulu untuk instalasi',from:['olah','san','camp'],to:'pemkab',fx:{frc:5,ko:3}},
+{id:'akses',l:'Akses logistik dan data posko',from:['koord','mgr'],to:'bnpb',fx:{ko:5,dist:5000}},
+{id:'data_kes',l:'Data surveilans diare per titik',from:['koord','promkes','olah'],to:'dinkes',fx:{ko:5,hyg:3}},
+{id:'pembagian',l:'Pembagian wilayah kerja (4W)',from:['koord'],to:'klaster',fx:{ko:8,efi:5}},
+{id:'jamban_ngo',l:'Kerja sama pembangunan jamban',from:['san','koord'],to:'ngo',fx:{lat:20}},
+{id:'kit',l:'Hygiene kit untuk titik belum terlayani',from:['promkes','koord'],to:'ingo',fx:{hyg:10}},
+{id:'pipa',l:'Sambungan air baku/perpipaan',from:['olah','dist'],to:'pdam',fx:{prod:15000}},
+{id:'warga',l:'Konsultasi lokasi dan jadwal layanan',from:['san','promkes','camp','dist'],to:'warga',fx:{ak:5,hyg:3}},
+{id:'disab',l:'Masukan desain fasilitas aksesibel',from:['san','camp'],to:'disab',fx:{ak:6}},
+{id:'prov',l:'Dukungan dinas provinsi',from:['koord','mgr'],to:'pemprov',fx:{ko:4}},
+{id:'pusat',l:'Pedoman teknis dan surveilans',from:['mgr','olah'],to:'pempusat',fx:{frc:3,ko:3}}];
+
+const SURP=[
+{t:'Gempa/banjir susulan',d:'Dua bladder bocor dan satu tap stand roboh.',fx:{dist:-15000},q:'Apa prioritas perbaikan dan bagaimana menjaga pasokan sementara?'},
+{t:'Pompa unit olah rusak',d:'Impeller pompa air baku pecah, suku cadang tidak ada di gudang.',fx:{prod:-30000},q:'Apa rencana cadangan produksi air hari ini?'},
+{t:'Stok klorin habis',d:'Pengiriman kaporit tertahan 3 hari di pelabuhan.',fx:{frc:-20},q:'Bagaimana menjaga keamanan air sampai stok tiba?'},
+{t:'Berita viral',d:'Video "air bantuan PMI bikin sakit perut" ditonton ratusan ribu kali.',fx:{ak:-15},q:'Siapa yang bicara, data apa yang disiapkan, apa pesan kuncinya?'},
+{t:'KLB diare',d:'Dinkes menyatakan KLB diare di satu titik pengungsian.',fx:{cases:30},q:'Apa yang berubah pada dosis klor, promosi kebersihan dan koordinasi kesehatan?'},
+{t:'Hujan deras',d:'Lubang jamban di area rendah meluap.',fx:{lat:-20,hyg:-5},q:'Bagaimana penanganan cepat dan pencegahannya?'},
+{t:'Donor bersyarat',d:'Donor menawarkan Rp1 miliar dengan syarat bantuan dibagikan di titik pilihan pejabat dan logo besar.',fx:{},q:'Bagaimana menjaga imparsialitas dan netralitas sambil menjaga hubungan donor?'},
+{t:'Konflik antrean',d:'Keributan di tap stand, relawan diancam.',fx:{tim:-15},q:'Langkah keselamatan apa dan bagaimana mengatur ulang distribusi?'},
+{t:'Relawan kelelahan',d:'Setelah 10 hari tanpa libur, 5 relawan sakit.',fx:{tim:-15},q:'Bagaimana rotasi, dukungan psikososial dan pengganti?'},
+{t:'Permintaan pejabat',d:'Pejabat daerah meminta truk air diprioritaskan ke posko dan rumah dinas.',fx:{},q:'Bagaimana menolak dengan sopan dan tetap berpegang pada kebutuhan?'},
+{t:'Akses disabilitas',d:'40 pengguna kursi roda tidak dapat memakai jamban.',fx:{ak:-5},q:'Apa modifikasi desain dan siapa yang dilibatkan?'},
+{t:'Dukungan INGO',d:'INGO menyumbang 40 jamban portabel lewat klaster.',fx:{lat:40,ko:5},q:'Di mana ditempatkan dan siapa yang memelihara?'}];
+
+const KEYS={b:'Anggaran (Rp juta)',prod:'Produksi air (L/hari)',dist:'Distribusi (L/hari)',lat:'Jamban',frc:'Kualitas air',hyg:'Promosi kebersihan',ko:'Koordinasi',ak:'Akuntabilitas',tim:'Kesiapan tim',efi:'Efisiensi',cases:'Kasus diare',pop:'Pengungsi'};
+const fxText=fx=>Object.entries(fx||{}).filter(([k,v])=>v&&KEYS[k]).map(([k,v])=>`${KEYS[k]} ${v>0?'+':'−'}${fmt(Math.abs(v))}`).join(' · ');
+const QP={baik:10,cukup:5,kurang:0};
+const DUR=[.5,1,1,1.5,2,2];
+function initState(pop,b){return{pop,pop0:pop,b,b0:b,prod:0,dist:0,lat:8,frc:15,hyg:10,ko:50,ak:50,tim:60,efi:50,cases:12}}
+function risk(s,i){let r=0;const lpd=Math.min(s.prod,s.dist)/s.pop,ratio=s.lat>0?s.pop/s.lat:999,wt=i<2?7.5:15,lt=i<3?50:20;
+if(lpd<7.5)r+=3;else if(lpd<wt)r+=1.5;if(ratio>50)r+=3;else if(ratio>lt)r+=1.5;if(s.frc<50)r+=2.5;else if(s.frc<80)r+=1;if(s.hyg<30)r+=2;else if(s.hyg<60)r+=1;return r}
+function scores(s){const lpd=Math.min(s.prod,s.dist)/s.pop,ratio=s.lat?s.pop/s.lat:999;
+const eff=(Math.min(lpd/15,1)+Math.min(20/ratio,1)+s.frc/100+s.hyg/100)/4*100;const efi=clamp(s.efi-(s.b<0?20:0),0,100);const kes=clamp(100-(s.cases-12)*0.6,0,100);
+return{eff,efi,kes,ko:s.ko,ak:s.ak,tot:eff*.35+efi*.2+s.ko*.15+s.ak*.15+kes*.15}}
+const pts=e=>(e.kind==='keputusan'?QP[e.quality]||0:0)+(e.kind==='aksi'?2:0)+(e.kind==='jawab'?3:0)+(e.kind==='minta'?1:0)+(e.gm_score||0);
+
+/* ============ STATE ============ */
+const G={mode:null,code:null,auth:null,room:null,players:[],events:[],choices:[],lastId:0,pos:{},me:{x:15.5*16,y:15*16+8,d:'down',mv:0},chan:null,pchan:null,dirty:true,seenKey:'',seenInject:'',seenSurp:'',lastToast:0,lastRead:0,sheetTab:'misi',gmTab:'pemain',tiles:null};
+const S=()=>(G.room&&G.room.state)||initState(6000,1000);
+const meRow=()=>G.players.find(p=>p.id===G.auth?.id);
+const myRole=()=>meRow()?.role||null;
+const phase=()=>G.room?.phase||0;
+function T(str){const s=S(),h=HAZ[G.room?.hazard]||HAZ.gempa,p=s.pop,sp=[.4,.25,.2,.15].map(f=>fmt(p*f));
+return str.replace('{intro}',h.intro).replace(/\{kab\}/g,h.kab).replace('{src}',h.src).replace(/\{pop\}/g,fmt(p)).replace('{p1}',sp[0]).replace('{p2}',sp[1]).replace('{p3}',sp[2]).replace('{p4}',sp[3])}
+
+/* ============ SUPABASE ============ */
+async function rpc(fn,args){if(!sb){toast('Tidak terhubung ke server.');return null}
+const {data,error}=await sb.rpc(fn,args);if(error){toast('Gagal: '+error.message);return null}
+if(data&&data.ok===false){toast(data.reason||'Ditolak');return data}return data}
+async function loadAll(full){const c=G.code;if(!sb||!c)return;
+const qs=[sb.from('ttx_rooms').select('*').eq('code',c).maybeSingle(),sb.from('ttx_players').select('*').eq('room',c).order('created_at'),sb.from('ttx_choices').select('*').eq('room',c)];
+qs.push(full?sb.from('ttx_events').select('*').eq('room',c).order('id').limit(3000):sb.from('ttx_events').select('*').eq('room',c).gt('id',G.lastId).order('id').limit(500));
+const [r,p,ch,ev]=await Promise.all(qs);
+if(r.data)G.room=r.data;if(p.data)G.players=p.data;if(ch.data)G.choices=ch.data;
+if(ev.data){if(full)G.events=ev.data;else ev.data.forEach(addEvent);G.lastId=G.events.reduce((m,e)=>Math.max(m,e.id),0)}
+G.dirty=true;onData()}
+function addEvent(e){const i=G.events.findIndex(x=>x.id===e.id);if(i>=0)G.events[i]=e;else{G.events.push(e);G.lastId=Math.max(G.lastId,e.id)}}
+function subscribe(){const c=G.code;if(!sb)return;
+G.chan=sb.channel('db-'+c)
+.on('postgres_changes',{event:'*',schema:'public',table:'ttx_rooms',filter:'code=eq.'+c},p=>{const prev=G.room;if(p.new&&p.new.code){G.room=p.new;if(prev&&prev.status!=='lobby'&&p.new.status==='lobby')loadAll(true)}G.dirty=true;onData()})
+.on('postgres_changes',{event:'*',schema:'public',table:'ttx_players',filter:'room=eq.'+c},p=>{if(p.eventType==='DELETE'){loadAll(false);return}const i=G.players.findIndex(x=>x.id===p.new.id);if(i>=0)G.players[i]=p.new;else G.players.push(p.new);G.dirty=true;onData()})
+.on('postgres_changes',{event:'*',schema:'public',table:'ttx_events',filter:'room=eq.'+c},p=>{if(p.new&&p.new.id){addEvent(p.new);G.dirty=true;onData()}})
+.on('postgres_changes',{event:'*',schema:'public',table:'ttx_choices',filter:'room=eq.'+c},p=>{if(p.new&&p.new.dkey){G.choices=G.choices.filter(x=>!(x.phase===p.new.phase&&x.dkey===p.new.dkey));G.choices.push(p.new)}G.dirty=true;onData()})
+.subscribe();
+G.pchan=sb.channel('pos-'+c,{config:{broadcast:{self:false}}}).on('broadcast',{event:'p'},({payload})=>{if(!payload||!payload.i)return;const o=G.pos[payload.i]||{x:payload.x,y:payload.y};o.tx=payload.x;o.ty=payload.y;o.d=payload.d;o.t=performance.now();o.mv=payload.m;G.pos[payload.i]=o}).subscribe();
+setInterval(()=>loadAll(false),8000)}
+
+/* ============ PETA ============ */
+const MW=32,MH=22,TS=16;
+function rnd(seed){let s=seed;return()=>(s=s*16807%2147483647)/2147483647}
+function buildMap(){const t=[],r=rnd(42);for(let y=0;y<MH;y++){t[y]=[];for(let x=0;x<MW;x++)t[y][x]=0}
+const rxAt=y=>2+Math.round(Math.sin(y/3)*0.7);
+for(let y=0;y<MH;y++){const rx=rxAt(y);for(let x=0;x<MW;x++){if(x<rx)t[y][x]=3;else if(x<rx+2)t[y][x]=2;else if(x===rx+2)t[y][x]=4}}
+for(let x=0;x<MW;x++){if(t[0][x]!==2)t[0][x]=3;if(t[MH-1][x]!==2)t[MH-1][x]=3}for(let y=0;y<MH;y++)t[y][MW-1]=3;
+const path=(x0,y0,x1,y1)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)if(t[y][x]!==2&&x<MW-1&&y>0&&y<MH-1)t[y][x]=1};
+path(5,8,30,8);path(5,16,30,16);path(11,1,11,20);path(21,1,21,20);
+path(7,7,7,7);path(15,7,16,7);path(25,7,26,7);path(7,14,7,15);path(15,14,16,15);path(7,17,7,17);path(15,17,16,17);path(26,17,26,17);
+const inZone=(x,y,m)=>ZONES.some(z=>x>=z.x-m&&x<z.x+z.w+m&&y>=z.y-m&&y<z.y+z.h+m);
+for(let y=1;y<MH-1;y++)for(let x=6;x<MW-1;x++)if(t[y][x]===0&&!inZone(x,y,1)&&r()<0.09){const nb=[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>t[y+b]?.[x+a]===1);if(!nb)t[y][x]=3}
+G.tiles=t}
+function blocked(px,py){const tx=Math.floor(px/TS),ty=Math.floor(py/TS);if(tx<0||ty<0||tx>=MW||ty>=MH)return true;const v=G.tiles[ty][tx];if(v===2||v===3)return true;
+return ZONES.some(z=>z.blk&&tx>=z.x&&tx<z.x+z.w&&ty>=z.y&&ty<z.y+z.h)}
+let BG=null;
+function drawBG(){const c=document.createElement('canvas');c.width=MW*TS;c.height=MH*TS;const g=c.getContext('2d'),r=rnd(7);
+for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const v=G.tiles[y][x],X=x*TS,Y=y*TS;
+if(v===2){g.fillStyle='#3f95d4';g.fillRect(X,Y,TS,TS);g.fillStyle='#7cc4ef';for(let i=0;i<3;i++)g.fillRect(X+2+((x*5+i*7+y*3)%10),Y+3+i*5,4,1);continue}
+g.fillStyle=v===1?'#d9b77a':v===4?'#e6cf93':'#6fb552';g.fillRect(X,Y,TS,TS);
+for(let i=0;i<6;i++){g.fillStyle=v===1?'#c9a466':v===4?'#d7bd7d':(r()<.5?'#5fa346':'#82c665');g.fillRect(X+Math.floor(r()*15),Y+Math.floor(r()*15),1+(v===0?0:1),1)}
+if(v===0&&r()<.07){g.fillStyle=r()<.5?'#ffe36e':'#ff8fa3';g.fillRect(X+Math.floor(r()*12)+2,Y+Math.floor(r()*12)+2,2,2)}
+if(v===3){g.fillStyle='rgba(0,0,0,.2)';g.beginPath();g.ellipse(X+8,Y+14,7,2.5,0,0,7);g.fill();g.fillStyle='#6b4423';g.fillRect(X+6,Y+9,4,6);
+g.fillStyle='#2f7d3a';g.beginPath();g.arc(X+8,Y+7,7,0,7);g.fill();g.fillStyle='#3f9a48';g.beginPath();g.arc(X+7,Y+6,5,0,7);g.fill();g.fillStyle='#62bb5b';g.fillRect(X+4,Y+3,3,2)}}
+const house=(z,wall,roof,label)=>{const X=z.x*TS,Y=z.y*TS,W=z.w*TS,H=z.h*TS,rh=Math.round(H*.45);
+g.fillStyle='rgba(0,0,0,.22)';g.fillRect(X+4,Y+H-2,W,6);g.fillStyle=wall;g.fillRect(X+2,Y+rh,W-4,H-rh);
+g.fillStyle='rgba(0,0,0,.12)';g.fillRect(X+2,Y+H-4,W-4,4);g.fillStyle=roof;g.fillRect(X,Y+4,W,rh);
+g.fillStyle='rgba(0,0,0,.18)';for(let i=Y+8;i<Y+4+rh;i+=4)g.fillRect(X,i,W,1);g.fillStyle='rgba(255,255,255,.25)';g.fillRect(X,Y+4,W,2);
+g.fillStyle='#5a3a1c';g.fillRect(X+W/2-6,Y+H-16,12,16);g.fillStyle='#ffd45e';g.fillRect(X+W/2+3,Y+H-9,2,2);
+g.fillStyle='#bfe6ff';for(const wx of[X+8,X+W-20]){g.fillRect(wx,Y+rh+6,12,9);g.fillStyle='#7a4b23';g.fillRect(wx+5,Y+rh+6,1,9);g.fillStyle='#bfe6ff'}
+if(label){g.fillStyle='#fff4d6';g.fillRect(X+W/2-20,Y+rh-2,40,10);g.fillStyle='#2b1d10';g.font='bold 7px monospace';g.textAlign='center';g.fillText(label,X+W/2,Y+rh+6)}};
+const Zg=id=>ZONES.find(z=>z.id===id);
+house(Zg('posko'),'#efe3c8','#d0663a','POSKO');house(Zg('puskesmas'),'#f5f7f8','#2e8b7a','PUSKESMAS');house(Zg('gudang'),'#b98b5e','#8a9099','GUDANG');house(Zg('sekolah'),'#f1e3c6','#b8352a','SD N 3');
+{const z=Zg('puskesmas');g.fillStyle='#2e8b3e';g.fillRect(z.x*TS+z.w*TS-14,z.y*TS+12,8,2);g.fillRect(z.x*TS+z.w*TS-11,z.y*TS+9,2,8)}
+{const z=Zg('sekolah'),X=z.x*TS+z.w*TS+2,Y=z.y*TS-4;g.fillStyle='#777';g.fillRect(X,Y,1,22);g.fillStyle='#d8261b';g.fillRect(X+1,Y,8,3);g.fillStyle='#fff';g.fillRect(X+1,Y+3,8,3)}
+{const z=Zg('masjid'),X=z.x*TS,Y=z.y*TS,W=z.w*TS,H=z.h*TS;g.fillStyle='rgba(0,0,0,.2)';g.fillRect(X+4,Y+H-2,W,5);g.fillStyle='#f7f5ee';g.fillRect(X+2,Y+14,W-4,H-14);
+g.fillStyle='#2f8a57';g.beginPath();g.arc(X+W/2,Y+16,13,Math.PI,0);g.fill();g.fillStyle='#45a86e';g.fillRect(X+W/2-6,Y+6,4,3);g.fillStyle='#f7f5ee';g.fillRect(X+W-10,Y,6,H);g.fillStyle='#2f8a57';g.fillRect(X+W-11,Y-2,8,4);
+g.fillStyle='#5a3a1c';g.beginPath();g.arc(X+W/2,Y+H-8,6,Math.PI,0);g.fill();g.fillRect(X+W/2-6,Y+H-8,12,8)}
+{const z=Zg('basecamp'),X=z.x*TS,Y=z.y*TS,W=z.w*TS,H=z.h*TS;g.fillStyle='rgba(0,0,0,.22)';g.fillRect(X+4,Y+H-2,W,6);
+g.fillStyle='#e9e9e2';g.beginPath();g.moveTo(X,Y+H);g.lineTo(X+10,Y+6);g.lineTo(X+W-10,Y+6);g.lineTo(X+W,Y+H);g.fill();g.fillStyle='#d2d2c8';g.beginPath();g.moveTo(X+W/2,Y+6);g.lineTo(X+W-10,Y+6);g.lineTo(X+W,Y+H);g.lineTo(X+W/2,Y+H);g.fill();
+g.fillStyle='#fff';g.fillRect(X+W/2-9,Y+14,18,18);g.fillStyle='#c8102e';g.fillRect(X+W/2-7,Y+20,14,6);g.fillRect(X+W/2-3,Y+16,6,14);g.fillStyle='#6b6b60';g.fillRect(X+W/2-7,Y+H-14,14,14)}
+for(const z of ZONES.filter(z=>!z.blk)){g.strokeStyle='rgba(255,255,255,.35)';g.setLineDash([3,3]);g.strokeRect(z.x*TS+1.5,z.y*TS+1.5,z.w*TS-3,z.h*TS-3);g.setLineDash([])}
+{const z=Zg('tenda');for(let j=0;j<3;j++)for(let i=0;i<4;i++){const X=(z.x+2.4+i*1.6)*TS,Y=(z.y+.3+j*1.55)*TS;g.fillStyle='rgba(0,0,0,.2)';g.fillRect(X+2,Y+16,20,3);
+g.fillStyle=(i+j)%3?'#3b78b8':'#e7e2d2';g.beginPath();g.moveTo(X,Y+17);g.lineTo(X+11,Y+3);g.lineTo(X+22,Y+17);g.fill();g.fillStyle='rgba(0,0,0,.2)';g.beginPath();g.moveTo(X+11,Y+3);g.lineTo(X+22,Y+17);g.lineTo(X+11,Y+17);g.fill();g.fillStyle='#2b1d10';g.fillRect(X+9,Y+11,4,6)}}
+BG=c}
+
+/* sprite karakter */
+const AV=[{skin:'#f2c79a',hair:'#2b1b10'},{skin:'#d9a066',hair:'#1a1a1a',hij:'#2f6fb0'},{skin:'#c68642',hair:'#4a2a12',cap:'#e67e22'},{skin:'#8d5524',hair:'#111',hij:'#b8336a'},{skin:'#f1c27d',hair:'#7a4b23'},{skin:'#e0ac69',hair:'#222',hij:'#4c8a3d'}];
+function drawChar(g,x,y,av,role,d,fr,hl){const a=AV[av%AV.length]||AV[0],grp=R(role)?GROUPS[R(role).g]:null,shirt=grp?grp.shirt:'#bdbdbd';x=Math.round(x);y=Math.round(y);
+g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(x,y,6,2,0,0,7);g.fill();
+const lo=fr?1:0;g.fillStyle='#3a3a55';g.fillRect(x-3,y-5,2,4+lo);g.fillRect(x+1,y-5,2,5-lo);g.fillStyle='#2b1d10';g.fillRect(x-3,y-1+lo,2,1);g.fillRect(x+1,y-lo,2,1);
+g.fillStyle=shirt;g.fillRect(x-4,y-11,8,7);g.fillStyle=a.skin;g.fillRect(x-5,y-10+(fr?1:0),1,4);g.fillRect(x+4,y-10+(fr?0:1),1,4);
+if(grp&&grp.vest){g.fillStyle='#c8102e';g.fillRect(x-4,y-11,2,7);g.fillRect(x+2,y-11,2,7)}
+if(grp&&R(role).g==='wash'&&d!=='up'){g.fillStyle='#fff';g.fillRect(x-1,y-10,2,4);g.fillRect(x-2,y-9,4,2)}
+if(role==='media'){g.fillStyle='#111';g.fillRect(x+3,y-9,4,3)}
+g.fillStyle=a.skin;g.fillRect(x-4,y-18,8,7);
+if(a.hij){g.fillStyle=a.hij;g.fillRect(x-5,y-19,10,3);g.fillRect(x-5,y-16,2,6);g.fillRect(x+3,y-16,2,6);if(d==='up')g.fillRect(x-4,y-18,8,7)}
+else{g.fillStyle=a.hair;g.fillRect(x-4,y-19,8,3);if(d==='up')g.fillRect(x-4,y-17,8,5);else{g.fillRect(x-4,y-16,1,2);g.fillRect(x+3,y-16,1,2)}if(a.cap){g.fillStyle=a.cap;g.fillRect(x-5,y-20,10,2);g.fillRect(d==='left'?x-7:x+1,y-18,6,1)}}
+if(d!=='up'){g.fillStyle='#2b1d10';if(d==='left'){g.fillRect(x-3,y-15,1,2)}else if(d==='right'){g.fillRect(x+2,y-15,1,2)}else{g.fillRect(x-2,y-15,1,2);g.fillRect(x+1,y-15,1,2)}}
+if(hl){g.fillStyle='#ffd447';g.beginPath();g.moveTo(x-3,y-26);g.lineTo(x+3,y-26);g.lineTo(x,y-22);g.fill()}}
+
+/* elemen dinamis sesuai indikator */
+function drawDynamic(g,now){const s=S(),Zg=id=>ZONES.find(z=>z.id===id);
+{const z=Zg('sungai'),X=z.x*TS,Y=z.y*TS;
+if(s.prod>=40000){for(let i=0;i<2;i++){const tx=X+20+i*24,ty=Y+18;g.fillStyle='rgba(0,0,0,.2)';g.fillRect(tx+2,ty+26,20,4);g.fillStyle='#2d7fc1';g.fillRect(tx,ty,20,26);g.fillStyle='#5aa7e0';g.fillRect(tx+3,ty,4,26);g.fillStyle='#1b4f7a';g.fillRect(tx,ty,20,3);
+const lv=clamp(s.frc/100,0,1);g.fillStyle='#cfeaff';g.fillRect(tx+14,ty+4+20*(1-lv),3,20*lv)}
+g.fillStyle='#888';g.fillRect(X-4,Y+40,24,3);g.fillRect(X+64,Y+38,8,3);g.fillStyle='#ffd447';g.fillRect(X+68,Y+30,6,6);if(Math.floor(now/400)%2){g.fillStyle='#ff5a3c';g.fillRect(X+70,Y+32,2,2)}}
+else{g.fillStyle='#7a4b23';g.fillRect(X+30,Y+30,2,14);g.fillStyle='#fff4d6';g.fillRect(X+20,Y+22,24,10);g.fillStyle='#2b1d10';g.font='bold 6px monospace';g.textAlign='center';g.fillText('LOKASI',X+32,Y+29);
+for(let i=0;i<Math.min(5,Math.ceil(s.prod/4000));i++){g.fillStyle='#e8c22d';g.fillRect(X+16+i*8,Y+50,6,8);g.fillStyle='#8a6d0a';g.fillRect(X+17+i*8,Y+49,3,2)}}}
+{const z=Zg('tenda'),X=z.x*TS,Y=z.y*TS,nb=s.dist>0?Math.min(4,Math.ceil(s.dist/25000)):0;
+for(let i=0;i<nb;i++){const bx=X+4,by=Y+6+i*18;g.fillStyle='rgba(0,0,0,.2)';g.fillRect(bx+1,by+11,26,3);g.fillStyle='#2d6fb0';g.beginPath();g.ellipse(bx+13,by+7,13,6,0,0,7);g.fill();g.fillStyle='#64a9e3';g.fillRect(bx+6,by+3,10,2)}
+if(nb){const taps=Math.min(6,Math.ceil(s.dist/15000));for(let i=0;i<taps;i++){const tx=X+31+(i%2)*5,ty=Y+8+Math.floor(i/2)*18;g.fillStyle='#777';g.fillRect(tx,ty,2,10);g.fillStyle='#bbb';g.fillRect(tx-1,ty,4,2);if(Math.floor(now/300+i)%3===0){g.fillStyle='#7cc4ef';g.fillRect(tx+2,ty+3,1,3)}}}
+if(s.hyg<40){for(let i=0;i<10;i++){const fx=X+40+((i*37)%100)+Math.sin(now/200+i)*4,fy=Y+20+((i*23)%50)+Math.cos(now/170+i)*3;g.fillStyle='#222';g.fillRect(fx,fy,2,2)}
+for(let i=0;i<5;i++){g.fillStyle=['#a37b4f','#d8d0b8','#7a8a4a'][i%3];g.fillRect(X+50+i*19,Y+72-(i%2)*6,4,3)}}}
+{const z=Zg('jamban'),X=z.x*TS,Y=z.y*TS,n=Math.min(16,Math.ceil(s.lat/14)),gender=G.choices.some(c=>c.phase===2&&c.dkey==='2-2'&&c.choice===0);
+for(let i=0;i<n;i++){const cx=X+4+(i%8)*15,cy=Y+3+Math.floor(i/8)*22;g.fillStyle='rgba(0,0,0,.2)';g.fillRect(cx+1,cy+17,12,3);g.fillStyle='#a8743f';g.fillRect(cx,cy+3,12,15);g.fillStyle='#7a4b23';g.fillRect(cx-1,cy,14,4);
+g.fillStyle=gender?(i%2?'#4a90d9':'#e06c9f'):'#8a5a2b';g.fillRect(cx+3,cy+7,6,11);g.fillStyle='#ffd447';g.fillRect(cx+7,cy+12,1,1);if(gender){g.fillStyle='#fff3a0';g.fillRect(cx+5,cy+1,2,2)}}
+if(n===0){g.fillStyle='#fff4d6';g.fillRect(X+40,Y+16,48,10);g.fillStyle='#2b1d10';g.font='bold 6px monospace';g.textAlign='center';g.fillText('BELUM ADA',X+64,Y+23)}}
+{const z=Zg('puskesmas'),X=z.x*TS,Y=(z.y+z.h)*TS,n=Math.min(8,Math.floor(s.cases/15));for(let i=0;i<n;i++){const px=X+4+i*11,py=Y+12;g.fillStyle='#e9e2c9';g.fillRect(px,py,9,4);g.fillStyle='#9ccf7a';g.fillRect(px,py-3,4,4)}}}
+
+/* ============ PEMAIN: LOOP GAME ============ */
+const cv=$('#cv'),ctx=cv.getContext('2d');const keys={};let padDir=null,lastSend=0,lastBeat=0;
+function zoneAt(px,py){const tx=Math.floor(px/TS),ty=Math.floor(py/TS);return ZONES.find(z=>tx>=z.x-1&&tx<z.x+z.w+1&&ty>=z.y-1&&ty<z.y+z.h+1)}
+function tasksAt(zid){const role=myRole();if(!role||G.room?.status!=='play')return 0;let n=0;const ph=phase();
+if(isWash(role)){PH[ph].d.forEach((d,j)=>{if(d.who===role&&d.loc===zid&&!choiceOf(ph,j))n++});(CHORES[role]||[]).forEach((c,k)=>{if(c.loc===zid&&!choreDone(role,k))n++})}
+else(ACTS[role]||[]).forEach((a,k)=>{if(a.loc===zid&&!actDone(role,k,a))n++});return n}
+const choiceOf=(ph,j)=>G.choices.find(c=>c.phase===ph&&c.dkey===ph+'-'+j);
+const choreDone=(role,k)=>G.events.some(e=>e.kind==='aksi'&&e.dkey==='c-'+role+'-'+k&&e.phase===phase());
+const actDone=(role,k,a)=>G.events.some(e=>e.kind==='aksi'&&e.dkey==='a-'+role+'-'+k&&e.player_id===G.auth.id&&(a.once||e.phase===phase()));
+function step(dt,now){let dx=0,dy=0;const d=padDir||(keys.ArrowUp||keys.w?'up':keys.ArrowDown||keys.s?'down':keys.ArrowLeft||keys.a?'left':keys.ArrowRight||keys.d?'right':null);
+const blockedUI=!$('#sheet').hidden||!$('#dlg').hidden||!$('#wait').hidden;
+if(d&&!blockedUI){const sp=70*dt;if(d==='up')dy=-sp;if(d==='down')dy=sp;if(d==='left')dx=-sp;if(d==='right')dx=sp;G.me.d=d}
+const m=G.me;const ok=(x,y)=>!blocked(x-4,y-2)&&!blocked(x+4,y-2)&&!blocked(x-4,y)&&!blocked(x+4,y);
+if(dx&&ok(m.x+dx,m.y))m.x+=dx;if(dy&&ok(m.x,m.y+dy))m.y+=dy;m.mv=!!(dx||dy);
+if(G.pchan&&G.auth&&((m.mv&&now-lastSend>450)||now-lastBeat>4000)){lastSend=lastBeat=now;G.pchan.send({type:'broadcast',event:'p',payload:{i:G.auth.id,x:Math.round(m.x),y:Math.round(m.y),d:m.d,m:m.mv?1:0}});LS.set('ttx_pos_'+G.code,{x:m.x,y:m.y})}
+for(const id in G.pos){const o=G.pos[id];if(o.tx!=null){o.x+=(o.tx-o.x)*Math.min(1,dt*6);o.y+=(o.ty-o.y)*Math.min(1,dt*6)}}}
+function spawnFor(id){let h=0;for(const ch of id)h=(h*31+ch.charCodeAt(0))%997;return{x:(12.5+(h%9))*TS,y:(15.2+(h%3)*.35)*TS}}
+function render(canvas,g,overview,now){const dpr=Math.min(2,window.devicePixelRatio||1),cw=canvas.clientWidth,ch=canvas.clientHeight;if(!cw||!ch)return;
+if(canvas.width!==Math.round(cw*dpr)||canvas.height!==Math.round(ch*dpr)){canvas.width=Math.round(cw*dpr);canvas.height=Math.round(ch*dpr)}
+let sc,cx,cy;if(overview){sc=Math.min(cw/(MW*TS),ch/(MH*TS));cx=-(cw/sc-MW*TS)/2;cy=-(ch/sc-MH*TS)/2}
+else{sc=clamp(cw/(14*TS),1.6,3.6);const vw=cw/sc,vh=ch/sc;cx=vw>=MW*TS?-(vw-MW*TS)/2:clamp(G.me.x-vw/2,0,MW*TS-vw);cy=vh>=MH*TS?-(vh-MH*TS)/2:clamp(G.me.y-vh/2,0,MH*TS-vh)}
+g.setTransform(1,0,0,1,0,0);g.fillStyle='#2f5d2b';g.fillRect(0,0,canvas.width,canvas.height);g.imageSmoothingEnabled=false;
+g.setTransform(sc*dpr,0,0,sc*dpr,-cx*sc*dpr,-cy*sc*dpr);if(BG)g.drawImage(BG,0,0);drawDynamic(g,now);
+const list=[];G.players.forEach(p=>{if(p.id===G.auth?.id&&!overview)return;let o=G.pos[p.id];if(!o){o=spawnFor(p.id);G.pos[p.id]=o}if(overview||now-(o.t||0)<120000||true)list.push({p,o})});
+if(!overview)list.push({p:meRow()||{id:'me',avatar:0,name:'Kamu'},o:G.me,me:1});
+list.sort((a,b)=>a.o.y-b.o.y);
+for(const it of list){const fr=(it.me?G.me.mv:it.o.mv)?Math.floor(now/160)%2:0;drawChar(g,it.o.x,it.o.y,it.p.avatar||0,it.p.role,it.o.d||'down',fr,it.me)}
+if(!overview){for(const z of ZONES){const n=tasksAt(z.id);if(n){const bx=(z.x+z.w/2)*TS,by=z.y*TS-2+Math.sin(now/250)*2;g.fillStyle='#ffd447';g.fillRect(bx-5,by-12,10,13);g.fillStyle='#c8102e';g.fillRect(bx-1,by-10,2,6);g.fillRect(bx-1,by-3,2,2)}}}
+g.setTransform(dpr,0,0,dpr,0,0);g.textAlign='center';g.lineJoin='round';
+g.font=`${overview?11:12}px "Pixelify Sans",monospace`;
+for(const it of list){const sx=(it.o.x-cx)*sc,sy=(it.o.y-cy)*sc-20*sc-4;const name=it.p.name||'';g.lineWidth=3;g.strokeStyle='rgba(0,0,0,.7)';g.strokeText(name,sx,sy);g.fillStyle=it.me?'#ffd447':'#fff';g.fillText(name,sx,sy)}
+g.font=`bold ${overview?12:13}px "Pixelify Sans",monospace`;for(const z of ZONES){const sx=(z.x+z.w/2-cx/TS)*TS*sc,sy=((z.blk?z.y:z.y+z.h)*TS-cy)*sc+(z.blk?-2:-4);if(sx<-80||sx>cw+80||sy<-20||sy>ch+20)continue;g.lineWidth=4;g.strokeStyle='rgba(43,29,16,.85)';g.strokeText(z.n,sx,sy);g.fillStyle='#fff4d6';g.fillText(z.n,sx,sy)}}
+let lastT=performance.now();
+function loop(now){const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
+if(G.mode==='play'){step(dt,now);render(cv,ctx,false,now);const z=zoneAt(G.me.x,G.me.y),h=$('#hint');if(z){h.hidden=false;const n=tasksAt(z.id);h.textContent='A: '+z.n+(n?` (${n} misi)`:'')}else h.hidden=true;
+if(G.dirty){G.dirty=false;hud()}}
+else if(G.mode==='gm'){const c=$('#gmcv');if(c){for(const id in G.pos){const o=G.pos[id];if(o.tx!=null){o.x+=(o.tx-o.x)*Math.min(1,dt*6);o.y+=(o.ty-o.y)*Math.min(1,dt*6)}}render(c,c.getContext('2d'),true,now)}}
+requestAnimationFrame(loop)}
+
+/* ============ PEMAIN: UI ============ */
+function hud(){const s=S(),me=meRow(),lpd=Math.min(s.prod,s.dist)/s.pop,st=G.room?.status;
+const tm=G.room?.timer_end?Math.round((new Date(G.room.timer_end)-Date.now())/1000):null;
+$('#hud').innerHTML=`<span class="chip">${st==='lobby'?'Lobi':st==='end'?'Selesai':'Fase '+(phase()+1)+' · '+esc(PH[phase()].w)}</span><span class="chip">Energi<span class="en"><i style="width:${clamp(me?.energy??100,0,100)}%"></i></span></span><span class="chip">Rp${fmt(s.b)} jt</span><span class="chip">Air ${lpd.toFixed(1)} L</span>${tm!=null?`<span class="chip" style="background:${tm<0?'#c0392b':'rgba(0,0,0,.25)'}">${tm<0?'−':''}${Math.floor(Math.abs(tm)/60)}:${String(Math.abs(tm)%60).padStart(2,'0')}</span>`:''}<span class="chip">${esc(me?.name||'')}${me?.role?' · '+esc(RN(me.role)):''}</span>`}
+setInterval(()=>{if(G.mode==='play'&&G.room?.timer_end)hud()},1000);
+const dq=[];function dialog(t,x,n){dq.push({t,x,n});if($('#dlg').hidden)nextDlg()}
+function nextDlg(){const d=dq.shift();if(!d){$('#dlg').hidden=true;return}$('#dlg-t').textContent=d.t;$('#dlg-x').innerHTML=d.x;$('#dlg-n').textContent=d.n||(dq.length?dq.length+' lagi':'');$('#dlg').hidden=false}
+$('#dlg-ok').onclick=nextDlg;
+function toast(m){const el=document.createElement('div');el.className='toast';el.textContent=m;const box=$('#toasts');if(G.mode!=='play'){alertBox(m);return}box.appendChild(el);setTimeout(()=>el.remove(),4200)}
+function alertBox(m){const el=$('#j-msg')&&!$('#home').hidden?$('#j-msg'):null;if(el){el.textContent=m;return}const g=$('#gm-alert');if(g){g.textContent=m;setTimeout(()=>{if(g.textContent===m)g.textContent=''},5000)}}
+function relevant(e){const role=myRole();if(['inject','kejutan','gm'].includes(e.kind))return true;
+return['pesan','aksi','minta','jawab'].includes(e.kind)&&e.player_id!==G.auth?.id&&(e.target===role||(e.target==='semua'&&e.kind!=='jawab'))}
+function onData(){if(G.mode==='play')onPlayData();else if(G.mode==='gm')gmRender()}
+function onPlayData(){const me=meRow();if(G.players.length&&!me&&G.auth){LS.del('ttx_me');G.mode=null;$('#play').hidden=true;$('#home').hidden=false;$('#j-msg').textContent='Kamu dikeluarkan dari ruang oleh fasilitator.';return}
+const r=G.room;if(!r)return;const role=me?.role;
+const w=$('#wait');if(r.status==='end'){w.hidden=false;const my=G.events.filter(e=>e.player_id===G.auth.id).reduce((a,e)=>a+pts(e),0),sc=scores(S());$('#w-t').textContent='Latihan selesai';$('#w-p').innerHTML=`Poin kamu: <b>${my}</b>. Skor tim: <b>${Math.round(sc.tot)}</b>/100. Ikuti debrief bersama fasilitator.`;$('#w-x').hidden=true}
+else if(!me?.approved||!role){if(!G.waitDismissed){w.hidden=false;$('#w-t').textContent='Menunggu peran';$('#w-p').textContent='Fasilitator akan memberi kamu peran dan izin bermain. Sambil menunggu, kamu boleh jalan-jalan di desa.';$('#w-x').hidden=false}}
+else if(r.status==='lobby'){if(!G.waitDismissed2){w.hidden=false;$('#w-t').textContent='Peranmu: '+RN(role);$('#w-p').textContent='Latihan belum dimulai. Baca kartu peranmu di menu B › Peran.';$('#w-x').hidden=false}}
+else w.hidden=true;
+if(r.status==='play'&&role&&me?.approved){const key=r.status+r.phase;if(G.seenKey!==key){G.seenKey=key;LS.set('ttx_seen_'+G.code,key);const p=PH[r.phase];
+dialog(`Fase ${r.phase+1}: ${p.n} (${p.w})`,`<p>${esc(T(p.inj))}</p>`);
+const mine=PH[r.phase].d.filter(d=>d.who===role);if(mine.length)dialog('Misi kamu',mine.map(d=>`<p><b>${esc(d.q)}</b><br>Pergi ke: ${esc(ZN(d.loc))}</p>`).join(''));
+const msgs=p.msg.filter(m=>m[0]===role);if(msgs.length)dialog('Pesan untuk kamu sampaikan',msgs.map(m=>`<p>"${esc(m[1])}"</p>`).join('')+'<p class="note">Kirim lewat menu B › Misi, atau sampaikan langsung saat rapat.</p>')}}
+if(r.inject&&G.seenInject!==r.inject){G.seenInject=r.inject;if(r.status==='play')dialog('Inject dari fasilitator',`<p>${esc(r.inject)}</p>`)}
+const sk=JSON.stringify(r.surprise||'');if(r.surprise&&G.seenSurp!==sk){G.seenSurp=sk;dialog('Kartu kejutan: '+(r.surprise.t||''),`<p>${esc(r.surprise.d)}</p><p><b>Diskusikan:</b> ${esc(r.surprise.q)}</p>`)}
+const fresh=G.events.filter(e=>e.id>G.lastToast&&relevant(e));if(fresh.length){if(G.lastToast)fresh.slice(-3).forEach(e=>{if(!['inject','kejutan','gm'].includes(e.kind))toast(`HT dari ${RN(e.role)}: ${String(e.text||'').slice(0,80)}`)});G.lastToast=Math.max(...fresh.map(e=>e.id))}
+const un=G.events.filter(e=>e.id>G.lastRead&&relevant(e)).length;$('#unread').hidden=!un;$('#unread').textContent=un;
+if(!$('#sheet').hidden)sheet(G.sheetTab,true)}
+$('#w-x').onclick=()=>{if(myRole())G.waitDismissed2=1;else G.waitDismissed=1;$('#wait').hidden=true};
+
+/* ---- interaksi A ---- */
+function interact(){if(!$('#dlg').hidden){nextDlg();return}if(!$('#sheet').hidden)return;
+const z=zoneAt(G.me.x,G.me.y);if(!z){toast('Tidak ada tempat di dekat sini. Dekati bangunan atau area berlabel.');return}
+openSheet('lokasi',z.id)}
+function locHtml(zid){const z=ZONES.find(x=>x.id===zid),role=myRole(),me=meRow(),ph=phase(),play=G.room?.status==='play'&&role&&me?.approved;let h=`<h2>${esc(z.n)}</h2><p class="note">${esc(z.tip)}</p>`;
+if(!play){return h+'<p>Misi muncul setelah fasilitator memulai latihan dan memberi kamu peran.</p>'}
+if(isWash(role))PH[ph].d.forEach((d,j)=>{if(d.who===role&&d.loc===zid)h+=decisionHtml(ph,j)});
+(CHORES[role]||[]).forEach((c,k)=>{if(c.loc===zid){const done=choreDone(role,k);h+=`<div class="item"><span class="tag y">Tugas rutin · 10 energi</span><h3>${esc(c.l)}</h3><p class="note">${esc(c.tip)}</p>${done?'<p class="good"><b>Sudah dikerjakan fase ini.</b></p>':`<button class="btn green sm" data-chore="${k}" type="button">Kerjakan</button>`}</div>`}});
+(ACTS[role]||[]).forEach((a,k)=>{if(a.loc===zid){const done=actDone(role,k,a);h+=`<div class="item"><span class="tag b">Aksi peran · 10 energi</span><h3>${esc(a.l)}</h3><p class="note">Ditujukan ke: ${esc(RN(a.to))}${a.fx?' · '+esc(fxText(a.fx)):''}</p>${done?'<p class="good"><b>Sudah dilakukan'+(a.once?'':' fase ini')+'.</b></p>':`${a.ask?`<label for="ask-${k}">Judul berita</label><input id="ask-${k}" maxlength="140">`:''}<button class="btn blue sm" data-act="${k}" type="button" style="margin-top:8px">Lakukan</button>`}</div>`}});
+if(zid==='basecamp')h+=`<div class="item"><span class="tag g">Base camp</span><h3>Istirahat</h3><p class="note">Pulihkan 50 energi. Energi juga penuh lagi setiap fase baru.</p><button class="btn ghost sm" id="rest" type="button">Istirahat</button></div>`;
+if(zid==='posko')h+=`<div class="item"><span class="tag">Papan posko</span><h3>Lihat status layanan</h3><button class="btn ghost sm" data-s="status" type="button">Buka papan status</button></div>`;
+return h}
+function decisionHtml(ph,j){const d=PH[ph].d[j],c=choiceOf(ph,j);let h=`<div class="item"><span class="tag r">Misi keputusan · 15 energi</span><h3>${esc(d.q)}</h3>`;
+if(c){const o=d.o[c.choice],who=G.players.find(p=>p.id===c.player_id);h+=`<p>Diputuskan oleh <b>${esc(who?.name||'anggota tim')}</b>: ${esc(o.t)}</p><div class="fb"><b class="${{baik:'good',cukup:'warnc',kurang:'badc'}[o.s]}">Keputusan ${o.s}.</b> ${esc(o.f)}<div class="note">${esc(fxText(o.fx))}</div></div>`}
+else h+=`<p class="note">Diskusikan dengan anggota tim yang sama perannya. Pilihan pertama yang dikirim berlaku untuk tim.</p>`+d.o.map((o,k)=>`<button class="opt" type="button" data-dec="${ph}-${j}" data-k="${k}"><b>${'ABCD'[k]}</b>${esc(o.t)}</button>`).join('');
+return h+'</div>'}
+
+/* ---- sheet menu ---- */
+function openSheet(tab,arg){G.sheetTab=tab;G.sheetArg=arg;$('#sheet').hidden=false;sheet(tab)}
+function sheet(tab,refresh){G.sheetTab=tab;document.querySelectorAll('#stabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.s===tab));const b=$('#sbody'),keep=refresh?b.scrollTop:0;
+const active=document.activeElement;if(refresh&&active&&b.contains(active)&&/INPUT|TEXTAREA|SELECT/.test(active.tagName))return;
+const role=myRole(),me=meRow(),ph=phase();let h='';
+if(tab==='lokasi')h=locHtml(G.sheetArg);
+else if(tab==='misi'){if(!role||!me?.approved){h='<p>Kamu belum mendapat peran dari fasilitator.</p>'}else if(G.room?.status!=='play'){h=`<h2>${esc(RN(role))}</h2><p>Latihan belum berjalan.</p>`}else{const p=PH[ph];
+h=`<h2>Fase ${ph+1}: ${esc(p.n)}</h2><p class="note">${esc(p.w)}</p><div class="item"><p>${esc(T(p.inj))}</p></div>`;
+if(isWash(role)){const mine=p.d.map((d,j)=>[d,j]).filter(([d])=>d.who===role);h+='<h3 style="margin:12px 0 6px">Misi keputusan</h3>'+(mine.length?mine.map(([d,j])=>{const c=choiceOf(ph,j);return`<div class="item"><span class="tag ${c?'g':'r'}">${c?'Selesai':'Belum'}</span><h3>${esc(d.q)}</h3><p class="note">Pergi ke: <b>${esc(ZN(d.loc))}</b> lalu tekan A.</p></div>`}).join(''):'<p class="note">Tidak ada misi keputusan untuk peranmu di fase ini. Kerjakan tugas rutin dan dukung tim lewat HT.</p>');
+h+='<h3 style="margin:12px 0 6px">Tugas rutin</h3>'+(CHORES[role]||[]).map((c,k)=>`<div class="item"><span class="tag ${choreDone(role,k)?'g':'y'}">${choreDone(role,k)?'Selesai':'Tersedia'}</span><b>${esc(c.l)}</b> <span class="note">di ${esc(ZN(c.loc))}</span></div>`).join('')}
+else{h+='<h3 style="margin:12px 0 6px">Aksi peran</h3>'+(ACTS[role]||[]).map((a,k)=>`<div class="item"><span class="tag ${actDone(role,k,a)?'g':'b'}">${actDone(role,k,a)?'Selesai':'Tersedia'}</span><b>${esc(a.l)}</b> <span class="note">di ${esc(ZN(a.loc))} · ke ${esc(RN(a.to))}</span></div>`).join('')}
+const msgs=p.msg.map((m,k)=>[m,k]).filter(([m])=>m[0]===role);if(msgs.length)h+='<h3 style="margin:12px 0 6px">Pesan inject untuk kamu sampaikan</h3>'+msgs.map(([m,k])=>{const sent=G.events.some(e=>e.dkey==='m-'+ph+'-'+k);return`<div class="item"><p>"${esc(m[1])}"</p>${sent?'<p class="good"><b>Sudah dikirim.</b></p>':`<button class="btn blue sm" data-msg="${k}" type="button">Kirim ke semua via HT</button>`}</div>`}).join('')}}
+else if(tab==='ht'){G.lastRead=G.lastId;LS.set('ttx_read_'+G.code,G.lastRead);$('#unread').hidden=true;
+const present=[...new Set(G.players.filter(p=>p.role&&p.approved&&p.id!==G.auth.id).map(p=>p.role))];
+h=`<h2>Radio HT</h2>`;if(role&&me?.approved){h+=`<div class="item"><label for="ht-to">Kirim ke</label><select id="ht-to"><option value="semua">Semua</option>${present.map(r=>`<option value="${r}">${esc(RN(r))}</option>`).join('')}</select><label for="ht-tx">Pesan</label><textarea id="ht-tx" maxlength="500" placeholder="Laporan, pertanyaan, koordinasi..."></textarea><p style="margin-top:8px"><button class="btn red sm" id="ht-send" type="button">Kirim</button></p></div>`;
+const reqs=REQ.filter(q=>q.from.includes(role));if(reqs.length)h+='<h3 style="margin:12px 0 6px">Ajukan permintaan dukungan</h3>'+reqs.map(q=>{const pend=G.events.some(e=>e.kind==='minta'&&e.dkey===q.id&&e.player_id===G.auth.id&&e.status==='pending');const has=present.includes(q.to);return`<div class="item"><b>${esc(q.l)}</b><div class="note">Ke ${esc(RN(q.to))} · bila disetujui: ${esc(fxText(q.fx))}</div>${pend?'<p class="warnc"><b>Menunggu jawaban.</b></p>':true?`<input id="rq-${q.id}" maxlength="300" placeholder="Alasan singkat dan data pendukung" style="margin-top:6px"><button class="btn sm" data-req="${q.id}" type="button" style="margin-top:6px">Ajukan · 5 energi</button>${has?'':'<p class="note">Belum ada pemain dengan peran ini; fasilitator yang akan menjawab.</p>'}`:''}</div>`}).join('')}
+const inbox=G.events.filter(e=>relevant(e)||(e.player_id===G.auth.id&&e.kind==='minta')).slice(-80).reverse();
+h+='<h3 style="margin:12px 0 6px">Kotak masuk</h3>'+(inbox.map(e=>{const from=e.player_id===G.auth.id?'Kamu':RN(e.role);let x=`<div class="item"><span class="tag ${e.kind==='minta'?'y':e.kind==='jawab'?(e.status==='approved'?'g':'r'):['inject','kejutan','gm'].includes(e.kind)?'r':'b'}">${{minta:'Permintaan',jawab:e.status==='approved'?'Disetujui':'Ditolak',inject:'Inject',kejutan:'Kejutan',gm:'Fasilitator',pesan:'Pesan',aksi:'Aksi'}[e.kind]||e.kind}</span> <span class="note">F${e.phase+1} · ${esc(from)}${e.target?' → '+esc(RN(e.target)):''}</span><p style="margin:4px 0">${esc(e.text)}</p>`;
+if(e.kind==='minta'){const q=REQ.find(r=>r.id===e.dkey);x+=`<div class="note">${esc(q?q.l:'')} · ${esc(fxText(e.delta))} · status: ${e.status==='pending'?'menunggu':e.status==='approved'?'disetujui':'ditolak'}</div>`;
+if(e.status==='pending'&&e.target===role)x+=`<input id="rp-${e.id}" maxlength="300" placeholder="Syarat atau alasan" style="margin-top:6px"><div class="btns" style="margin-top:6px"><button class="btn green sm" data-rep="${e.id}" data-ok="1" type="button">Setujui</button><button class="btn red sm" data-rep="${e.id}" data-ok="0" type="button">Tolak</button></div>`}
+return x+'</div>'}).join('')||'<p class="note">Belum ada pesan.</p>')}
+else if(tab==='status')h=statusHtml(true);
+else if(tab==='peran'){const r=R(role);if(!r)h='<p>Kamu belum mendapat peran.</p>';else{const mates=G.players.filter(p=>p.role===role&&p.id!==G.auth.id);const my=G.events.filter(e=>e.player_id===G.auth.id).reduce((a,e)=>a+pts(e),0);
+h=`<span class="tag ${r.g==='wash'?'r':'b'}">${esc(GROUPS[r.g].n)}</span><h2>${esc(r.n)}</h2><div class="item"><b>Tugas/mandat</b><p>${esc(r.t)}</p><b>${r.g==='wash'?'Indikator kunci':'Kepentingan dalam latihan'}</b><p>${esc(r.k)}</p></div>
+<p>Rekan seperan: ${mates.length?mates.map(p=>esc(p.name)).join(', '):'tidak ada'}</p><p>Poin kamu: <b>${my}</b> · Energi: <b>${me?.energy??100}</b></p>
+<div class="item"><b>Cara bermain</b><p class="note">Gerak dengan tombol arah. Tanda seru kuning di atas tempat berarti ada misi untukmu. Dekati lalu tekan A. Tombol B membuka menu: Misi, HT (radio untuk pesan dan permintaan dukungan), Status, Peran.</p></div>`}}
+b.innerHTML=h;if(refresh)b.scrollTop=keep}
+function statusHtml(){const s=S(),lpd=Math.min(s.prod,s.dist)/s.pop,ratio=s.lat?s.pop/s.lat:Infinity,lt=phase()<3?50:20,cls=(v,g,w)=>v>=g?'good':v>=w?'warnc':'badc';
+const row=(n,v,pct,c,sub)=>`<div class="ind"><span>${n}${sub?`<br><span class="note">${sub}</span>`:''}</span><span class="v ${c}">${v}</span>${pct!=null?`<div class="bar"><i class="${c}" style="width:${clamp(pct,0,100)}%"></i></div>`:''}</div>`;
+return`<div class="big ${cls(lpd,15,7.5)}">${lpd.toFixed(1)} <span style="font-size:16px">L/orang/hari</span></div><p class="note">Target Sphere 15 L; batas bertahan hidup 7,5 L. Produksi ${fmt(s.prod)} L · distribusi ${fmt(s.dist)} L · ${fmt(s.pop)} jiwa.</p>
+${row('Rasio jamban',ratio===Infinity?'–':'1 : '+Math.round(ratio),ratio===Infinity?0:20/ratio*100,ratio<=20?'good':ratio<=50?'warnc':'badc',`${fmt(s.lat)} jamban · target 1:${lt}`)}
+${row('Kualitas air sesuai standar',Math.round(s.frc)+'%',s.frc,cls(s.frc,80,50))}
+${row('Jangkauan promosi kebersihan',Math.round(s.hyg)+'%',s.hyg,cls(s.hyg,60,30))}
+${row('Kasus diare kumulatif',fmt(s.cases),null,s.cases<40?'good':s.cases<100?'warnc':'badc')}
+${row('Sisa anggaran','Rp'+fmt(s.b)+' jt',s.b/(s.b0||1000)*100,s.b>(s.b0||1000)*.25?'good':s.b>=0?'warnc':'badc')}
+${row('Koordinasi',Math.round(s.ko),s.ko,cls(s.ko,65,40))}${row('Akuntabilitas & reputasi',Math.round(s.ak),s.ak,cls(s.ak,65,40))}${row('Kesiapan tim',Math.round(s.tim),s.tim,cls(s.tim,65,40))}${row('Efisiensi',Math.round(s.efi),s.efi,cls(s.efi,65,40))}`}
+
+/* ---- aksi pemain ---- */
+async function act(kind,o){const a=G.auth;const r=await rpc('ttx_act',{p_code:G.code,p_player:a.id,p_secret:a.secret,p_kind:kind,p_dkey:o.dkey??null,p_choice:o.choice??null,p_text:o.text??null,p_delta:o.delta??null,p_quality:o.quality??null,p_target:o.target??null,p_cost:o.cost??0});
+if(r&&r.ok){await loadAll(false);return true}return false}
+$('#sbody').addEventListener('click',async e=>{const t=e.target.closest('button');if(!t||t.disabled)return;const role=myRole(),ph=phase();
+if(t.dataset.s){sheet(t.dataset.s);return}
+if(t.dataset.dec){const [p,j]=t.dataset.dec.split('-').map(Number),k=+t.dataset.k,d=PH[p].d[j],o=d.o[k];if(!t.dataset.sure){document.querySelectorAll('.opt').forEach(b=>{delete b.dataset.sure;b.style.borderColor=''});t.dataset.sure=1;t.style.borderColor='#c8102e';toast('Tekan pilihan yang sama sekali lagi untuk mengirim keputusan tim.');return}
+t.disabled=true;if(await act('keputusan',{dkey:p+'-'+j,choice:k,text:d.q+' → '+o.t,delta:o.fx,quality:o.s,cost:15}))dialog('Keputusan '+o.s,`<p>${esc(o.f)}</p><p class="note">${esc(fxText(o.fx))}</p>`);sheet(G.sheetTab,true);return}
+if(t.dataset.chore!=null){const c=CHORES[role][+t.dataset.chore];t.disabled=true;if(await act('aksi',{dkey:'c-'+role+'-'+t.dataset.chore,text:c.l,delta:c.fx,cost:10}))toast('Selesai: '+c.l+'. '+c.tip);sheet(G.sheetTab,true);return}
+if(t.dataset.act!=null){const k=+t.dataset.act,a=ACTS[role][k];let m=a.m;if(a.dyn==='diare'){const s=S();m=`Surveilans Puskesmas: kasus diare kumulatif ${fmt(s.cases)} di antara ${fmt(s.pop)} pengungsi. Mohon perhatian khusus pada titik dengan sisa klor rendah.`}
+if(a.ask){const v=($('#ask-'+k)?.value||'').trim();if(!v){toast('Tulis judul beritanya dulu.');return}m=(a.fx.ak>0?'[Berita apresiasi] ':'[Berita kritis] ')+v}
+t.disabled=true;if(await act('aksi',{dkey:'a-'+role+'-'+k,text:m,delta:a.fx||null,target:a.to,cost:10}))toast('Terkirim ke '+RN(a.to));sheet(G.sheetTab,true);return}
+if(t.dataset.msg!=null){const m=PH[ph].msg[+t.dataset.msg];t.disabled=true;await act('pesan',{dkey:'m-'+ph+'-'+t.dataset.msg,text:m[1],target:'semua',cost:0});sheet('misi',true);return}
+if(t.id==='ht-send'){const v=$('#ht-tx').value.trim();if(!v)return;t.disabled=true;if(await act('pesan',{text:v,target:$('#ht-to').value,cost:0})){$('#ht-tx').value='';toast('Pesan terkirim')}t.disabled=false;return}
+if(t.dataset.req){const q=REQ.find(r=>r.id===t.dataset.req),v=($('#rq-'+q.id)?.value||'').trim();t.disabled=true;if(await act('minta',{dkey:q.id,text:q.l+(v?': '+v:''),delta:q.fx,target:q.to,cost:5}))toast('Permintaan dikirim ke '+RN(q.to));sheet('ht',true);return}
+if(t.dataset.rep){const id=+t.dataset.rep,ok=t.dataset.ok==='1',v=($('#rp-'+id)?.value||'').trim();t.disabled=true;const r=await rpc('ttx_reply',{p_code:G.code,p_player:G.auth.id,p_secret:G.auth.secret,p_event:id,p_approve:ok,p_text:v||(ok?'Disetujui':'Ditolak')});if(r&&r.ok){toast(ok?'Permintaan disetujui':'Permintaan ditolak');await loadAll(false)}sheet('ht',true);return}
+if(t.id==='rest'){t.disabled=true;if(await act('rest',{}))toast('Energi pulih +50');sheet(G.sheetTab,true)}});
+$('#stabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)sheet(b.dataset.s)});
+$('#sclose').onclick=()=>{$('#sheet').hidden=true};
+$('#bA').onclick=interact;$('#bB').onclick=()=>{if(!$('#sheet').hidden){$('#sheet').hidden=true;return}if(!$('#dlg').hidden){nextDlg();return}openSheet('misi')};
+document.querySelectorAll('#pad button').forEach(b=>{const on=e=>{e.preventDefault();padDir=b.dataset.dir},off=e=>{e.preventDefault();if(padDir===b.dataset.dir)padDir=null};
+b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointerleave',off);b.addEventListener('pointercancel',off)});
+window.addEventListener('keydown',e=>{if(G.mode!=='play'||/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName))return;const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=true;if(k===' '||k==='Enter'){e.preventDefault();interact()}if(k==='b'||k==='Escape'){$('#bB').click()}if(k.startsWith('Arrow'))e.preventDefault()});
+window.addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=false});
+
+async function enterPlay(){G.mode='play';G.code=G.auth.code;$('#home').hidden=true;$('#play').hidden=false;const pos=LS.get('ttx_pos_'+G.code);if(pos)Object.assign(G.me,pos);
+G.seenKey=LS.get('ttx_seen_'+G.code)||'';G.lastRead=LS.get('ttx_read_'+G.code)||0;await loadAll(true);G.lastToast=G.lastId;subscribe();onData()}
+
+/* ============ FASILITATOR ============ */
+async function enterGM(){G.mode='gm';G.code=G.auth.code;$('#home').hidden=true;$('#gm').hidden=false;await loadAll(true);subscribe();gmTab('pemain')}
+function gm(action,payload){return rpc('ttx_gm',{p_code:G.code,p_secret:G.auth.secret,p_action:action,p_payload:payload||{}})}
+function gmTab(t){G.gmTab=t;document.querySelectorAll('#gmnav button').forEach(b=>b.setAttribute('aria-current',b.dataset.g===t));gmRender(true)}
+let gmPending=false;function gmRender(force){if(G.mode!=='gm')return;const main=$('#gmmain'),a=document.activeElement;if(!force&&a&&main.contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)){gmPending=true;return}gmPending=false;
+const r=G.room;if(!r)return;const h=HAZ[r.hazard]||HAZ.gempa;$('#gm-code').textContent=r.code;$('#gm-title').textContent=r.title;
+const url=location.origin+location.pathname+'?r='+r.code;$('#gm-sub').innerHTML=`${esc(h.name)} · ${esc(h.kab)} (fiktif) · ${r.status==='lobby'?'Lobi':r.status==='end'?'Selesai':'Fase '+(r.phase+1)} · Link gabung: <b>${esc(url)}</b><br>PIN fasilitator: <span id="pin" style="filter:blur(5px);cursor:pointer" title="Klik untuk menampilkan">${esc(G.auth.secret)}</span>`;
+if(!$('#gm-qr').dataset.done&&window.qrcode){try{const q=qrcode(0,'M');q.addData(url);q.make();$('#gm-qr').innerHTML=q.createSvgTag({cellSize:3,margin:2,scalable:true});$('#gm-qr').dataset.done=1}catch(e){}}
+const st=main.scrollTop;let h2='<p id="gm-alert" class="badc" style="font-weight:800;min-height:1em"></p>';const t=G.gmTab;
+if(t==='pemain')h2+=gmPlayers();else if(t==='kendali')h2+=gmControl();else if(t==='peta')h2+=`<div class="cols"><div><div class="gmmap"><canvas id="gmcv"></canvas></div><p class="note">Posisi pemain diperbarui langsung. Bentuk desa berubah sesuai indikator: unit olah, bladder, kran, jamban, lalat, antrean Puskesmas.</p></div><div class="panel"><h2>Papan status</h2>${statusHtml()}</div></div>`;
+else if(t==='log')h2+=gmLog();else h2+=gmDebrief();
+main.innerHTML=h2;main.scrollTop=st}
+document.addEventListener('focusout',()=>{setTimeout(()=>{if(gmPending)gmRender()},50)});
+const roleOpts=sel=>`<option value="">— pilih peran —</option>`+Object.entries(GROUPS).map(([g,gr])=>`<optgroup label="${gr.n}">${ROLES.filter(r=>r.g===g).map(r=>`<option value="${r.id}" ${sel===r.id?'selected':''}>${esc(r.n)}</option>`).join('')}</optgroup>`).join('');
+function ppts(id){return G.events.filter(e=>e.player_id===id).reduce((a,e)=>a+pts(e),0)}
+function gmPlayers(){const ps=G.players,wait=ps.filter(p=>!p.approved||!p.role).length;const cnt={};ps.forEach(p=>{if(p.role)cnt[p.role]=(cnt[p.role]||0)+1});
+return`<div class="panel"><h2>Pemain (${ps.length})</h2><p class="note">${wait} menunggu peran/izin. Peserta gabung lewat link atau QR dengan kode <b>${esc(G.code)}</b>. Hanya pemain yang diberi peran dan diizinkan yang bisa mengambil keputusan.</p>
+<div class="btns" style="margin:8px 0 12px"><button class="btn red sm" id="auto" type="button">Bagi peran otomatis ke yang belum punya</button><button class="btn green sm" id="allow" type="button">Izinkan semua yang sudah berperan</button></div>
+<div class="tw"><table><thead><tr><th>Nama</th><th>Peran</th><th>Izin main</th><th>Energi</th><th>Poin</th><th></th></tr></thead><tbody>${ps.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td><select data-role="${p.id}" style="min-width:12em">${roleOpts(p.role)}</select></td><td><label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" data-ok="${p.id}" ${p.approved?'checked':''} style="width:22px;height:22px"> ${p.approved?'Ya':'Belum'}</label></td><td>${p.energy}</td><td>${ppts(p.id)}</td><td><button class="btn ghost sm" data-kick="${p.id}" type="button">Keluarkan</button></td></tr>`).join('')||'<tr><td colspan="6">Belum ada pemain.</td></tr>'}</tbody></table></div></div>
+<div class="panel"><h2>Sebaran peran</h2><div class="tw"><table><tbody>${ROLES.map(r=>`<tr><td>${esc(r.n)}</td><td class="note">${esc(GROUPS[r.g].n)}</td><td><b>${cnt[r.id]||0}</b> pemain</td></tr>`).join('')}</tbody></table></div><p class="note">Saran untuk 20–40 peserta: isi 9 posisi tim WASH dulu (tim teknis boleh 2–4 orang), lalu peran pemangku kepentingan yang paling sering muncul di inject: PMI Pusat, BNPB/BPBD, Pemkab, Wartawan, Donor, Dinkes, Klaster WASH.</p></div>`}
+function gmControl(){const r=G.room,ph=r.phase,p=PH[ph],s=S();const present=new Set(G.players.filter(x=>x.role&&x.approved).map(x=>x.role));
+let h=`<div class="cols"><div><div class="panel"><h2>${r.status==='lobby'?'Belum dimulai':r.status==='end'?'Latihan selesai':`Fase ${ph+1}: ${esc(p.n)}`}</h2>`;
+if(r.status!=='lobby')h+=`<p class="note">${esc(p.w)}</p><p>${esc(T(p.inj))}</p>`;
+h+=`<div class="btns" style="margin-top:10px">${r.status==='lobby'?'<button class="btn red" id="start" type="button">Mulai latihan (Fase 1)</button>':r.status==='play'?`<button class="btn red" id="next" type="button">${ph<5?'Akhiri fase '+(ph+1)+' dan lanjut':'Akhiri latihan'}</button>`:''}<button class="btn ghost sm" id="reset" type="button">Ulang dari awal</button></div>
+<p class="note" style="margin-top:6px">Saat fase diakhiri, sistem menghitung kasus diare baru dari kondisi layanan, menurunkan sedikit kualitas air dan higiene (perlu dirawat), dan mengisi ulang energi pemain.</p></div>`;
+if(r.status==='play'){h+=`<div class="panel"><h2>Misi keputusan fase ini</h2>${p.d.map((d,j)=>{const c=choiceOf(ph,j),o=c?d.o[c.choice]:null,who=c?G.players.find(x=>x.id===c.player_id):null;return`<div class="item"><span class="tag ${c?'g':'r'}">${c?'Selesai':'Belum'}</span> <span class="tag">${esc(RN(d.who))}</span> <span class="tag b">${esc(ZN(d.loc))}</span>${present.has(d.who)?'':' <span class="tag r">tidak ada pemain</span>'}<h3>${esc(d.q)}</h3>${o?`<p>${esc(who?.name||'')}: ${esc(o.t)} <b class="${{baik:'good',cukup:'warnc',kurang:'badc'}[o.s]}">(${o.s})</b></p>`:''}</div>`}).join('')}</div>
+<div class="panel"><h2>Pesan inject pemangku kepentingan</h2>${p.msg.map((m,k)=>{const sent=G.events.some(e=>e.dkey==='m-'+ph+'-'+k);return`<div class="item"><span class="tag b">${esc(RN(m[0]))}</span>${present.has(m[0])?'<span class="tag g">dipegang pemain</span>':'<span class="tag y">tidak ada pemain</span>'}${sent?'<span class="tag g">terkirim</span>':''}<p>"${esc(m[1])}"</p><button class="btn ghost sm" data-inj="${esc(RN(m[0])+': '+m[1])}" type="button">Kirim sebagai inject</button></div>`}).join('')}</div>`}
+const pend=G.events.filter(e=>e.kind==='minta'&&e.status==='pending');h+=`<div class="panel"><h2>Permintaan menunggu jawaban (${pend.length})</h2><p class="note">Jawab di sini bila peran tujuan tidak dipegang pemain atau pemerannya tidak merespons.</p>${pend.map(e=>{const pl=G.players.find(x=>x.id===e.player_id);return`<div class="item"><span class="tag y">${esc(RN(e.role))} → ${esc(RN(e.target))}</span>${G.players.some(x=>x.role===e.target&&x.approved)?'':'<span class="tag r">tidak ada pemeran</span>'}<p>${esc(pl?.name||'')}: ${esc(e.text)}</p><p class="note">${esc(fxText(e.delta))}</p><input id="gr-${e.id}" maxlength="300" placeholder="Jawaban sebagai ${esc(RN(e.target))}"><div class="btns" style="margin-top:6px"><button class="btn green sm" data-gmrep="${e.id}" data-ok="1" type="button">Setujui</button><button class="btn red sm" data-gmrep="${e.id}" data-ok="0" type="button">Tolak</button></div></div>`}).join('')||'<p class="note">Tidak ada.</p>'}</div>`;
+h+=`</div><div><div class="panel"><h2>Inject dan kejutan</h2><label for="injtx">Inject bebas</label><textarea id="injtx" maxlength="600" placeholder="Situasi baru yang ingin diuji"></textarea><div class="btns" style="margin-top:8px"><button class="btn sm" id="injgo" type="button">Kirim ke semua</button><button class="btn red sm" id="surp" type="button">Tarik kartu kejutan</button></div>${r.surprise?`<div class="item" style="margin-top:10px"><b>Kejutan aktif: ${esc(r.surprise.t)}</b><p>${esc(r.surprise.d)}</p><p class="note">${esc(r.surprise.q)}</p></div>`:''}
+<label for="tmin" style="margin-top:14px">Pengatur waktu fase (menit)</label><div class="btns"><input id="tmin" type="number" value="20" min="1" max="180" style="width:6em"><button class="btn sm" id="tset" type="button">Mulai hitung mundur</button><button class="btn ghost sm" id="toff" type="button">Hapus</button></div>${r.timer_end?`<p class="note">Berakhir pukul ${new Date(r.timer_end).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</p>`:''}</div>
+<div class="panel"><h2>Penyesuaian indikator</h2><div class="row2"><div><label for="adk">Indikator</label><select id="adk">${Object.entries(KEYS).filter(([k])=>k!=='pop').map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div><div><label for="adv">Nilai (+/−)</label><input id="adv" type="number" value="5"></div></div><label for="adr">Alasan</label><input id="adr" maxlength="200" placeholder="mis. keputusan tim di luar pilihan"><p style="margin-top:8px"><button class="btn sm" id="adgo" type="button">Terapkan</button></p></div>
+<div class="panel"><h2>Papan status</h2>${statusHtml()}</div></div></div>`;return h}
+function evRow(e){const pl=G.players.find(x=>x.id===e.player_id);const own=!!e.player_id&&!['rest'].includes(e.kind);
+return`<tr><td class="note">F${e.phase+1}<br>${new Date(e.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</td><td><b>${esc(pl?.name||(e.player_id?'(keluar)':'Fasilitator'))}</b><br><span class="note">${esc(RN(e.role))}</span></td><td><span class="tag">${esc(e.kind)}</span>${e.target?' → '+esc(RN(e.target)):''}${e.status?` <span class="tag ${e.status==='approved'?'g':e.status==='rejected'?'r':'y'}">${esc(e.status)}</span>`:''}<br>${esc(e.text)}${e.quality?` <b class="${{baik:'good',cukup:'warnc',kurang:'badc'}[e.quality]}">(${esc(e.quality)})</b>`:''}<div class="note">${esc(fxText(e.delta))}</div></td>
+<td>${own?`<div class="btns">${[-5,0,5,10].map(v=>`<button class="btn ${e.gm_score===v&&e.gm_score!=null?'red':'ghost'} sm" data-sc="${e.id}" data-v="${v}" type="button">${v>0?'+':''}${v}</button>`).join('')}</div><input data-note="${e.id}" value="${esc(e.gm_note||'')}" placeholder="Catatan evaluasi" maxlength="300" style="margin-top:6px">`:''}</td></tr>`}
+function gmLog(){const f=G.logFilter||'semua';const ev=G.events.filter(e=>f==='semua'||(f==='keputusan'&&e.kind==='keputusan')||(f==='komunikasi'&&['pesan','minta','jawab','aksi'].includes(e.kind))||(f==='gm'&&['gm','inject','kejutan'].includes(e.kind))).slice().reverse();
+return`<div class="panel"><h2>Log aktivitas dan penilaian fasilitator</h2><p class="note">Poin otomatis: keputusan baik 10, cukup 5, kurang 0; aksi 2; menjawab permintaan 3; mengajukan permintaan 1. Tambahkan nilai fasilitator (−5 sampai +10) dan catatan untuk perilaku yang ingin dibahas saat debrief.</p>
+<label for="lf">Tampilkan</label><select id="lf" style="max-width:20em"><option value="semua">Semua</option><option value="keputusan" ${f==='keputusan'?'selected':''}>Keputusan</option><option value="komunikasi" ${f==='komunikasi'?'selected':''}>Komunikasi, aksi dan permintaan</option><option value="gm" ${f==='gm'?'selected':''}>Fasilitator</option></select>
+<div class="tw" style="margin-top:10px"><table><thead><tr><th>Waktu</th><th>Pemain</th><th>Kegiatan</th><th>Nilai fasilitator</th></tr></thead><tbody>${ev.map(evRow).join('')||'<tr><td colspan="4">Belum ada aktivitas.</td></tr>'}</tbody></table></div></div>`}
+function summary(){const s=S(),sc=scores(s),rows=[];PH.forEach((p,i)=>p.d.forEach((d,j)=>{const c=choiceOf(i,j);if(c){const who=G.players.find(x=>x.id===c.player_id);rows.push([i+1,RN(d.who),who?.name||'',d.q,d.o[c.choice].t,d.o[c.choice].s])}}));
+const byRole={};G.events.forEach(e=>{if(e.role&&e.player_id){byRole[e.role]=(byRole[e.role]||0)+pts(e)}});return{s,sc,rows,byRole}}
+function gmDebrief(){const {s,sc,rows,byRole}=summary(),grade=sc.tot>=80?'Sangat baik':sc.tot>=65?'Baik':sc.tot>=50?'Cukup':'Perlu perbaikan';
+const top=G.players.map(p=>({p,v:ppts(p.id)})).sort((a,b)=>b.v-a.v).slice(0,10);
+return`<div class="panel"><h2>Skor tim: ${Math.round(sc.tot)} (${grade})</h2><div class="score"><div><span class="note">Efektivitas layanan</span><b>${Math.round(sc.eff)}</b></div><div><span class="note">Efisiensi</span><b>${Math.round(sc.efi)}</b>sisa Rp${fmt(s.b)} jt</div><div><span class="note">Koordinasi</span><b>${Math.round(sc.ko)}</b></div><div><span class="note">Akuntabilitas</span><b>${Math.round(sc.ak)}</b></div><div><span class="note">Kesehatan masyarakat</span><b>${Math.round(sc.kes)}</b>${fmt(s.cases)} kasus diare</div></div>
+<div class="btns"><button class="btn red sm" id="endall" type="button">Akhiri latihan untuk semua pemain</button><button class="btn sm" id="copysum" type="button">Salin ringkasan</button><span class="note" id="cmsg"></span></div></div>
+<div class="cols"><div class="panel"><h2>Keputusan tim</h2><div class="tw"><table><thead><tr><th>Fase</th><th>Posisi</th><th>Keputusan</th><th>Nilai</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${esc(r[1])}<br><span class="note">${esc(r[2])}</span></td><td><b>${esc(r[3])}</b><br>${esc(r[4])}</td><td class="${{baik:'good',cukup:'warnc',kurang:'badc'}[r[5]]}">${r[5]}</td></tr>`).join('')||'<tr><td colspan="4">Belum ada.</td></tr>'}</tbody></table></div></div>
+<div><div class="panel"><h2>Poin per peran</h2><div class="tw"><table><tbody>${Object.entries(byRole).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(RN(k))}</td><td><b>${v}</b></td></tr>`).join('')||'<tr><td>Belum ada.</td></tr>'}</tbody></table></div></div>
+<div class="panel"><h2>10 pemain teraktif</h2><ol>${top.map(t=>`<li>${esc(t.p.name)} · ${esc(RN(t.p.role))} · <b>${t.v}</b></li>`).join('')}</ol></div>
+<div class="panel"><h2>Pertanyaan After Action Review</h2><ol><li>Apa yang seharusnya terjadi menurut rencana kontinjensi dan SOP tim WASH?</li><li>Apa yang benar-benar terjadi? Keputusan mana yang paling diperdebatkan?</li><li>Mengapa berbeda? Informasi, koordinasi atau sumber daya apa yang kurang?</li><li>Bagaimana arus komunikasi lewat HT: siapa yang kebanjiran pesan, siapa yang tidak terdengar?</li><li>Indikator Sphere mana yang paling sulit dicapai dan mengapa?</li><li>Bagaimana kelompok rentan terlayani?</li><li>Tiga hal yang dipertahankan, tiga hal yang diperbaiki, siapa menindaklanjuti dan kapan?</li></ol></div></div></div>`}
+
+$('#gmnav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)gmTab(b.dataset.g)});
+$('#gmmain').addEventListener('change',async e=>{const t=e.target;
+if(t.dataset.role){await gm('assign',{id:t.dataset.role,role:t.value,approved:!!t.value});await loadAll(false);gmRender(true)}
+else if(t.dataset.ok){await gm('assign',{id:t.dataset.ok,role:G.players.find(p=>p.id===t.dataset.ok)?.role||'',approved:t.checked});await loadAll(false);gmRender(true)}
+else if(t.dataset.note){const ev=G.events.find(x=>x.id===+t.dataset.note);await gm('score',{event:+t.dataset.note,score:ev?.gm_score??0,note:t.value})}
+else if(t.id==='lf'){G.logFilter=t.value;gmRender(true)}});
+$('#gm').addEventListener('click',e=>{if(e.target.id==='pin'){e.target.style.filter='none'}});
+$('#gmmain').addEventListener('click',async e=>{const t=e.target.closest('button');if(!t)return;const r=G.room,s=S();
+if(t.dataset.kick){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Yakin?';return}await gm('kick',{id:t.dataset.kick});await loadAll(false);gmRender(true)}
+else if(t.id==='auto'){t.disabled=true;await loadAll(false);const order=['mgr','koord','olah','dist','san','promkes','log','camp','adm','pmipusat','bnpb','pemkab','media','donor','dinkes','klaster','olah','dist','san','promkes','ngo','ingo','pns','pmiprov','pmikab','tni','pdam','warga','disab','pemprov','pempusat','olah','dist','san','promkes','log','camp','koord','mgr'];
+const used={};G.players.forEach(p=>{if(p.role)used[p.role]=(used[p.role]||0)+1});const pick=()=>{const seen={};for(const id of order){seen[id]=(seen[id]||0)+1;if((used[id]||0)<seen[id]){used[id]=(used[id]||0)+1;return id}}return 'olah'};
+for(const p of G.players.filter(p=>!p.role)){await gm('assign',{id:p.id,role:pick(),approved:true})}await loadAll(false);gmRender(true)}
+else if(t.id==='allow'){t.disabled=true;await loadAll(false);for(const p of G.players.filter(p=>p.role&&!p.approved))await gm('assign',{id:p.id,role:p.role,approved:true});await loadAll(false);gmRender(true)}
+else if(t.id==='start'){await gm('phase',{phase:0,delta:{},text:'Latihan dimulai: Fase 1'});await loadAll(false);gmRender(true)}
+else if(t.id==='next'){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Klik lagi untuk konfirmasi';return}const i=r.phase,nc=Math.round(s.pop*risk(s,i)*0.0006*DUR[i]),d={cases:nc,frc:-3,hyg:-3};
+if(i<5){if(PH[i+1].grow)d.pop=Math.round(s.pop*(PH[i+1].grow-1));await gm('phase',{phase:i+1,delta:d,text:`Fase ${i+1} berakhir: +${nc} kasus diare baru. Fase ${i+2} dimulai.`})}
+else{await gm('adjust',{delta:d,text:`Fase 6 berakhir: +${nc} kasus diare baru.`});await gm('status',{status:'end'})}await loadAll(false);gmRender(true)}
+else if(t.id==='reset'){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Klik lagi: semua keputusan dan log dihapus';return}await gm('reset',{state:initState(s.pop0||s.pop,s.b0||1000)});await loadAll(true);gmRender(true)}
+else if(t.dataset.gmrep){const id=+t.dataset.gmrep,ok=t.dataset.ok==='1',v=($('#gr-'+id)?.value||'').trim();t.disabled=true;await gm('reply',{event:id,approve:ok,text:v||(ok?'Disetujui':'Ditolak')});await loadAll(false);gmRender(true)}
+else if(t.dataset.inj){await gm('inject',{text:t.dataset.inj});await loadAll(false);gmRender(true)}
+else if(t.id==='injgo'){const v=$('#injtx').value.trim();if(!v)return;await gm('inject',{text:v});await loadAll(false);gmRender(true)}
+else if(t.id==='surp'){const used=new Set(G.events.filter(x=>x.kind==='kejutan').map(x=>x.text.split(':')[0]));let pool=SURP.filter(c=>!used.has(c.t));if(!pool.length)pool=SURP;const c=pool[Math.floor(Math.random()*pool.length)];
+await gm('surprise',{card:c,delta:c.fx,text:c.t+': '+c.d});await loadAll(false);gmRender(true)}
+else if(t.id==='tset'){await gm('timer',{minutes:+$('#tmin').value||20});await loadAll(false);gmRender(true)}
+else if(t.id==='toff'){await gm('timer',{});await loadAll(false);gmRender(true)}
+else if(t.id==='adgo'){const k=$('#adk').value,v=+$('#adv').value||0;if(!v)return;await gm('adjust',{delta:{[k]:v},text:'Penyesuaian fasilitator: '+KEYS[k]+' '+(v>0?'+':'')+v+($('#adr').value?' ('+$('#adr').value+')':'')});await loadAll(false);gmRender(true)}
+else if(t.dataset.sc){const ev=G.events.find(x=>x.id===+t.dataset.sc);await gm('score',{event:+t.dataset.sc,score:+t.dataset.v,note:ev?.gm_note||''});await loadAll(true);gmRender(true)}
+else if(t.id==='endall'){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Klik lagi untuk konfirmasi';return}await gm('status',{status:'end'});await loadAll(false);gmRender(true)}
+else if(t.id==='copysum'){const {s,sc,rows,byRole}=summary(),h=HAZ[r.hazard]||HAZ.gempa;
+const txt=`RINGKASAN TTX WASH — ${r.title} (${h.name}, ${h.kab})\nSkor ${Math.round(sc.tot)} | Efektivitas ${Math.round(sc.eff)} | Efisiensi ${Math.round(sc.efi)} | Koordinasi ${Math.round(sc.ko)} | Akuntabilitas ${Math.round(sc.ak)} | Kesehatan ${Math.round(sc.kes)}\nAir ${(Math.min(s.prod,s.dist)/s.pop).toFixed(1)} L/org/hari | Jamban 1:${s.lat?Math.round(s.pop/s.lat):'-'} | Diare ${s.cases} | Sisa anggaran Rp${fmt(s.b)} jt\n\nKEPUTUSAN\n`+rows.map(x=>`F${x[0]} [${x[1]} - ${x[2]}] ${x[3]}\n  -> ${x[4]} (${x[5]})`).join('\n')+'\n\nPOIN PER PERAN\n'+Object.entries(byRole).map(([k,v])=>`${RN(k)}: ${v}`).join('\n')+'\n\nCATATAN FASILITATOR\n'+G.events.filter(e=>e.gm_note).map(e=>`F${e.phase+1} ${RN(e.role)}: ${e.gm_note}`).join('\n');
+try{await navigator.clipboard.writeText(txt);$('#cmsg').textContent='Tersalin.'}catch(err){$('#cmsg').textContent='Gagal menyalin.'}}});
+
+/* ============ HOME ============ */
+let avSel=0;
+function avatars(){$('#avs').innerHTML=AV.map((a,i)=>`<button type="button" data-av="${i}" aria-pressed="${i===avSel}" aria-label="Karakter ${i+1}"><canvas width="24" height="28"></canvas></button>`).join('');
+document.querySelectorAll('#avs canvas').forEach((c,i)=>{const g=c.getContext('2d');g.imageSmoothingEnabled=false;drawChar(g,12,26,i,null,'down',0,false)})}
+$('#avs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;avSel=+b.dataset.av;document.querySelectorAll('#avs button').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+$('#t-join').onclick=()=>{$('#t-join').setAttribute('aria-current',true);$('#t-gm').setAttribute('aria-current',false);$('#f-join').hidden=false;$('#f-gm').hidden=true};
+$('#t-gm').onclick=()=>{$('#t-gm').setAttribute('aria-current',true);$('#t-join').setAttribute('aria-current',false);$('#f-join').hidden=true;$('#f-gm').hidden=false};
+$('#j-go').onclick=async()=>{const code=$('#j-code').value.trim().toUpperCase(),name=$('#j-name').value.trim();if(code.length<5||!name){$('#j-msg').textContent='Isi kode ruang dan nama.';return}
+$('#j-go').disabled=true;const r=await rpc('ttx_join',{p_code:code,p_name:name,p_avatar:avSel});$('#j-go').disabled=false;if(r&&r.ok){G.auth={code:r.code,id:r.id,secret:r.secret};LS.set('ttx_me',G.auth);enterPlay()}else if(r)$('#j-msg').textContent=r.reason};
+$('#g-new').onclick=async()=>{$('#g-new').disabled=true;const pop=Math.max(500,+$('#g-pop').value||6000),b=Math.max(100,+$('#g-bud').value||1000);const r=await rpc('ttx_create_room',{p_title:$('#g-title').value.trim()||'TTX Respons WASH',p_hazard:$('#g-haz').value,p_state:initState(pop,b)});$('#g-new').disabled=false;
+if(r&&r.code){G.auth={code:r.code,secret:r.secret};LS.set('ttx_gm',G.auth);enterGM()}};
+$('#g-open').onclick=async()=>{const code=$('#g-code').value.trim().toUpperCase(),pin=$('#g-pin').value.trim();if(!code||!pin){$('#g-msg').textContent='Isi kode dan PIN.';return}
+if(!/^[0-9a-f-]{36}$/i.test(pin)){$('#g-msg').textContent='Format PIN tidak sesuai.';return}
+const {data,error}=await sb.rpc('ttx_gm',{p_code:code,p_secret:pin,p_action:'cek',p_payload:{}});if(error||data?.reason==='bukan fasilitator'){$('#g-msg').textContent='Kode atau PIN salah.';return}
+G.auth={code,secret:pin};LS.set('ttx_gm',G.auth);enterGM()};
+
+function boot(){buildMap();drawBG();avatars();requestAnimationFrame(loop);
+const q=new URLSearchParams(location.search),rc=(q.get('r')||'').toUpperCase();if(rc)$('#j-code').value=rc;
+if(!sb){$('#j-msg').textContent='Tidak bisa memuat pustaka Supabase. Periksa koneksi internet.';return}
+const me=LS.get('ttx_me'),gmA=LS.get('ttx_gm');
+if(q.has('gm')&&gmA){G.auth=gmA;enterGM();return}
+if(me&&(!rc||rc===me.code)){$('#j-resume').innerHTML=`Kamu pernah bergabung di ruang <b>${esc(me.code)}</b>. <button class="btn sm" id="resume" type="button">Lanjutkan</button> <button class="btn ghost sm" id="forget" type="button">Gabung sebagai orang baru</button>`;
+$('#resume').onclick=()=>{G.auth=me;enterPlay()};$('#forget').onclick=()=>{LS.del('ttx_me');$('#j-resume').textContent=''}}
+if(gmA&&!rc){$('#f-gm').insertAdjacentHTML('afterbegin',`<p class="note" style="margin-top:10px">Ruang fasilitator terakhir: <b>${esc(gmA.code)}</b> <button class="btn sm" id="gmres" type="button">Buka lagi</button></p>`);$('#gmres').onclick=()=>{G.auth=gmA;enterGM()}}}
+boot();
+}
+</script>
+</body>
+</html>
