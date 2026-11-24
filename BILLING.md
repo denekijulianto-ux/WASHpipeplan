@@ -86,7 +86,7 @@ Fitur (sesuai fitur yang **benar-benar ada** di aplikasi). FREE memuat alat dasa
 | Laporan teknis | pratinjau di layar bertanda air (tanpa cetak/PDF) | cetak & PDF dengan RAB & lampiran spesifikasi | `report_preview` / `report_print`, `rab_print` |
 | Review & **tanda tangan elektronik** | — | ✓ | dialog Status & review (`esign`) |
 | **Ganti logo** instansi | — (logo WASHLY) | ✓ | `custom_logo` |
-| Cetak / PDF gambar DED (melihat tetap gratis) | — | ✓ | `ded_print` |
+| Gambar DED | pratinjau di layar bertanda air (tanpa cetak/PDF) | cetak & PDF | `ded_print` |
 | Penulangan beton (BBS) & jembatan pipa | — | ✓ | `structural_design` |
 | Rehabilitasi sistem existing | — | ✓ | `rehab_module` |
 | Analisis potensi air tanah · Profil DEM detail · Gambar manual DED · Mode AI | — | ✓ | masing-masing |

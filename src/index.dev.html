@@ -120,6 +120,8 @@
   .rp .page-break { break-before: page; }
   .print-sheet { page: sheet; break-before: page; display: block; }
   .print-sheet svg { width: 100%; height: 100%; display: block; }
+  .ded-preview .print-sheet { background: #fff; margin: 0 0 18px; box-shadow: 0 10px 30px rgba(0,0,0,.3); overflow: hidden; }
+  .ded-preview .print-sheet::after { content: ''; position: absolute; inset: 0; background-image: var(--wm); background-size: var(--wms); background-repeat: repeat; pointer-events: none; z-index: 50; }
   @media print {
     html, body, #root { height: auto; background: #fff; }
     #app-shell { display: none !important; }
@@ -9115,19 +9117,26 @@ function netStrip(p) {
 }
 // Pratinjau laporan untuk paket FREE: dokumen yang sama dengan cetakan, dengan tanda air di seluruh halaman dan tanpa cetak
 const wmSvg = () => { const en = window.WASHLY_LANG === 'en'; return 'url("data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340"><g transform="rotate(-28 300 170)" font-family="Arial,sans-serif" font-weight="700" fill="#0e7490" fill-opacity="0.13" text-anchor="middle"><text x="300" y="160" font-size="30">' + (en ? 'PREVIEW' : 'PRATINJAU') + ' · WASHLY FREE</text><text x="300" y="198" font-size="16">' + (en ? 'Print &amp; PDF only with WASHLY PRO' : 'Cetak &amp; PDF hanya untuk WASHLY PRO') + '</text></g></svg>') + '")'; };
-function ReportPreview({ project, hyd, boq, rab, onClose }) {
-  useEffect(() => { const k = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); Billing.set({ ask: 'report_print' }); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+// Pratinjau FREE (laporan & gambar DED): dokumen yang sama dengan cetakan, bertanda air di seluruh halaman, tanpa cetak/PDF
+function ReportPreview({ mode = 'report', project, hyd, boq, rab, onClose }) {
+  const ded = mode === 'ded'; const feat = ded ? 'ded_print' : 'report_print';
+  const paperW = (project.ded.paper === 'A4' ? 297 : 420) - 12; // mm, sama dengan lembar cetak
+  const box = useRef(null); const [zoom, setZoom] = useState(1);
+  useEffect(() => { const k = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); Billing.set({ ask: feat }); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [feat]);
+  useEffect(() => { if (!ded) return; const fit = () => { const w = (box.current ? box.current.clientWidth : window.innerWidth) - 32; setZoom(Math.min(1, w / (paperW * 3.7795))); }; fit(); window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit); }, [ded, paperW]);
   return <div className="fixed inset-0 z-[2100] bg-black/50 flex flex-col" onClick={onClose}>
     <div className="bg-deep text-white px-4 py-2.5 flex flex-wrap items-center gap-2" onClick={e => e.stopPropagation()}>
-      <Icon name="FileText" size={17} /><b className="flex-1 min-w-[180px]">Pratinjau laporan teknis <span className="ml-1 rounded-full bg-white/15 border border-white/25 px-2 py-0.5 text-[10.5px]" data-noi18n>FREE</span></b>
-      <span className="text-[12px] text-aqua-100 hidden sm:inline">Tinjau isi laporan di layar. Cetak &amp; PDF tanpa tanda air tersedia di WASHLY PRO.</span>
-      <Btn id="rp-print-pro" variant="primary" icon="Printer" onClick={() => Billing.set({ ask: 'report_print' })}>Cetak laporan · PRO</Btn>
+      <Icon name={ded ? 'DraftingCompass' : 'FileText'} size={17} /><b className="flex-1 min-w-[180px]">{ded ? 'Pratinjau gambar DED' : 'Pratinjau laporan teknis'} <span className="ml-1 rounded-full bg-white/15 border border-white/25 px-2 py-0.5 text-[10.5px]" data-noi18n>FREE</span></b>
+      <span className="text-[12px] text-aqua-100 hidden sm:inline">{ded ? 'Tinjau gambar DED di layar. Cetak & PDF tanpa tanda air tersedia di WASHLY PRO.' : 'Tinjau isi laporan di layar. Cetak & PDF tanpa tanda air tersedia di WASHLY PRO.'}</span>
+      <Btn id="rp-print-pro" variant="primary" icon="Printer" onClick={() => Billing.set({ ask: feat })}>{ded ? 'Cetak DED · PRO' : 'Cetak laporan · PRO'}</Btn>
       <Btn variant="dark" icon="X" onClick={onClose} title="Tutup">Tutup</Btn></div>
-    <div id="report-preview" className="flex-1 overflow-auto p-3 sm:p-6" onClick={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()} style={{ userSelect: 'none' }}>
-      <div className="relative bg-white mx-auto shadow-xl" style={{ width: '210mm', maxWidth: 'none', padding: '14mm 12mm' }}>
+    <div id="report-preview" ref={box} className="flex-1 overflow-auto p-3 sm:p-6" onClick={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()} style={{ userSelect: 'none' }}>
+      {ded ? <div className="ded-preview mx-auto" style={{ width: paperW + 'mm', zoom, '--wm': wmSvg(), '--wms': `${600 / zoom}px ${340 / zoom}px` }}>
+        <PrintRoot mode="ded" project={project} hyd={hyd} boq={boq} rab={rab} /></div>
+      : <div className="relative bg-white mx-auto shadow-xl" style={{ width: '210mm', maxWidth: 'none', padding: '14mm 12mm' }}>
         <PrintRoot mode="report" project={project} hyd={hyd} boq={boq} rab={rab} />
         <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ backgroundImage: wmSvg(), backgroundRepeat: 'repeat', zIndex: 5 }} />
-      </div></div></div>;
+      </div>}</div></div>;
 }
 function NetViewer({ project: full, mobile }) {
   const project = useMemo(() => netStrip(full), [full]); const hyd = useMemo(() => computeHydraulics(project), [project]);
@@ -9177,7 +9186,7 @@ const FEAT = {
   rab_print: ['Cetak RAB', 'Rincian RAB siap cetak untuk dokumen anggaran. Di paket FREE, RAB tetap bisa dilihat di aplikasi.'],
   esign: ['Review & tanda tangan elektronik', 'Alur pemeriksaan & persetujuan dengan tanda tangan elektronik yang terikat sidik jari dokumen.'],
   custom_logo: ['Ganti logo instansi', 'Logo instansi Anda tampil di aplikasi, kop setiap lembar gambar, dan sampul laporan.'],
-  ded_print: ['Cetak / PDF gambar DED', 'Gambar DED siap cetak adalah keluaran profesional untuk dokumen perencanaan, tender, dan pelaksanaan. Gambar tetap bisa dilihat di paket FREE.'],
+  ded_print: ['Cetak / PDF gambar DED', 'Gambar DED siap cetak adalah keluaran profesional untuk dokumen perencanaan, tender, dan pelaksanaan. Di paket FREE, gambar bisa ditinjau di layar dengan tanda air.'],
   structural_design: ['Penulangan beton (BBS) & jembatan pipa', 'Desain penulangan, daftar potong besi, dan jembatan pipa memakai perhitungan struktur lanjutan.'],
   rehab_module: ['Rehabilitasi sistem existing', 'Modul rehabilitasi menghitung asesmen kerusakan, volume perbaikan, dan lembar rencana rehabilitasi.'],
   groundwater_analysis: ['Analisis potensi air tanah', 'Analisis menggabungkan DEM, jaringan sungai, dan litologi untuk area yang luas.'],
@@ -10041,8 +10050,8 @@ function App({ user, api }) {
   const openProject = async (it) => { saveCurrentLocal(); const p = await fetchProject(it); switchTo(p); setLibOpen(false); setToast(`Membuka "${p.meta.name}"`); };
   // Batas proyek cloud paket FREE (ditegakkan juga oleh firestore.rules)
   const netMsg = () => setToast('Proyek milik pengguna lain hanya dapat dilihat jaringan pipanya.');
-  const printAs = (m) => { if (netOnly) { netMsg(); return; } if (m === 'ded' && !Billing.require('ded_print')) return;
-    if (m === 'report' && !Billing.has('report_print')) { setReportPreview(true); return; } // FREE: tinjau di layar dengan tanda air, tanpa cetak
+  const printAs = (m) => { if (netOnly) { netMsg(); return; }
+    if (!Billing.has(m === 'ded' ? 'ded_print' : 'report_print')) { setReportPreview(m); return; } // FREE: tinjau di layar dengan tanda air, tanpa cetak
     setPrintMode(m); };
   const newProject = (base, label) => { if (store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
     if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
@@ -10324,8 +10333,8 @@ function App({ user, api }) {
       <Btn icon="FolderOpen" onClick={async () => { const it = remoteNew; setRemoteNew(null); try { await openProject({ id: it.id, rev: it.rev }); } catch (e) { setToast(e.message || 'Proyek tidak dapat dibuka'); } }}>Buka</Btn>
       <button type="button" className="p-1 text-slate-500" title="Tutup" onClick={() => setRemoteNew(null)}><Icon name="X" size={15} /></button></div>}
     {toast && <div className="fixed bottom-20 lg:bottom-12 max-w-[92vw] text-center left-1/2 -translate-x-1/2 z-[2200] bg-deep text-white text-[13px] rounded-md px-4 py-2 shadow-lg">{toast}</div>}
-    {reportPreview && !printMode && <ReportPreview project={project} hyd={hyd} boq={boq} rab={rab} onClose={() => setReportPreview(false)} />}
-    <div id="print-root">{printMode ? <PrintRoot mode={printMode} project={project} hyd={hyd} boq={boq} rab={rab} /> : reportPreview ? <div className="rp" style={{ padding: '40mm 20mm', textAlign: 'center' }}><h1>WASHLY</h1><p>Cetak laporan teknis hanya tersedia di <b>WASHLY PRO</b>. Upgrade di menu Langganan.</p></div> : null}</div>
+    {reportPreview && !printMode && <ReportPreview mode={reportPreview} project={project} hyd={hyd} boq={boq} rab={rab} onClose={() => setReportPreview(false)} />}
+    <div id="print-root">{printMode ? <PrintRoot mode={printMode} project={project} hyd={hyd} boq={boq} rab={rab} /> : reportPreview ? <div className="rp" style={{ padding: '40mm 20mm', textAlign: 'center' }}><h1>WASHLY</h1><p>{reportPreview === 'ded' ? 'Cetak gambar DED' : 'Cetak laporan teknis'} hanya tersedia di <b>WASHLY PRO</b>. Upgrade di menu Langganan.</p></div> : null}</div>
   </>;
 }
 
