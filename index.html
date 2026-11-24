@@ -38073,7 +38073,8 @@ const paymentsOpen = () => {
 };
 const serverOn = () => BILLING_CFG.functions === true || paymentsOpen();
 const manualOpen = cfg => !IS_NATIVE && serverOn() && !!(cfg && cfg.manual && cfg.manual.enabled);
-const anyPayment = cfg => IS_NATIVE ? paymentsOpen() : paymentsOpen() || manualOpen(cfg);
+const playOpen = () => IS_NATIVE && BILLING_CFG.functions === true && BILLING_CFG.play !== false;
+const anyPayment = cfg => IS_NATIVE ? playOpen() : paymentsOpen() || manualOpen(cfg);
 function shrinkImage(file, max = 1280, q = 0.72) {
   return new Promise((ok, fail) => {
     const r = new FileReader();

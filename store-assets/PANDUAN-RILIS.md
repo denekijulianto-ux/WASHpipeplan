@@ -1,56 +1,30 @@
-# Panduan rilis WASHLY ke Google Play (yang dikerjakan sendiri)
+# Panduan rilis WASHLY ke Google Play — versi 1.4.0
 
 Bagian yang bisa dikerjakan dari sisi kode **sudah selesai**:
 
 | Status | Pekerjaan |
 |---|---|
-| ✅ | APK & AAB 1.3.0 sudah ditandatangani |
-| ✅ | Login Firebase sudah dicek bisa dipakai dari aplikasi Android |
-| ✅ | Kebijakan privasi & halaman hapus akun sudah lengkap: Tim WASHLY, washlywater@gmail.com, 30 hari |
-| ✅ | Jawaban Data Safety sudah diputuskan |
+| ✅ | **AAB & APK 1.4.0 (versionCode 5)** sudah ditandatangani dengan kunci upload WASHLY (`WASHLY-1.4.0-release.aab`, `WASHLY-1.4.0-release.apk`) |
+| ✅ | Berisi semua pembaruan terbaru: paket FREE/PRO, pratinjau laporan & DED bertanda air, hidrolis Ø dalam, jaringan loop, catatan tanggung jawab |
+| ✅ | Situs, kebijakan privasi, syarat, refund & halaman hapus akun tayang di https://washlywater.github.io/ |
+| ✅ | Aturan Firestore & Cloud Functions sudah ter-deploy otomatis (tidak perlu publish manual lagi) |
+| ✅ | Di Android, langganan PRO **hanya** lewat Google Play Billing (Midtrans/VA/transfer disembunyikan, sesuai kebijakan Google Play) |
 
-Langkah di bawah ini butuh akun, perangkat, atau tanda tangan Anda sendiri. Kerjakan berurutan. Total ± 1–2 jam, belum termasuk waktu tunggu review Google.
+Langkah di bawah ini butuh akun, perangkat, atau tanda tangan Anda sendiri. Kerjakan berurutan.
 
 ---
 
-## Langkah 0 — Alamat web tanpa nama pribadi (1 klik)
-Repo WASHLY sudah berada di akun GitHub **washlywater**. Tinggal satu klik agar situs tayang di **https://washlywater.github.io/**:
-
-1. Buka <https://github.com/washlywater/washly-ux.github.io/settings> (login sebagai **washlywater**).
-2. Kotak **Repository name** paling atas: hapus isinya, ketik `washlywater.github.io` → klik **Rename**.
-3. Tunggu ± 5 menit, lalu buka <https://washlywater.github.io/>. Halaman login WASHLY harus muncul.
-4. Firebase Console → **Authentication → Settings → Authorized domains** → *Add domain* → `washlywater.github.io`.
-   Link langsung: <https://console.firebase.google.com/project/washpipe-93f48/authentication/settings>
-
-Catatan: semua dokumen & panduan ini sudah memakai alamat baru. Data cloud tidak berubah; pengguna web cukup membuka alamat baru dan login. Aplikasi Android tidak terpengaruh.
-
 ## Langkah 1 — Amankan kunci upload (5 menit) ⚠️ PALING PENTING
-File `washly-upload.jks` dan `keystore.properties` sudah dikirim ke chat.
+File `washly-upload.jks` dan `keystore.properties` sudah dikirim ke chat sebelumnya (kunci yang sama dipakai untuk 1.4.0).
 
-1. Simpan **kedua file** di 2 tempat aman:
-   - Google Drive pribadi, di folder yang tidak dibagikan;
-   - flashdisk / hard disk yang disimpan di rumah.
-2. Catat kata sandinya di pengelola kata sandi, misalnya Google Password Manager. Kata sandinya ada di dalam `keystore.properties`.
-3. Jangan kirim file ini ke siapa pun dan jangan unggah ke GitHub.
+1. Pastikan **kedua file** tersimpan di 2 tempat aman (Google Drive pribadi yang tidak dibagikan + flashdisk/hard disk).
+2. Kata sandinya ada di dalam `keystore.properties`; catat juga di pengelola kata sandi.
+3. Jangan kirim ke siapa pun dan jangan unggah ke GitHub.
 
-Tanpa kunci ini Anda **tidak bisa mengirim update** aplikasi. Kunci memang bisa direset lewat Google, tapi butuh beberapa hari.
-
-## Langkah 2 — Terbitkan aturan Firestore baru (3 menit)
-Ini wajib agar fitur **Hapus akun** berjalan.
-
-1. Buka <https://console.firebase.google.com/project/washpipe-93f48/firestore/rules>.
-2. Buka file `firestore.rules` di repositori (sudah dikirim juga), salin **seluruh isinya**.
-3. Di halaman Rules: hapus isi lama, tempel isi baru, lalu klik **Publish**.
-
-## Langkah 3 — Cek halaman privasi online (1 menit)
-Buka kedua alamat ini di browser HP atau laptop. Pastikan halamannya tampil dan e-mail washlywater@gmail.com terlihat.
-- <https://washlywater.github.io/privacy.html>
-- <https://washlywater.github.io/hapus-akun.html>
-
-Bila muncul "404", tunggu 5–10 menit (GitHub Pages sedang memperbarui), lalu muat ulang.
+Tanpa kunci ini Anda **tidak bisa mengirim update**. Dengan Play App Signing kunci bisa direset lewat Google, tapi butuh beberapa hari.
 
 ## Langkah 4 — Coba aplikasi di HP Android (30 menit)
-1. Kirim file **`WASHLY-1.3.0-debug.apk`** ke HP, misalnya lewat WhatsApp ke diri sendiri atau Google Drive.
+1. Kirim file **`WASHLY-1.4.0-release.apk`** ke HP, misalnya lewat WhatsApp ke diri sendiri atau Google Drive.
 2. Buka file APK itu. Bila diminta, izinkan "Instal aplikasi tidak dikenal", lalu **Instal**.
 3. Coba hal-hal berikut dan catat yang tidak berjalan:
    - [ ] Splash WASHLY muncul, lalu halaman login.
@@ -103,7 +77,7 @@ Semuanya di **Policy → App content**.
 | Formulir | Isian |
 |---|---|
 | **Ads** | No, my app does not contain ads |
-| **Content rating** | Isi kuesioner IARC (e-mail washlywater@gmail.com). Kategori *All other app types*. Kekerasan/seksual/judi: **No**. Pengguna berinteraksi/berbagi konten: **Yes**. Berbagi lokasi dengan pengguna lain: **Yes**. Pembelian digital: **No**. Fitur AI generatif: **Yes** (ada tombol lapor jawaban). |
+| **Content rating** | Isi kuesioner IARC (e-mail washlywater@gmail.com). Kategori *All other app types*. Kekerasan/seksual/judi: **No**. Pengguna berinteraksi/berbagi konten: **Yes**. Berbagi lokasi dengan pengguna lain: **Yes**. Pembelian digital: **Yes** (langganan WASHLY PRO). Fitur AI generatif: **Yes** (ada tombol lapor jawaban). |
 | **Target audience** | 18 and over |
 | **News app** | No |
 | **Data safety** | Ikuti tabel di `PLAY-STORE.md` §4. Dienkripsi saat transit: **Yes**. Pengguna bisa minta hapus data: **Yes**. Lokasi presisi & konten pengguna: **dibagikan** (sudah diputuskan). Tidak ada iklan/analitik. |
@@ -111,11 +85,26 @@ Semuanya di **Policy → App content**.
 | **Government app** | No (kecuali dirilis atas nama instansi pemerintah) |
 | **Financial features / Health** | None |
 
+## Langkah 8b — Langganan WASHLY PRO di Google Play (20 menit)
+Tanpa langkah ini aplikasi tetap bisa dirilis; tombol upgrade di Android akan menampilkan "produk belum tersedia".
+
+1. **Monetize → Payments profile**: buat profil pembayaran (data rekening untuk menerima hasil penjualan).
+2. Unggah AAB dulu ke *Internal testing* (Langkah 9) — Google baru mengizinkan membuat produk setelah ada AAB yang memakai Play Billing.
+3. **Monetize → Products → Subscriptions → Create subscription**:
+   - Product ID: **`washly_pro`** (harus persis) · Name: `WASHLY PRO`
+   - Base plan **`monthly`**: Auto-renewing, 1 bulan, harga **Rp125.000**
+   - Base plan **`yearly`**: Auto-renewing, 1 tahun, harga **Rp499.000**
+   - Aktifkan (*Activate*) kedua base plan.
+4. **Izinkan server WASHLY memeriksa pembelian** (agar PRO aktif otomatis):
+   - Buka https://console.cloud.google.com/iam-admin/serviceaccounts?project=washpipe-93f48 , salin e-mail service account **`…-compute@developer.gserviceaccount.com`** (dipakai Cloud Functions).
+   - Play Console → **Users and permissions → Invite new users** → tempel e-mail tadi → tab *App permissions* → pilih WASHLY → centang **View financial data** dan **Manage orders and subscriptions** → *Invite user*.
+5. (Opsional) Notifikasi real-time: **Monetize → Monetization setup → Real-time developer notifications** → Topic name: `projects/washpipe-93f48/topics/play-billing`.
+
 ## Langkah 9 — Unggah AAB & uji (1 hari – 14 hari)
 1. **Test and release → Testing → Internal testing → Create new release**.
-2. Pilih **Use Google-managed key (Play App Signing)** → unggah **`WASHLY-1.3.0-release.aab`**.
+2. Pilih **Use Google-managed key (Play App Signing)** → unggah **`WASHLY-1.4.0-release.aab`**.
 3. **Release notes (id-ID):**
-   `Rilis pertama WASHLY untuk Android: pemetaan GPS, analisis hidrolis, pompa & pengolahan air, RAB, gambar DED, sinkron cloud HP↔PC, dan bekerja tanpa sinyal.`
+   `Rilis pertama WASHLY untuk Android: pemetaan & asesmen GPS, analisis hidrolis (termasuk jaringan loop, terverifikasi terhadap EPANET), pompa & pengolahan air, BoQ & RAB, gambar DED, laporan siap cetak, e-sign persetujuan, sinkron cloud HP↔PC, dan bekerja tanpa sinyal. Paket FREE & WASHLY PRO.`
 4. *Testers* → buat daftar e-mail penguji → simpan → bagikan *opt-in link* ke penguji.
 5. **Akun pribadi:** buat juga rilis **Closed testing** dengan **≥ 12 penguji** yang tetap ikut **14 hari berturut-turut**, misalnya rekan kerja / mitra lapangan. Setelah itu klik *Apply for production* di Dashboard dan jawab pertanyaan Google tentang pengujian.
 
@@ -128,4 +117,4 @@ Semuanya di **Policy → App content**.
 ---
 
 ## Untuk update berikutnya
-Cukup minta di chat, misalnya "naikkan versi ke 1.0.1". Saya akan menaikkan `versionCode`, build AAB baru dengan kunci yang sama, lalu Anda unggah lewat **Production → Create new release**.
+Cukup minta di chat, misalnya "naikkan versi ke 1.4.1". Saya akan menaikkan `versionCode`, build AAB baru dengan kunci yang sama, lalu Anda unggah lewat **Production → Create new release**.
