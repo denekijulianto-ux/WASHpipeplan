@@ -16,9 +16,9 @@ jobs:
       - name: Cari UID
         working-directory: functions
         run: |
-          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"; export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          test -n "$SA_JSON" && echo "SA ada (${#SA_JSON} karakter)"; printf "%s" "$SA_JSON" > "$RUNNER_TEMP/sa.json"; export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npm ci --no-audit --no-fund >/dev/null
           node -e "
             global.window = {}; require('../auth-config.js'); const emails = (window.TIRTAPLAN_AUTH.adminEmails || []);
             const admin = require('firebase-admin'); admin.initializeApp({ projectId: 'washpipe-93f48' });
-            (async () => { for (const [i, e] of emails.entries()) { try { const u = await admin.auth().getUserByEmail(e); console.log('ADMIN_' + (i + 1) + '_UID=' + u.uid + ' verified=' + u.emailVerified); } catch (err) { console.log('ADMIN_' + (i + 1) + '_UID=TIDAK_ADA (' + err.code + ')'); } } })();"
+            (async () => { for (const [i, e] of emails.entries()) { try { const u = await admin.auth().getUserByEmail(e); console.log('ADMIN_' + (i + 1) + '_UID=' + u.uid + ' verified=' + u.emailVerified); } catch (err) { console.log('ADMIN_' + (i + 1) + '_UID=TIDAK_ADA (' + err.code + ') ' + String(err.message).replace(/[\w.+-]+@[\w.-]+/g, '[email]').slice(0, 300)); } } })();"
