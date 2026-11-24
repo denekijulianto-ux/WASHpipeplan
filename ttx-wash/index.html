@@ -439,7 +439,7 @@ async function loadAll(full){const c=G.code;if(!sb||!c)return;
 const qs=[sb.from('ttx_rooms').select('*').eq('code',c).maybeSingle(),sb.from('ttx_players').select('*').eq('room',c).order('created_at'),sb.from('ttx_choices').select('*').eq('room',c)];
 qs.push(full?sb.from('ttx_events').select('*').eq('room',c).order('id').limit(3000):sb.from('ttx_events').select('*').eq('room',c).gt('id',G.lastId).order('id').limit(500));
 const [r,p,ch,ev]=await Promise.all(qs);
-if(r.data)G.room=r.data;if(p.data)G.players=p.data;if(ch.data)G.choices=ch.data;
+G.loadErr=r.error?.message||p.error?.message||ev.error?.message||(r.data?null:'Ruang '+c+' tidak ditemukan.');if(r.data)G.room=r.data;if(p.data)G.players=p.data;if(ch.data)G.choices=ch.data;
 if(ev.data){if(full)G.events=ev.data;else ev.data.forEach(addEvent);G.lastId=G.events.reduce((m,e)=>Math.max(m,e.id),0)}
 G.dirty=true;onData()}
 function addEvent(e){const i=G.events.findIndex(x=>x.id===e.id);if(i>=0)G.events[i]=e;else{G.events.push(e);G.lastId=Math.max(G.lastId,e.id)}}
@@ -688,7 +688,7 @@ async function enterGM(){G.mode='gm';G.code=G.auth.code;$('#home').hidden=true;$
 function gm(action,payload){return rpc('ttx_gm',{p_code:G.code,p_secret:G.auth.secret,p_action:action,p_payload:payload||{}})}
 function gmTab(t){G.gmTab=t;document.querySelectorAll('#gmnav button').forEach(b=>b.setAttribute('aria-current',b.dataset.g===t));gmRender(true)}
 let gmPending=false;function gmRender(force){if(G.mode!=='gm')return;const main=$('#gmmain'),a=document.activeElement;if(!force&&a&&main.contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)){gmPending=true;return}gmPending=false;
-const r=G.room;if(!r)return;const h=HAZ[r.hazard]||HAZ.gempa;$('#gm-code').textContent=r.code;$('#gm-title').textContent=r.title;
+const r=G.room;if(!r){main.innerHTML=`<div class="panel"><h2>Memuat ruang ${esc(G.code||'')}…</h2><p>${G.loadErr?'Gagal memuat data: '+esc(G.loadErr):'Mohon tunggu sebentar.'}</p><p class="btns"><button class="btn sm" type="button" onclick="location.reload()">Muat ulang</button></p></div>`;return}const h=HAZ[r.hazard]||HAZ.gempa;$('#gm-code').textContent=r.code;$('#gm-title').textContent=r.title;
 const url=location.origin+location.pathname+'?r='+r.code;$('#gm-sub').innerHTML=`${esc(h.name)} · ${esc(h.kab)} (fiktif) · ${r.status==='lobby'?'Lobi':r.status==='end'?'Selesai':'Fase '+(r.phase+1)} · Link gabung: <b>${esc(url)}</b><br>PIN fasilitator: <span id="pin" style="filter:blur(5px);cursor:pointer" title="Klik untuk menampilkan">${esc(G.auth.secret)}</span>`;
 if(!$('#gm-qr').dataset.done&&window.qrcode){try{const q=qrcode(0,'M');q.addData(url);q.make();$('#gm-qr').innerHTML=q.createSvgTag({cellSize:3,margin:2,scalable:true});$('#gm-qr').dataset.done=1}catch(e){}}
 const st=main.scrollTop;let h2='<p id="gm-alert" class="badc" style="font-weight:800;min-height:1em"></p>';const t=G.gmTab;
