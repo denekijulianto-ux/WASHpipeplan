@@ -745,6 +745,14 @@ const PUMP_DEFAULTS = { mode: 'auto', depth: 60, casing: 6, swl: 15, dd: 8, yiel
 const pumpP = (n) => ({ ...PUMP_DEFAULTS, ...((n && n.pump) || {}) });
 const STD_MOTOR = [0.37, 0.55, 0.75, 1.1, 1.5, 2.2, 3, 4, 5.5, 7.5, 9.2, 11, 15, 18.5, 22, 30, 37, 45, 55, 75, 90, 110];
 function hwLoss(Lm, Qls, Dmm, C) { const Q = Qls / 1000, D = Dmm / 1000; return Q > 0 && D > 0 ? 10.67 * Lm * Math.pow(Q, 1.852) / (Math.pow(C, 1.852) * Math.pow(D, 4.87)) : 0; }
+// Diameter dalam (mm) untuk hitungan hidrolis. Ukuran pipa HDPE/PVC/PE di aplikasi = Ø LUAR (seri SNI/ISO), GIP = DN nominal.
+// HDPE PE100 PN10 = SDR 17 (SNI 4829.2 / ISO 4427) · PVC RRJ PN10 = S-12,5 → SDR 26 (SNI 06-0084-2002) · PE gulungan = SDR 11 · GIP medium (BS 1387).
+const SDR = { HDPE: 17, PVC: 26, PE: 11 }; const MIN_WALL = { HDPE: 2.0, PVC: 1.6, PE: 2.0 };
+const GIP_ID = { 15: 16.1, 16: 16.1, 20: 21.6, 25: 27.3, 32: 36.0, 40: 41.9, 50: 53.0, 63: 68.8, 65: 68.8, 75: 80.8, 80: 80.8, 90: 80.8, 100: 105.1, 110: 105.1, 125: 129.7, 150: 155.4, 160: 155.4 };
+function innerD(mat, D) { D = +D || 0; if (D <= 0) return 0;
+  if (mat === 'GIP') return GIP_ID[D] || D;
+  const sdr = SDR[mat]; if (!sdr) return D; const t = Math.max(MIN_WALL[mat] || 0, D / sdr); return Math.max(D * 0.5, D - 2 * t); }
+const pipeID = (p) => (+p.dIn > 0 ? +p.dIn : innerD(p.material, p.diameter)); // Ø dalam terukur (aset existing) didahulukan
 const pumpCurve = (Hd, Qd, Q) => Math.max(0, Hd * (1.33 - 0.33 * Math.pow(Qd > 0 ? Q / Qd : 0, 2)));
 // ---- Pipa riser / pipa naik pompa (dari pompa ke kepala sumur, di dalam casing) ----
 // C Hazen-Williams, faktor diameter luar sambungan (kopling) terhadap OD pipa, batas head kerja, faktor harga terhadap GI
@@ -827,10 +835,10 @@ function computeHydraulics(project) {
 
   const pipeRes = {}, head = {};
   const flowPipe = (pid, Qls, up, down, extra = {}) => {
-    const p = pmap[pid]; const L = lengths[pid]; const D = +p.diameter || 0; const C = pipeC(p);
+    const p = pmap[pid]; const L = lengths[pid]; const D = pipeID(p); const C = pipeC(p); // Ø DALAM
     const A = Math.PI * (D / 1000) ** 2 / 4; const v = A > 0 ? Qls / 1000 / A : 0; const hf = hwLoss(L, Qls, D, C);
     let status = 'ok'; if (Qls <= 0) status = 'idle'; else if (v < s.vMin) status = 'low'; else if (v > s.vMax) status = 'high';
-    pipeRes[pid] = { length: L, Q: Qls, v, hf, hfkm: L > 0 ? hf / L * 1000 : 0, C, status, up, down, inTree: true, ...extra }; return hf;
+    pipeRes[pid] = { length: L, Q: Qls, v, hf, dIn: D, hfkm: L > 0 ? hf / L * 1000 : 0, C, status, up, down, inTree: true, ...extra }; return hf;
   };
   order.forEach(id => { const n = nmap[id];
     if (source[id] === id) { head[id] = n.type === 'reservoir' ? (+n.elev || 0) + (+n.waterLevel || 0) : 0; return; }
@@ -846,7 +854,7 @@ function computeHydraulics(project) {
       Qd = pp.auto ? Math.max(0.1, Qauto) : Math.max(0.05, +pp.Qd);
       const outlet = (+tg.elev || 0) + (+tg.waterLevel || 0) + 0.5;
       staticLift = outlet - w0.dwlElev;
-      const sysDyn = (Qx) => { let h = 0; t.pipes.forEach(pid => { const p = pmap[pid]; h += hwLoss(lengths[pid], Qx, +p.diameter, pipeC(p)); }); return h + wellGeom(b, Qx).riserHf; };
+      const sysDyn = (Qx) => { let h = 0; t.pipes.forEach(pid => { const p = pmap[pid]; h += hwLoss(lengths[pid], Qx, pipeID(p), pipeC(p)); }); return h + wellGeom(b, Qx).riserHf; };
       TDHreq = staticLift + sysDyn(Qd);
       Hd = pp.auto ? Math.ceil(TDHreq + 2) : +pp.Hd;
       let lo = 0, hi = Qd * 2.5; for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (pumpCurve(Hd, Qd, m) > staticLift + sysDyn(m)) lo = m; else hi = m; }
@@ -907,10 +915,10 @@ function computeHydraulics(project) {
     const r = pipeRes[p.id];
     if (r.isLoop) warnings.push({ level: 'idle', ref: p.id, text: `Pipa ${p.label} membentuk loop. Mesin ini menghitung jaringan bercabang, jadi pipa loop dianggap tanpa aliran.` });
     if (r.status === 'high') {
-      const rec = DIAMETERS.find(d => d > p.diameter && (r.Q / 1000) / (Math.PI * (d / 1000) ** 2 / 4) <= s.vMax);
+      const rec = DIAMETERS.find(d => d > p.diameter && (r.Q / 1000) / (Math.PI * (innerD(p.material, d) / 1000) ** 2 / 4) <= s.vMax);
       warnings.push({ level: 'high', ref: p.id, text: `Kecepatan ${p.label} ${fmt(r.v)} m/s > ${s.vMax} m/s (risiko gerusan & water hammer).${rec ? ` Saran: perbesar ke Ø${rec} mm.` : ''}` });
     } else if (r.status === 'low') {
-      const rec = [...DIAMETERS].reverse().find(d => d < p.diameter && (r.Q / 1000) / (Math.PI * (d / 1000) ** 2 / 4) >= s.vMin);
+      const rec = [...DIAMETERS].reverse().find(d => d < p.diameter && (r.Q / 1000) / (Math.PI * (innerD(p.material, d) / 1000) ** 2 / 4) >= s.vMin);
       warnings.push({ level: 'low', ref: p.id, text: `Kecepatan ${p.label} ${fmt(r.v)} m/s < ${s.vMin} m/s (potensi endapan).${rec ? ` Saran: perkecil ke Ø${rec} mm atau sediakan wash out.` : ' Sediakan wash out untuk penggelontoran berkala.'}` });
     }
   });
@@ -1424,9 +1432,9 @@ function calcDemand(c, project, hyd) {
 function calcPump(c) {
   const Q = Math.max(0.01, +c.Qp || 0); const dwlDepth = +c.swl + +c.dd; const setting = dwlDepth + 6;
   const staticLift = (+c.outletH - +c.ground) + dwlDepth; const C = MATERIALS[c.mat]?.C || 130;
-  const Ltot = +c.Lp + setting; const hf = hwLoss(Ltot, Q, +c.dia, C); const minor = 0.15 * hf + 0.5; const H = staticLift + hf + minor + +c.resid;
-  const v = Q / 1000 / (Math.PI / 4 * Math.pow(+c.dia / 1000, 2));
-  return { Q, dwlDepth, setting, staticLift, hf, minor, H, v, tiers: motorTiers({ Qls: Q, H, etaP: +c.etaP, hours: +c.hours, tariff: +c.tariff, phase: c.phase }) };
+  const dIn = innerD(c.mat, +c.dia); const Ltot = +c.Lp + setting; const hf = hwLoss(Ltot, Q, dIn, C); const minor = 0.15 * hf + 0.5; const H = staticLift + hf + minor + +c.resid;
+  const v = Q / 1000 / (Math.PI / 4 * Math.pow(dIn / 1000, 2));
+  return { dIn, Q, dwlDepth, setting, staticLift, hf, minor, H, v, tiers: motorTiers({ Qls: Q, H, etaP: +c.etaP, hours: +c.hours, tariff: +c.tariff, phase: c.phase }) };
 }
 function CalcDialog({ project, setProject, hyd, onClose, initialTab = 'air' }) {
   const [tab, setTab] = useState(initialTab); const [c, setC] = useState(() => ({ ...CALC_DEF, ...(project.calc || {}) })); const [done, setDone] = useState('');
@@ -4518,8 +4526,10 @@ function PipeInspector({ pipe, res, nmap, upd, onDelete, onSplit, bendAngle = 15
       <Field label="Panjang (otomatis)"><div className="tp-field num font-mono bg-ground">{fmt(res.length, 2)} m</div></Field>
       <Field label="Jenis pipa"><select id="pipe-mat" className="tp-field" value={pipe.material} onChange={e => upd({ material: e.target.value })}>{Object.entries(MATERIALS).map(([k, m]) => <option key={k} value={k}>{k} (C={m.C})</option>)}</select></Field>
       <Field label="Diameter (mm)"><select id="pipe-dia" className="tp-field num" value={pipe.diameter} onChange={e => upd({ diameter: +e.target.value })}>{DIAMETERS.map(d => <option key={d} value={d}>Ø{d}</option>)}</select></Field>
+      <Field label="Ø dalam terukur (mm, opsional)" hint={`Standar: ${fmt(innerD(pipe.material, pipe.diameter), 1)} mm. Isi untuk pipa existing hasil ukur; isi 0 untuk kembali ke standar.`}><NumField id="pipe-din" value={+pipe.dIn > 0 ? pipe.dIn : ''} step="0.1" min="0" onChange={v => upd({ dIn: +v > 0 ? +v : null })} /></Field>
     </div>
     <div className="rounded-md bg-ground px-3 py-2 grid grid-cols-2 gap-y-1 text-[12px]">
+      <span className="text-slate-500">Ø dalam (hitungan)</span><span className="text-right font-mono num">{fmt(pipeID(pipe), 1)} mm</span>
       <span className="text-slate-500">Debit (Q)</span><span className="text-right font-mono num">{fmt(res.Q)} L/dtk</span>
       <span className="text-slate-500">Kecepatan (v)</span><span className="text-right"><VPill v={res.v} status={res.status} /></span>
       <span className="text-slate-500">Headloss (hf)</span><span className="text-right font-mono num">{fmt(res.hf, 3)} m</span>
@@ -4948,9 +4958,9 @@ function HydraulicWorkspace({ project, setProject, hyd, setSelection, goMap }) {
       </Card>
     </div>
     <Card title="Hasil per segmen pipa" icon="Waves" bodyClass="overflow-x-auto">
-      <table className="tp-table"><thead><tr><th>Pipa</th><th>Aliran</th><th>Jenis</th><th className="r">Ø (mm)</th><th className="r">L (m)</th><th className="r">C</th><th className="r">Q (L/dtk)</th><th className="r">v (m/s)</th><th className="r">hf (m)</th><th className="r">hf (m/km)</th><th>Status</th></tr></thead>
+      <table className="tp-table"><thead><tr><th>Pipa</th><th>Aliran</th><th>Jenis</th><th className="r">Ø (mm)</th><th className="r">Ø dalam (mm)</th><th className="r">L (m)</th><th className="r">C</th><th className="r">Q (L/dtk)</th><th className="r">v (m/s)</th><th className="r">hf (m)</th><th className="r">hf (m/km)</th><th>Status</th></tr></thead>
         <tbody>{project.pipes.map(p => { const r = hyd.pipes[p.id]; return <tr key={p.id} className="clickable" onClick={() => select({ kind: 'pipe', id: p.id })}>
-          <td className="font-semibold">{p.label}</td><td>{nmap[r.up]?.label} → {nmap[r.down]?.label}</td><td>{p.material}</td><td className="r">{p.diameter}</td><td className="r">{fmt(r.length, 2)}</td><td className="r">{r.C}</td>
+          <td className="font-semibold">{p.label}</td><td>{nmap[r.up]?.label} → {nmap[r.down]?.label}</td><td>{p.material}</td><td className="r">{p.diameter}</td><td className="r">{fmt(pipeID(p), 1)}</td><td className="r">{fmt(r.length, 2)}</td><td className="r">{r.C}</td>
           <td className="r">{fmt(r.Q, 2)}</td><td className="r"><VPill v={r.v} status={r.status} /></td><td className="r">{fmt(r.hf, 3)}</td><td className="r">{fmt(r.hfkm, 2)}</td><td>{STATUS_TEXT[r.status]}</td></tr>; })}</tbody></table>
     </Card>
     <Card title="Hasil per node" icon="Gauge" bodyClass="overflow-x-auto">
@@ -4992,7 +5002,7 @@ function HydraulicWorkspace({ project, setProject, hyd, setSelection, goMap }) {
           <div className="font-semibold text-ink mb-1">Hazen-Williams (SI)</div>
           <div className="font-mono text-[12.5px]">hf = 10,67 · L · Q<sup>1,852</sup> / (C<sup>1,852</sup> · D<sup>4,87</sup>)</div>
           <div className="font-mono text-[12.5px] mt-1">v = Q / (¼ · π · D²) · P = HGL − Elev</div>
-          <div className="mt-2">C: HDPE 130 · PVC 140 · GIP 110. Debit tiap segmen adalah akumulasi kebutuhan semua node di hilirnya. D memakai diameter nominal.</div>
+          <div className="mt-2">C: HDPE 130 · PVC 140 · GIP 110. Debit tiap segmen adalah akumulasi kebutuhan semua node di hilirnya. D memakai <b>diameter dalam</b> pipa: ukuran HDPE/PVC adalah Ø luar, jadi Ø dalam = Ø luar − 2 × tebal dinding (HDPE PN10 SDR 17, PVC PN10 S-12,5/SDR 26, PE gulungan SDR 11); GIP memakai Ø dalam pipa medium. Ø dalam hasil ukur pipa existing bisa diisi per pipa.</div>
         </div>
       </Card>
     </div>
@@ -5275,6 +5285,7 @@ function Sheet({ children, ...tb }) {
     <rect x={FRAME.x0 - 2} y={FRAME.y0 - 2} width={FRAME.x1 - FRAME.x0 + 4} height={FRAME.y1 - FRAME.y0 + 4} fill="none" stroke="#000" strokeWidth={0.18} />
     {children}
     <TitleBlock {...tb} />
+    <text x={FRAME.x0 - 2} y={294.9} fontSize={1.7} fill="#333"><tspan fontWeight={700}>CATATAN TANGGUNG JAWAB: </tspan>Gambar dihasilkan dengan aplikasi WASHLY sebagai alat bantu perencanaan dan wajib diperiksa serta disahkan oleh tenaga ahli yang berwenang sebelum digunakan untuk pengadaan atau pelaksanaan.</text>
   </svg>;
 }
 const STD_SCALES = [100, 200, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000, 15000, 20000, 25000, 50000, 100000];
@@ -7978,6 +7989,7 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
       <div style={{ fontSize: '9pt', marginTop: '3pt' }}>{project.meta.owner} · {project.meta.fiscal} · {project.meta.date}</div>
       <div style={{ fontSize: '9pt', marginTop: '2pt' }}>Pelaksana: <b>{project.meta.orgName || project.meta.consultant}</b></div>
     </div>
+    <p id="rp-disclaimer" style={{ fontSize: '8.5pt', border: '0.6pt solid #999', padding: '5pt 7pt', margin: '6pt 0 0', background: '#f7f7f7' }}><b>Catatan tanggung jawab:</b> Perhitungan hidrolis, BoQ/RAB, dan gambar dalam dokumen ini dihasilkan dengan aplikasi WASHLY sebagai alat bantu perencanaan. Hasilnya bergantung pada data masukan (elevasi, kebutuhan air, harga satuan) dan wajib diperiksa serta disahkan oleh tenaga ahli yang berwenang sebelum digunakan untuk pengadaan atau pelaksanaan.</p>
     <h2>1. Ringkasan</h2>
     <table><tbody>
       {[['Jumlah node / segmen pipa', `${project.nodes.length} node / ${project.pipes.length} segmen`], ['Total panjang pipa', `${fmt(boq.totalLength, 2)} m (+${s.wastePct}% waste = ${fmt(boq.totalLength * boq.waste, 2)} m)`],
@@ -7986,7 +7998,7 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
         ['Total RAB (dibulatkan)', `${rp(rab.rounded)}`], ['Terbilang', terbilang(rab.rounded)]].map(([a, b]) => <tr key={a}><td style={{ width: '38%' }}>{a}</td><td><b>{b}</b></td></tr>)}
     </tbody></table>
     <h3>Kriteria desain</h3>
-    <table><tbody><tr><td>Rumus kehilangan tekan</td><td>Hazen-Williams: hf = 10,67·L·Q^1,852 / (C^1,852·D^4,87); C HDPE 130, PVC 140, GIP 110</td></tr>
+    <table><tbody><tr><td>Rumus kehilangan tekan</td><td>Hazen-Williams: hf = 10,67·L·Q^1,852 / (C^1,852·D^4,87), D = diameter DALAM pipa (HDPE PN10 SDR 17, PVC PN10 S-12,5/SDR 26, GIP medium); C HDPE 130, PVC 140, GIP 110</td></tr>
       <tr><td>Kecepatan aliran</td><td>{s.vMin} – {s.vMax} m/s</td></tr><tr><td>Sisa tekanan</td><td>minimal {s.pMin} mka, maksimal {s.pMax} mka</td></tr>
       <tr><td>Dimensi galian</td><td>W {fmt(s.trenchWidth, 2)} m × H {fmt(s.trenchDepth, 2)} m; pasir alas {fmt(s.sandBed, 2)} m; pasir di atas pipa {fmt(s.sandCover, 2)} m</td></tr></tbody></table>
     <TeamReport project={project} hyd={hyd} />
@@ -7996,8 +8008,8 @@ function PrintRoot({ mode, project, hyd, boq, rab }) {
     <table><thead><tr><th>Node</th><th>Tipe</th><th>Lintang</th><th>Bujur</th><th>Elevasi (mdpl)</th><th>Kebutuhan (L/dtk)</th><th>Dicatat oleh</th></tr></thead>
       <tbody>{project.nodes.map(n => <tr key={n.id}><td>{n.label}</td><td>{NODE_TYPES[n.type].label}</td><td className="r">{n.lat.toFixed(6)}</td><td className="r">{n.lng.toFixed(6)}</td><td className="r">{fmt(n.elev, 2)} ({n.elevSrc || 'manual'})</td><td className="r">{n.type === 'reservoir' ? `MA +${fmt(n.waterLevel, 2)} m` : fmt(n.demand, 2)}</td><td>{n.by ? n.by.name : '-'}</td></tr>)}</tbody></table>
     <h2>3. Hasil Analisis Hidrolis</h2>
-    <table><thead><tr><th>Pipa</th><th>Dari → Ke</th><th>Jenis</th><th>Ø (mm)</th><th>L (m)</th><th>C</th><th>Q (L/dtk)</th><th>v (m/s)</th><th>hf (m)</th><th>Status</th></tr></thead>
-      <tbody>{project.pipes.map(p => { const r = hyd.pipes[p.id]; return <tr key={p.id}><td>{p.label}</td><td>{nmap[r.up]?.label} → {nmap[r.down]?.label}</td><td>{p.material}</td><td className="r">{p.diameter}</td><td className="r">{fmt(r.length, 2)}</td><td className="r">{r.C}</td><td className="r">{fmt(r.Q, 2)}</td><td className="r">{fmt(r.v, 2)}</td><td className="r">{fmt(r.hf, 3)}</td><td>{STATUS_TEXT[r.status]}</td></tr>; })}</tbody></table>
+    <table><thead><tr><th>Pipa</th><th>Dari → Ke</th><th>Jenis</th><th>Ø (mm)</th><th>Ø dalam (mm)</th><th>L (m)</th><th>C</th><th>Q (L/dtk)</th><th>v (m/s)</th><th>hf (m)</th><th>Status</th></tr></thead>
+      <tbody>{project.pipes.map(p => { const r = hyd.pipes[p.id]; return <tr key={p.id}><td>{p.label}</td><td>{nmap[r.up]?.label} → {nmap[r.down]?.label}</td><td>{p.material}</td><td className="r">{p.diameter}</td><td className="r">{fmt(pipeID(p), 1)}</td><td className="r">{fmt(r.length, 2)}</td><td className="r">{r.C}</td><td className="r">{fmt(r.Q, 2)}</td><td className="r">{fmt(r.v, 2)}</td><td className="r">{fmt(r.hf, 3)}</td><td>{STATUS_TEXT[r.status]}</td></tr>; })}</tbody></table>
     <table><thead><tr><th>Node</th><th>Elevasi (mdpl)</th><th>Q lewat (L/dtk)</th><th>HGL (m)</th><th>Sisa tekanan (mka)</th><th>Status</th></tr></thead>
       <tbody>{project.nodes.map(n => { const r = hyd.nodes[n.id]; return <tr key={n.id}><td>{n.label}</td><td className="r">{fmt(n.elev, 2)}</td><td className="r">{fmt(r.cumQ, 2)}</td><td className="r">{r.head !== null ? fmt(r.head, 2) : '-'}</td><td className="r">{n.type === 'reservoir' ? '-' : fmt(r.pressure, 2)}</td><td>{STATUS_TEXT[r.status]}</td></tr>; })}</tbody></table>
     {hyd.warnings.length > 0 && <><h3>Catatan & rekomendasi</h3><ol style={{ margin: 0, paddingLeft: '14pt', fontSize: '9pt' }}>{hyd.warnings.map((w, i) => <li key={i}>{w.text}</li>)}</ol></>}

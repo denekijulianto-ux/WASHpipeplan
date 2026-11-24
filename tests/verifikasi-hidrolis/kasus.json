@@ -1,0 +1,3293 @@
+[
+ {
+  "name": "Pembangunan Jaringan Distribusi Air Bersih Desa Sukamaju (Proyek Contoh)",
+  "nodes": [
+   {
+    "id": "n_r1",
+    "type": "reservoir",
+    "elev": 845,
+    "head0": 847.5,
+    "demand": 0,
+    "w": {
+     "head": 847.5,
+     "pressure": 2.5,
+     "status": "src",
+     "cumQ": 5,
+     "dist": 0,
+     "source": "n_r1",
+     "trans": false
+    }
+   },
+   {
+    "id": "n_gv1",
+    "type": "gate_valve",
+    "elev": 832,
+    "head0": null,
+    "demand": 0,
+    "w": {
+     "head": 847.0361025879836,
+     "pressure": 15.036102587983578,
+     "status": "ok",
+     "cumQ": 5,
+     "dist": 76.14628709440525,
+     "source": "n_r1",
+     "parent": "n_r1",
+     "parentPipe": "p_1",
+     "trans": false
+    }
+   },
+   {
+    "id": "n_av1",
+    "type": "air_valve",
+    "elev": 834,
+    "head0": null,
+    "demand": 0.5,
+    "w": {
+     "head": 844.714256924706,
+     "pressure": 10.714256924705978,
+     "status": "ok",
+     "cumQ": 5,
+     "dist": 457.2648747070002,
+     "source": "n_r1",
+     "parent": "n_gv1",
+     "parentPipe": "p_2",
+     "trans": false
+    }
+   },
+   {
+    "id": "n_j1",
+    "type": "junction",
+    "elev": 808,
+    "head0": null,
+    "demand": 1,
+    "w": {
+     "head": 840.8244416557337,
+     "pressure": 32.82444165573372,
+     "status": "ok",
+     "cumQ": 4.5,
+     "dist": 874.6276075023321,
+     "source": "n_r1",
+     "parent": "n_av1",
+     "parentPipe": "p_3",
+     "trans": false
+    }
+   },
+   {
+    "id": "n_hu1",
+    "type": "hydrant",
+    "elev": 790,
+    "head0": null,
+    "demand": 2.2,
+    "w": {
+     "head": 796.8226599712776,
+     "pressure": 6.822659971277631,
+     "status": "low",
+     "cumQ": 2.2,
+     "dist": 976.723806812103,
+     "source": "n_r1",
+     "parent": "n_j1",
+     "parentPipe": "p_4",
+     "trans": false
+    }
+   },
+   {
+    "id": "n_wo1",
+    "type": "wash_out",
+    "elev": 785,
+    "head0": null,
+    "demand": 1.3,
+    "w": {
+     "head": 836.9746394606317,
+     "pressure": 51.97463946063169,
+     "status": "ok",
+     "cumQ": 1.3,
+     "dist": 1169.8393619298747,
+     "source": "n_r1",
+     "parent": "n_j1",
+     "parentPipe": "p_5",
+     "trans": false
+    }
+   },
+   {
+    "id": "n_sb1",
+    "type": "borehole",
+    "elev": 836,
+    "head0": null,
+    "demand": 0,
+    "w": {
+     "head": 852.1856322430159,
+     "pressure": 16.185632243015903,
+     "status": "src",
+     "dist": 0,
+     "source": "n_sb1",
+     "trans": false
+    }
+   }
+  ],
+  "pipes": [
+   {
+    "id": "p_1",
+    "from": "n_r1",
+    "to": "n_gv1",
+    "material": "HDPE",
+    "D": 110,
+    "dIn": 97.05882352941177,
+    "C": 130,
+    "w": {
+     "length": 76.14628709440525,
+     "Q": 5,
+     "v": 0.6757873800339064,
+     "hf": 0.46389741201642476,
+     "dIn": 97.05882352941177,
+     "hfkm": 6.092186890757921,
+     "C": 130,
+     "status": "ok",
+     "up": "n_r1",
+     "down": "n_gv1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "p_2",
+    "from": "n_gv1",
+    "to": "n_av1",
+    "material": "HDPE",
+    "D": 110,
+    "dIn": 97.05882352941177,
+    "C": 130,
+    "w": {
+     "length": 381.118587612595,
+     "Q": 5,
+     "v": 0.6757873800339064,
+     "hf": 2.3218456632776254,
+     "dIn": 97.05882352941177,
+     "hfkm": 6.0921868907579215,
+     "C": 130,
+     "status": "ok",
+     "up": "n_gv1",
+     "down": "n_av1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "p_3",
+    "from": "n_av1",
+    "to": "n_j1",
+    "material": "PVC",
+    "D": 90,
+    "dIn": 83.07692307692308,
+    "C": 140,
+    "w": {
+     "length": 417.3627327953319,
+     "Q": 4.5,
+     "v": 0.8301600426706887,
+     "hf": 3.8898152689722294,
+     "dIn": 83.07692307692308,
+     "hfkm": 9.319987059984422,
+     "C": 140,
+     "status": "ok",
+     "up": "n_av1",
+     "down": "n_j1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "p_4",
+    "from": "n_j1",
+    "to": "n_hu1",
+    "material": "PVC",
+    "D": 32,
+    "dIn": 28.8,
+    "C": 140,
+    "w": {
+     "length": 102.09619930977092,
+     "Q": 2.2,
+     "v": 3.377130351101175,
+     "hf": 44.001781684456056,
+     "dIn": 28.8,
+     "hfkm": 430.98354279526,
+     "C": 140,
+     "status": "high",
+     "up": "n_j1",
+     "down": "n_hu1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "p_5",
+    "from": "n_j1",
+    "to": "n_wo1",
+    "material": "GIP",
+    "D": 50,
+    "dIn": 53,
+    "C": 110,
+    "w": {
+     "length": 295.21175442754253,
+     "Q": 1.3,
+     "v": 0.5892529042918162,
+     "hf": 3.849802195102015,
+     "dIn": 53,
+     "hfkm": 13.040816083246169,
+     "C": 110,
+     "status": "low",
+     "up": "n_j1",
+     "down": "n_wo1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "p_6",
+    "from": "n_sb1",
+    "to": "n_r1",
+    "material": "HDPE",
+    "D": 90,
+    "dIn": 79.41176470588235,
+    "C": 130,
+    "w": {
+     "length": 138.5638024179718,
+     "Q": 7.002503274565699,
+     "v": 1.4138187761316303,
+     "hf": 4.185632243015961,
+     "dIn": 79.41176470588235,
+     "hfkm": 30.207255935357345,
+     "C": 130,
+     "status": "ok",
+     "up": "n_sb1",
+     "down": "n_r1",
+     "inTree": true,
+     "trans": true,
+     "pump": "n_sb1"
+    }
+   }
+  ]
+ },
+ {
+  "name": "Acak A (12 node)",
+  "nodes": [
+   {
+    "id": "R",
+    "type": "reservoir",
+    "elev": 900,
+    "head0": 903,
+    "demand": 0,
+    "w": {
+     "head": 903,
+     "pressure": 3,
+     "status": "src",
+     "cumQ": 4.82,
+     "dist": 0,
+     "source": "R",
+     "trans": false
+    }
+   },
+   {
+    "id": "J1",
+    "type": "junction",
+    "elev": 896.1050416888227,
+    "head0": null,
+    "demand": 0.49,
+    "w": {
+     "head": 877.5376169635165,
+     "pressure": -18.567424725306182,
+     "status": "neg",
+     "cumQ": 3.92,
+     "dist": 201.50712984284607,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P1",
+     "trans": false
+    }
+   },
+   {
+    "id": "J2",
+    "type": "junction",
+    "elev": 887.9444108069615,
+    "head0": null,
+    "demand": 0.43,
+    "w": {
+     "head": 871.7001314851314,
+     "pressure": -16.244279321830163,
+     "status": "neg",
+     "cumQ": 0.86,
+     "dist": 507.85284258777426,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P2",
+     "trans": false
+    }
+   },
+   {
+    "id": "J3",
+    "type": "junction",
+    "elev": 893.6200559575203,
+    "head0": null,
+    "demand": 0.46,
+    "w": {
+     "head": 877.1944233350574,
+     "pressure": -16.4256326224629,
+     "status": "neg",
+     "cumQ": 2.19,
+     "dist": 572.8647479833969,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P3",
+     "trans": false
+    }
+   },
+   {
+    "id": "J4",
+    "type": "junction",
+    "elev": 883.3115418554802,
+    "head0": null,
+    "demand": 0.46,
+    "w": {
+     "head": 876.3425088404031,
+     "pressure": -6.969033015077116,
+     "status": "neg",
+     "cumQ": 1.48,
+     "dist": 867.8449769982318,
+     "source": "R",
+     "parent": "J3",
+     "parentPipe": "P4",
+     "trans": false
+    }
+   },
+   {
+    "id": "J5",
+    "type": "junction",
+    "elev": 878.2930653552957,
+    "head0": null,
+    "demand": 0.55,
+    "w": {
+     "head": 865.8917055027011,
+     "pressure": -12.40135985259451,
+     "status": "neg",
+     "cumQ": 1.02,
+     "dist": 1104.105504074874,
+     "source": "R",
+     "parent": "J4",
+     "parentPipe": "P5",
+     "trans": false
+    }
+   },
+   {
+    "id": "J6",
+    "type": "junction",
+    "elev": 885.6696864001777,
+    "head0": null,
+    "demand": 0.38,
+    "w": {
+     "head": 877.5278997064036,
+     "pressure": -8.14178669377418,
+     "status": "neg",
+     "cumQ": 0.38,
+     "dist": 405.4387331514035,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P6",
+     "trans": false
+    }
+   },
+   {
+    "id": "J7",
+    "type": "junction",
+    "elev": 893.4207893742346,
+    "head0": null,
+    "demand": 0.3,
+    "w": {
+     "head": 902.9895627076259,
+     "pressure": 9.568773333391277,
+     "status": "low",
+     "cumQ": 0.3,
+     "dist": 313.8184809163932,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P7",
+     "trans": false
+    }
+   },
+   {
+    "id": "J8",
+    "type": "junction",
+    "elev": 892.020210678233,
+    "head0": null,
+    "demand": 0.6,
+    "w": {
+     "head": 900.3618417993966,
+     "pressure": 8.341631121163687,
+     "status": "low",
+     "cumQ": 0.6,
+     "dist": 224.03109361583537,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P8",
+     "trans": false
+    }
+   },
+   {
+    "id": "J9",
+    "type": "junction",
+    "elev": 887.8045033220221,
+    "head0": null,
+    "demand": 0.25,
+    "w": {
+     "head": 877.1695604745572,
+     "pressure": -10.634942847464913,
+     "status": "neg",
+     "cumQ": 0.25,
+     "dist": 804.7578312808906,
+     "source": "R",
+     "parent": "J3",
+     "parentPipe": "P9",
+     "trans": false
+    }
+   },
+   {
+    "id": "J10",
+    "type": "junction",
+    "elev": 878.1773068519203,
+    "head0": null,
+    "demand": 0.43,
+    "w": {
+     "head": 871.5138923975433,
+     "pressure": -6.663414454377062,
+     "status": "neg",
+     "cumQ": 0.43,
+     "dist": 780.0283094760357,
+     "source": "R",
+     "parent": "J2",
+     "parentPipe": "P10",
+     "trans": false
+    }
+   },
+   {
+    "id": "J11",
+    "type": "junction",
+    "elev": 872.7225665104213,
+    "head0": null,
+    "demand": 0.47,
+    "w": {
+     "head": 865.6586355000288,
+     "pressure": -7.06393101039248,
+     "status": "neg",
+     "cumQ": 0.47,
+     "dist": 1576.6539666140613,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P11",
+     "trans": false
+    }
+   }
+  ],
+  "pipes": [
+   {
+    "id": "P1",
+    "from": "R",
+    "to": "J1",
+    "material": "PVC",
+    "D": 50,
+    "dIn": 46.15384615384615,
+    "C": 140,
+    "w": {
+     "length": 201.50712984284607,
+     "Q": 3.92,
+     "v": 2.343043704433751,
+     "hf": 25.462383036483505,
+     "dIn": 46.15384615384615,
+     "hfkm": 126.3597127126044,
+     "C": 140,
+     "status": "ok",
+     "up": "R",
+     "down": "J1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P2",
+    "from": "J1",
+    "to": "J2",
+    "material": "GIP",
+    "D": 40,
+    "dIn": 41.9,
+    "C": 110,
+    "w": {
+     "length": 306.3457127449282,
+     "Q": 0.86,
+     "v": 0.6237068645497804,
+     "hf": 5.837485478385132,
+     "dIn": 41.9,
+     "hfkm": 19.055221716928617,
+     "C": 110,
+     "status": "ok",
+     "up": "J1",
+     "down": "J2",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P3",
+    "from": "J1",
+    "to": "J3",
+    "material": "PVC",
+    "D": 110,
+    "dIn": 101.53846153846153,
+    "C": 140,
+    "w": {
+     "length": 371.3576181405508,
+     "Q": 2.19,
+     "v": 0.27045379241387235,
+     "hf": 0.34319362845911866,
+     "dIn": 101.53846153846153,
+     "hfkm": 0.924159386247537,
+     "C": 140,
+     "status": "low",
+     "up": "J1",
+     "down": "J3",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P4",
+    "from": "J3",
+    "to": "J4",
+    "material": "PVC",
+    "D": 75,
+    "dIn": 69.23076923076923,
+    "C": 140,
+    "w": {
+     "length": 294.9802290148349,
+     "Q": 1.48,
+     "v": 0.39316379620883823,
+     "hf": 0.8519144946543035,
+     "dIn": 69.23076923076923,
+     "hfkm": 2.88803930181863,
+     "C": 140,
+     "status": "low",
+     "up": "J3",
+     "down": "J4",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P5",
+    "from": "J4",
+    "to": "J5",
+    "material": "HDPE",
+    "D": 40,
+    "dIn": 35.294117647058826,
+    "C": 130,
+    "w": {
+     "length": 236.26052707664232,
+     "Q": 1.02,
+     "v": 1.0425709805473091,
+     "hf": 10.450803337701972,
+     "dIn": 35.294117647058826,
+     "hfkm": 44.23423356840205,
+     "C": 130,
+     "status": "ok",
+     "up": "J4",
+     "down": "J5",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P6",
+    "from": "J1",
+    "to": "J6",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 203.9316033085574,
+     "Q": 0.38,
+     "v": 0.04380142938485135,
+     "hf": 0.00971725711288355,
+     "dIn": 105.1,
+     "hfkm": 0.04764958915259895,
+     "C": 110,
+     "status": "low",
+     "up": "J1",
+     "down": "J6",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P7",
+    "from": "R",
+    "to": "J7",
+    "material": "HDPE",
+    "D": 110,
+    "dIn": 97.05882352941177,
+    "C": 130,
+    "w": {
+     "length": 313.8184809163932,
+     "Q": 0.3,
+     "v": 0.040547242802034374,
+     "hf": 0.01043729237416869,
+     "dIn": 97.05882352941177,
+     "hfkm": 0.03325901120829582,
+     "C": 130,
+     "status": "low",
+     "up": "R",
+     "down": "J7",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P8",
+    "from": "R",
+    "to": "J8",
+    "material": "PVC",
+    "D": 40,
+    "dIn": 36.8,
+    "C": 140,
+    "w": {
+     "length": 224.03109361583537,
+     "Q": 0.6,
+     "v": 0.5641125109589863,
+     "hf": 2.6381582006033404,
+     "dIn": 36.8,
+     "hfkm": 11.775857350976503,
+     "C": 140,
+     "status": "low",
+     "up": "R",
+     "down": "J8",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P9",
+    "from": "J3",
+    "to": "J9",
+    "material": "PVC",
+    "D": 75,
+    "dIn": 69.23076923076923,
+    "C": 140,
+    "w": {
+     "length": 231.89308329749375,
+     "Q": 0.25,
+     "v": 0.0664128034136551,
+     "hf": 0.024862860500243472,
+     "dIn": 69.23076923076923,
+     "hfkm": 0.10721691284059176,
+     "C": 140,
+     "status": "low",
+     "up": "J3",
+     "down": "J9",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P10",
+    "from": "J2",
+    "to": "J10",
+    "material": "PVC",
+    "D": 63,
+    "dIn": 58.15384615384615,
+    "C": 140,
+    "w": {
+     "length": 272.17546688826144,
+     "Q": 0.43,
+     "v": 0.16189062056616604,
+     "hf": 0.18623908758814295,
+     "dIn": 58.15384615384615,
+     "hfkm": 0.6842611118385674,
+     "C": 140,
+     "status": "low",
+     "up": "J2",
+     "down": "J10",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P11",
+    "from": "J5",
+    "to": "J11",
+    "material": "HDPE",
+    "D": 75,
+    "dIn": 66.17647058823529,
+    "C": 130,
+    "w": {
+     "length": 472.5484625391873,
+     "Q": 0.47,
+     "v": 0.13664721174232267,
+     "hf": 0.23307000267231426,
+     "dIn": 66.17647058823529,
+     "hfkm": 0.49321925929022853,
+     "C": 130,
+     "status": "low",
+     "up": "J5",
+     "down": "J11",
+     "inTree": true
+    }
+   }
+  ]
+ },
+ {
+  "name": "Acak B (25 node)",
+  "nodes": [
+   {
+    "id": "R",
+    "type": "reservoir",
+    "elev": 650,
+    "head0": 653,
+    "demand": 0,
+    "w": {
+     "head": 653,
+     "pressure": 3,
+     "status": "src",
+     "cumQ": 8.95,
+     "dist": 0,
+     "source": "R",
+     "trans": false
+    }
+   },
+   {
+    "id": "J1",
+    "type": "junction",
+    "elev": 640.8475100839731,
+    "head0": null,
+    "demand": 0.58,
+    "w": {
+     "head": 651.7499789196302,
+     "pressure": 10.902468835657032,
+     "status": "ok",
+     "cumQ": 2.6900000000000004,
+     "dist": 243.3963095061928,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P1",
+     "trans": false
+    }
+   },
+   {
+    "id": "J2",
+    "type": "junction",
+    "elev": 647.299044097913,
+    "head0": null,
+    "demand": 0.65,
+    "w": {
+     "head": 651.9004582693971,
+     "pressure": 4.601414171484066,
+     "status": "low",
+     "cumQ": 2.06,
+     "dist": 144.41584003929376,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P2",
+     "trans": false
+    }
+   },
+   {
+    "id": "J3",
+    "type": "junction",
+    "elev": 646.7598443006909,
+    "head0": null,
+    "demand": 0.6,
+    "w": {
+     "head": 652.7537771219536,
+     "pressure": 5.993932821262661,
+     "status": "low",
+     "cumQ": 1.6800000000000002,
+     "dist": 329.4243321607801,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P3",
+     "trans": false
+    }
+   },
+   {
+    "id": "J4",
+    "type": "junction",
+    "elev": 642.281050085221,
+    "head0": null,
+    "demand": 0.06,
+    "w": {
+     "head": 592.1006697637382,
+     "pressure": -50.180380321482744,
+     "status": "neg",
+     "cumQ": 1.08,
+     "dist": 728.881797450292,
+     "source": "R",
+     "parent": "J3",
+     "parentPipe": "P4",
+     "trans": false
+    }
+   },
+   {
+    "id": "J5",
+    "type": "junction",
+    "elev": 641.3296600078836,
+    "head0": null,
+    "demand": 0.34,
+    "w": {
+     "head": 637.7941796197955,
+     "pressure": -3.5354803880881036,
+     "status": "neg",
+     "cumQ": 1.9400000000000002,
+     "dist": 176.87977517302534,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P5",
+     "trans": false
+    }
+   },
+   {
+    "id": "J6",
+    "type": "junction",
+    "elev": 631.2811644195025,
+    "head0": null,
+    "demand": 0.12,
+    "w": {
+     "head": 622.9090213104901,
+     "pressure": -8.372143109012427,
+     "status": "neg",
+     "cumQ": 0.78,
+     "dist": 412.5476425332507,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P6",
+     "trans": false
+    }
+   },
+   {
+    "id": "J7",
+    "type": "junction",
+    "elev": 629.0921895592902,
+    "head0": null,
+    "demand": 0.59,
+    "w": {
+     "head": 622.8547799219981,
+     "pressure": -6.237409637292103,
+     "status": "neg",
+     "cumQ": 0.59,
+     "dist": 878.5972032245161,
+     "source": "R",
+     "parent": "J6",
+     "parentPipe": "P7",
+     "trans": false
+    }
+   },
+   {
+    "id": "J8",
+    "type": "junction",
+    "elev": 638.2760592830722,
+    "head0": null,
+    "demand": 0.18,
+    "w": {
+     "head": 580.0387045055104,
+     "pressure": -58.23735477756179,
+     "status": "neg",
+     "cumQ": 0.78,
+     "dist": 919.851726658408,
+     "source": "R",
+     "parent": "J4",
+     "parentPipe": "P8",
+     "trans": false
+    }
+   },
+   {
+    "id": "J9",
+    "type": "junction",
+    "elev": 624.7974793728429,
+    "head0": null,
+    "demand": 0.07,
+    "w": {
+     "head": 622.9081724878214,
+     "pressure": -1.8893068850214831,
+     "status": "neg",
+     "cumQ": 0.07,
+     "dist": 790.4804811907466,
+     "source": "R",
+     "parent": "J6",
+     "parentPipe": "P9",
+     "trans": false
+    }
+   },
+   {
+    "id": "J10",
+    "type": "junction",
+    "elev": 638.5139616683656,
+    "head0": null,
+    "demand": 0.58,
+    "w": {
+     "head": 651.2337356489311,
+     "pressure": 12.719773980565492,
+     "status": "ok",
+     "cumQ": 2.1100000000000003,
+     "dist": 696.2765337824509,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P10",
+     "trans": false
+    }
+   },
+   {
+    "id": "J11",
+    "type": "junction",
+    "elev": 634.280038362965,
+    "head0": null,
+    "demand": 0.49,
+    "w": {
+     "head": 649.0753080528358,
+     "pressure": 14.795269689870793,
+     "status": "ok",
+     "cumQ": 1.03,
+     "dist": 951.0072186413458,
+     "source": "R",
+     "parent": "J10",
+     "parentPipe": "P11",
+     "trans": false
+    }
+   },
+   {
+    "id": "J12",
+    "type": "junction",
+    "elev": 640.2700583810313,
+    "head0": null,
+    "demand": 0.26,
+    "w": {
+     "head": 651.4091213710466,
+     "pressure": 11.139062990015304,
+     "status": "ok",
+     "cumQ": 1.41,
+     "dist": 596.6463401621135,
+     "source": "R",
+     "parent": "J2",
+     "parentPipe": "P12",
+     "trans": false
+    }
+   },
+   {
+    "id": "J13",
+    "type": "junction",
+    "elev": 638.4934136581111,
+    "head0": null,
+    "demand": 0.24,
+    "w": {
+     "head": 592.0954599346786,
+     "pressure": -46.397953723432465,
+     "status": "neg",
+     "cumQ": 0.24,
+     "dist": 984.959824266854,
+     "source": "R",
+     "parent": "J4",
+     "parentPipe": "P13",
+     "trans": false
+    }
+   },
+   {
+    "id": "J14",
+    "type": "junction",
+    "elev": 634.4802119017021,
+    "head0": null,
+    "demand": 0.44,
+    "w": {
+     "head": 579.5645838510486,
+     "pressure": -54.91562805065348,
+     "status": "neg",
+     "cumQ": 0.44,
+     "dist": 1384.5166051441524,
+     "source": "R",
+     "parent": "J8",
+     "parentPipe": "P14",
+     "trans": false
+    }
+   },
+   {
+    "id": "J15",
+    "type": "junction",
+    "elev": 631.9374096514366,
+    "head0": null,
+    "demand": 0.16,
+    "w": {
+     "head": 579.5555494842127,
+     "pressure": -52.38186016722386,
+     "status": "neg",
+     "cumQ": 0.16,
+     "dist": 1394.3120157294395,
+     "source": "R",
+     "parent": "J8",
+     "parentPipe": "P15",
+     "trans": false
+    }
+   },
+   {
+    "id": "J16",
+    "type": "junction",
+    "elev": 631.9533134670711,
+    "head0": null,
+    "demand": 0.5,
+    "w": {
+     "head": 651.1833478254092,
+     "pressure": 19.230034358338116,
+     "status": "ok",
+     "cumQ": 0.5,
+     "dist": 1012.6262270656633,
+     "source": "R",
+     "parent": "J10",
+     "parentPipe": "P16",
+     "trans": false
+    }
+   },
+   {
+    "id": "J17",
+    "type": "junction",
+    "elev": 646.1751944800724,
+    "head0": null,
+    "demand": 0.48,
+    "w": {
+     "head": 649.6497613477756,
+     "pressure": 3.4745668677031745,
+     "status": "low",
+     "cumQ": 0.48,
+     "dist": 305.9045836925729,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P17",
+     "trans": false
+    }
+   },
+   {
+    "id": "J18",
+    "type": "junction",
+    "elev": 625.3241029909458,
+    "head0": null,
+    "demand": 0.54,
+    "w": {
+     "head": 649.0651074698061,
+     "pressure": 23.741004478860305,
+     "status": "ok",
+     "cumQ": 0.54,
+     "dist": 1062.676009223716,
+     "source": "R",
+     "parent": "J11",
+     "parentPipe": "P18",
+     "trans": false
+    }
+   },
+   {
+    "id": "J19",
+    "type": "junction",
+    "elev": 631.4122366767433,
+    "head0": null,
+    "demand": 0.41,
+    "w": {
+     "head": 651.375521576954,
+     "pressure": 19.963284900210738,
+     "status": "ok",
+     "cumQ": 1.15,
+     "dist": 687.3498883090374,
+     "source": "R",
+     "parent": "J12",
+     "parentPipe": "P19",
+     "trans": false
+    }
+   },
+   {
+    "id": "J20",
+    "type": "junction",
+    "elev": 647.0258961375923,
+    "head0": null,
+    "demand": 0.1,
+    "w": {
+     "head": 652.9968158353753,
+     "pressure": 5.970919697782961,
+     "status": "low",
+     "cumQ": 0.1,
+     "dist": 113.41766955573048,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P20",
+     "trans": false
+    }
+   },
+   {
+    "id": "J21",
+    "type": "junction",
+    "elev": 627.5922762908004,
+    "head0": null,
+    "demand": 0.45,
+    "w": {
+     "head": 651.0135328262722,
+     "pressure": 23.421256535471798,
+     "status": "ok",
+     "cumQ": 0.74,
+     "dist": 822.8074515746171,
+     "source": "R",
+     "parent": "J19",
+     "parentPipe": "P21",
+     "trans": false
+    }
+   },
+   {
+    "id": "J22",
+    "type": "junction",
+    "elev": 618.623181749891,
+    "head0": null,
+    "demand": 0.29,
+    "w": {
+     "head": 647.3443509872237,
+     "pressure": 28.721169237332674,
+     "status": "ok",
+     "cumQ": 0.29,
+     "dist": 1185.8138342219481,
+     "source": "R",
+     "parent": "J21",
+     "parentPipe": "P22",
+     "trans": false
+    }
+   },
+   {
+    "id": "J23",
+    "type": "junction",
+    "elev": 637.9577715187137,
+    "head0": null,
+    "demand": 0.61,
+    "w": {
+     "head": 618.2920327415469,
+     "pressure": -19.66573877716678,
+     "status": "neg",
+     "cumQ": 0.61,
+     "dist": 663.6877526681942,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P23",
+     "trans": false
+    }
+   },
+   {
+    "id": "J24",
+    "type": "junction",
+    "elev": 638.6269495597235,
+    "head0": null,
+    "demand": 0.21,
+    "w": {
+     "head": 637.7666936310906,
+     "pressure": -0.8602559286329097,
+     "status": "neg",
+     "cumQ": 0.21,
+     "dist": 328.3484935916447,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P24",
+     "trans": false
+    }
+   }
+  ],
+  "pipes": [
+   {
+    "id": "P1",
+    "from": "R",
+    "to": "J1",
+    "material": "HDPE",
+    "D": 90,
+    "dIn": 79.41176470588235,
+    "C": 130,
+    "w": {
+     "length": 243.3963095061928,
+     "Q": 2.6900000000000004,
+     "v": 0.5431161341413242,
+     "hf": 1.2500210803698737,
+     "dIn": 79.41176470588235,
+     "hfkm": 5.13574377074961,
+     "C": 130,
+     "status": "low",
+     "up": "R",
+     "down": "J1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P2",
+    "from": "R",
+    "to": "J2",
+    "material": "HDPE",
+    "D": 75,
+    "dIn": 66.17647058823529,
+    "C": 130,
+    "w": {
+     "length": 144.41584003929376,
+     "Q": 2.06,
+     "v": 0.5989218216791165,
+     "hf": 1.0995417306029824,
+     "dIn": 66.17647058823529,
+     "hfkm": 7.613719729801183,
+     "C": 130,
+     "status": "low",
+     "up": "R",
+     "down": "J2",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P3",
+    "from": "R",
+    "to": "J3",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 329.4243321607801,
+     "Q": 1.6800000000000002,
+     "v": 0.1936484246488165,
+     "hf": 0.24622287804636847,
+     "dIn": 105.1,
+     "hfkm": 0.7474337928571589,
+     "C": 110,
+     "status": "low",
+     "up": "R",
+     "down": "J3",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P4",
+    "from": "J3",
+    "to": "J4",
+    "material": "HDPE",
+    "D": 32,
+    "dIn": 28,
+    "C": 130,
+    "w": {
+     "length": 399.45746528951184,
+     "Q": 1.08,
+     "v": 1.7539524340739483,
+     "hf": 60.65310735821539,
+     "dIn": 28,
+     "hfkm": 151.83871282579807,
+     "C": 130,
+     "status": "ok",
+     "up": "J3",
+     "down": "J4",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P5",
+    "from": "R",
+    "to": "J5",
+    "material": "GIP",
+    "D": 40,
+    "dIn": 41.9,
+    "C": 110,
+    "w": {
+     "length": 176.87977517302534,
+     "Q": 1.9400000000000002,
+     "v": 1.4069666479378768,
+     "hf": 15.205820380204514,
+     "dIn": 41.9,
+     "hfkm": 85.9669816140938,
+     "C": 110,
+     "status": "ok",
+     "up": "R",
+     "down": "J5",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P6",
+    "from": "J5",
+    "to": "J6",
+    "material": "PVC",
+    "D": 32,
+    "dIn": 28.8,
+    "C": 140,
+    "w": {
+     "length": 235.66786736022542,
+     "Q": 0.78,
+     "v": 1.1973462153904164,
+     "hf": 14.88515830930549,
+     "dIn": 28.8,
+     "hfkm": 63.16159464604938,
+     "C": 140,
+     "status": "ok",
+     "up": "J5",
+     "down": "J6",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P7",
+    "from": "J6",
+    "to": "J7",
+    "material": "HDPE",
+    "D": 110,
+    "dIn": 97.05882352941177,
+    "C": 130,
+    "w": {
+     "length": 466.0495606912653,
+     "Q": 0.59,
+     "v": 0.07974291084400094,
+     "hf": 0.05424138849200027,
+     "dIn": 97.05882352941177,
+     "hfkm": 0.11638545139179413,
+     "C": 130,
+     "status": "low",
+     "up": "J6",
+     "down": "J7",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P8",
+    "from": "J4",
+    "to": "J8",
+    "material": "PVC",
+    "D": 32,
+    "dIn": 28.8,
+    "C": 140,
+    "w": {
+     "length": 190.96992920811599,
+     "Q": 0.78,
+     "v": 1.1973462153904164,
+     "hf": 12.061965258227769,
+     "dIn": 28.8,
+     "hfkm": 63.16159464604938,
+     "C": 140,
+     "status": "ok",
+     "up": "J4",
+     "down": "J8",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P9",
+    "from": "J6",
+    "to": "J9",
+    "material": "HDPE",
+    "D": 110,
+    "dIn": 97.05882352941177,
+    "C": 130,
+    "w": {
+     "length": 377.9328386574959,
+     "Q": 0.07,
+     "v": 0.00946102332047469,
+     "hf": 0.0008488226686985021,
+     "dIn": 97.05882352941177,
+     "hfkm": 0.0022459616679876638,
+     "C": 130,
+     "status": "low",
+     "up": "J6",
+     "down": "J9",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P10",
+    "from": "J1",
+    "to": "J10",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 452.8802242762581,
+     "Q": 2.1100000000000003,
+     "v": 0.24321320000535884,
+     "hf": 0.5162432706990974,
+     "dIn": 105.1,
+     "hfkm": 1.139911267982829,
+     "C": 110,
+     "status": "low",
+     "up": "J1",
+     "down": "J10",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P11",
+    "from": "J10",
+    "to": "J11",
+    "material": "GIP",
+    "D": 50,
+    "dIn": 53,
+    "C": 110,
+    "w": {
+     "length": 254.73068485889502,
+     "Q": 1.03,
+     "v": 0.4668696087850544,
+     "hf": 2.1584275960952617,
+     "dIn": 53,
+     "hfkm": 8.473370992940628,
+     "C": 110,
+     "status": "low",
+     "up": "J10",
+     "down": "J11",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P12",
+    "from": "J2",
+    "to": "J12",
+    "material": "PVC",
+    "D": 90,
+    "dIn": 83.07692307692308,
+    "C": 140,
+    "w": {
+     "length": 452.2305001228197,
+     "Q": 1.41,
+     "v": 0.26011681337014914,
+     "hf": 0.4913368983504926,
+     "dIn": 83.07692307692308,
+     "hfkm": 1.0864744819667231,
+     "C": 140,
+     "status": "low",
+     "up": "J2",
+     "down": "J12",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P13",
+    "from": "J4",
+    "to": "J13",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 256.07802681656204,
+     "Q": 0.24,
+     "v": 0.027664060664116637,
+     "hf": 0.005209829059618946,
+     "dIn": 105.1,
+     "hfkm": 0.020344693859074975,
+     "C": 110,
+     "status": "low",
+     "up": "J4",
+     "down": "J13",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P14",
+    "from": "J8",
+    "to": "J14",
+    "material": "HDPE",
+    "D": 63,
+    "dIn": 55.588235294117645,
+    "C": 130,
+    "w": {
+     "length": 464.6648784857444,
+     "Q": 0.44,
+     "v": 0.18129967303101627,
+     "hf": 0.4741206544618123,
+     "dIn": 55.588235294117645,
+     "hfkm": 1.0203496679303212,
+     "C": 130,
+     "status": "low",
+     "up": "J8",
+     "down": "J14",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P15",
+    "from": "J8",
+    "to": "J15",
+    "material": "PVC",
+    "D": 40,
+    "dIn": 36.8,
+    "C": 140,
+    "w": {
+     "length": 474.46028907103147,
+     "Q": 0.16,
+     "v": 0.15043000292239636,
+     "hf": 0.48315502129767185,
+     "dIn": 36.8,
+     "hfkm": 1.0183255214965707,
+     "C": 140,
+     "status": "low",
+     "up": "J8",
+     "down": "J15",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P16",
+    "from": "J10",
+    "to": "J16",
+    "material": "PVC",
+    "D": 90,
+    "dIn": 83.07692307692308,
+    "C": 140,
+    "w": {
+     "length": 316.34969328321245,
+     "Q": 0.5,
+     "v": 0.09224000474118763,
+     "hf": 0.05038782352186449,
+     "dIn": 83.07692307692308,
+     "hfkm": 0.1592788758507021,
+     "C": 140,
+     "status": "low",
+     "up": "J10",
+     "down": "J16",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P17",
+    "from": "R",
+    "to": "J17",
+    "material": "HDPE",
+    "D": 40,
+    "dIn": 35.294117647058826,
+    "C": 130,
+    "w": {
+     "length": 305.9045836925729,
+     "Q": 0.48,
+     "v": 0.490621637904616,
+     "hf": 3.350238652224394,
+     "dIn": 35.294117647058826,
+     "hfkm": 10.951907329349819,
+     "C": 130,
+     "status": "low",
+     "up": "R",
+     "down": "J17",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P18",
+    "from": "J11",
+    "to": "J18",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 111.66879058237006,
+     "Q": 0.54,
+     "v": 0.06224413649426244,
+     "hf": 0.010200583029691844,
+     "dIn": 105.1,
+     "hfkm": 0.09134676731514886,
+     "C": 110,
+     "status": "low",
+     "up": "J11",
+     "down": "J18",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P19",
+    "from": "J12",
+    "to": "J19",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 90.70354814692392,
+     "Q": 1.15,
+     "v": 0.13255695734889222,
+     "hf": 0.033599794092552544,
+     "dIn": 105.1,
+     "hfkm": 0.370435278211242,
+     "C": 110,
+     "status": "low",
+     "up": "J12",
+     "down": "J19",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P20",
+    "from": "R",
+    "to": "J20",
+    "material": "HDPE",
+    "D": 75,
+    "dIn": 66.17647058823529,
+    "C": 130,
+    "w": {
+     "length": 113.41766955573048,
+     "Q": 0.1,
+     "v": 0.02907387483879206,
+     "hf": 0.0031841646247638177,
+     "dIn": 66.17647058823529,
+     "hfkm": 0.028074678639021078,
+     "C": 130,
+     "status": "low",
+     "up": "R",
+     "down": "J20",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P21",
+    "from": "J19",
+    "to": "J21",
+    "material": "HDPE",
+    "D": 63,
+    "dIn": 55.588235294117645,
+    "C": 130,
+    "w": {
+     "length": 135.4575632655796,
+     "Q": 0.74,
+     "v": 0.30491308646125465,
+     "hf": 0.3619887506818414,
+     "dIn": 55.588235294117645,
+     "hfkm": 2.672340635362842,
+     "C": 130,
+     "status": "low",
+     "up": "J19",
+     "down": "J21",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P22",
+    "from": "J21",
+    "to": "J22",
+    "material": "PVC",
+    "D": 32,
+    "dIn": 28.8,
+    "C": 140,
+    "w": {
+     "length": 363.0063826473311,
+     "Q": 0.29,
+     "v": 0.4451671826451548,
+     "hf": 3.6691818390484894,
+     "dIn": 28.8,
+     "hfkm": 10.107761225270748,
+     "C": 140,
+     "status": "low",
+     "up": "J21",
+     "down": "J22",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P23",
+    "from": "J5",
+    "to": "J23",
+    "material": "PVC",
+    "D": 32,
+    "dIn": 28.8,
+    "C": 140,
+    "w": {
+     "length": 486.8079774951688,
+     "Q": 0.61,
+     "v": 0.9363861428053256,
+     "hf": 19.502146878248645,
+     "dIn": 28.8,
+     "hfkm": 40.06127216442789,
+     "C": 140,
+     "status": "ok",
+     "up": "J5",
+     "down": "J23",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P24",
+    "from": "J5",
+    "to": "J24",
+    "material": "PVC",
+    "D": 63,
+    "dIn": 58.15384615384615,
+    "C": 140,
+    "w": {
+     "length": 151.46871841861935,
+     "Q": 0.21,
+     "v": 0.07906286120673225,
+     "hf": 0.02748598870492335,
+     "dIn": 58.15384615384615,
+     "hfkm": 0.18146313636165703,
+     "C": 140,
+     "status": "low",
+     "up": "J5",
+     "down": "J24",
+     "inTree": true
+    }
+   }
+  ]
+ },
+ {
+  "name": "Acak C (40 node)",
+  "nodes": [
+   {
+    "id": "R",
+    "type": "reservoir",
+    "elev": 420,
+    "head0": 423,
+    "demand": 0,
+    "w": {
+     "head": 423,
+     "pressure": 3,
+     "status": "src",
+     "cumQ": 14.31,
+     "dist": 0,
+     "source": "R",
+     "trans": false
+    }
+   },
+   {
+    "id": "J1",
+    "type": "junction",
+    "elev": 414.27923900321093,
+    "head0": null,
+    "demand": 0.24,
+    "w": {
+     "head": -114.91180109256379,
+     "pressure": -529.1910400957747,
+     "status": "neg",
+     "cumQ": 6.98,
+     "dist": 111.79158436615563,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P1",
+     "trans": false
+    }
+   },
+   {
+    "id": "J2",
+    "type": "junction",
+    "elev": 409.683405894173,
+    "head0": null,
+    "demand": 0.52,
+    "w": {
+     "head": 414.56284222152493,
+     "pressure": 4.879436327351925,
+     "status": "low",
+     "cumQ": 5.18,
+     "dist": 178.15908900689513,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P2",
+     "trans": false
+    }
+   },
+   {
+    "id": "J3",
+    "type": "junction",
+    "elev": 401.72683128422443,
+    "head0": null,
+    "demand": 0.39,
+    "w": {
+     "head": 398.2725267022968,
+     "pressure": -3.4543045819276585,
+     "status": "neg",
+     "cumQ": 2.08,
+     "dist": 595.060500936598,
+     "source": "R",
+     "parent": "J2",
+     "parentPipe": "P3",
+     "trans": false
+    }
+   },
+   {
+    "id": "J4",
+    "type": "junction",
+    "elev": 405.78337501445014,
+    "head0": null,
+    "demand": 0.45,
+    "w": {
+     "head": -116.82741855020029,
+     "pressure": -522.6107935646504,
+     "status": "neg",
+     "cumQ": 3.5500000000000003,
+     "dist": 430.66634274099016,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P4",
+     "trans": false
+    }
+   },
+   {
+    "id": "J5",
+    "type": "junction",
+    "elev": 399.84082824775993,
+    "head0": null,
+    "demand": 0.34,
+    "w": {
+     "head": -117.9721040623368,
+     "pressure": -517.8129323100967,
+     "status": "neg",
+     "cumQ": 3.1,
+     "dist": 923.1415704919272,
+     "source": "R",
+     "parent": "J4",
+     "parentPipe": "P5",
+     "trans": false
+    }
+   },
+   {
+    "id": "J6",
+    "type": "junction",
+    "elev": 399.7395506304407,
+    "head0": null,
+    "demand": 0.48,
+    "w": {
+     "head": 414.5090928934395,
+     "pressure": 14.769542262998812,
+     "status": "ok",
+     "cumQ": 0.91,
+     "dist": 401.994318608753,
+     "source": "R",
+     "parent": "J2",
+     "parentPipe": "P6",
+     "trans": false
+    }
+   },
+   {
+    "id": "J7",
+    "type": "junction",
+    "elev": 390.6544810671613,
+    "head0": null,
+    "demand": 0.11,
+    "w": {
+     "head": -117.97518747942965,
+     "pressure": -508.629668546591,
+     "status": "neg",
+     "cumQ": 0.11,
+     "dist": 1101.7743612148877,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P7",
+     "trans": false
+    }
+   },
+   {
+    "id": "J8",
+    "type": "junction",
+    "elev": 393.8536295531568,
+    "head0": null,
+    "demand": 0.57,
+    "w": {
+     "head": -118.22861743093425,
+     "pressure": -512.0822469840911,
+     "status": "neg",
+     "cumQ": 2.09,
+     "dist": 1225.8013448713027,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P8",
+     "trans": false
+    }
+   },
+   {
+    "id": "J9",
+    "type": "junction",
+    "elev": 404.1276441491803,
+    "head0": null,
+    "demand": 0.16,
+    "w": {
+     "head": 397.616718713591,
+     "pressure": -6.510925435589286,
+     "status": "neg",
+     "cumQ": 1.51,
+     "dist": 438.62364959592605,
+     "source": "R",
+     "parent": "J2",
+     "parentPipe": "P9",
+     "trans": false
+    }
+   },
+   {
+    "id": "J10",
+    "type": "junction",
+    "elev": 385.7078631216232,
+    "head0": null,
+    "demand": 0.58,
+    "w": {
+     "head": -125.11649394285814,
+     "pressure": -510.8243570644813,
+     "status": "neg",
+     "cumQ": 1.52,
+     "dist": 1446.3131285142642,
+     "source": "R",
+     "parent": "J8",
+     "parentPipe": "P10",
+     "trans": false
+    }
+   },
+   {
+    "id": "J11",
+    "type": "junction",
+    "elev": 380.1323770611233,
+    "head0": null,
+    "demand": 0.06,
+    "w": {
+     "head": -125.13599719676048,
+     "pressure": -505.2683742578838,
+     "status": "neg",
+     "cumQ": 0.69,
+     "dist": 1581.912794306603,
+     "source": "R",
+     "parent": "J10",
+     "parentPipe": "P11",
+     "trans": false
+    }
+   },
+   {
+    "id": "J12",
+    "type": "junction",
+    "elev": 401.3848650154587,
+    "head0": null,
+    "demand": 0.16,
+    "w": {
+     "head": 414.5310578382327,
+     "pressure": 13.146192822774026,
+     "status": "ok",
+     "cumQ": 0.16,
+     "dist": 652.257814339275,
+     "source": "R",
+     "parent": "J2",
+     "parentPipe": "P12",
+     "trans": false
+    }
+   },
+   {
+    "id": "J13",
+    "type": "junction",
+    "elev": 411.23989096481347,
+    "head0": null,
+    "demand": 0.13,
+    "w": {
+     "head": 422.3148600852735,
+     "pressure": 11.074969120460025,
+     "status": "ok",
+     "cumQ": 1.66,
+     "dist": 326.1647060938716,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P13",
+     "trans": false
+    }
+   },
+   {
+    "id": "J14",
+    "type": "junction",
+    "elev": 402.24278723413255,
+    "head0": null,
+    "demand": 0.47,
+    "w": {
+     "head": 422.0025716048857,
+     "pressure": 19.759784370753152,
+     "status": "ok",
+     "cumQ": 0.96,
+     "dist": 653.488669549033,
+     "source": "R",
+     "parent": "J13",
+     "parentPipe": "P14",
+     "trans": false
+    }
+   },
+   {
+    "id": "J15",
+    "type": "junction",
+    "elev": 410.2553066966382,
+    "head0": null,
+    "demand": 0.4,
+    "w": {
+     "head": -120.33468235545,
+     "pressure": -530.5899890520882,
+     "status": "neg",
+     "cumQ": 0.5900000000000001,
+     "dist": 449.6861298421541,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P15",
+     "trans": false
+    }
+   },
+   {
+    "id": "J16",
+    "type": "junction",
+    "elev": 399.9723428063897,
+    "head0": null,
+    "demand": 0.59,
+    "w": {
+     "head": 397.30119508348,
+     "pressure": -2.671147722909666,
+     "status": "neg",
+     "cumQ": 0.59,
+     "dist": 858.4784959272382,
+     "source": "R",
+     "parent": "J9",
+     "parentPipe": "P16",
+     "trans": false
+    }
+   },
+   {
+    "id": "J17",
+    "type": "junction",
+    "elev": 390.4975120818696,
+    "head0": null,
+    "demand": 0.11,
+    "w": {
+     "head": 414.3419926199075,
+     "pressure": 23.844480538037885,
+     "status": "ok",
+     "cumQ": 0.43000000000000005,
+     "dist": 756.2722569950686,
+     "source": "R",
+     "parent": "J6",
+     "parentPipe": "P17",
+     "trans": false
+    }
+   },
+   {
+    "id": "J18",
+    "type": "junction",
+    "elev": 393.1273267600347,
+    "head0": null,
+    "demand": 0.49,
+    "w": {
+     "head": 421.9687167800399,
+     "pressure": 28.841390020005235,
+     "status": "ok",
+     "cumQ": 0.49,
+     "dist": 1097.1764740463552,
+     "source": "R",
+     "parent": "J14",
+     "parentPipe": "P18",
+     "trans": false
+    }
+   },
+   {
+    "id": "J19",
+    "type": "junction",
+    "elev": 398.5996498808263,
+    "head0": null,
+    "demand": 0.62,
+    "w": {
+     "head": 378.22915607456827,
+     "pressure": -20.370493806258025,
+     "status": "neg",
+     "cumQ": 1.69,
+     "dist": 738.8120695813698,
+     "source": "R",
+     "parent": "J3",
+     "parentPipe": "P19",
+     "trans": false
+    }
+   },
+   {
+    "id": "J20",
+    "type": "junction",
+    "elev": 404.4514524119215,
+    "head0": null,
+    "demand": 0.62,
+    "w": {
+     "head": -136.13071024882095,
+     "pressure": -540.5821626607424,
+     "status": "neg",
+     "cumQ": 1.03,
+     "dist": 582.8963793976125,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P20",
+     "trans": false
+    }
+   },
+   {
+    "id": "J21",
+    "type": "junction",
+    "elev": 416.72589349827075,
+    "head0": null,
+    "demand": 0.24,
+    "w": {
+     "head": 420.4475651364104,
+     "pressure": 3.7216716381396395,
+     "status": "low",
+     "cumQ": 0.49,
+     "dist": 315.39522023486256,
+     "source": "R",
+     "parent": "R",
+     "parentPipe": "P21",
+     "trans": false
+    }
+   },
+   {
+    "id": "J22",
+    "type": "junction",
+    "elev": 406.6150983751822,
+    "head0": null,
+    "demand": 0.33,
+    "w": {
+     "head": -115.19506597655229,
+     "pressure": -521.8101643517344,
+     "status": "neg",
+     "cumQ": 1.57,
+     "dist": 231.18345123379123,
+     "source": "R",
+     "parent": "J1",
+     "parentPipe": "P22",
+     "trans": false
+    }
+   },
+   {
+    "id": "J23",
+    "type": "junction",
+    "elev": 372.6120172616151,
+    "head0": null,
+    "demand": 0.63,
+    "w": {
+     "head": -125.16530347976838,
+     "pressure": -497.7773207413835,
+     "status": "neg",
+     "cumQ": 0.63,
+     "dist": 1823.0599268802837,
+     "source": "R",
+     "parent": "J11",
+     "parentPipe": "P23",
+     "trans": false
+    }
+   },
+   {
+    "id": "J24",
+    "type": "junction",
+    "elev": 386.95686896329596,
+    "head0": null,
+    "demand": 0.09,
+    "w": {
+     "head": 414.33703707500746,
+     "pressure": 27.380168111711498,
+     "status": "ok",
+     "cumQ": 0.09,
+     "dist": 1172.587630321102,
+     "source": "R",
+     "parent": "J17",
+     "parentPipe": "P24",
+     "trans": false
+    }
+   },
+   {
+    "id": "J25",
+    "type": "junction",
+    "elev": 379.25786625978446,
+    "head0": null,
+    "demand": 0.12,
+    "w": {
+     "head": -127.56914090897808,
+     "pressure": -506.8270071687625,
+     "status": "neg",
+     "cumQ": 0.25,
+     "dist": 1689.0682639019155,
+     "source": "R",
+     "parent": "J10",
+     "parentPipe": "P25",
+     "trans": false
+    }
+   },
+   {
+    "id": "J26",
+    "type": "junction",
+    "elev": 396.3683695110345,
+    "head0": null,
+    "demand": 0.13,
+    "w": {
+     "head": 384.6911261202099,
+     "pressure": -11.677243390824572,
+     "status": "neg",
+     "cumQ": 0.76,
+     "dist": 601.8168170748868,
+     "source": "R",
+     "parent": "J9",
+     "parentPipe": "P26",
+     "trans": false
+    }
+   },
+   {
+    "id": "J27",
+    "type": "junction",
+    "elev": 397.701737036324,
+    "head0": null,
+    "demand": 0.24,
+    "w": {
+     "head": -115.19657929976478,
+     "pressure": -512.8983163360888,
+     "status": "neg",
+     "cumQ": 0.24,
+     "dist": 329.47950796119585,
+     "source": "R",
+     "parent": "J22",
+     "parentPipe": "P27",
+     "trans": false
+    }
+   },
+   {
+    "id": "J28",
+    "type": "junction",
+    "elev": 402.76570314251154,
+    "head0": null,
+    "demand": 0.44,
+    "w": {
+     "head": -126.09048775160817,
+     "pressure": -528.8561908941197,
+     "status": "neg",
+     "cumQ": 0.44,
+     "dist": 729.2367353756274,
+     "source": "R",
+     "parent": "J22",
+     "parentPipe": "P28",
+     "trans": false
+    }
+   },
+   {
+    "id": "J29",
+    "type": "junction",
+    "elev": 395.5988030240866,
+    "head0": null,
+    "demand": 0.56,
+    "w": {
+     "head": -119.05008395880634,
+     "pressure": -514.6488869828929,
+     "status": "neg",
+     "cumQ": 0.56,
+     "dist": 1316.4060792592074,
+     "source": "R",
+     "parent": "J5",
+     "parentPipe": "P29",
+     "trans": false
+    }
+   },
+   {
+    "id": "J30",
+    "type": "junction",
+    "elev": 401.30612346823614,
+    "head0": null,
+    "demand": 0.57,
+    "w": {
+     "head": 422.1678199601724,
+     "pressure": 20.861696491936243,
+     "status": "ok",
+     "cumQ": 0.57,
+     "dist": 511.13677686229187,
+     "source": "R",
+     "parent": "J13",
+     "parentPipe": "P30",
+     "trans": false
+    }
+   },
+   {
+    "id": "J31",
+    "type": "junction",
+    "elev": 387.52213085094564,
+    "head0": null,
+    "demand": 0.63,
+    "w": {
+     "head": 380.20768205488633,
+     "pressure": -7.31444879605931,
+     "status": "neg",
+     "cumQ": 0.63,
+     "dist": 1020.5237805799109,
+     "source": "R",
+     "parent": "J26",
+     "parentPipe": "P31",
+     "trans": false
+    }
+   },
+   {
+    "id": "J32",
+    "type": "junction",
+    "elev": 403.148470894037,
+    "head0": null,
+    "demand": 0.56,
+    "w": {
+     "head": -115.28152423560086,
+     "pressure": -518.4299951296379,
+     "status": "neg",
+     "cumQ": 0.56,
+     "dist": 671.2278793800198,
+     "source": "R",
+     "parent": "J22",
+     "parentPipe": "P32",
+     "trans": false
+    }
+   },
+   {
+    "id": "J33",
+    "type": "junction",
+    "elev": 407.8723063766362,
+    "head0": null,
+    "demand": 0.19,
+    "w": {
+     "head": -122.91664912010809,
+     "pressure": -530.7889554967443,
+     "status": "neg",
+     "cumQ": 0.19,
+     "dist": 874.5181673530624,
+     "source": "R",
+     "parent": "J15",
+     "parentPipe": "P33",
+     "trans": false
+    }
+   },
+   {
+    "id": "J34",
+    "type": "junction",
+    "elev": 388.91863666284763,
+    "head0": null,
+    "demand": 0.57,
+    "w": {
+     "head": 375.1954739586301,
+     "pressure": -13.723162704217543,
+     "status": "neg",
+     "cumQ": 0.57,
+     "dist": 1079.821951210064,
+     "source": "R",
+     "parent": "J19",
+     "parentPipe": "P34",
+     "trans": false
+    }
+   },
+   {
+    "id": "J35",
+    "type": "junction",
+    "elev": 391.75573009846534,
+    "head0": null,
+    "demand": 0.5,
+    "w": {
+     "head": 377.5532318751337,
+     "pressure": -14.202498223331645,
+     "status": "neg",
+     "cumQ": 0.5,
+     "dist": 981.2288693118362,
+     "source": "R",
+     "parent": "J19",
+     "parentPipe": "P35",
+     "trans": false
+    }
+   },
+   {
+    "id": "J36",
+    "type": "junction",
+    "elev": 381.5525679204392,
+    "head0": null,
+    "demand": 0.23,
+    "w": {
+     "head": 414.2931236136026,
+     "pressure": 32.7405556931634,
+     "status": "ok",
+     "cumQ": 0.23,
+     "dist": 1128.4914491248142,
+     "source": "R",
+     "parent": "J17",
+     "parentPipe": "P36",
+     "trans": false
+    }
+   },
+   {
+    "id": "J37",
+    "type": "junction",
+    "elev": 399.60499543911084,
+    "head0": null,
+    "demand": 0.41,
+    "w": {
+     "head": -136.21615328922692,
+     "pressure": -535.8211487283378,
+     "status": "neg",
+     "cumQ": 0.41,
+     "dist": 901.6995185769124,
+     "source": "R",
+     "parent": "J20",
+     "parentPipe": "P37",
+     "trans": false
+    }
+   },
+   {
+    "id": "J38",
+    "type": "junction",
+    "elev": 413.6611584930966,
+    "head0": null,
+    "demand": 0.25,
+    "w": {
+     "head": 420.4447967542452,
+     "pressure": 6.78363826114861,
+     "status": "low",
+     "cumQ": 0.25,
+     "dist": 482.1187009435504,
+     "source": "R",
+     "parent": "J21",
+     "parentPipe": "P38",
+     "trans": false
+    }
+   },
+   {
+    "id": "J39",
+    "type": "junction",
+    "elev": 373.6742921237249,
+    "head0": null,
+    "demand": 0.13,
+    "w": {
+     "head": -128.24726708592658,
+     "pressure": -501.9215592096515,
+     "status": "neg",
+     "cumQ": 0.13,
+     "dist": 1914.3913560474778,
+     "source": "R",
+     "parent": "J25",
+     "parentPipe": "P39",
+     "trans": false
+    }
+   }
+  ],
+  "pipes": [
+   {
+    "id": "P1",
+    "from": "R",
+    "to": "J1",
+    "material": "HDPE",
+    "D": 32,
+    "dIn": 28,
+    "C": 130,
+    "w": {
+     "length": 111.79158436615563,
+     "Q": 6.98,
+     "v": 11.335729620218666,
+     "hf": 537.9118010925638,
+     "dIn": 28,
+     "hfkm": 4811.737879398138,
+     "C": 130,
+     "status": "high",
+     "up": "R",
+     "down": "J1",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P2",
+    "from": "R",
+    "to": "J2",
+    "material": "GIP",
+    "D": 63,
+    "dIn": 68.8,
+    "C": 110,
+    "w": {
+     "length": 178.15908900689513,
+     "Q": 5.18,
+     "v": 1.3933589190373477,
+     "hf": 8.437157778475042,
+     "dIn": 68.8,
+     "hfkm": 47.357436690465484,
+     "C": 110,
+     "status": "ok",
+     "up": "R",
+     "down": "J2",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P3",
+    "from": "J2",
+    "to": "J3",
+    "material": "PVC",
+    "D": 50,
+    "dIn": 46.15384615384615,
+    "C": 140,
+    "w": {
+     "length": 416.9014119297029,
+     "Q": 2.08,
+     "v": 1.2432476799036232,
+     "hf": 16.290315519228173,
+     "dIn": 46.15384615384615,
+     "hfkm": 39.07474298018212,
+     "C": 140,
+     "status": "ok",
+     "up": "J2",
+     "down": "J3",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P4",
+    "from": "J1",
+    "to": "J4",
+    "material": "PVC",
+    "D": 90,
+    "dIn": 83.07692307692308,
+    "C": 140,
+    "w": {
+     "length": 318.8747583748345,
+     "Q": 3.5500000000000003,
+     "v": 0.6549040336624322,
+     "hf": 1.9156174576364973,
+     "dIn": 83.07692307692308,
+     "hfkm": 6.007428958628031,
+     "C": 140,
+     "status": "ok",
+     "up": "J1",
+     "down": "J4",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P5",
+    "from": "J4",
+    "to": "J5",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 492.475227750937,
+     "Q": 3.1,
+     "v": 0.3573274502448399,
+     "hf": 1.1446855121365054,
+     "dIn": 105.1,
+     "hfkm": 2.324351454923161,
+     "C": 110,
+     "status": "low",
+     "up": "J4",
+     "down": "J5",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P6",
+    "from": "J2",
+    "to": "J6",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 223.8352296018579,
+     "Q": 0.91,
+     "v": 0.1048928966847756,
+     "hf": 0.053749328085407895,
+     "dIn": 105.1,
+     "hfkm": 0.24012899212073702,
+     "C": 110,
+     "status": "low",
+     "up": "J2",
+     "down": "J6",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P7",
+    "from": "J5",
+    "to": "J7",
+    "material": "GIP",
+    "D": 90,
+    "dIn": 80.8,
+    "C": 110,
+    "w": {
+     "length": 178.63279072296052,
+     "Q": 0.11,
+     "v": 0.021452607269028146,
+     "hf": 0.0030834170928479973,
+     "dIn": 80.8,
+     "hfkm": 0.017261204286003865,
+     "C": 110,
+     "status": "low",
+     "up": "J5",
+     "down": "J7",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P8",
+    "from": "J5",
+    "to": "J8",
+    "material": "PVC",
+    "D": 110,
+    "dIn": 101.53846153846153,
+    "C": 140,
+    "w": {
+     "length": 302.65977437937556,
+     "Q": 2.09,
+     "v": 0.25810430417579594,
+     "hf": 0.25651336859745555,
+     "dIn": 101.53846153846153,
+     "hfkm": 0.8475304295836923,
+     "C": 140,
+     "status": "low",
+     "up": "J5",
+     "down": "J8",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P9",
+    "from": "J2",
+    "to": "J9",
+    "material": "PVC",
+    "D": 40,
+    "dIn": 36.8,
+    "C": 140,
+    "w": {
+     "length": 260.4645605890309,
+     "Q": 1.51,
+     "v": 1.4196831525801157,
+     "hf": 16.946123507933933,
+     "dIn": 36.8,
+     "hfkm": 65.06114870142373,
+     "C": 140,
+     "status": "ok",
+     "up": "J2",
+     "down": "J9",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P10",
+    "from": "J8",
+    "to": "J10",
+    "material": "HDPE",
+    "D": 50,
+    "dIn": 44.11764705882353,
+    "C": 130,
+    "w": {
+     "length": 220.5117836429616,
+     "Q": 1.52,
+     "v": 0.9943265194866885,
+     "hf": 6.8878765119238885,
+     "dIn": 44.11764705882353,
+     "hfkm": 31.235865939374435,
+     "C": 130,
+     "status": "ok",
+     "up": "J8",
+     "down": "J10",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P11",
+    "from": "J10",
+    "to": "J11",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 135.59966579233884,
+     "Q": 0.69,
+     "v": 0.07953417440933533,
+     "hf": 0.019503253902341918,
+     "dIn": 105.1,
+     "hfkm": 0.14382966055543053,
+     "C": 110,
+     "status": "low",
+     "up": "J10",
+     "down": "J11",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P12",
+    "from": "J2",
+    "to": "J12",
+    "material": "HDPE",
+    "D": 75,
+    "dIn": 66.17647058823529,
+    "C": 130,
+    "w": {
+     "length": 474.0987253323799,
+     "Q": 0.16,
+     "v": 0.0465181997420673,
+     "hf": 0.03178438329223025,
+     "dIn": 66.17647058823529,
+     "hfkm": 0.06704169742271915,
+     "C": 130,
+     "status": "low",
+     "up": "J2",
+     "down": "J12",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P13",
+    "from": "R",
+    "to": "J13",
+    "material": "HDPE",
+    "D": 90,
+    "dIn": 79.41176470588235,
+    "C": 130,
+    "w": {
+     "length": 326.1647060938716,
+     "Q": 1.66,
+     "v": 0.33515716828051967,
+     "hf": 0.6851399147265153,
+     "dIn": 79.41176470588235,
+     "hfkm": 2.1005948894094297,
+     "C": 130,
+     "status": "low",
+     "up": "R",
+     "down": "J13",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P14",
+    "from": "J13",
+    "to": "J14",
+    "material": "GIP",
+    "D": 75,
+    "dIn": 80.8,
+    "C": 110,
+    "w": {
+     "length": 327.32396345516145,
+     "Q": 0.96,
+     "v": 0.18722275434788196,
+     "hf": 0.31228848038778334,
+     "dIn": 80.8,
+     "hfkm": 0.954065437468535,
+     "C": 110,
+     "status": "low",
+     "up": "J13",
+     "down": "J14",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P15",
+    "from": "J1",
+    "to": "J15",
+    "material": "HDPE",
+    "D": 40,
+    "dIn": 35.294117647058826,
+    "C": 130,
+    "w": {
+     "length": 337.8945454759985,
+     "Q": 0.5900000000000001,
+     "v": 0.6030557632577572,
+     "hf": 5.422881262886212,
+     "dIn": 35.294117647058826,
+     "hfkm": 16.049034633710633,
+     "C": 130,
+     "status": "ok",
+     "up": "J1",
+     "down": "J15",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P16",
+    "from": "J9",
+    "to": "J16",
+    "material": "HDPE",
+    "D": 75,
+    "dIn": 66.17647058823529,
+    "C": 130,
+    "w": {
+     "length": 419.85484633131216,
+     "Q": 0.59,
+     "v": 0.17153586154887313,
+     "hf": 0.3155236301109917,
+     "dIn": 66.17647058823529,
+     "hfkm": 0.7515064619785489,
+     "C": 130,
+     "status": "low",
+     "up": "J9",
+     "down": "J16",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P17",
+    "from": "J6",
+    "to": "J17",
+    "material": "GIP",
+    "D": 63,
+    "dIn": 68.8,
+    "C": 110,
+    "w": {
+     "length": 354.27793838631555,
+     "Q": 0.43000000000000005,
+     "v": 0.11566492957259837,
+     "hf": 0.16710027353203669,
+     "dIn": 68.8,
+     "hfkm": 0.4716643500104864,
+     "C": 110,
+     "status": "low",
+     "up": "J6",
+     "down": "J17",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P18",
+    "from": "J14",
+    "to": "J18",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 443.68780449732225,
+     "Q": 0.49,
+     "v": 0.05648079052257147,
+     "hf": 0.033854824845756665,
+     "dIn": 105.1,
+     "hfkm": 0.07630325761176289,
+     "C": 110,
+     "status": "low",
+     "up": "J14",
+     "down": "J18",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P19",
+    "from": "J3",
+    "to": "J19",
+    "material": "GIP",
+    "D": 32,
+    "dIn": 36,
+    "C": 110,
+    "w": {
+     "length": 143.7515686447718,
+     "Q": 1.69,
+     "v": 1.6603200853413773,
+     "hf": 20.04337062772852,
+     "dIn": 36,
+     "hfkm": 139.43062198686826,
+     "C": 110,
+     "status": "ok",
+     "up": "J3",
+     "down": "J19",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P20",
+    "from": "J1",
+    "to": "J20",
+    "material": "HDPE",
+    "D": 40,
+    "dIn": 35.294117647058826,
+    "C": 130,
+    "w": {
+     "length": 471.1047950314568,
+     "Q": 1.03,
+     "v": 1.052792264670322,
+     "hf": 21.21890915625716,
+     "dIn": 35.294117647058826,
+     "hfkm": 45.04074121096628,
+     "C": 130,
+     "status": "ok",
+     "up": "J1",
+     "down": "J20",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P21",
+    "from": "R",
+    "to": "J21",
+    "material": "PVC",
+    "D": 40,
+    "dIn": 36.8,
+    "C": 140,
+    "w": {
+     "length": 315.39522023486256,
+     "Q": 0.49,
+     "v": 0.46069188394983884,
+     "hf": 2.552434863589636,
+     "dIn": 36.8,
+     "hfkm": 8.092814030881435,
+     "C": 140,
+     "status": "low",
+     "up": "R",
+     "down": "J21",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P22",
+    "from": "J1",
+    "to": "J22",
+    "material": "GIP",
+    "D": 90,
+    "dIn": 80.8,
+    "C": 110,
+    "w": {
+     "length": 119.39186686763558,
+     "Q": 1.57,
+     "v": 0.30618721283976535,
+     "hf": 0.2832648839884935,
+     "dIn": 80.8,
+     "hfkm": 2.3725643246917025,
+     "C": 110,
+     "status": "low",
+     "up": "J1",
+     "down": "J22",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P23",
+    "from": "J11",
+    "to": "J23",
+    "material": "GIP",
+    "D": 110,
+    "dIn": 105.1,
+    "C": 110,
+    "w": {
+     "length": 241.1471325736806,
+     "Q": 0.63,
+     "v": 0.07261815924330618,
+     "hf": 0.029306283007899215,
+     "dIn": 105.1,
+     "hfkm": 0.12152863977739778,
+     "C": 110,
+     "status": "low",
+     "up": "J11",
+     "down": "J23",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P24",
+    "from": "J17",
+    "to": "J24",
+    "material": "GIP",
+    "D": 75,
+    "dIn": 80.8,
+    "C": 110,
+    "w": {
+     "length": 416.31537332603347,
+     "Q": 0.09,
+     "v": 0.017552133220113935,
+     "hf": 0.004955544900057953,
+     "dIn": 80.8,
+     "hfkm": 0.011903343516880084,
+     "C": 110,
+     "status": "low",
+     "up": "J17",
+     "down": "J24",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P25",
+    "from": "J10",
+    "to": "J25",
+    "material": "HDPE",
+    "D": 32,
+    "dIn": 28,
+    "C": 130,
+    "w": {
+     "length": 242.75513538765136,
+     "Q": 0.25,
+     "v": 0.4060075078874881,
+     "hf": 2.452646966119937,
+     "dIn": 28,
+     "hfkm": 10.10337829600741,
+     "C": 130,
+     "status": "low",
+     "up": "J10",
+     "down": "J25",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P26",
+    "from": "J9",
+    "to": "J26",
+    "material": "HDPE",
+    "D": 32,
+    "dIn": 28,
+    "C": 130,
+    "w": {
+     "length": 163.19316747896076,
+     "Q": 0.76,
+     "v": 1.2342628239779638,
+     "hf": 12.925592593381127,
+     "dIn": 28,
+     "hfkm": 79.20425096870262,
+     "C": 130,
+     "status": "ok",
+     "up": "J9",
+     "down": "J26",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P27",
+    "from": "J22",
+    "to": "J27",
+    "material": "PVC",
+    "D": 110,
+    "dIn": 101.53846153846153,
+    "C": 140,
+    "w": {
+     "length": 98.29605672740465,
+     "Q": 0.24,
+     "v": 0.029638771771383268,
+     "hf": 0.001513323212488768,
+     "dIn": 101.53846153846153,
+     "hfkm": 0.015395563798510524,
+     "C": 140,
+     "status": "low",
+     "up": "J22",
+     "down": "J27",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P28",
+    "from": "J22",
+    "to": "J28",
+    "material": "PVC",
+    "D": 32,
+    "dIn": 28.8,
+    "C": 140,
+    "w": {
+     "length": 498.0532841418361,
+     "Q": 0.44,
+     "v": 0.6754260702202349,
+     "hf": 10.89542177505588,
+     "dIn": 28.8,
+     "hfkm": 21.87601632590193,
+     "C": 140,
+     "status": "ok",
+     "up": "J22",
+     "down": "J28",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P29",
+    "from": "J5",
+    "to": "J29",
+    "material": "GIP",
+    "D": 50,
+    "dIn": 53,
+    "C": 110,
+    "w": {
+     "length": 393.2645087672803,
+     "Q": 0.56,
+     "v": 0.25383202031032087,
+     "hf": 1.077979896469536,
+     "dIn": 53,
+     "hfkm": 2.7411064879679885,
+     "C": 110,
+     "status": "low",
+     "up": "J5",
+     "down": "J29",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P30",
+    "from": "J13",
+    "to": "J30",
+    "material": "GIP",
+    "D": 63,
+    "dIn": 68.8,
+    "C": 110,
+    "w": {
+     "length": 184.97207076842028,
+     "Q": 0.57,
+     "v": 0.1533232787357699,
+     "hf": 0.14704012510113415,
+     "dIn": 68.8,
+     "hfkm": 0.794931496902709,
+     "C": 110,
+     "status": "low",
+     "up": "J13",
+     "down": "J30",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P31",
+    "from": "J26",
+    "to": "J31",
+    "material": "GIP",
+    "D": 40,
+    "dIn": 41.9,
+    "C": 110,
+    "w": {
+     "length": 418.706963505024,
+     "Q": 0.63,
+     "v": 0.4569015403097229,
+     "hf": 4.483444065323548,
+     "dIn": 41.9,
+     "hfkm": 10.707832580075424,
+     "C": 110,
+     "status": "low",
+     "up": "J26",
+     "down": "J31",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P32",
+    "from": "J22",
+    "to": "J32",
+    "material": "PVC",
+    "D": 90,
+    "dIn": 83.07692307692308,
+    "C": 140,
+    "w": {
+     "length": 440.04442814622854,
+     "Q": 0.56,
+     "v": 0.10330880531013016,
+     "hf": 0.0864582590485699,
+     "dIn": 83.07692307692308,
+     "hfkm": 0.19647620448869646,
+     "C": 140,
+     "status": "low",
+     "up": "J22",
+     "down": "J32",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P33",
+    "from": "J15",
+    "to": "J33",
+    "material": "HDPE",
+    "D": 32,
+    "dIn": 28,
+    "C": 130,
+    "w": {
+     "length": 424.8320375109083,
+     "Q": 0.19,
+     "v": 0.30856570599449096,
+     "hf": 2.581966764658096,
+     "dIn": 28,
+     "hfkm": 6.077617827002511,
+     "C": 130,
+     "status": "low",
+     "up": "J15",
+     "down": "J33",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P34",
+    "from": "J19",
+    "to": "J34",
+    "material": "GIP",
+    "D": 40,
+    "dIn": 41.9,
+    "C": 110,
+    "w": {
+     "length": 341.0098816286942,
+     "Q": 0.57,
+     "v": 0.4133871078992731,
+     "hf": 3.033682115938183,
+     "dIn": 41.9,
+     "hfkm": 8.896170695843303,
+     "C": 110,
+     "status": "low",
+     "up": "J19",
+     "down": "J34",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P35",
+    "from": "J19",
+    "to": "J35",
+    "material": "PVC",
+    "D": 50,
+    "dIn": 46.15384615384615,
+    "C": 140,
+    "w": {
+     "length": 242.41679973046647,
+     "Q": 0.5,
+     "v": 0.2988576153614479,
+     "hf": 0.6759241994345728,
+     "dIn": 46.15384615384615,
+     "hfkm": 2.788272925746507,
+     "C": 140,
+     "status": "low",
+     "up": "J19",
+     "down": "J35",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P36",
+    "from": "J17",
+    "to": "J36",
+    "material": "HDPE",
+    "D": 75,
+    "dIn": 66.17647058823529,
+    "C": 130,
+    "w": {
+     "length": 372.2191921297456,
+     "Q": 0.23,
+     "v": 0.06686991212922173,
+     "hf": 0.048869006304916036,
+     "dIn": 66.17647058823529,
+     "hfkm": 0.13129093646488174,
+     "C": 130,
+     "status": "low",
+     "up": "J17",
+     "down": "J36",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P37",
+    "from": "J20",
+    "to": "J37",
+    "material": "PVC",
+    "D": 75,
+    "dIn": 69.23076923076923,
+    "C": 140,
+    "w": {
+     "length": 318.80313917929993,
+     "Q": 0.41,
+     "v": 0.10891699759839438,
+     "hf": 0.08544304040598637,
+     "dIn": 69.23076923076923,
+     "hfkm": 0.2680119167770548,
+     "C": 140,
+     "status": "low",
+     "up": "J20",
+     "down": "J37",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P38",
+    "from": "J21",
+    "to": "J38",
+    "material": "PVC",
+    "D": 110,
+    "dIn": 101.53846153846153,
+    "C": 140,
+    "w": {
+     "length": 166.7234807086878,
+     "Q": 0.25,
+     "v": 0.030873720595190904,
+     "hf": 0.0027683821651699756,
+     "dIn": 101.53846153846153,
+     "hfkm": 0.016604632733208755,
+     "C": 140,
+     "status": "low",
+     "up": "J21",
+     "down": "J38",
+     "inTree": true
+    }
+   },
+   {
+    "id": "P39",
+    "from": "J25",
+    "to": "J39",
+    "material": "HDPE",
+    "D": 32,
+    "dIn": 28,
+    "C": 130,
+    "w": {
+     "length": 225.32309214556216,
+     "Q": 0.13,
+     "v": 0.21112390410149381,
+     "hf": 0.6781261769485063,
+     "dIn": 28,
+     "hfkm": 3.0095724787516516,
+     "C": 130,
+     "status": "low",
+     "up": "J25",
+     "down": "J39",
+     "inTree": true
+    }
+   }
+  ]
+ }
+]
