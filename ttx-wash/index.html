@@ -125,7 +125,7 @@ textarea{min-height:80px}
 .feed h2{font-size:19px}
 .fi{border-left:5px solid #c9a76a;background:#fffdf5;border-radius:6px;padding:6px 8px;font-size:13.5px;line-height:1.35;animation:pop .3s ease-out}
 .fi b{font-size:13px}.fi .note{font-size:12px}
-.fi.k-keputusan{border-color:var(--red)}.fi.k-pesan{border-color:var(--blue)}.fi.k-minta,.fi.k-jawab{border-color:var(--warn)}.fi.k-aksi{border-color:var(--ok)}.fi.k-gm,.fi.k-inject,.fi.k-kejutan{border-color:#6b3fa0}
+.fi.k-keputusan{border-color:var(--red)}.fi.k-pesan{border-color:var(--blue)}.fi.k-minta,.fi.k-jawab{border-color:var(--warn)}.fi.k-aksi{border-color:var(--ok)}.fi.k-gm,.fi.k-inject,.fi.k-kejutan{border-color:#6b3fa0}.fi.k-peran{border-color:#b5179e;background:#fff3fb}
 @media(max-width:860px){.live{grid-template-columns:minmax(0,1fr);flex:none}.live .mapbox{aspect-ratio:32/22}.feed{max-height:50vh}}
 .gmmap{position:relative;aspect-ratio:32/22;border:4px solid var(--wood);border-radius:8px;overflow:hidden;background:#2f5d2b}
 .gmmap canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -138,6 +138,7 @@ th{font-size:13px;color:var(--mute)}
 .score div{background:#fffdf5;border:2px solid #e2c992;border-radius:10px;padding:10px}
 .score b{display:block;font:700 34px/1 "Pixelify Sans",sans-serif}
 @media(max-width:860px){.cols{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){#gm{display:block;overflow-y:auto}#gm main{overflow:visible}#gm .qr{display:none}#gm .code{font-size:26px}#gm-title{font-size:20px!important}}
 @media(max-width:380px){.pad{grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px)}.ab .a{width:66px;height:66px}.ab button{width:58px;height:58px}}
 @media(prefers-reduced-motion:reduce){.toast{animation:none}}
 </style>
@@ -158,7 +159,7 @@ th{font-size:13px;color:var(--mute)}
 <p class="note" id="j-resume"></p>
 </div>
 <div id="f-gm" hidden>
-<h3 style="margin-top:12px">Buat ruang latihan baru</h3>
+<p class="note" style="margin-top:10px">Peserta memegang posisi tim WASH. Pemangku kepentingan (BNPB, Donor, Wartawan, dll.) diperankan fasilitator: fasilitator utama membuat ruang, lalu membagikan <b>link fasilitator pemeran</b> ke rekan fasilitator.</p><h3 style="margin-top:12px">Buat ruang latihan baru</h3>
 <label for="g-title">Judul latihan</label><input id="g-title" value="TTX Respons WASH">
 <div class="row2"><div><label for="g-haz">Skenario</label><select id="g-haz"><option value="gempa">Gempa bumi</option><option value="banjir">Banjir bandang dan longsor</option></select></div>
 <div><label for="g-pop">Pengungsi awal</label><input id="g-pop" type="number" value="6000" min="500" step="100"></div></div>
@@ -200,7 +201,7 @@ th{font-size:13px;color:var(--mute)}
 <div style="flex:1;min-width:14em"><h2 id="gm-title" style="font-size:24px">Latihan</h2><div id="gm-sub" style="color:#f3dcb5;font-size:14px"></div></div>
 <div class="qr" id="gm-qr"></div>
 </div>
-<nav id="gmnav"><button data-g="peta" type="button">Peta langsung</button><button data-g="pemain" type="button">Pemain</button><button data-g="kendali" type="button">Kendali fase</button><button data-g="log" type="button">Log &amp; penilaian</button><button data-g="debrief" type="button">Debrief</button></nav>
+<nav id="gmnav"><button data-g="peta" type="button">Peta langsung</button><button data-g="peran" type="button">Inject peran</button><button data-g="pemain" type="button">Pemain</button><button data-g="kendali" type="button">Kendali fase</button><button data-g="log" type="button">Log &amp; penilaian</button><button data-g="debrief" type="button">Debrief</button></nav>
 <main id="gmmain"></main>
 </section>
 
@@ -267,6 +268,10 @@ const ZONES=[
 {id:'sekolah',n:'SD Negeri 3',x:13,y:18,w:6,h:3,blk:1,tip:'Rencanakan pemulihan fungsi sekolah sejak awal.'},
 {id:'jamban',n:'Area jamban darurat',x:23,y:18,w:8,h:3,blk:0,tip:'Jamban ≤50 m dari hunian, ≥30 m dari sumber air, terpisah laki-laki/perempuan, berpenerangan, bisa dikunci dari dalam.'}];
 const ZN=id=>(ZONES.find(z=>z.id===id)||{}).n||id;
+/* tokoh pemangku kepentingan (diperankan fasilitator) di peta, posisi dalam satuan petak */
+const NPC={pmipusat:[12.3,10.7],pmiprov:[12.3,11.9],pmikab:[12.3,13.1],pns:[12.3,14.3],bnpb:[14,7.6],pemkab:[12.3,6.3],pemprov:[17.8,7.6],pempusat:[19.6,6.5],klaster:[12.3,4.2],donor:[19.6,4.4],dinkes:[24,7.5],pdam:[9.6,3.6],tni:[10.3,13.7],ingo:[10.3,10.9],ngo:[10.4,18.7],media:[22.6,15.6],warga:[26.5,15.6],disab:[22.4,18.7]};
+const SHORT={pmipusat:'PMI Pusat',pmiprov:'PMI Prov',pmikab:'PMI Kab',pns:'PNS',bnpb:'BNPB/BPBD',pemkab:'Pemkab',pemprov:'Pemprov',pempusat:'Kemenkes/PU',klaster:'Klaster WASH',donor:'Donor',dinkes:'Dinkes',pdam:'PDAM',tni:'TNI/Polri',ingo:'INGO',ngo:'NGO',media:'Wartawan',warga:'Tokoh warga',disab:'Kel. rentan'};
+const hashAv=s=>[...s].reduce((a,c)=>a+c.charCodeAt(0),0)%6;
 
 const PH=[
 {n:'Kejadian',w:'H+0 s.d. 6 jam',inj:'{intro} Data awal BPBD: sekitar {pop} jiwa mengungsi di 4 titik: Lapangan Kecamatan ({p1}), Masjid Agung ({p2}), SD Negeri 3 ({p3}) dan tenda mandiri ({p4}). Listrik padam, sinyal putus-sambung.',
@@ -573,13 +578,14 @@ else{sc=clamp(cw/(14*TS),1.6,3.6);const vw=cw/sc,vh=ch/sc;cx=vw>=MW*TS?-(vw-MW*T
 g.setTransform(1,0,0,1,0,0);g.fillStyle='#2f5d2b';g.fillRect(0,0,canvas.width,canvas.height);g.imageSmoothingEnabled=false;
 g.setTransform(sc*dpr,0,0,sc*dpr,-cx*sc*dpr,-cy*sc*dpr);if(BG)g.drawImage(BG,0,0);drawDynamic(g,now);
 const list=[];G.players.forEach(p=>{if(p.id===G.auth?.id&&!overview)return;let o=G.pos[p.id];if(!o){o=spawnFor(p.id);G.pos[p.id]=o}if(overview||now-(o.t||0)<120000||true)list.push({p,o})});
+for(const r in NPC){const o=G.pos['npc-'+r];if(!o)continue;list.push({p:{id:'npc-'+r,avatar:hashAv(r),role:r,name:SHORT[r]},o,npc:1,near:overview||Math.hypot(o.x-G.me.x,o.y-G.me.y)<60})}
 if(!overview)list.push({p:meRow()||{id:'me',avatar:0,name:'Kamu'},o:G.me,me:1});
 list.sort((a,b)=>a.o.y-b.o.y);
 for(const it of list){const fr=(it.me?G.me.mv:it.o.mv)?Math.floor(now/160)%2:0;drawChar(g,it.o.x,it.o.y,it.p.avatar||0,it.p.role,it.o.d||'down',fr,it.me)}
 if(!overview){for(const z of ZONES){const n=tasksAt(z.id);if(n){const bx=(z.x+z.w/2)*TS,by=z.y*TS-2+Math.sin(now/250)*2;g.fillStyle='#ffd447';g.fillRect(bx-5,by-12,10,13);g.fillStyle='#c8102e';g.fillRect(bx-1,by-10,2,6);g.fillRect(bx-1,by-3,2,2)}}}
 g.setTransform(dpr,0,0,dpr,0,0);g.textAlign='center';g.lineJoin='round';
 g.font=`${overview?11:12}px "Pixelify Sans",monospace`;
-for(const it of list){const sx=(it.o.x-cx)*sc,sy=(it.o.y-cy)*sc-20*sc-4;const name=it.p.name||'';g.lineWidth=3;g.strokeStyle='rgba(0,0,0,.7)';g.strokeText(name,sx,sy);g.fillStyle=it.me?'#ffd447':'#fff';g.fillText(name,sx,sy)}
+for(const it of list){if(it.npc&&!it.near)continue;const sx=(it.o.x-cx)*sc,sy=(it.o.y-cy)*sc-20*sc-4;const name=it.p.name||'';g.lineWidth=3;g.strokeStyle=it.npc?'rgba(80,20,90,.85)':'rgba(0,0,0,.7)';g.strokeText(name,sx,sy);g.fillStyle=it.me?'#ffd447':it.npc?'#ffd6f5':'#fff';g.fillText(name,sx,sy)}
 g.font=`bold ${overview?12:13}px "Pixelify Sans",monospace`;for(const z of ZONES){const sx=(z.x+z.w/2-cx/TS)*TS*sc,sy=((z.blk?z.y:z.y+z.h)*TS-cy)*sc+(z.blk?-2:-4);if(sx<-80||sx>cw+80||sy<-20||sy>ch+20)continue;g.lineWidth=4;g.strokeStyle='rgba(43,29,16,.85)';g.strokeText(z.n,sx,sy);g.fillStyle='#fff4d6';g.fillText(z.n,sx,sy)}if(overview)drawFx(g,sc,cx,cy,now)}
 let lastT=performance.now();
 function loop(now){const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
@@ -598,7 +604,7 @@ function nextDlg(){const d=dq.shift();if(!d){$('#dlg').hidden=true;return}$('#dl
 $('#dlg-ok').onclick=nextDlg;
 function toast(m){const el=document.createElement('div');el.className='toast';el.textContent=m;const box=$('#toasts');if(G.mode!=='play'){alertBox(m);return}box.appendChild(el);setTimeout(()=>el.remove(),4200)}
 function alertBox(m){const el=$('#j-msg')&&!$('#home').hidden?$('#j-msg'):null;if(el){el.textContent=m;return}const g=$('#gm-alert');if(g){g.textContent=m;setTimeout(()=>{if(g.textContent===m)g.textContent=''},5000)}}
-function relevant(e){const role=myRole();if(['inject','kejutan','gm'].includes(e.kind))return true;
+function relevant(e){const role=myRole();if(['inject','kejutan','gm'].includes(e.kind))return true;if(e.kind==='peran')return e.target===role||e.target==='semua';
 return['pesan','aksi','minta','jawab'].includes(e.kind)&&e.player_id!==G.auth?.id&&(e.target===role||(e.target==='semua'&&e.kind!=='jawab'))}
 function onData(){if(G.mode==='play')onPlayData();else if(G.mode==='gm')gmRender()}
 function onPlayData(){const me=meRow();if(G.players.length&&!me&&G.auth){LS.del('ttx_me');G.mode=null;$('#play').hidden=true;$('#home').hidden=false;$('#j-msg').textContent='Kamu dikeluarkan dari ruang oleh fasilitator.';return}
@@ -613,7 +619,7 @@ const mine=PH[r.phase].d.filter(d=>d.who===role);if(mine.length)dialog('Misi kam
 const msgs=p.msg.filter(m=>m[0]===role);if(msgs.length)dialog('Pesan untuk kamu sampaikan',msgs.map(m=>`<p>"${esc(m[1])}"</p>`).join('')+'<p class="note">Kirim lewat menu B › Misi, atau sampaikan langsung saat rapat.</p>')}}
 if(r.inject&&G.seenInject!==r.inject){G.seenInject=r.inject;if(r.status==='play')dialog('Inject dari fasilitator',`<p>${esc(r.inject)}</p>`)}
 const sk=JSON.stringify(r.surprise||'');if(r.surprise&&G.seenSurp!==sk){G.seenSurp=sk;dialog('Kartu kejutan: '+(r.surprise.t||''),`<p>${esc(r.surprise.d)}</p><p><b>Diskusikan:</b> ${esc(r.surprise.q)}</p>`)}
-const fresh=G.events.filter(e=>e.id>G.lastToast&&relevant(e));if(fresh.length){if(G.lastToast)fresh.slice(-3).forEach(e=>{if(!['inject','kejutan','gm'].includes(e.kind))toast(`HT dari ${RN(e.role)}: ${String(e.text||'').slice(0,80)}`)});G.lastToast=Math.max(...fresh.map(e=>e.id))}
+const fresh=G.events.filter(e=>e.id>G.lastToast&&relevant(e));if(fresh.length){if(G.lastToast){fresh.filter(e=>e.kind==='peran').forEach(e=>dialog('Inject dari '+RN(e.role),`<p>${esc(e.text)}</p>${e.delta?`<p class="note">Dampak: ${esc(fxText(e.delta))}</p>`:''}<p class="note">Ditujukan ke: ${esc(e.target==='semua'?'semua tim WASH':RN(e.target))}. Balas lewat HT bila perlu.</p>`));fresh.filter(e=>!['inject','kejutan','gm','peran'].includes(e.kind)).slice(-3).forEach(e=>toast(`HT dari ${RN(e.role)}: ${String(e.text||'').slice(0,80)}`))}G.lastToast=Math.max(...fresh.map(e=>e.id))}
 const un=G.events.filter(e=>e.id>G.lastRead&&relevant(e)).length;$('#unread').hidden=!un;$('#unread').textContent=un;
 if(!$('#sheet').hidden)sheet(G.sheetTab,true)}
 $('#w-x').onclick=()=>{if(myRole())G.waitDismissed2=1;else G.waitDismissed=1;$('#wait').hidden=true};
@@ -649,10 +655,10 @@ else{h+='<h3 style="margin:12px 0 6px">Aksi peran</h3>'+(ACTS[role]||[]).map((a,
 const msgs=p.msg.map((m,k)=>[m,k]).filter(([m])=>m[0]===role);if(msgs.length)h+='<h3 style="margin:12px 0 6px">Pesan inject untuk kamu sampaikan</h3>'+msgs.map(([m,k])=>{const sent=G.events.some(e=>e.dkey==='m-'+ph+'-'+k);return`<div class="item"><p>"${esc(m[1])}"</p>${sent?'<p class="good"><b>Sudah dikirim.</b></p>':`<button class="btn blue sm" data-msg="${k}" type="button">Kirim ke semua via HT</button>`}</div>`}).join('')}}
 else if(tab==='ht'){G.lastRead=G.lastId;LS.set('ttx_read_'+G.code,G.lastRead);$('#unread').hidden=true;
 const present=[...new Set(G.players.filter(p=>p.role&&p.approved&&p.id!==G.auth.id).map(p=>p.role))];
-h=`<h2>Radio HT</h2>`;if(role&&me?.approved){h+=`<div class="item"><label for="ht-to">Kirim ke</label><select id="ht-to"><option value="semua">Semua</option>${present.map(r=>`<option value="${r}">${esc(RN(r))}</option>`).join('')}</select><label for="ht-tx">Pesan</label><textarea id="ht-tx" maxlength="500" placeholder="Laporan, pertanyaan, koordinasi..."></textarea><p style="margin-top:8px"><button class="btn red sm" id="ht-send" type="button">Kirim</button></p></div>`;
-const reqs=REQ.filter(q=>q.from.includes(role));if(reqs.length)h+='<h3 style="margin:12px 0 6px">Ajukan permintaan dukungan</h3>'+reqs.map(q=>{const pend=G.events.some(e=>e.kind==='minta'&&e.dkey===q.id&&e.player_id===G.auth.id&&e.status==='pending');const has=present.includes(q.to);return`<div class="item"><b>${esc(q.l)}</b><div class="note">Ke ${esc(RN(q.to))} · bila disetujui: ${esc(fxText(q.fx))}</div>${pend?'<p class="warnc"><b>Menunggu jawaban.</b></p>':true?`<input id="rq-${q.id}" maxlength="300" placeholder="Alasan singkat dan data pendukung" style="margin-top:6px"><button class="btn sm" data-req="${q.id}" type="button" style="margin-top:6px">Ajukan · 5 energi</button>${has?'':'<p class="note">Belum ada pemain dengan peran ini; fasilitator yang akan menjawab.</p>'}`:''}</div>`}).join('')}
+h=`<h2>Radio HT</h2>`;if(role&&me?.approved){h+=`<div class="item"><label for="ht-to">Kirim ke</label><select id="ht-to"><option value="semua">Semua tim WASH</option><optgroup label="Tim WASH">${present.filter(isWash).map(r=>`<option value="${r}">${esc(RN(r))}</option>`).join('')}</optgroup><optgroup label="Pemangku kepentingan (diperankan fasilitator)">${ROLES.filter(r=>r.g!=='wash').map(r=>`<option value="${r.id}">${esc(r.n)}</option>`).join('')}</optgroup></select><label for="ht-tx">Pesan</label><textarea id="ht-tx" maxlength="500" placeholder="Laporan, pertanyaan, koordinasi..."></textarea><p style="margin-top:8px"><button class="btn red sm" id="ht-send" type="button">Kirim</button></p></div>`;
+const reqs=REQ.filter(q=>q.from.includes(role));if(reqs.length)h+='<h3 style="margin:12px 0 6px">Ajukan permintaan dukungan</h3>'+reqs.map(q=>{const pend=G.events.some(e=>e.kind==='minta'&&e.dkey===q.id&&e.player_id===G.auth.id&&e.status==='pending');const has=present.includes(q.to);return`<div class="item"><b>${esc(q.l)}</b><div class="note">Ke ${esc(RN(q.to))} · bila disetujui: ${esc(fxText(q.fx))}</div>${pend?'<p class="warnc"><b>Menunggu jawaban.</b></p>':true?`<input id="rq-${q.id}" maxlength="300" placeholder="Alasan singkat dan data pendukung" style="margin-top:6px"><button class="btn sm" data-req="${q.id}" type="button" style="margin-top:6px">Ajukan · 5 energi</button><p class="note">Dijawab oleh fasilitator yang memerankan ${esc(RN(q.to))}.</p>`:''}</div>`}).join('')}
 const inbox=G.events.filter(e=>relevant(e)||(e.player_id===G.auth.id&&e.kind==='minta')).slice(-80).reverse();
-h+='<h3 style="margin:12px 0 6px">Kotak masuk</h3>'+(inbox.map(e=>{const from=e.player_id===G.auth.id?'Kamu':RN(e.role);let x=`<div class="item"><span class="tag ${e.kind==='minta'?'y':e.kind==='jawab'?(e.status==='approved'?'g':'r'):['inject','kejutan','gm'].includes(e.kind)?'r':'b'}">${{minta:'Permintaan',jawab:e.status==='approved'?'Disetujui':'Ditolak',inject:'Inject',kejutan:'Kejutan',gm:'Fasilitator',pesan:'Pesan',aksi:'Aksi'}[e.kind]||e.kind}</span> <span class="note">F${e.phase+1} · ${esc(from)}${e.target?' → '+esc(RN(e.target)):''}</span><p style="margin:4px 0">${esc(e.text)}</p>`;
+h+='<h3 style="margin:12px 0 6px">Kotak masuk</h3>'+(inbox.map(e=>{const from=e.player_id===G.auth.id?'Kamu':RN(e.role);let x=`<div class="item"><span class="tag ${e.kind==='minta'?'y':e.kind==='jawab'?(e.status==='approved'?'g':'r'):['inject','kejutan','gm','peran'].includes(e.kind)?'r':'b'}">${{peran:'Inject peran',minta:'Permintaan',jawab:e.status==='approved'?'Disetujui':'Ditolak',inject:'Inject',kejutan:'Kejutan',gm:'Fasilitator',pesan:'Pesan',aksi:'Aksi'}[e.kind]||e.kind}</span> <span class="note">F${e.phase+1} · ${esc(from)}${e.target?' → '+esc(RN(e.target)):''}</span><p style="margin:4px 0">${esc(e.text)}</p>`;
 if(e.kind==='minta'){const q=REQ.find(r=>r.id===e.dkey);x+=`<div class="note">${esc(q?q.l:'')} · ${esc(fxText(e.delta))} · status: ${e.status==='pending'?'menunggu':e.status==='approved'?'disetujui':'ditolak'}</div>`;
 if(e.status==='pending'&&e.target===role)x+=`<input id="rp-${e.id}" maxlength="300" placeholder="Syarat atau alasan" style="margin-top:6px"><div class="btns" style="margin-top:6px"><button class="btn green sm" data-rep="${e.id}" data-ok="1" type="button">Setujui</button><button class="btn red sm" data-rep="${e.id}" data-ok="0" type="button">Tolak</button></div>`}
 return x+'</div>'}).join('')||'<p class="note">Belum ada pesan.</p>')}
@@ -700,32 +706,32 @@ async function enterPlay(){G.mode='play';G.code=G.auth.code;$('#home').hidden=tr
 G.seenKey=LS.get('ttx_seen_'+G.code)||'';G.lastRead=LS.get('ttx_read_'+G.code)||0;await loadAll(true);G.lastToast=G.lastId;subscribe();onData()}
 
 /* ============ FASILITATOR ============ */
-async function enterGM(){G.mode='gm';G.code=G.auth.code;$('#home').hidden=true;$('#gm').hidden=false;G.fxSeen=Infinity;await loadAll(true);G.fxSeen=G.lastId;subscribe();gmTab('peta')}
+async function enterGM(){G.mode='gm';G.code=G.auth.code;$('#home').hidden=true;$('#gm').hidden=false;G.fxSeen=Infinity;await loadAll(true);G.fxSeen=G.lastId;subscribe();gmTab(myRoles().length?'peran':'peta')}
 function gm(action,payload){return rpc('ttx_gm',{p_code:G.code,p_secret:G.auth.secret,p_action:action,p_payload:payload||{}})}
 function gmTab(t){G.gmTab=t;document.querySelectorAll('#gmnav button').forEach(b=>b.setAttribute('aria-current',b.dataset.g===t));gmRender(true)}
 let gmPending=false;function gmRender(force){if(G.mode!=='gm')return;const main=$('#gmmain'),a=document.activeElement;if(!force&&a&&main.contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)){gmPending=true;return}gmPending=false;
 if(!force&&G.gmTab==='peta'&&$('#gmcv')&&G.room){liveUpdate();return}const r=G.room;if(!r){main.innerHTML=`<div class="panel"><h2>Memuat ruang ${esc(G.code||'')}…</h2><p>${G.loadErr?'Gagal memuat data: '+esc(G.loadErr):'Mohon tunggu sebentar.'}</p><p class="btns"><button class="btn sm" type="button" onclick="location.reload()">Muat ulang</button></p></div>`;return}const h=HAZ[r.hazard]||HAZ.gempa;$('#gm-code').textContent=r.code;$('#gm-title').textContent=r.title;
-const url=location.origin+location.pathname+'?r='+r.code;$('#gm-sub').innerHTML=`${esc(h.name)} · ${esc(h.kab)} (fiktif) · ${r.status==='lobby'?'Lobi':r.status==='end'?'Selesai':'Fase '+(r.phase+1)} · Link gabung: <b>${esc(url)}</b><br>PIN fasilitator: <span id="pin" style="filter:blur(5px);cursor:pointer" title="Klik untuk menampilkan">${esc(G.auth.secret)}</span>`;
-if(!$('#gm-qr').dataset.done&&window.qrcode){try{const q=qrcode(0,'M');q.addData(url);q.make();$('#gm-qr').innerHTML=q.createSvgTag({cellSize:3,margin:2,scalable:true});$('#gm-qr').dataset.done=1}catch(e){}}
+const url=location.origin+location.pathname+'?r='+r.code;$('#gm-sub').innerHTML=`${esc(h.name)} · ${esc(h.kab)} (fiktif) · ${r.status==='lobby'?'Lobi':r.status==='end'?'Selesai':'Fase '+(r.phase+1)} · Link gabung: <b>${esc(url)}</b><br>PIN fasilitator: <span id="pin" style="filter:blur(5px);cursor:pointer" title="Klik untuk menampilkan">${esc(G.auth.secret)}</span><div class="btns" style="margin-top:6px"><button class="btn ghost sm" id="cofac" type="button">Salin link fasilitator pemeran</button><button class="btn ghost sm" id="qrtog" type="button">${G.qrFac?'Tampilkan QR peserta':'Tampilkan QR fasilitator'}</button><span id="cofmsg"></span></div>`;
+const qurl=G.qrFac?facUrl():url;if($('#gm-qr').dataset.done!==qurl&&window.qrcode){try{const q=qrcode(0,'M');q.addData(qurl);q.make();$('#gm-qr').innerHTML=q.createSvgTag({cellSize:3,margin:2,scalable:true});$('#gm-qr').dataset.done=qurl;$('#gm-qr').style.outline=G.qrFac?'4px solid #b5179e':''}catch(e){}}
 const st=main.scrollTop;let h2='<p id="gm-alert" class="badc" style="font-weight:800;min-height:1em"></p>';const t=G.gmTab;
 if(t==='pemain')h2+=gmPlayers();else if(t==='kendali')h2+=gmControl();else if(t==='peta')h2+=liveHtml();
-else if(t==='log')h2+=gmLog();else h2+=gmDebrief();
+else if(t==='peran')h2+=gmPeran();else if(t==='log')h2+=gmLog();else h2+=gmDebrief();
 main.innerHTML=h2;main.scrollTop=st}
 document.addEventListener('focusout',()=>{setTimeout(()=>{if(gmPending)gmRender()},50)});
-const roleOpts=sel=>`<option value="">— pilih peran —</option>`+Object.entries(GROUPS).map(([g,gr])=>`<optgroup label="${gr.n}">${ROLES.filter(r=>r.g===g).map(r=>`<option value="${r.id}" ${sel===r.id?'selected':''}>${esc(r.n)}</option>`).join('')}</optgroup>`).join('');
+const roleOpts=sel=>`<option value="">— pilih posisi —</option>`+ROLES.filter(r=>r.g==='wash').map(r=>`<option value="${r.id}" ${sel===r.id?'selected':''}>${esc(r.n)}</option>`).join('');
 function ppts(id){return G.events.filter(e=>e.player_id===id).reduce((a,e)=>a+pts(e),0)}
 function gmPlayers(){const ps=G.players,wait=ps.filter(p=>!p.approved||!p.role).length;const cnt={};ps.forEach(p=>{if(p.role)cnt[p.role]=(cnt[p.role]||0)+1});
 return`<div class="panel"><h2>Pemain (${ps.length})</h2><p class="note">${wait} menunggu peran/izin. Peserta gabung lewat link atau QR dengan kode <b>${esc(G.code)}</b>. Hanya pemain yang diberi peran dan diizinkan yang bisa mengambil keputusan.</p>
 <div class="btns" style="margin:8px 0 12px"><button class="btn red sm" id="auto" type="button">Bagi peran otomatis ke yang belum punya</button><button class="btn green sm" id="allow" type="button">Izinkan semua yang sudah berperan</button></div>
 <div class="tw"><table><thead><tr><th>Nama</th><th>Peran</th><th>Izin main</th><th>Energi</th><th>Poin</th><th></th></tr></thead><tbody>${ps.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td><select data-role="${p.id}" style="min-width:12em">${roleOpts(p.role)}</select></td><td><label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" data-ok="${p.id}" ${p.approved?'checked':''} style="width:22px;height:22px"> ${p.approved?'Ya':'Belum'}</label></td><td>${p.energy}</td><td>${ppts(p.id)}</td><td><button class="btn ghost sm" data-kick="${p.id}" type="button">Keluarkan</button></td></tr>`).join('')||'<tr><td colspan="6">Belum ada pemain.</td></tr>'}</tbody></table></div></div>
-<div class="panel"><h2>Sebaran peran</h2><div class="tw"><table><tbody>${ROLES.map(r=>`<tr><td>${esc(r.n)}</td><td class="note">${esc(GROUPS[r.g].n)}</td><td><b>${cnt[r.id]||0}</b> pemain</td></tr>`).join('')}</tbody></table></div><p class="note">Saran untuk 20–40 peserta: isi 9 posisi tim WASH dulu (tim teknis boleh 2–4 orang), lalu peran pemangku kepentingan yang paling sering muncul di inject: PMI Pusat, BNPB/BPBD, Pemkab, Wartawan, Donor, Dinkes, Klaster WASH.</p></div>`}
+<div class="panel"><h2>Sebaran posisi tim WASH</h2><div class="tw"><table><tbody>${ROLES.filter(r=>r.g==='wash').map(r=>`<tr><td>${esc(r.n)}</td><td><b>${cnt[r.id]||0}</b> peserta</td></tr>`).join('')}</tbody></table></div><p class="note">Peserta hanya memegang posisi tim WASH. Untuk 20–40 peserta, tim pengolah air, distribusi, sanitasi dan promosi kebersihan boleh 3–6 orang; manajer dan koordinator 1–2 orang. Pemangku kepentingan diperankan fasilitator lewat tab Inject peran.</p></div>`}
 function gmControl(){const r=G.room,ph=r.phase,p=PH[ph],s=S();const present=new Set(G.players.filter(x=>x.role&&x.approved).map(x=>x.role));
 let h=`<div class="cols"><div><div class="panel"><h2>${r.status==='lobby'?'Belum dimulai':r.status==='end'?'Latihan selesai':`Fase ${ph+1}: ${esc(p.n)}`}</h2>`;
 if(r.status!=='lobby')h+=`<p class="note">${esc(p.w)}</p><p>${esc(T(p.inj))}</p>`;
 h+=`<div class="btns" style="margin-top:10px">${r.status==='lobby'?'<button class="btn red" id="start" type="button">Mulai latihan (Fase 1)</button>':r.status==='play'?`<button class="btn red" id="next" type="button">${ph<5?'Akhiri fase '+(ph+1)+' dan lanjut':'Akhiri latihan'}</button>`:''}<button class="btn ghost sm" id="reset" type="button">Ulang dari awal</button></div>
 <p class="note" style="margin-top:6px">Saat fase diakhiri, sistem menghitung kasus diare baru dari kondisi layanan, menurunkan sedikit kualitas air dan higiene (perlu dirawat), dan mengisi ulang energi pemain.</p></div>`;
 if(r.status==='play'){h+=`<div class="panel"><h2>Misi keputusan fase ini</h2>${p.d.map((d,j)=>{const c=choiceOf(ph,j),o=c?d.o[c.choice]:null,who=c?G.players.find(x=>x.id===c.player_id):null;return`<div class="item"><span class="tag ${c?'g':'r'}">${c?'Selesai':'Belum'}</span> <span class="tag">${esc(RN(d.who))}</span> <span class="tag b">${esc(ZN(d.loc))}</span>${present.has(d.who)?'':' <span class="tag r">tidak ada pemain</span>'}<h3>${esc(d.q)}</h3>${o?`<p>${esc(who?.name||'')}: ${esc(o.t)} <b class="${{baik:'good',cukup:'warnc',kurang:'badc'}[o.s]}">(${o.s})</b></p>`:''}</div>`}).join('')}</div>
-<div class="panel"><h2>Pesan inject pemangku kepentingan</h2>${p.msg.map((m,k)=>{const sent=G.events.some(e=>e.dkey==='m-'+ph+'-'+k);return`<div class="item"><span class="tag b">${esc(RN(m[0]))}</span>${present.has(m[0])?'<span class="tag g">dipegang pemain</span>':'<span class="tag y">tidak ada pemain</span>'}${sent?'<span class="tag g">terkirim</span>':''}<p>"${esc(m[1])}"</p><button class="btn ghost sm" data-inj="${esc(RN(m[0])+': '+m[1])}" type="button">Kirim sebagai inject</button></div>`}).join('')}</div>`}
+<div class="panel"><h2>Pesan inject pemangku kepentingan</h2>${p.msg.map((m,k)=>{const sent=G.events.some(e=>e.dkey==='p-'+m[0]+'-'+ph+'-'+k);return`<div class="item"><span class="tag b">${esc(RN(m[0]))}</span>${sent?'<span class="tag g">terkirim</span>':''}<p>"${esc(m[1])}"</p><button class="btn ghost sm" data-say="${m[0]}" data-k="${k}" type="button">Kirim sebagai ${esc(SHORT[m[0]]||RN(m[0]))}</button></div>`}).join('')}</div>`}
 const pend=G.events.filter(e=>e.kind==='minta'&&e.status==='pending');h+=`<div class="panel"><h2>Permintaan menunggu jawaban (${pend.length})</h2><p class="note">Jawab di sini bila peran tujuan tidak dipegang pemain atau pemerannya tidak merespons.</p>${pend.map(e=>{const pl=G.players.find(x=>x.id===e.player_id);return`<div class="item"><span class="tag y">${esc(RN(e.role))} → ${esc(RN(e.target))}</span>${G.players.some(x=>x.role===e.target&&x.approved)?'':'<span class="tag r">tidak ada pemeran</span>'}<p>${esc(pl?.name||'')}: ${esc(e.text)}</p><p class="note">${esc(fxText(e.delta))}</p><input id="gr-${e.id}" maxlength="300" placeholder="Jawaban sebagai ${esc(RN(e.target))}"><div class="btns" style="margin-top:6px"><button class="btn green sm" data-gmrep="${e.id}" data-ok="1" type="button">Setujui</button><button class="btn red sm" data-gmrep="${e.id}" data-ok="0" type="button">Tolak</button></div></div>`}).join('')||'<p class="note">Tidak ada.</p>'}</div>`;
 h+=`</div><div><div class="panel"><h2>Inject dan kejutan</h2><label for="injtx">Inject bebas</label><textarea id="injtx" maxlength="600" placeholder="Situasi baru yang ingin diuji"></textarea><div class="btns" style="margin-top:8px"><button class="btn sm" id="injgo" type="button">Kirim ke semua</button><button class="btn red sm" id="surp" type="button">Tarik kartu kejutan</button></div>${r.surprise?`<div class="item" style="margin-top:10px"><b>Kejutan aktif: ${esc(r.surprise.t)}</b><p>${esc(r.surprise.d)}</p><p class="note">${esc(r.surprise.q)}</p></div>`:''}
 <label for="tmin" style="margin-top:14px">Pengatur waktu fase (menit)</label><div class="btns"><input id="tmin" type="number" value="20" min="1" max="180" style="width:6em"><button class="btn sm" id="tset" type="button">Mulai hitung mundur</button><button class="btn ghost sm" id="toff" type="button">Hapus</button></div>${r.timer_end?`<p class="note">Berakhir pukul ${new Date(r.timer_end).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</p>`:''}</div>
@@ -754,12 +760,16 @@ $('#gmmain').addEventListener('change',async e=>{const t=e.target;
 if(t.dataset.role){await gm('assign',{id:t.dataset.role,role:t.value,approved:!!t.value});await loadAll(false);gmRender(true)}
 else if(t.dataset.ok){await gm('assign',{id:t.dataset.ok,role:G.players.find(p=>p.id===t.dataset.ok)?.role||'',approved:t.checked});await loadAll(false);gmRender(true)}
 else if(t.dataset.note){const ev=G.events.find(x=>x.id===+t.dataset.note);await gm('score',{event:+t.dataset.note,score:ev?.gm_score??0,note:t.value})}
-else if(t.id==='lf'){G.logFilter=t.value;gmRender(true)}});
-$('#gm').addEventListener('click',e=>{if(e.target.id==='pin'){e.target.style.filter='none'}});
+else if(t.id==='lf'){G.logFilter=t.value;gmRender(true)}
+else if(t.dataset.myrole){const s=new Set(myRoles());t.checked?s.add(t.dataset.myrole):s.delete(t.dataset.myrole);LS.set('ttx_myroles_'+G.code,[...s]);gmRender(true)}});
+$('#gm').addEventListener('click',async e=>{if(e.target.id==='pin'){e.target.style.filter='none'}
+if(e.target.id==='cofac'){try{await navigator.clipboard.writeText(facUrl());$('#cofmsg').textContent='Tersalin. Bagikan hanya ke sesama fasilitator.'}catch(err){$('#cofmsg').textContent=facUrl()}}
+if(e.target.id==='qrtog'){G.qrFac=!G.qrFac;gmRender(true)}});
+const facUrl=()=>location.origin+location.pathname+'#f='+G.code+'.'+G.auth.secret;
 $('#gmmain').addEventListener('click',async e=>{const t=e.target.closest('button');if(!t)return;const r=G.room,s=S();
 if(t.dataset.kick){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Yakin?';return}await gm('kick',{id:t.dataset.kick});await loadAll(false);gmRender(true)}
-else if(t.id==='auto'){t.disabled=true;await loadAll(false);const order=['mgr','koord','olah','dist','san','promkes','log','camp','adm','pmipusat','bnpb','pemkab','media','donor','dinkes','klaster','olah','dist','san','promkes','ngo','ingo','pns','pmiprov','pmikab','tni','pdam','warga','disab','pemprov','pempusat','olah','dist','san','promkes','log','camp','koord','mgr'];
-const used={};G.players.forEach(p=>{if(p.role)used[p.role]=(used[p.role]||0)+1});const pick=()=>{const seen={};for(const id of order){seen[id]=(seen[id]||0)+1;if((used[id]||0)<seen[id]){used[id]=(used[id]||0)+1;return id}}return 'olah'};
+else if(t.id==='auto'){t.disabled=true;await loadAll(false);const order=['mgr','koord','olah','dist','san','promkes','log','camp','adm','olah','dist','san','promkes','koord','olah','dist','san','promkes','log','camp'],tech=['olah','dist','san','promkes','log','camp','adm'];
+const used={};G.players.forEach(p=>{if(p.role)used[p.role]=(used[p.role]||0)+1});const pick=()=>{const seen={};for(const id of order){seen[id]=(seen[id]||0)+1;if((used[id]||0)<seen[id]){used[id]=(used[id]||0)+1;return id}}const id=tech.slice().sort((a,b)=>(used[a]||0)-(used[b]||0))[0];used[id]=(used[id]||0)+1;return id};
 for(const p of G.players.filter(p=>!p.role)){await gm('assign',{id:p.id,role:pick(),approved:true})}await loadAll(false);gmRender(true)}
 else if(t.id==='allow'){t.disabled=true;await loadAll(false);for(const p of G.players.filter(p=>p.role&&!p.approved))await gm('assign',{id:p.id,role:p.role,approved:true});await loadAll(false);gmRender(true)}
 else if(t.id==='start'){await gm('phase',{phase:0,delta:{},text:'Latihan dimulai: Fase 1'});await loadAll(false);gmRender(true)}
@@ -767,6 +777,10 @@ else if(t.id==='next'){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Klik 
 if(i<5){if(PH[i+1].grow)d.pop=Math.round(s.pop*(PH[i+1].grow-1));await gm('phase',{phase:i+1,delta:d,text:`Fase ${i+1} berakhir: +${nc} kasus diare baru. Fase ${i+2} dimulai.`})}
 else{await gm('adjust',{delta:d,text:`Fase 6 berakhir: +${nc} kasus diare baru.`});await gm('status',{status:'end'})}await loadAll(false);gmRender(true)}
 else if(t.id==='reset'){if(!t.dataset.sure){t.dataset.sure=1;t.textContent='Klik lagi: semua keputusan dan log dihapus';return}await gm('reset',{state:initState(s.pop0||s.pop,s.b0||1000)});await loadAll(true);gmRender(true)}
+else if(t.dataset.say){const ph=r.phase,k=+t.dataset.k,m=PH[ph].msg[k];await gm('say',{role:m[0],target:'semua',text:m[1],dkey:'p-'+m[0]+'-'+ph+'-'+k,delta:{}});await loadAll(false);gmRender(true)}
+else if(t.dataset.saykey){const key=t.dataset.saykey,pr=G.preset[key]||{},txt=($('#pt-'+key)?.value||'').trim();if(!txt)return;t.disabled=true;await gm('say',{role:pr.role,target:$('#pg-'+key).value,text:txt,dkey:key,delta:pr.fx||{}});await loadAll(false);gmRender(true)}
+else if(t.dataset.free){const rid=t.dataset.free,txt=($('#ft-'+rid)?.value||'').trim();if(!txt)return;const k=$('#fk-'+rid).value,v=+$('#fv-'+rid).value||0;t.disabled=true;await gm('say',{role:rid,target:$('#fg-'+rid).value,text:txt,dkey:'f-'+rid,delta:k&&v?{[k]:v}:{}});await loadAll(false);gmRender(true)}
+else if(t.dataset.replyto){const id=+t.dataset.replyto,ev=G.events.find(x=>x.id===id),txt=($('#rr-'+id)?.value||'').trim();if(!txt||!ev)return;t.disabled=true;await gm('say',{role:t.dataset.role,target:ev.role,text:txt,dkey:'r-'+id,reply_to:id,delta:{}});await loadAll(false);gmRender(true)}
 else if(t.dataset.gmrep){const id=+t.dataset.gmrep,ok=t.dataset.ok==='1',v=($('#gr-'+id)?.value||'').trim();t.disabled=true;await gm('reply',{event:id,approve:ok,text:v||(ok?'Disetujui':'Ditolak')});await loadAll(false);gmRender(true)}
 else if(t.dataset.inj){await gm('inject',{text:t.dataset.inj});await loadAll(false);gmRender(true)}
 else if(t.id==='injgo'){const v=$('#injtx').value.trim();if(!v)return;await gm('inject',{text:v});await loadAll(false);gmRender(true)}
@@ -782,11 +796,33 @@ const txt=`RINGKASAN TTX WASH — ${r.title} (${h.name}, ${h.kab})\nSkor ${Math.
 try{await navigator.clipboard.writeText(txt);$('#cmsg').textContent='Tersalin.'}catch(err){$('#cmsg').textContent='Gagal menyalin.'}}});
 
 
+
+/* ============ INJECT PERAN (fasilitator pemeran) ============ */
+function myRoles(){return LS.get('ttx_myroles_'+G.code)||[]}
+G.preset={};
+function gmPeran(){const sel=myRoles(),r0=G.room,ph=r0.phase,s=S();G.preset={};
+const washOpts=def=>`<option value="semua" ${def==='semua'?'selected':''}>Semua tim WASH</option>`+ROLES.filter(r=>r.g==='wash').map(r=>`<option value="${r.id}" ${def===r.id?'selected':''}>${esc(r.n)}</option>`).join('');
+const sentKey=(key,once)=>G.events.some(e=>e.kind==='peran'&&e.dkey===key&&(key.startsWith('p-')||once||e.phase===ph));
+let h=`<div class="panel"><h2>Peran yang saya mainkan</h2><p class="note">Setiap fasilitator pemeran membuka link fasilitator di perangkatnya sendiri, lalu memilih peran pemangku kepentingan yang ia mainkan. Pilihan disimpan di perangkat ini.</p><div class="btns">${ROLES.filter(r=>r.g!=='wash').map(r=>`<label style="display:inline-flex;gap:6px;align-items:center;margin:0;padding:6px 10px;border-radius:8px;border:2px solid ${sel.includes(r.id)?'#b5179e':'#e2c992'};background:${sel.includes(r.id)?'#fff3fb':'#fffdf5'};font-size:14px;cursor:pointer"><input type="checkbox" data-myrole="${r.id}" ${sel.includes(r.id)?'checked':''} style="width:18px;height:18px">${esc(r.n)}</label>`).join('')}</div>${r0.status!=='play'?'<p class="warnc" style="margin-top:8px"><b>Latihan belum berjalan. Inject tetap bisa dikirim, tetapi sebaiknya tunggu fasilitator utama memulai fase.</b></p>':''}</div>`;
+if(!sel.length)return h+'<p>Pilih minimal satu peran di atas.</p>';
+h+='<div class="cols" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))">';
+for(const rid of sel){const r=R(rid),presets=[];
+PH[ph].msg.forEach((m,k)=>{if(m[0]===rid)presets.push({key:`p-${rid}-${ph}-${k}`,t:m[1],to:'semua',fx:null,lab:'Inject skenario fase '+(ph+1)})});
+(ACTS[rid]||[]).forEach((a,k)=>{let t=a.m||'';if(a.dyn==='diare')t=`Surveilans Puskesmas: kasus diare kumulatif ${fmt(s.cases)} di antara ${fmt(s.pop)} pengungsi. Mohon perhatian pada titik dengan sisa klor rendah.`;presets.push({key:`a-${rid}-${k}`,t,to:isWash(a.to)?a.to:'semua',fx:a.fx||null,lab:a.l,once:a.once})});
+const inbox=G.events.filter(e=>e.target===rid&&e.player_id&&['pesan','minta','aksi'].includes(e.kind)).slice(-15).reverse();
+const pend=inbox.filter(e=>e.kind==='minta'&&e.status==='pending').length;
+h+=`<div class="panel" style="border-color:#b5179e"><span class="tag" style="background:#ffd6f5;color:#7a0f6a">${esc(GROUPS[r.g].n)}</span><h2>${esc(r.n)}</h2><p class="note"><b>Mandat:</b> ${esc(r.t)}<br><b>Kepentingan:</b> ${esc(r.k)}</p>
+<h3 style="margin:12px 0 6px">Kotak masuk dari tim WASH ${pend?`<span class="badge">${pend} permintaan</span>`:''}</h3>${inbox.map(e=>{const pl=G.players.find(x=>x.id===e.player_id);return`<div class="item"><span class="tag ${e.kind==='minta'?'y':'b'}">${e.kind==='minta'?'Permintaan':'Pesan'}</span>${e.status&&e.status!=='pending'?` <span class="tag ${e.status==='approved'?'g':'r'}">${e.status==='approved'?'disetujui':'ditolak'}</span>`:''} <span class="note">F${e.phase+1} · ${esc(pl?.name||'')} · ${esc(RN(e.role))}</span><p style="margin:4px 0">${esc(e.text)}</p>${e.kind==='minta'?`<p class="note">Bila disetujui: ${esc(fxText(e.delta))}</p>`:''}
+${e.kind==='minta'&&e.status==='pending'?`<input id="gr-${e.id}" maxlength="300" placeholder="Syarat atau alasan sebagai ${esc(r.n)}"><div class="btns" style="margin-top:6px"><button class="btn green sm" data-gmrep="${e.id}" data-ok="1" type="button">Setujui</button><button class="btn red sm" data-gmrep="${e.id}" data-ok="0" type="button">Tolak</button></div>`:e.kind!=='minta'?`<div class="btns"><input id="rr-${e.id}" maxlength="400" placeholder="Balas sebagai ${esc(r.n)}" style="flex:1;min-width:12em"><button class="btn sm" data-replyto="${e.id}" data-role="${rid}" type="button">Balas</button></div>`:''}</div>`}).join('')||'<p class="note">Belum ada pesan atau permintaan untuk peran ini.</p>'}
+<h3 style="margin:14px 0 6px">Inject siap pakai</h3>${presets.map(pr=>{G.preset[pr.key]={fx:pr.fx,role:rid};const done=sentKey(pr.key,pr.once);return`<div class="item"><span class="tag">${esc(pr.lab)}</span>${pr.fx?` <span class="tag ${Object.values(pr.fx).some(v=>v<0)?'r':'g'}">${esc(fxText(pr.fx))}</span>`:''}${done?' <span class="tag g">terkirim</span>':''}<textarea id="pt-${pr.key}" maxlength="600" style="min-height:64px;margin-top:6px">${esc(pr.t)}</textarea><div class="row2" style="margin-top:6px"><select id="pg-${pr.key}" aria-label="Tujuan">${washOpts(pr.to)}</select><button class="btn sm" style="background:#b5179e;border-color:#6e0c60" data-saykey="${pr.key}" type="button" ${done&&pr.once?'disabled':''}>Kirim inject</button></div></div>`}).join('')||'<p class="note">Tidak ada inject siap pakai untuk peran ini di fase ini.</p>'}
+<h3 style="margin:14px 0 6px">Inject kasus bebas</h3><div class="item"><textarea id="ft-${rid}" maxlength="600" placeholder="Tulis kasus dari sudut pandang ${esc(r.n)}: tuntutan, informasi baru, tekanan, tawaran…"></textarea><div class="row2" style="margin-top:6px"><div><label for="fg-${rid}">Ditujukan ke</label><select id="fg-${rid}">${washOpts('semua')}</select></div><div><label for="fk-${rid}">Dampak langsung (opsional)</label><div class="row2"><select id="fk-${rid}"><option value="">Tanpa dampak</option>${Object.entries(KEYS).filter(([k])=>k!=='pop').map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select><input id="fv-${rid}" type="number" value="0" aria-label="Nilai dampak"></div></div></div><p style="margin-top:8px"><button class="btn sm" style="background:#b5179e;border-color:#6e0c60" data-free="${rid}" type="button">Kirim inject bebas</button></p></div></div>`}
+return h+'</div>'}
+
 /* ============ SIARAN LANGSUNG (peta fasilitator) ============ */
 G.fx=[];G.fxSeen=Infinity;G.liveOpt={bubble:1,link:1,impact:1};
 const ZK={prod:'sungai',frc:'sungai',dist:'tenda',hyg:'tenda',lat:'jamban',cases:'puskesmas',b:'basecamp',tim:'basecamp',ko:'posko',ak:'posko',efi:'gudang',pop:'tenda'};
 const SK={prod:'L produksi',dist:'L distribusi',lat:'jamban',frc:'kualitas air',hyg:'higiene',cases:'kasus diare',b:'Rp jt',ko:'koordinasi',ak:'akuntabilitas',tim:'kesiapan tim',efi:'efisiensi',pop:'pengungsi'};
-const KC={keputusan:'#c8102e',pesan:'#2d7fc1',minta:'#c27a00',jawab:'#c27a00',aksi:'#2e8b3e',gm:'#6b3fa0',inject:'#6b3fa0',kejutan:'#6b3fa0',rest:'#888'};
+const KC={peran:'#b5179e',keputusan:'#c8102e',pesan:'#2d7fc1',minta:'#c27a00',jawab:'#c27a00',aksi:'#2e8b3e',gm:'#6b3fa0',inject:'#6b3fa0',kejutan:'#6b3fa0',rest:'#888'};
 const QC={baik:'#2e8b3e',cukup:'#c27a00',kurang:'#c0392b'};
 function zoneOfEvent(e){if(e.kind==='keputusan'&&e.dkey){const [p,j]=e.dkey.split('-').map(Number);return PH[p]?.d[j]?.loc}
 if(e.kind==='aksi'&&e.dkey){const m=e.dkey.match(/^([ca])-(\w+)-(\d+)$/);if(m){const L=(m[1]==='c'?CHORES:ACTS)[m[2]];return L?.[+m[3]]?.loc}}if(e.kind==='rest')return'basecamp';return null}
@@ -795,8 +831,8 @@ case'keputusan':{const s=t.split(' → ');return'Memutuskan: '+(s[1]||t)}
 case'pesan':return'HT → '+RN(e.target)+': '+t;case'aksi':return(e.target?RN(e.target)+' ← ':'')+t;
 case'minta':return'Minta ke '+RN(e.target)+': '+t;case'jawab':return(e.status==='approved'?'Setuju: ':'Tolak: ')+t;case'rest':return'Istirahat…';default:return t}}
 function spawnFx(e){const now=performance.now();
-if(e.player_id)G.fx.push({k:'bubble',pid:e.player_id,txt:bubbleText(e),col:e.quality?QC[e.quality]:KC[e.kind]||'#7a4b23',role:RN(e.role),t0:now,dur:e.kind==='keputusan'?11000:8000});
-if(['pesan','aksi','minta','jawab'].includes(e.kind)&&e.target&&e.player_id)G.fx.push({k:'link',pid:e.player_id,to:e.target,col:KC[e.kind],t0:now,dur:4000});
+const pid=e.player_id||(NPC[e.role]?'npc-'+e.role:null);if(pid)G.fx.push({k:'bubble',pid,txt:bubbleText(e),col:e.quality?QC[e.quality]:KC[e.kind]||'#7a4b23',role:RN(e.role),t0:now,dur:e.kind==='keputusan'?11000:8000});
+if(['pesan','aksi','minta','jawab','peran'].includes(e.kind)&&e.target&&pid)G.fx.push({k:'link',pid,to:e.target,col:KC[e.kind],t0:now,dur:4000});
 const z=zoneOfEvent(e);if(z)G.fx.push({k:'zone',z,col:e.quality?QC[e.quality]:KC[e.kind],t0:now,dur:4500});
 const applied=e.delta&&e.kind!=='minta'&&!(e.kind==='jawab'&&e.status!=='approved');
 if(applied){let i=0;for(const [k,v] of Object.entries(e.delta)){if(!v||!ZK[k])continue;const good=k==='cases'?v<0:k==='pop'?null:v>0;
@@ -810,7 +846,7 @@ function drawFx(g,sc,cx,cy,now){const P=id=>G.pos[id]||spawnFor(id),toS=(x,y)=>[
 G.fx=G.fx.filter(f=>now-f.t0<f.dur);const O=G.liveOpt;
 for(const f of G.fx){const a=(now-f.t0)/f.dur;if(a<0)continue;const fade=a>.8?(1-a)/.2:1;
 if(f.k==='zone'){const z=ZONES.find(q=>q.id===f.z);if(!z)continue;const [x,y]=toS(z.x*TS,z.y*TS),pad=6*Math.sin(a*Math.PI*4)+6;g.globalAlpha=fade*.9;g.lineWidth=4;g.strokeStyle=f.col;rrect(g,x-pad,y-pad,z.w*TS*sc+pad*2,z.h*TS*sc+pad*2,8);g.stroke();g.globalAlpha=1}
-else if(f.k==='link'&&O.link){const o=P(f.pid),[x1,y1]=toS(o.x,o.y-10);const tg=f.to==='semua'?[]:G.players.filter(p=>p.role===f.to&&p.id!==f.pid);g.globalAlpha=fade;g.strokeStyle=f.col;g.lineWidth=3;g.setLineDash([8,6]);g.lineDashOffset=-now/30;
+else if(f.k==='link'&&O.link){const o=P(f.pid),[x1,y1]=toS(o.x,o.y-10);let tg=f.to==='semua'?G.players.filter(p=>p.role&&p.id!==f.pid&&String(f.pid).startsWith('npc-')):G.players.filter(p=>p.role===f.to&&p.id!==f.pid);if(!tg.length&&NPC[f.to])tg=[{id:'npc-'+f.to}];if(tg.length>12)tg=tg.slice(0,12);g.globalAlpha=fade;g.strokeStyle=f.col;g.lineWidth=3;g.setLineDash([8,6]);g.lineDashOffset=-now/30;
 if(!tg.length){const r=(a*120+10);g.beginPath();g.arc(x1,y1,r,0,7);g.stroke()}
 for(const p of tg){const q=P(p.id),[x2,y2]=toS(q.x,q.y-10);g.beginPath();g.moveTo(x1,y1);g.quadraticCurveTo((x1+x2)/2,Math.min(y1,y2)-60,x2,y2);g.stroke();const t=a*1.6%1,bx=(1-t)**2*x1+2*(1-t)*t*(x1+x2)/2+t*t*x2,by=(1-t)**2*y1+2*(1-t)*t*(Math.min(y1,y2)-60)+t*t*y2;g.setLineDash([]);g.fillStyle=f.col;g.beginPath();g.arc(bx,by,5,0,7);g.fill();g.setLineDash([8,6])}
 g.setLineDash([]);g.globalAlpha=1}
@@ -824,13 +860,13 @@ g.textAlign='left';g.fillStyle=f.col;g.font='bold 12px Nunito,sans-serif';g.fill
 const bn=G.fx.filter(f=>f.k==='banner').slice(-1)[0];if(bn){const a=(now-bn.t0)/bn.dur,fade=a>.85?(1-a)/.15:Math.min(1,a*6),W=g.canvas.clientWidth,H=g.canvas.clientHeight;g.font='bold 15px Nunito,sans-serif';const lines=wrapText(g,bn.txt,Math.min(560,W-60),3),hh=lines.length*20+18,ww=Math.min(600,W-30);
 g.globalAlpha=fade;g.fillStyle='rgba(107,63,160,.94)';rrect(g,(W-ww)/2,H-hh-52,ww,hh,10);g.fill();g.fillStyle='#fff';g.textAlign='center';lines.forEach((l,i)=>g.fillText(l,W/2,H-hh-52+24+i*20));g.globalAlpha=1}}
 function liveBar(){const s=S(),lpd=Math.min(s.prod,s.dist)/s.pop,r=G.room;return`<span>${r?.status==='play'?'Fase '+(r.phase+1)+': '+esc(PH[r.phase].n):r?.status==='end'?'Selesai':'Lobi'}</span><span>Air ${lpd.toFixed(1)} L/org/hari</span><span>Jamban 1:${s.lat?Math.round(s.pop/s.lat):'–'}</span><span>Kualitas air ${Math.round(s.frc)}%</span><span>Higiene ${Math.round(s.hyg)}%</span><span>Diare ${fmt(s.cases)}</span><span>Rp${fmt(s.b)} jt</span><span>Koordinasi ${Math.round(s.ko)}</span><span>Akuntabilitas ${Math.round(s.ak)}</span>`}
-function feedItem(e){const pl=G.players.find(x=>x.id===e.player_id);const lab={keputusan:'Keputusan',pesan:'HT',minta:'Permintaan',jawab:e.status==='approved'?'Disetujui':'Ditolak',aksi:'Aksi',gm:'Fasilitator',inject:'Inject',kejutan:'Kejutan',rest:'Istirahat'}[e.kind]||e.kind;
+function feedItem(e){const pl=G.players.find(x=>x.id===e.player_id);const lab={peran:'Inject '+(SHORT[e.role]||''),keputusan:'Keputusan',pesan:'HT',minta:'Permintaan',jawab:e.status==='approved'?'Disetujui':'Ditolak',aksi:'Aksi',gm:'Fasilitator',inject:'Inject',kejutan:'Kejutan',rest:'Istirahat'}[e.kind]||e.kind;
 const applied=e.delta&&e.kind!=='minta'&&!(e.kind==='jawab'&&e.status!=='approved');
-return`<div class="fi k-${esc(e.kind)}"><b>${esc(lab)}</b>${e.quality?` <b class="${{baik:'good',cukup:'warnc',kurang:'badc'}[e.quality]}">(${esc(e.quality)})</b>`:''} <span class="note">${new Date(e.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} · ${esc(pl?.name||'Fasilitator')}${e.role&&pl?' · '+esc(RN(e.role)):''}${e.target?' → '+esc(RN(e.target)):''}</span><div>${esc(e.text)}</div>${applied&&fxText(e.delta)?`<div class="note">Dampak: ${esc(fxText(e.delta))}</div>`:''}</div>`}
+return`<div class="fi k-${esc(e.kind)}"><b>${esc(lab)}</b>${e.quality?` <b class="${{baik:'good',cukup:'warnc',kurang:'badc'}[e.quality]}">(${esc(e.quality)})</b>`:''} <span class="note">${new Date(e.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} · ${esc(pl?.name||(['peran','jawab'].includes(e.kind)&&NPC[e.role]?RN(e.role):'Fasilitator'))}${e.role&&pl?' · '+esc(RN(e.role)):''}${e.target?' → '+esc(RN(e.target)):''}</span><div>${esc(e.text)}</div>${applied&&fxText(e.delta)?`<div class="note">Dampak: ${esc(fxText(e.delta))}</div>`:''}</div>`}
 function liveFeed(){const ev=G.events.filter(e=>e.kind!=='rest').slice(-40).reverse();return ev.map(feedItem).join('')||'<p class="note">Belum ada aktivitas. Aksi pemain akan muncul di sini dan di peta secara langsung.</p>'}
 function liveHtml(){const O=G.liveOpt;return`<div class="live" id="live"><div class="mapbox"><canvas id="gmcv"></canvas><div class="livebar" id="livebar">${liveBar()}</div>
 <div class="livetools"><label><input type="checkbox" data-lo="bubble" ${O.bubble?'checked':''}>Balon</label><label><input type="checkbox" data-lo="link" ${O.link?'checked':''}>Garis HT</label><label><input type="checkbox" data-lo="impact" ${O.impact?'checked':''}>Dampak</label><button class="btn sm" id="fs" type="button">Layar penuh</button></div></div>
-<div class="feed"><h2>Aktivitas langsung</h2><p class="note" style="margin:0">Merah: keputusan · biru: HT · oranye: permintaan · hijau: aksi · ungu: fasilitator</p><div id="livefeed">${liveFeed()}</div></div></div>`}
+<div class="feed"><h2>Aktivitas langsung</h2><p class="note" style="margin:0">Merah: keputusan tim · biru: HT · oranye: permintaan · hijau: aksi · magenta: inject pemangku kepentingan · ungu: fasilitator utama</p><div id="livefeed">${liveFeed()}</div></div></div>`}
 function liveUpdate(){const b=$('#livebar'),f=$('#livefeed');if(b)b.innerHTML=liveBar();if(f){const st=f.parentElement.scrollTop;f.innerHTML=liveFeed();f.parentElement.scrollTop=st}}
 document.addEventListener('change',e=>{const t=e.target;if(t.dataset&&t.dataset.lo){G.liveOpt[t.dataset.lo]=t.checked?1:0}});
 document.addEventListener('click',e=>{if(e.target.id==='fs'){const el=$('#live');try{if(document.fullscreenElement)document.exitFullscreen();else el.requestFullscreen()}catch(err){}}});
@@ -851,7 +887,8 @@ if(!/^[0-9a-f-]{36}$/i.test(pin)){$('#g-msg').textContent='Format PIN tidak sesu
 const {data,error}=await sb.rpc('ttx_gm',{p_code:code,p_secret:pin,p_action:'cek',p_payload:{}});if(error||data?.reason==='bukan fasilitator'){$('#g-msg').textContent='Kode atau PIN salah.';return}
 G.auth={code,secret:pin};LS.set('ttx_gm',G.auth);enterGM()};
 
-function boot(){buildMap();drawBG();avatars();requestAnimationFrame(loop);
+function boot(){buildMap();drawBG();avatars();for(const r in NPC)G.pos['npc-'+r]={x:NPC[r][0]*TS,y:NPC[r][1]*TS,d:'down'};requestAnimationFrame(loop);
+const fh=location.hash.match(/^#f=([A-Z0-9]{5})\.([0-9a-f-]{36})$/i);if(fh&&sb){G.auth={code:fh[1].toUpperCase(),secret:fh[2]};LS.set('ttx_gm',G.auth);history.replaceState(null,'',location.pathname);enterGM();return}
 const q=new URLSearchParams(location.search),rc=(q.get('r')||'').toUpperCase();if(rc)$('#j-code').value=rc;
 if(!sb){$('#j-msg').textContent='Tidak bisa memuat pustaka Supabase. Periksa koneksi internet.';return}
 const me=LS.get('ttx_me'),gmA=LS.get('ttx_gm');
@@ -859,6 +896,7 @@ if(q.has('gm')&&gmA){G.auth=gmA;enterGM();return}
 if(me&&(!rc||rc===me.code)){$('#j-resume').innerHTML=`Kamu pernah bergabung di ruang <b>${esc(me.code)}</b>. <button class="btn sm" id="resume" type="button">Lanjutkan</button> <button class="btn ghost sm" id="forget" type="button">Gabung sebagai orang baru</button>`;
 $('#resume').onclick=()=>{G.auth=me;enterPlay()};$('#forget').onclick=()=>{LS.del('ttx_me');$('#j-resume').textContent=''}}
 if(gmA&&!rc){$('#f-gm').insertAdjacentHTML('afterbegin',`<p class="note" style="margin-top:10px">Ruang fasilitator terakhir: <b>${esc(gmA.code)}</b> <button class="btn sm" id="gmres" type="button">Buka lagi</button></p>`);$('#gmres').onclick=()=>{G.auth=gmA;enterGM()}}}
+window.addEventListener('hashchange',()=>{if(/^#f=/.test(location.hash))location.reload()});
 boot();
 }
 </script>
