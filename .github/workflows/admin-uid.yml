@@ -1,0 +1,24 @@
+# Sekali pakai: mencari UID akun admin (tanpa mencetak e-mail) agar penanda admin bisa memakai UID, bukan e-mail.
+name: Cari UID admin
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.admin-uid-lookup']
+jobs:
+  uid:
+    runs-on: ubuntu-latest
+    env: { SA_JSON: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Cari UID
+        working-directory: functions
+        run: |
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"; export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npm ci --no-audit --no-fund >/dev/null
+          node -e "
+            global.window = {}; require('../auth-config.js'); const emails = (window.TIRTAPLAN_AUTH.adminEmails || []);
+            const admin = require('firebase-admin'); admin.initializeApp({ projectId: 'washpipe-93f48' });
+            (async () => { for (const [i, e] of emails.entries()) { try { const u = await admin.auth().getUserByEmail(e); console.log('ADMIN_' + (i + 1) + '_UID=' + u.uid + ' verified=' + u.emailVerified); } catch (err) { console.log('ADMIN_' + (i + 1) + '_UID=TIDAK_ADA (' + err.code + ')'); } } })();"
