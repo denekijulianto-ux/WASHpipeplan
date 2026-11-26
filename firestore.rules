@@ -37,6 +37,15 @@ service cloud.firestore {
         || !exists(/databases/$(database)/documents/usage/$(uid)) && get(/databases/$(database)/documents/billing_config/main).data.freeLimits.cloudProjects > 0
         || exists(/databases/$(database)/documents/usage/$(uid)) && underFreeLimit(uid);
     }
+    // Penunjukan tim proyek (surveyor, penggambar, pemeriksa, penyetuju) oleh pemilik adalah fitur WASHLY PRO.
+    // Tim kosong atau hanya pemilik sendiri selalu boleh; admin bebas; mode tanpa langganan (enforce mati) bebas.
+    function crewIsOwner(d) {
+      return d.get('checkerUid', '') in ['', d.ownerUid] && d.get('approverUid', '') in ['', d.ownerUid]
+        && d.get('surveyorUid', '') in ['', d.ownerUid] && d.get('drafterUid', '') in ['', d.ownerUid];
+    }
+    function mayAssignCrew(d) {
+      return crewIsOwner(d) || isAdmin() || !billingOn() || isPro(d.ownerUid);
+    }
     // Akun aktif: pendaftaran tidak lagi menunggu persetujuan admin ('pending' lama dianggap aktif).
     // Admin tetap bisa menangguhkan ('suspended') atau menolak ('rejected') akun.
     function approved() {
@@ -55,8 +64,8 @@ service cloud.firestore {
     }
     // Profil pengguna & persetujuan akun
     match /users/{uid} {
-      // pengguna yang disetujui boleh melihat daftar pengguna (untuk memilih pemeriksa & penyetuju)
-      allow read: if request.auth != null && (request.auth.uid == uid || approved());
+      // Privat: hanya pemilik akun & admin. Pemilik PRO mencari anggota tim lewat e-mail (fungsi projectFindUser).
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.status in ['approved', 'pending'];
       allow update, delete: if isAdmin();
@@ -71,10 +80,14 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow write: if request.auth != null && request.auth.uid == uid;
     }
-    // Daftar proyek (ringkasan) — semua anggota yang disetujui boleh membaca
+    // Daftar proyek (ringkasan) — privat: hanya pemilik, tim yang ditunjuk pada proyek itu, dan admin
     match /projects/{pid} {
-      allow read: if approved();
+      // resource == null: dokumen belum ada (aplikasi membacanya sebelum menyimpan proyek baru) — tidak ada isi yang terbuka
+      allow read: if isAdmin() || (approved() && (resource == null || resource.data.ownerUid == request.auth.uid
+        || resource.data.checkerUid == request.auth.uid || resource.data.approverUid == request.auth.uid
+        || resource.data.surveyorUid == request.auth.uid || resource.data.drafterUid == request.auth.uid));
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid
+        && mayAssignCrew(request.resource.data)
         && (isAdmin() || !(request.resource.data.status in ['checked', 'approved']))
         && mayCreateProject(request.auth.uid);
       // Pemilik (status tetap / belum disetujui), admin, atau petugas yang ditunjuk (hanya langkahnya, tanpa mengubah penunjukan)
@@ -82,7 +95,8 @@ service cloud.firestore {
         && request.resource.data.ownerUid == resource.data.ownerUid
         && (isAdmin()
           || (resource.data.ownerUid == request.auth.uid
-              && (request.resource.data.status == resource.data.status || !(request.resource.data.status in ['checked', 'approved'])))
+              && (request.resource.data.status == resource.data.status || !(request.resource.data.status in ['checked', 'approved']))
+              && (sameCrew() || mayAssignCrew(request.resource.data)))
           || (resource.data.get('checkerUid', '') == request.auth.uid && sameCrew()
               && request.resource.data.status in ['review', 'checked', 'revisi'])
           || ((resource.data.get('surveyorUid', '') == request.auth.uid || resource.data.get('drafterUid', '') == request.auth.uid) && sameCrew()
@@ -103,9 +117,9 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/projects/$(pid)).data.get('drafterUid', '') == request.auth.uid);
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
-    // Hanya jaringan pipa (titik & pipa) untuk pengguna lain; ditulis bersama projectData oleh pemilik/petugas
+    // Ringkasan jaringan pipa; privat seperti proyeknya (pemilik, tim yang ditunjuk, admin)
     match /projectNet/{pid} {
-      allow read: if approved();
+      allow read: if approved() && (resource.data.ownerUid == request.auth.uid || projectMember(pid));
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
       allow update: if approved() && request.resource.data.ownerUid == resource.data.ownerUid && projectMember(pid);
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());

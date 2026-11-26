@@ -1,8 +1,8 @@
 'use strict';
 // Uji firestore.rules di Firestore Emulator: jalankan lewat  npm run test:rules
-const test = require('node:test'); const fs = require('fs'); const path = require('path');
+const test = require('node:test'); const assert = require('node:assert/strict'); const fs = require('fs'); const path = require('path');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, Timestamp } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, Timestamp, collection, query, where, getDocs } = require('firebase/firestore');
 let env;
 const ADMIN = 'denekijulianto@gmail.com';
 test.before(async () => {
@@ -63,21 +63,47 @@ test('pendaftaran langsung aktif tanpa persetujuan admin; akun lama "pending" ak
   await assertFails(setDoc(doc(user('bad', 'bad@x.org'), 'users/bad'), { email: 'bad@x.org', status: 'approved' }));
 });
 
-test('proyek orang lain: isi lengkap & foto tertutup, hanya jaringan pipa yang terbaca; petugas yang ditunjuk boleh membaca', async () => {
+test('proyek privat: akun lain tidak bisa membaca daftar proyek, jaringan pipa, isi, foto, maupun daftar pengguna; tim yang ditunjuk & admin bisa', async () => {
   await seed(async db => {
     for (const u of ['own', 'oth', 'chk']) await setDoc(doc(db, 'users/' + u), { email: u + '@x.org', status: 'approved' });
-    await setDoc(doc(db, 'projects/p1'), { ownerUid: 'own', name: 'P', status: 'review', checkerUid: 'chk' });
+    await setDoc(doc(db, 'projects/p1'), { ownerUid: 'own', name: 'P', status: 'review', checkerUid: 'chk', approverUid: '', surveyorUid: 'own', drafterUid: 'own' });
+    await setDoc(doc(db, 'projects/p2'), { ownerUid: 'oth', name: 'Q', status: 'draft' });
     await setDoc(doc(db, 'projectData/p1'), { ownerUid: 'own', rev: 1, text: '{}' });
     await setDoc(doc(db, 'projectNet/p1'), { ownerUid: 'own', rev: 1, text: '{}' });
     await setDoc(doc(db, 'photos/f1'), { ownerUid: 'own', projectId: 'p1', data: 'x' });
   });
   const oth = user('oth', 'oth@x.org'), own = user('own', 'own@x.org'), chk = user('chk', 'chk@x.org'), adm = user('a', ADMIN);
-  await assertFails(getDoc(doc(oth, 'projectData/p1'))); await assertFails(getDoc(doc(oth, 'photos/f1')));
-  await assertSucceeds(getDoc(doc(oth, 'projectNet/p1'))); await assertSucceeds(getDoc(doc(oth, 'projects/p1')));
+  for (const path of ['projects/p1', 'projectNet/p1', 'projectData/p1', 'photos/f1', 'users/own']) await assertFails(getDoc(doc(oth, path)));
+  await assertFails(getDocs(collection(oth, 'projects')));                       // daftar semua proyek: ditolak
+  await assertFails(getDocs(collection(oth, 'users')));                          // daftar semua pengguna: ditolak
+  await assertSucceeds(getDoc(doc(oth, 'users/oth')));                           // profil sendiri: boleh
+  await assertSucceeds(getDoc(doc(oth, 'projects/baru')));                       // dokumen belum ada (sebelum menyimpan proyek baru): boleh
+  await assertSucceeds(getDocs(query(collection(oth, 'projects'), where('ownerUid', '==', 'oth'))));
+  const asChecker = await assertSucceeds(getDocs(query(collection(chk, 'projects'), where('checkerUid', '==', 'chk'))));
+  assert.equal(asChecker.size, 1);
+  for (const db of [own, chk, adm]) for (const path of ['projects/p1', 'projectNet/p1', 'projectData/p1', 'photos/f1']) await assertSucceeds(getDoc(doc(db, path)));
+  await assertSucceeds(getDocs(collection(adm, 'projects'))); await assertSucceeds(getDocs(collection(adm, 'users')));
   await assertFails(setDoc(doc(oth, 'projectNet/p1'), { ownerUid: 'own', rev: 2, text: '{"nodes":[]}' }));
   await assertFails(setDoc(doc(oth, 'projectData/p1'), { ownerUid: 'own', rev: 2, text: '{}' }));
-  for (const db of [own, chk, adm]) { await assertSucceeds(getDoc(doc(db, 'projectData/p1'))); await assertSucceeds(getDoc(doc(db, 'photos/f1'))); }
   await assertSucceeds(setDoc(doc(own, 'projectNet/p1'), { ownerUid: 'own', rev: 2, text: '{}' }));
+});
+
+test('tim proyek: pemilik PRO boleh menunjuk orang lain; pemilik FREE hanya dirinya sendiri; tim lama tetap bisa disimpan', async () => {
+  const future = Timestamp.fromMillis(Date.now() + 864e5);
+  const mk = async (ent) => { await env.clearFirestore(); await seed(async db => { await base(db, { ent }); await setDoc(doc(db, 'users/c'), { email: 'c@x.org', status: 'approved' });
+    await setDoc(doc(db, 'projects/p1'), { ownerUid: 'u', name: 'P', status: 'draft', checkerUid: '', approverUid: '', surveyorUid: '', drafterUid: '' }); }); };
+  const u = () => user('u', 'u@x.org');
+  await mk({ tier: 'FREE' });
+  await assertSucceeds(updateDoc(doc(u(), 'projects/p1'), { surveyorUid: 'u', drafterUid: 'u' }));    // diri sendiri: boleh
+  await assertFails(updateDoc(doc(u(), 'projects/p1'), { checkerUid: 'c' }));                        // orang lain: PRO saja
+  await assertFails(setDoc(doc(u(), 'projects/p9'), { ownerUid: 'u', name: 'X', status: 'draft', approverUid: 'c' }));
+  await assertSucceeds(updateDoc(doc(u(), 'projects/p1'), { name: 'Ganti nama' }));                   // tim tidak berubah: boleh
+  await mk({ tier: 'PRO', accessUntilTs: future });
+  await assertSucceeds(updateDoc(doc(u(), 'projects/p1'), { checkerUid: 'c', approverUid: 'c', surveyorUid: 'c', drafterUid: 'c' }));
+  await assertSucceeds(getDoc(doc(user('c', 'c@x.org'), 'projects/p1')));                           // anggota tim kini bisa membuka
+  await mk({ tier: 'PRO', accessUntilTs: Timestamp.fromMillis(Date.now() - 1000) });                // PRO berakhir
+  await assertFails(updateDoc(doc(u(), 'projects/p1'), { checkerUid: 'c' }));
+  await assertSucceeds(updateDoc(doc(user('a', ADMIN), 'projects/p1'), { checkerUid: 'c' }));        // admin bebas
 });
 
 test('bukti transfer: hanya pengirim & admin yang bisa membaca; tidak ada yang bisa menulis dari aplikasi', async () => {

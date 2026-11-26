@@ -7933,7 +7933,7 @@ const KB = [
   { k: 'unggah upload tanda tangan gambar scan foto ttd esign', t: 'Unggah gambar tanda tangan', a: 'Pada jendela tanda tangan elektronik tekan **Unggah gambar tanda tangan** dan pilih foto/scan tanda tangan (PNG/JPG). Opsi *Hapus latar putih otomatis* membuat latar kertas transparan. Tanda tangan disimpan di perangkat untuk dipakai lagi.' },
   { k: 'login masuk gagal configuration-not-found firebase auth-config domain', t: 'Gagal masuk / login daring', a: '- **auth/configuration-not-found**: aktifkan *Authentication → Sign-in method → Email/Password* di Firebase dan pastikan isi `auth-config.js` sama persis dengan *Project settings → Your apps → Config*.\n- **unauthorized-domain**: tambahkan domain situs (mis. `nama.github.io`) di *Authentication → Settings → Authorized domains*.\n- **Email atau kata sandi salah**: pakai "Lupa kata sandi" di layar masuk.\n- Masuk pertama kali di perangkat baru butuh internet; setelah itu bisa luring hingga 30 hari.' },
   { k: 'daftar akun baru menunggu persetujuan pending approve admin aktif free tangguhkan', t: 'Mendaftar akun', a: 'Akun baru **langsung aktif** dengan paket **WASHLY FREE**, tanpa menunggu persetujuan admin. Admin tetap bisa melihat pendaftar dan **menangguhkan** akun di *Menu → Kelola pengguna*. Untuk membuka semua fitur, upgrade ke **WASHLY PRO** di *Langganan*.' },
-  { k: 'proyek orang lain lihat jaringan saja tidak bisa edit hanya baca petugas review akses', t: 'Membuka proyek milik pengguna lain', a: 'Proyek milik orang lain hanya dapat dilihat **jaringan pipanya** (titik & pipa) di peta. Analisis, RAB, gambar DED, foto, dan data lain hanya untuk **pemilik dan admin**, dan tidak ada yang bisa mengubah proyek milik orang lain. Petugas yang ditunjuk pemilik (surveyor, penggambar, pemeriksa, penyetuju) dapat melihat semua lembar dan menandatangani, tetapi tetap tidak dapat mengubah isinya.' },
+  { k: 'proyek orang lain lihat jaringan saja tidak bisa edit hanya baca petugas review akses', t: 'Membuka proyek milik pengguna lain', a: 'Setiap proyek bersifat **privat**: hanya pemilik, admin, dan **tim yang ditunjuk pemilik** (surveyor, penggambar, pemeriksa, penyetuju) yang bisa melihat proyek itu, termasuk daftar dan jaringan pipanya. Tim yang ditunjuk melihat semua lembar dan menandatangani, tetapi tidak dapat mengubah isinya; proyek yang menugaskan Anda ada di **Proyek → Ditugaskan ke saya**. Pemilik **WASHLY PRO** menunjuk tim sendiri di **Status & review**: ketik e-mail akun WASHLY anggota tim lalu tekan *Tunjuk*.' },
   { k: 'sinkron cloud gagal permission-denied aturan firestore rules simpan', t: 'Sinkron cloud gagal', a: '- **Akses ditolak (permission-denied)**: tempel ulang isi `firestore.rules` terbaru di *Firebase Console → Firestore → Rules → Publish*.\n- **Offline**: data tetap tersimpan di perangkat dan dikirim otomatis saat online.\n- **Ada versi lain di cloud**: pilih memakai versi cloud, menimpa dengan versi Anda, atau menyimpan sebagai salinan.' },
   { k: 'gps tidak akurat lokasi izin akurasi sinyal tracker rekam jejak', t: 'GPS tidak akurat / tidak jalan', a: '- Izinkan akses **Lokasi** untuk browser/aplikasi dan aktifkan mode akurasi tinggi.\n- Aplikasi harus dibuka lewat **HTTPS** (GitHub Pages sudah HTTPS).\n- Tunggu akurasi ≤ batas di *Pengaturan GPS* (bawaan 20 m); di bawah pohon/lembah akurasi turun.\n- Saat merekam jejak, layar dijaga tetap menyala; jangan kunci layar terlalu lama.' },
   { k: 'elevasi dem tidak terisi ketinggian otomatis open-meteo perkiraan', t: 'Elevasi otomatis (DEM) tidak terisi', a: 'Elevasi otomatis memakai DEM Copernicus 90 m via internet. Bila offline, elevasi sementara diperkirakan dari titik sekitar (label *Perkiraan*) dan diperbarui saat online (tombol *Coba lagi* di bilah bawah). Untuk akurasi lebih baik, isi elevasi manual dari survei (waterpass/GPS geodetik).' },
@@ -8856,10 +8856,16 @@ function makeCloudStore(api) {
   const metaOf = (d) => { const x = d.data(); return { ...x, id: d.id, updatedAt: ms(x.updatedAt), createdAt: ms(x.createdAt) }; };
   const wrap = (e) => { const x = new Error(fbErr(e)); x.code = e.code; return x; };
   return {
-    async list(scope, user) { try { let q = db.collection('projects'); if (scope === 'mine') q = q.where('ownerUid', '==', user.uid); const s = await q.get(); return s.docs.map(metaOf).sort((a, b) => b.updatedAt - a.updatedAt); } catch (e) { throw wrap(e); } },
+    // Proyek privat: daftar milik sendiri, proyek yang menugaskan saya (surveyor/penggambar/pemeriksa/penyetuju), atau semua (admin)
+    async list(scope, user) { try { let docs;
+      if (scope === 'mine') docs = (await db.collection('projects').where('ownerUid', '==', user.uid).get()).docs;
+      else if (user.admin) docs = (await db.collection('projects').get()).docs;
+      else { const qs = await Promise.all(['checkerUid', 'approverUid', 'surveyorUid', 'drafterUid'].map(f => db.collection('projects').where(f, '==', user.uid).get()));
+        const m = new Map(); qs.forEach(q => q.docs.forEach(d => { if (d.data().ownerUid !== user.uid) m.set(d.id, d); })); docs = [...m.values()]; }
+      return docs.map(metaOf).sort((a, b) => b.updatedAt - a.updatedAt); } catch (e) { throw wrap(e); } },
     async meta(id) { try { const s = await db.collection('projects').doc(id).get(); return s.exists ? metaOf(s) : null; } catch (e) { throw wrap(e); } },
     async load(id) {
-      try { const m = await db.collection('projects').doc(id).get();
+      try { let m; try { m = await db.collection('projects').doc(id).get(); } catch (e) { if (e.code === 'permission-denied') throw new Error('Proyek ini privat milik pengguna lain. Minta pemiliknya menambahkan Anda ke tim proyek.'); throw e; }
         let d = null; try { d = await db.collection('projectData').doc(id).get(); } catch (e) { if (e.code !== 'permission-denied') throw e; }
         if (!d) { // bukan pemilik/admin/petugas: server hanya memberi jaringan pipa (projectNet)
           const n = await db.collection('projectNet').doc(id).get();
@@ -8932,7 +8938,7 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
         <Btn variant="outline" icon="BookOpen" onClick={() => onNew('example')}>Dari contoh</Btn>
         <Btn variant="outline" icon="Upload" onClick={onImport}>Impor .json</Btn>
       </div>
-      {store && <div className="flex border-b border-line text-[13px] mt-3 px-2">{[['mine', 'Proyek saya'], ['team', 'Semua proyek tim']].map(([k, l]) => <button key={k} type="button" onClick={() => setTab(k)} className={`px-4 py-2 font-medium ${tab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}</div>}
+      {store && <div className="flex border-b border-line text-[13px] mt-3 px-2">{[['mine', 'Proyek saya'], ['team', user.admin ? 'Semua proyek (admin)' : 'Ditugaskan ke saya']].map(([k, l]) => <button key={k} type="button" onClick={() => setTab(k)} className={`px-4 py-2 font-medium ${tab === k ? 'text-aqua-700 border-b-2 border-aqua-600' : 'text-slate-500'}`}>{l}</button>)}</div>}
       <div className="px-5 pt-3 flex flex-wrap gap-2">
         <input id="lib-search" className="tp-field !w-auto flex-1 min-w-[160px]" placeholder="Cari nama, lokasi, pemilik…" value={q} onChange={e => setQ(e.target.value)} />
         <select id="lib-status" className="tp-field !w-auto" value={st} onChange={e => setSt(e.target.value)}><option value="">Semua status</option>{Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}</select>
@@ -8961,12 +8967,24 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
     </div>
   </div>;
 }
+// Pemilik (PRO) menunjuk anggota tim proyek lewat e-mail akun WASHLY; server memeriksa paket PRO & keberadaan akun
+function MemberPicker({ id, label, value, me, disabled, onPick }) {
+  const [em, setEm] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const find = async () => { setErr(''); setBusy(true); try { const u = await callFn('projectFindUser', { email: em.trim() }); onPick({ uid: u.uid, email: u.email, name: u.name || u.email, role: u.role || '' }); setEm(''); } catch (e) { setErr(e.message || String(e)); } setBusy(false); };
+  return <Field label={label}><div className="space-y-1.5">
+    <div id={id + '-cur'} className="flex items-center gap-2 rounded-md border border-line bg-ground px-2.5 py-1.5 min-h-[34px] text-[12.5px]">{value ? <span className="flex-1 min-w-0 truncate"><b>{value.name}</b>{value.uid === me.uid ? ' (Anda)' : value.email ? <span className="text-slate-500"> · {value.email}</span> : null}</span> : <span className="flex-1 text-slate-400">Belum ditunjuk</span>}
+      {!disabled && value && <button type="button" className="text-slate-400 hover:text-red-600" title="Kosongkan" onClick={() => onPick(null)}><Icon name="X" size={14} /></button>}</div>
+    {!disabled && <div className="flex gap-1.5"><input id={id + '-email'} type="email" className="tp-field !py-1 flex-1 min-w-0" placeholder="e-mail akun WASHLY" value={em} onChange={e => { setEm(e.target.value); setErr(''); }} onKeyDown={e => { if (e.key === 'Enter' && em.trim()) find(); }} />
+      <Btn id={id + '-add'} variant="outline" disabled={busy || !em.trim()} onClick={find}>{busy ? 'Mencari…' : 'Tunjuk'}</Btn>
+      {value?.uid !== me.uid && <Btn variant="ghost" onClick={() => onPick(me)} title="Tunjuk diri sendiri">Saya</Btn>}</div>}
+    {err && <p className="text-[11.5px] text-red-700">{err}</p>}</div></Field>;
+}
 function ReviewDialog({ project, user, api, onAct, onClose }) {
   const c = project.cloud || {}; const S = PSTATUS[c.status] || PSTATUS.draft; const [note, setNote] = useState(''); const [err, setErr] = useState('');
   const isOwner = c.ownerUid === user.uid; const staf = /staf|^pemeriksa/i.test(user.role || ''); /* peran pemeriksa (termasuk peran lama "Staf …") tidak menyetujui sendiri */ const rv = c.reviewers || {};
   const meU = { uid: user.uid, email: user.email, name: user.name || user.email, role: user.role || '' };
   const [users, setUsers] = useState(null); const [sel, setSel] = useState({ checker: rv.checker || null, approver: rv.approver || null, surveyor: rv.surveyor || (isOwner ? meU : null), drafter: rv.drafter || (isOwner ? meU : null), same: rv.same !== undefined ? rv.same : true }); const [signing, setSigning] = useState(null); const [cur, setCur] = useState(null);
-  useEffect(() => { (api && api.listUsers ? api.listUsers() : Promise.resolve([])).then(l => setUsers(l.filter(u => u.status === 'approved'))).catch(() => setUsers([])); }, []);
+  useEffect(() => { if (!user.admin) { setUsers([]); return; } (api && api.listUsers ? api.listUsers() : Promise.resolve([])).then(l => setUsers(l.filter(u => u.status === 'approved'))).catch(() => setUsers([])); }, []); // daftar pengguna hanya untuk admin
   useEffect(() => { contentHash(project).then(setCur); }, [project]);
   const isChecker = rv.checker && rv.checker.uid === user.uid, isApprover = rv.approver && rv.approver.uid === user.uid;
   const canAssign = (isOwner || user.admin) && ['draft', 'revisi'].includes(c.status || 'draft');
@@ -8988,10 +9006,11 @@ function ReviewDialog({ project, user, api, onAct, onClose }) {
   const [showAll, setShowAll] = useState(false); const anyRights = (users || []).some(u => u.review && (u.review.check || u.review.approve));
   const eligible = (role) => (users || []).filter(u => showAll || !anyRights || !!u.review?.[role === 'checker' ? 'check' : 'approve']);
   const pickAny = (role, id) => { const u = id === user.uid ? meU : (users || []).find(x => x.uid === id); setSel(s => ({ ...s, [role]: u ? { uid: u.uid, email: u.email, name: u.name || u.email, role: u.role || '' } : null })); };
-  const pSel = (role, label) => <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pickAny(role, e.target.value)} disabled={!canAssign}>
+  const mPick = (role, label) => <MemberPicker id={'rv-' + role} label={label} value={sel[role]} me={meU} disabled={!canAssign} onPick={u => setSel(s => ({ ...s, [role]: u }))} />;
+  const pSel = (role, label) => !user.admin ? mPick(role, label) : <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pickAny(role, e.target.value)} disabled={!canAssign}>
     <option value="">Pilih pengguna</option>{sel[role] && !(users || []).some(u => u.uid === sel[role].uid) && <option value={sel[role].uid}>{sel[role].name}</option>}
     {(users || []).map(u => <option key={u.uid} value={u.uid}>{u.name || u.email}{u.role ? ` · ${u.role}` : ''}</option>)}</select></Field>;
-  const uSel = (role, label) => <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pick(role, e.target.value)} disabled={!canAssign}>
+  const uSel = (role, label) => !user.admin ? mPick(role, label) : <Field label={label}><select id={'rv-' + role} className="tp-field" value={sel[role]?.uid || ''} onChange={e => pick(role, e.target.value)} disabled={!canAssign}>
     <option value="">{users === null ? 'Memuat daftar pengguna…' : eligible(role).length ? 'Pilih pengguna' : 'Belum ada pengguna dengan hak ini'}</option>
     {sel[role] && !eligible(role).some(u => u.uid === sel[role].uid) && <option value={sel[role].uid}>{sel[role].name}</option>}
     {eligible(role).map(u => <option key={u.uid} value={u.uid}>{u.name || u.email}{u.role ? ` · ${u.role}` : ''}</option>)}</select></Field>;
@@ -9021,9 +9040,10 @@ function ReviewDialog({ project, user, api, onAct, onClose }) {
         </div>
         <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Langkah 2 · Pemeriksa & penyetuju</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{uSel('checker', `Pemeriksa (${project.meta.checkedBy || 'Pemeriksa'})`)}{uSel('approver', `Penyetuju (${project.meta.approvedBy || 'Penyetuju'})`)}</div>
-        {users && users.length > 0 && canAssign && <p className="text-[11.5px] text-slate-500">{anyRights ? 'Daftar hanya berisi pengguna yang diberi hak pemeriksa/penyetuju oleh admin.' : 'Admin belum menetapkan hak pemeriksa/penyetuju, jadi semua pengguna aktif ditampilkan.'}
+        {!user.admin && canAssign && <p className="text-[11.5px] text-slate-500">Ketik e-mail akun WASHLY anggota tim lalu tekan <b>Tunjuk</b>. Orang yang ditunjuk bisa membuka proyek ini dan menerima notifikasi. Proyek tetap privat bagi akun lain.</p>}
+        {user.admin && users && users.length > 0 && canAssign && <p className="text-[11.5px] text-slate-500">{anyRights ? 'Daftar hanya berisi pengguna yang diberi hak pemeriksa/penyetuju oleh admin.' : 'Admin belum menetapkan hak pemeriksa/penyetuju, jadi semua pengguna aktif ditampilkan.'}
           {anyRights && user.admin && <label className="ml-2 inline-flex items-center gap-1"><input id="rv-showall" type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />tampilkan semua (admin)</label>}</p>}
-        {users && !users.length && canAssign && <p className="text-[12px] text-amber-700">Daftar pengguna tidak dapat dimuat (periksa aturan firestore.rules terbaru).</p>}
+        {user.admin && users && !users.length && canAssign && <p className="text-[12px] text-amber-700">Daftar pengguna tidak dapat dimuat (periksa aturan firestore.rules terbaru).</p>}
         <table className="tp-table"><tbody>{sigRow('checker', 'Tanda tangan pemeriksa')}{sigRow('approver', 'Tanda tangan penyetuju')}</tbody></table>
         {c.status === 'review' && !planDone && <p className="text-[12px] text-red-700">Tanda tangan surveyor/penggambar tidak berlaku (isi berubah). Kembalikan untuk revisi agar ditandatangani ulang.</p>}
         {(canAssign || canCheck || canApprove || canRevise || (user.admin && c.status === 'approved')) ? <div className="space-y-2">

@@ -104,12 +104,12 @@ otomatis memakai nilai bawaan di atas.
   * **Pemilik & admin**: akses penuh.
   * **Petugas yang ditunjuk pemilik** (surveyor, penggambar, pemeriksa, penyetuju): melihat semua lembar dan menandatangani,
     tetapi **tidak dapat mengubah** isi proyek (perubahan ditolak di aplikasi, kecuali langkah tanda tangan/review).
-  * **Pengguna lain**: hanya **jaringan pipa** (titik & pipa) di penampil peta khusus. Tidak ada tab lain, data proyek, cetak/ekspor,
-    salin, kalkulator, atau Asisten untuk proyek itu.
-* **Ditegakkan di server:** `projectData` (isi lengkap) dan `photos` hanya terbaca oleh pemilik/admin/petugas proyeknya
-  (`projectMember()` di `firestore.rules`). Pengguna lain hanya bisa membaca `projectNet/{pid}`, yaitu salinan berisi titik & pipa saja
-  (tanpa kebutuhan air, bangunan, RAB, foto, atau tanda tangan) yang ditulis aplikasi setiap kali pemilik menyimpan.
-  Proyek lama mendapat `projectNet` saat pemiliknya membukanya berikutnya.
+  * **Pengguna lain**: tidak bisa melihat proyek sama sekali (daftar, jaringan pipa, maupun isinya). Daftar pengguna juga privat (hanya admin).
+* **Penunjukan tim = fitur PRO.** Pemilik PRO menunjuk surveyor, penggambar, pemeriksa, dan penyetuju di *Status & review* dengan mengetik
+  e-mail akun WASHLY. Fungsi `projectFindUser` memeriksa paket PRO pemilik lalu mencari akun itu (tanpa membuka daftar pengguna).
+  `firestore.rules` (`mayAssignCrew`) menolak penunjukan orang lain oleh pemilik FREE; tim yang sudah ada tetap tersimpan bila PRO berakhir.
+* **Ditegakkan di server:** `projects`, `projectNet`, `projectData`, dan `photos` hanya terbaca oleh pemilik, admin, dan tim proyeknya;
+  `users` hanya terbaca oleh pemilik akun & admin. Teruji di emulator (`npm run test:rules`).
 * Tampilan penampil selalu memangkas data ke jaringan saja, bahkan bila perangkat masih menyimpan salinan lengkap di cache.
 
 ## 3. Database (Cloud Firestore)

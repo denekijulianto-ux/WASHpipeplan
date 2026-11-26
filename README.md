@@ -11,7 +11,7 @@ Pemetaan GPS, analisis hidrolis, BoQ/RAB, dan gambar DED jaringan air bersih dal
 
 ## Langganan WASHLY PRO (FREE / PRO bulanan / PRO tahunan)
 Paket FREE memuat alat dasar: peta & survei GPS, analisis hidrolis, kalkulator kebutuhan air, perhitungan pompa dasar, BoQ & RAB umum, cetak laporan tanpa RAB, dan 3 proyek cloud. PRO membuka semuanya: cetak RAB & DED, tanda tangan elektronik, ganti logo, kalkulator debit sumber & daya pompa, spesifikasi pompa & paket all-in, desain pengolahan air, RAB lanjutan (SHS/IKK, spesifikasi, edit item), penulangan & jembatan pipa, rehabilitasi, analisis air tanah, profil DEM, gambar manual, mode AI, dan proyek cloud tanpa batas.
-Akun baru langsung aktif (FREE) tanpa persetujuan admin. Proyek milik orang lain hanya bisa dilihat jaringan pipanya (ditegakkan di server); petugas yang ditunjuk pemilik bisa melihat semua lembar & menandatangani tanpa bisa mengubah.
+Akun baru langsung aktif (FREE) tanpa persetujuan admin. Setiap proyek privat (ditegakkan di server): hanya pemilik, admin, dan tim yang ditunjuk pemilik yang bisa melihatnya. Tim yang ditunjuk bisa melihat semua lembar & menandatangani tanpa bisa mengubah. Pemilik PRO menunjuk tim sendiri lewat e-mail.
 Pembayaran web lewat **Midtrans**, Android lewat **Google Play Billing**; status PRO diverifikasi server (Cloud Functions) dan berlaku di semua perangkat. Admin punya **dasbor pendapatan** (MRR, ARR, ARPPU, konversi, churn, grafik) dan bisa mengubah harga tanpa deploy.
 Belum aktif sampai Cloud Functions di-deploy dan `billing.enabled` dinyalakan. Panduan lengkap, skema database, dan hasil uji ada di **[BILLING.md](BILLING.md)**.
 
@@ -38,7 +38,7 @@ WASHLY juga tersedia sebagai aplikasi Android (`com.washly.app`, Capacitor 8). A
 
 ## Berkas kerja (daftar proyek) & review
 - Tombol **Proyek** membuka daftar berkas kerja: buat proyek baru, buka, salin, hapus. Setiap perubahan tersimpan otomatis ke cloud (login daring) dan ke perangkat untuk kerja offline; setelah login di perangkat mana pun, semua proyek tetap bisa dibuka.
-- **Semua proyek tim** dapat dibuka oleh anggota yang disetujui; yang bukan pemilik/admin membukanya hanya-baca dan dapat menyimpan salinan.
+- **Ditugaskan ke saya** berisi proyek milik orang lain yang menunjuk Anda sebagai surveyor, penggambar, pemeriksa, atau penyetuju (dibuka hanya-baca). Admin melihat semua proyek.
 - Bila proyek diubah di dua tempat, aplikasi menawarkan: pakai versi cloud, simpan versi sendiri sebagai salinan, atau timpa.
 - **Status & review**: Sedang dikerjakan → Menunggu pemeriksaan → Sudah diperiksa (**Pemeriksa**) → Disetujui (**Penyetuju**), dengan opsi kembalikan untuk revisi. Pemeriksaan & persetujuan dilakukan akun admin; akun ber-peran "Pemeriksa" hanya dapat memeriksa. Nama pemeriksa & penyetuju masuk otomatis ke laporan dan kop gambar DED. Mengubah isi proyek yang sudah diperiksa/disetujui mengembalikan statusnya ke "Sedang dikerjakan".
 - Penyimpanan cloud memerlukan aturan terbaru di `firestore.rules` (tempel ulang ke Firestore → Rules → Publish).

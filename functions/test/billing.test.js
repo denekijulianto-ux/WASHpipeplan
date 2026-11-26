@@ -399,3 +399,19 @@ test('migrasi katalog: konfigurasi lama dengan cetak laporan gratis → cetak la
   const v2 = JSON.parse(JSON.stringify(v.config)); v2.features.report_print.free = true; assert.equal(validateConfig(v2).config.features.report_print.free, true, 'admin tetap bisa membuka lagi lewat dasbor');
   const e = L.resolveEntitlement([], v.config, Date.now()); assert.equal(e.features.report_print, false);
 });
+
+test('tim proyek: pemilik PRO mencari anggota lewat e-mail; FREE ditolak; e-mail tak terdaftar/nonaktif diberi pesan jelas', async () => {
+  const { s, db, seedUser, auth } = setup();
+  await seedUser('own', 'own@x.org'); await seedUser('mem', 'mem@x.org'); await seedUser('sus', 'sus@x.org', 'suspended');
+  await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'mem@x.org' }), { code: 'permission-denied' }); // FREE
+  await db.collection('entitlements').doc('own').set({ tier: 'PRO', accessUntil: T0 + 30 * DAY });
+  const r = await s.findProjectMember(auth('own', 'own@x.org'), { email: '  MEM@x.org ' });
+  assert.deepEqual({ uid: r.uid, email: r.email, name: r.name }, { uid: 'mem', email: 'mem@x.org', name: 'MEM' });
+  await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'nobody@x.org' }), { code: 'not-found' });
+  await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'sus@x.org' }), { code: 'failed-precondition' });
+  await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'bukan-email' }), { code: 'invalid-argument' });
+  await db.collection('entitlements').doc('own').set({ tier: 'PRO', accessUntil: T0 - 1 }); // PRO berakhir
+  await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'mem@x.org' }), { code: 'permission-denied' });
+  assert.equal((await s.findProjectMember(auth('boss', 'boss@x.org'), { email: 'mem@x.org' })).uid, 'mem'); // admin
+  await assert.rejects(s.findProjectMember(null, { email: 'mem@x.org' }), { code: 'unauthenticated' });
+});

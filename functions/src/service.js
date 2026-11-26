@@ -485,11 +485,26 @@ function makeService(deps) {
     await audit(auth, 'midtrans_keys', 'billing_secrets/midtrans', 'Kunci Midtrans diperbarui', { mode, serverKeyHint: '…' + serverKey.slice(-4), signature: !!signatureKey });
     return { ok: true, mode, serverKeyHint: '…' + serverKey.slice(-4), signatureKeyHint: signatureKey ? '…' + signatureKey.slice(-4) : null };
   }
+  // Pemilik PRO mencari anggota tim proyek lewat e-mail (daftar pengguna tidak lagi terbuka untuk semua akun)
+  async function findProjectMember(auth, { email } = {}) {
+    const uid = needAuth(auth); const e = normEmail(email);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new BillingError('invalid-argument', 'Tulis alamat e-mail yang lengkap, misalnya nama@contoh.com.');
+    if (!isAdmin(auth)) {
+      const config = await getConfig();
+      if (config.enforce) { const d = await col('entitlements').doc(uid).get(); const ent = d.exists ? d.data() : null;
+        if (!(ent && ent.tier === 'PRO' && +ent.accessUntil > now())) throw new BillingError('permission-denied', 'Menentukan tim proyek sendiri adalah fitur WASHLY PRO.'); }
+    }
+    const q = await col('users').where('email', '==', e).get();
+    if (q.empty) throw new BillingError('not-found', 'Belum ada akun WASHLY dengan e-mail itu. Minta orang tersebut mendaftar dulu (gratis), lalu coba lagi.');
+    const d = q.docs[0]; const x = d.data();
+    if (!['approved', 'pending'].includes(x.status)) throw new BillingError('failed-precondition', 'Akun dengan e-mail itu sedang tidak aktif.');
+    return { uid: d.id, email: e, name: x.name || e, role: x.role || '' };
+  }
   async function myAccountId(auth) { return { accountId: accountIdFor(needAuth(auth)) }; }
   async function refreshMe(auth) { const uid = needAuth(auth); return { entitlement: await recomputeEntitlement(uid) }; }
 
   return { BillingError, getConfig, recomputeEntitlement, recountUsage, createCheckout, verifyMidtransSignature, handleMidtransNotification, applyMidtransStatus, refreshOrder, cancelWeb,
-    playVerify, handleRtdn, sweep, adminGetMidtrans, adminSetMidtrans, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, isAdmin };
+    playVerify, handleRtdn, sweep, adminGetMidtrans, adminSetMidtrans, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, findProjectMember, isAdmin };
 }
 
 module.exports = { makeService, BillingError, accountIdFor, sha256 };
