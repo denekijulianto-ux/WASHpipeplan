@@ -106,6 +106,28 @@ test('tim proyek: pemilik PRO boleh menunjuk orang lain; pemilik FREE hanya diri
   await assertSucceeds(updateDoc(doc(user('a', ADMIN), 'projects/p1'), { checkerUid: 'c' }));        // admin bebas
 });
 
+test('kerja bersama: tim ikut mengedit di draft/revisi; dikunci saat diperiksa; perpindahan status wajib PRO pelakunya', async () => {
+  const future = Timestamp.fromMillis(Date.now() + 864e5);
+  const mk = async (status, ents = {}) => { await env.clearFirestore(); await seed(async db => { await base(db, {});
+    for (const u of ['c', 'x']) await setDoc(doc(db, 'users/' + u), { email: u + '@x.org', status: 'approved' });
+    for (const [u, e] of Object.entries(ents)) await setDoc(doc(db, 'entitlements/' + u), e);
+    await setDoc(doc(db, 'projects/p1'), { ownerUid: 'u', name: 'P', status, checkerUid: 'c', approverUid: '', surveyorUid: 'u', drafterUid: 'u' });
+    await setDoc(doc(db, 'projectData/p1'), { ownerUid: 'u', rev: 1, text: '{}' }); }); };
+  const PRO = { tier: 'PRO', accessUntilTs: future }; const c = () => user('c', 'c@x.org'), u = () => user('u', 'u@x.org');
+  await mk('draft');                                                                                   // anggota tim FREE, tahap draft
+  await assertSucceeds(updateDoc(doc(c(), 'projects/p1'), { name: 'Diubah anggota tim', rev: 2 }));
+  await assertSucceeds(setDoc(doc(c(), 'projectData/p1'), { ownerUid: 'u', rev: 2, text: '{"x":1}' }));
+  await assertFails(updateDoc(doc(c(), 'projects/p1'), { checkerUid: 'x' }));                          // tidak boleh mengubah tim
+  await assertFails(updateDoc(doc(user('x', 'x@x.org'), 'projects/p1'), { name: 'orang luar' }));    // bukan anggota tim
+  await assertFails(updateDoc(doc(u(), 'projects/p1'), { status: 'review' }));                         // pemilik FREE: ajukan = PRO
+  await mk('draft', { u: PRO }); await assertSucceeds(updateDoc(doc(u(), 'projects/p1'), { status: 'review' }));
+  await mk('review');
+  // (pemeriksa tetap boleh menyimpan selama 'review' untuk tanda tangan; penguncian isi saat diperiksa dijaga aplikasi)
+  await assertFails(updateDoc(doc(c(), 'projects/p1'), { status: 'checked' }));                       // pemeriksa FREE tidak bisa memeriksa
+  await mk('review', { c: PRO }); await assertSucceeds(updateDoc(doc(c(), 'projects/p1'), { status: 'checked' }));
+  await mk('checked'); await assertSucceeds(updateDoc(doc(u(), 'projects/p1'), { status: 'draft' }));  // kembali ke draft selalu boleh
+});
+
 test('bukti transfer: hanya pengirim & admin yang bisa membaca; tidak ada yang bisa menulis dari aplikasi', async () => {
   await seed(async db => { await setDoc(doc(db, 'users/u'), { email: 'u@x.org', status: 'approved' }); await setDoc(doc(db, 'payment_proofs/T1'), { userId: 'u', image: 'data:x' }); });
   await assertSucceeds(getDoc(doc(user('u', 'u@x.org'), 'payment_proofs/T1')));

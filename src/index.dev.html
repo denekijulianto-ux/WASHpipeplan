@@ -7933,7 +7933,7 @@ const KB = [
   { k: 'unggah upload tanda tangan gambar scan foto ttd esign', t: 'Unggah gambar tanda tangan', a: 'Pada jendela tanda tangan elektronik tekan **Unggah gambar tanda tangan** dan pilih foto/scan tanda tangan (PNG/JPG). Opsi *Hapus latar putih otomatis* membuat latar kertas transparan. Tanda tangan disimpan di perangkat untuk dipakai lagi.' },
   { k: 'login masuk gagal configuration-not-found firebase auth-config domain', t: 'Gagal masuk / login daring', a: '- **auth/configuration-not-found**: aktifkan *Authentication → Sign-in method → Email/Password* di Firebase dan pastikan isi `auth-config.js` sama persis dengan *Project settings → Your apps → Config*.\n- **unauthorized-domain**: tambahkan domain situs (mis. `nama.github.io`) di *Authentication → Settings → Authorized domains*.\n- **Email atau kata sandi salah**: pakai "Lupa kata sandi" di layar masuk.\n- Masuk pertama kali di perangkat baru butuh internet; setelah itu bisa luring hingga 30 hari.' },
   { k: 'daftar akun baru menunggu persetujuan pending approve admin aktif free tangguhkan', t: 'Mendaftar akun', a: 'Akun baru **langsung aktif** dengan paket **WASHLY FREE**, tanpa menunggu persetujuan admin. Admin tetap bisa melihat pendaftar dan **menangguhkan** akun di *Menu → Kelola pengguna*. Untuk membuka semua fitur, upgrade ke **WASHLY PRO** di *Langganan*.' },
-  { k: 'proyek orang lain lihat jaringan saja tidak bisa edit hanya baca petugas review akses', t: 'Membuka proyek milik pengguna lain', a: 'Setiap proyek bersifat **privat**: hanya pemilik, admin, dan **tim yang ditunjuk pemilik** (surveyor, penggambar, pemeriksa, penyetuju) yang bisa melihat proyek itu, termasuk daftar dan jaringan pipanya. Tim yang ditunjuk melihat semua lembar dan menandatangani, tetapi tidak dapat mengubah isinya; proyek yang menugaskan Anda ada di **Proyek → Ditugaskan ke saya**. Pemilik **WASHLY PRO** menunjuk tim sendiri di **Status & review**: ketik e-mail akun WASHLY anggota tim lalu tekan *Tunjuk*.' },
+  { k: 'proyek orang lain lihat jaringan saja tidak bisa edit hanya baca petugas review akses', t: 'Membuka proyek milik pengguna lain', a: 'Setiap proyek bersifat **privat**: hanya pemilik, admin, dan **tim yang ditunjuk pemilik** (surveyor, penggambar, pemeriksa, penyetuju) yang bisa melihat proyek itu, termasuk daftar dan jaringan pipanya. Tim yang ditunjuk **ikut mengedit** selama tahap draft/revisi dan menandatangani saat pemeriksaan; fitur yang tersedia mengikuti paket masing-masing (anggota FREE hanya fitur FREE; e-sign & cetak perlu PRO). Proyek yang menugaskan Anda ada di **Proyek → Ditugaskan ke saya**. Tombol **Contoh** membuka proyek latihan di perangkat yang tidak memakai kuota proyek. Pemilik **WASHLY PRO** menunjuk tim sendiri di **Status & review**: ketik e-mail akun WASHLY anggota tim lalu tekan *Tunjuk*.' },
   { k: 'sinkron cloud gagal permission-denied aturan firestore rules simpan', t: 'Sinkron cloud gagal', a: '- **Akses ditolak (permission-denied)**: tempel ulang isi `firestore.rules` terbaru di *Firebase Console → Firestore → Rules → Publish*.\n- **Offline**: data tetap tersimpan di perangkat dan dikirim otomatis saat online.\n- **Ada versi lain di cloud**: pilih memakai versi cloud, menimpa dengan versi Anda, atau menyimpan sebagai salinan.' },
   { k: 'gps tidak akurat lokasi izin akurasi sinyal tracker rekam jejak', t: 'GPS tidak akurat / tidak jalan', a: '- Izinkan akses **Lokasi** untuk browser/aplikasi dan aktifkan mode akurasi tinggi.\n- Aplikasi harus dibuka lewat **HTTPS** (GitHub Pages sudah HTTPS).\n- Tunggu akurasi ≤ batas di *Pengaturan GPS* (bawaan 20 m); di bawah pohon/lembah akurasi turun.\n- Saat merekam jejak, layar dijaga tetap menyala; jangan kunci layar terlalu lama.' },
   { k: 'elevasi dem tidak terisi ketinggian otomatis open-meteo perkiraan', t: 'Elevasi otomatis (DEM) tidak terisi', a: 'Elevasi otomatis memakai DEM Copernicus 90 m via internet. Bila offline, elevasi sementara diperkirakan dari titik sekitar (label *Perkiraan*) dan diperbarui saat online (tombol *Coba lagi* di bilah bawah). Untuk akurasi lebih baik, isi elevasi manual dari survei (waterpass/GPS geodetik).' },
@@ -8820,7 +8820,7 @@ const LIBK = (u) => 'tirtaplan-lib:' + u, PROJK = (id) => 'tirtaplan-proj:' + id
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); return true; } catch (e) { return false; } };
 const dtTxt = (ms) => ms ? new Date(ms).toLocaleString(LOCALE, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
-function projMeta(p) { const c = p.cloud || {}; return { id: c.id, name: p.meta?.name || 'Tanpa nama', location: p.meta?.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName, status: c.status || 'draft', nodes: p.nodes.length, pipes: p.pipes.length, updatedAt: Date.now() }; }
+function projMeta(p) { const c = p.cloud || {}; return { id: c.id, name: p.meta?.name || 'Tanpa nama', location: p.meta?.location || '', ownerUid: c.ownerUid, ownerName: c.ownerName, status: c.status || 'draft', nodes: p.nodes.length, pipes: p.pipes.length, updatedAt: Date.now(), ...(c.demo ? { demo: true } : {}) }; }
 function ensureCloud(p, user) {
   if (p.cloud && p.cloud.id) return p;
   return { ...p, cloud: { id: uid('pj'), ownerUid: user.uid, ownerName: user.name || user.email, ownerEmail: user.email || '', status: 'draft', reviews: [] } };
@@ -8910,7 +8910,7 @@ function makeCloudStore(api) {
 function SyncBadge({ sync, compact }) {
   const m = { local: ['Database', 'Tersimpan di perangkat', 'text-slate-500'], idle: ['Database', 'Siap', 'text-slate-500'], saving: ['RotateCcw', 'Menyimpan ke cloud…', 'text-aqua-700'],
     saved: ['CircleCheck', 'Tersimpan di cloud', 'text-green-700'], offline: ['TriangleAlert', 'Offline: disimpan di perangkat, sinkron saat online', 'text-amber-700'],
-    error: ['TriangleAlert', 'Gagal sinkron', 'text-red-700'], conflict: ['TriangleAlert', 'Ada versi lain di cloud', 'text-red-700'], readonly: ['Eye', 'Hanya-baca (milik pengguna lain)', 'text-slate-600'] }[sync.state] || ['Database', '', ''];
+    error: ['TriangleAlert', 'Gagal sinkron', 'text-red-700'], conflict: ['TriangleAlert', 'Ada versi lain di cloud', 'text-red-700'], readonly: ['Eye', 'Hanya-baca (milik pengguna lain)', 'text-slate-600'], demo: ['BookOpen', 'Proyek contoh · hanya di perangkat ini', 'text-slate-500'] }[sync.state] || ['Database', '', ''];
   return <span className={'inline-flex items-center gap-1.5 ' + m[2]} title={sync.msg || m[1]}><Icon name={m[0]} size={13} />{compact ? '' : m[1]}{!compact && sync.state === 'saved' && sync.at ? ' ' + sync.at.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) : ''}</span>;
 }
 function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, onDelete, onClose, onImport }) {
@@ -8950,7 +8950,7 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
         {shown.map(it => { const mine = it.ownerUid === user.uid; const canEdit = mine || user.admin; const cur = it.id === currentId; const S = PSTATUS[it.status] || PSTATUS.draft;
           return <div key={it.id} className={`rounded-lg border p-3 flex flex-wrap items-center gap-3 ${cur ? 'border-aqua-500 bg-aqua-50' : 'border-line'}`}>
             <div className="flex-1 min-w-[220px]">
-              <div className="font-semibold flex flex-wrap items-center gap-1.5">{it.name}{cur && <span className="pill s-src">sedang dibuka</span>}{!canEdit && <span className="pill s-idle">hanya-baca</span>}{(it.dirty || it.pendingUpload) && <span className="pill s-low">belum tersinkron</span>}</div>
+              <div className="font-semibold flex flex-wrap items-center gap-1.5">{it.name}{cur && <span className="pill s-src">sedang dibuka</span>}{!canEdit && <span className="pill s-idle">hanya-baca</span>}{it.demo ? <span className="pill s-idle">contoh · di perangkat</span> : (it.dirty || it.pendingUpload) && <span className="pill s-low">belum tersinkron</span>}</div>
               <div className="text-[12px] text-slate-500">{[it.location, `${it.nodes ?? '?'} node · ${it.pipes ?? '?'} pipa`, `pemilik ${mine ? 'Anda' : it.ownerName || '-'}`].filter(Boolean).join(' · ')}</div>
               <div className="text-[11.5px] text-slate-400">Diubah {dtTxt(it.updatedAt)}{it.updatedByName ? ` oleh ${it.updatedByName}` : ''}{it.approvedName ? ` · disetujui ${it.approvedName}` : it.checkedName ? ` · diperiksa ${it.checkedName}` : ''}</div>
             </div>
@@ -8970,14 +8970,15 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
 // Pemilik (PRO) menunjuk anggota tim proyek lewat e-mail akun WASHLY; server memeriksa paket PRO & keberadaan akun
 function MemberPicker({ id, label, value, me, disabled, onPick }) {
   const [em, setEm] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  const find = async () => { setErr(''); setBusy(true); try { const u = await callFn('projectFindUser', { email: em.trim() }); onPick({ uid: u.uid, email: u.email, name: u.name || u.email, role: u.role || '' }); setEm(''); } catch (e) { setErr(e.message || String(e)); } setBusy(false); };
+  const find = async () => { setErr(''); setBusy(true); try { const u = await callFn('projectFindUser', { email: em.trim() }); onPick({ uid: u.uid, email: u.email, name: u.name || u.email, role: u.role || '', ...(u.plan ? { plan: u.plan } : {}) }); setEm(''); } catch (e) { setErr(e.message || String(e)); } setBusy(false); };
   return <Field label={label}><div className="space-y-1.5">
-    <div id={id + '-cur'} className="flex items-center gap-2 rounded-md border border-line bg-ground px-2.5 py-1.5 min-h-[34px] text-[12.5px]">{value ? <span className="flex-1 min-w-0 truncate"><b>{value.name}</b>{value.uid === me.uid ? ' (Anda)' : value.email ? <span className="text-slate-500"> · {value.email}</span> : null}</span> : <span className="flex-1 text-slate-400">Belum ditunjuk</span>}
+    <div id={id + '-cur'} className="flex items-center gap-2 rounded-md border border-line bg-ground px-2.5 py-1.5 min-h-[34px] text-[12.5px]">{value ? <span className="flex-1 min-w-0 truncate"><b>{value.name}</b>{value.uid === me.uid ? ' (Anda)' : value.email ? <span className="text-slate-500"> · {value.email}</span> : null}{value.plan && <span className={'ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold ' + (value.plan === 'PRO' ? 'bg-aqua-600 text-white' : 'bg-slate-200 text-slate-700')} data-noi18n>{value.plan}</span>}</span> : <span className="flex-1 text-slate-400">Belum ditunjuk</span>}
       {!disabled && value && <button type="button" className="text-slate-400 hover:text-red-600" title="Kosongkan" onClick={() => onPick(null)}><Icon name="X" size={14} /></button>}</div>
     {!disabled && <div className="flex gap-1.5"><input id={id + '-email'} type="email" className="tp-field !py-1 flex-1 min-w-0" placeholder="e-mail akun WASHLY" value={em} onChange={e => { setEm(e.target.value); setErr(''); }} onKeyDown={e => { if (e.key === 'Enter' && em.trim()) find(); }} />
       <Btn id={id + '-add'} variant="outline" disabled={busy || !em.trim()} onClick={find}>{busy ? 'Mencari…' : 'Tunjuk'}</Btn>
       {value?.uid !== me.uid && <Btn variant="ghost" onClick={() => onPick(me)} title="Tunjuk diri sendiri">Saya</Btn>}</div>}
-    {err && <p className="text-[11.5px] text-red-700">{err}</p>}</div></Field>;
+    {err && <p className="text-[11.5px] text-red-700">{err}</p>}
+    {value && value.plan === 'FREE' && value.uid !== me.uid && <p className="text-[11.5px] text-amber-700">Akun ini FREE: bisa ikut bekerja dengan fitur FREE. Untuk menandatangani (e-sign) & fitur lengkap, akun ini perlu berlangganan PRO.</p>}</div></Field>;
 }
 function ReviewDialog({ project, user, api, onAct, onClose }) {
   const c = project.cloud || {}; const S = PSTATUS[c.status] || PSTATUS.draft; const [note, setNote] = useState(''); const [err, setErr] = useState('');
@@ -9865,7 +9866,8 @@ function App({ user, api }) {
   const [project, setProjectRaw] = useState(() => {
     const curId = lsGet(CURK(user.uid), null);
     let p = curId && localLib.get(curId);
-    if (!p) { p = ensureCloud(loadInitialProject(projectKey(user)), user); localLib.put(user.uid, p); localLib.setSync(p.cloud.id, { dirty: true }); p = { ...p, __fresh: true }; }
+    if (!p) { const init = loadInitialProject(projectKey(user)); const isEx = !init.cloud && init.meta?.name === createExampleProject().meta.name; // akun baru: contoh = latihan di perangkat (tanpa kuota)
+      p = ensureCloud(init, user); if (isEx) p = { ...p, cloud: { ...p.cloud, demo: true } }; localLib.put(user.uid, p); localLib.setSync(p.cloud.id, { dirty: true }); p = { ...p, __fresh: true }; }
     lsSet(CURK(user.uid), JSON.stringify(p.cloud.id)); return p;
   });
   const store = useMemo(() => makeCloudStore(api), [api]);
@@ -9875,10 +9877,11 @@ function App({ user, api }) {
   const [sync, setSync] = useState({ state: store ? 'idle' : 'local' });
   const [conflict, setConflict] = useState(null);
   const [libOpen, setLibOpen] = useState(false); const [reviewOpen, setReviewOpen] = useState(false);
-  const readOnly = !!store && project.cloud.ownerUid !== user.uid && !user.admin;
-  // Akses proyek orang lain: petugas yang ditunjuk (pemeriksa/penyetuju/surveyor/penggambar) boleh melihat semua lembar & menandatangani;
-  // pengguna lain hanya melihat jaringan pipa. Tidak ada yang bisa mengubah isi proyek milik orang lain.
+  // Kerja bersama: tim yang ditunjuk pemilik (surveyor, penggambar, pemeriksa, penyetuju) ikut mengedit selama tahap draft/revisi;
+  // saat diperiksa/disetujui isi dikunci (tim hanya menandatangani). Fitur yang tersedia mengikuti paket masing-masing (PRO/FREE).
   const rvw0 = project.cloud.reviewers || {}; const isCrew = [rvw0.checker?.uid, rvw0.approver?.uid, rvw0.surveyor?.uid, rvw0.drafter?.uid].includes(user.uid);
+  const crewEdit = isCrew && !project.cloud.netOnly && ['draft', 'revisi'].includes(project.cloud.status || 'draft');
+  const readOnly = !!store && project.cloud.ownerUid !== user.uid && !user.admin && !crewEdit;
   const netOnly = readOnly && (!isCrew || !!project.cloud.netOnly);
   const readOnlyRef = useRef(readOnly); readOnlyRef.current = readOnly;
   const history = useRef([]); const [histLen, setHistLen] = useState(0);
@@ -10086,6 +10089,7 @@ function App({ user, api }) {
   // ---- Simpan otomatis ke perangkat & sinkron ke cloud ----
   const pushCloud = useCallback(async (p, opts = {}) => {
     if (!store) return; const id = p.cloud.id;
+    if (p.cloud.demo) { if (id === projectRef.current.cloud.id) setSync({ state: 'demo' }); return; } // proyek contoh: tidak dikirim ke cloud
     const rvw = p.cloud.reviewers || {}; const isRv = [rvw.checker?.uid, rvw.approver?.uid, rvw.surveyor?.uid, rvw.drafter?.uid].includes(user.uid);
     if (p.cloud.ownerUid !== user.uid && !user.admin && !isRv) { if (id === projectRef.current.cloud.id) setSync({ state: 'readonly' }); return; }
     if (!navigator.onLine) { if (id === projectRef.current.cloud.id) setSync({ state: 'offline' }); return; }
@@ -10128,7 +10132,7 @@ function App({ user, api }) {
       const m = await store.meta(id);
       if (m && (s.rev == null || m.rev > s.rev)) {
         if (!s.dirty) { const r = await store.load(id); localLib.put(user.uid, r.project); localLib.setSync(id, { rev: r.rev, dirty: false }); cleanRef.current = { id, str: JSON.stringify(r.project) }; setProjectRaw(r.project); history.current = []; setHistLen(0); setToast(`Memuat versi terbaru "${r.project.meta.name}" dari cloud`); setSync({ state: 'saved', at: new Date() }); }
-        else if (cur.cloud.ownerUid === user.uid || user.admin) { setConflict({ by: m.updatedByName, at: m.updatedAt, rev: m.rev, name: cur.meta.name, project: cur }); setSync({ state: 'conflict' }); }
+        else if (cur.cloud.ownerUid === user.uid || user.admin || !readOnlyRef.current) { setConflict({ by: m.updatedByName, at: m.updatedAt, rev: m.rev, name: cur.meta.name, project: cur }); setSync({ state: 'conflict' }); }
         else setSync({ state: 'readonly' });
       } else if (!m || s.dirty || (!m.netV && (cur.cloud.ownerUid === user.uid || user.admin))) await pushCloud(cur); else setSync({ state: readOnly ? 'readonly' : 'saved', at: new Date() });
       for (const it of localLib.list(user.uid)) { if (it.id !== id && localLib.sync(it.id).dirty) { const p = localLib.get(it.id); if (p) await pushCloud(p); } }
@@ -10180,7 +10184,8 @@ function App({ user, api }) {
   const printAs = (m) => { if (netOnly) { netMsg(); return; }
     if (!Billing.has(m === 'ded' ? 'ded_print' : 'report_print')) { setReportPreview(m); return; } // FREE: tinjau di layar dengan tanda air, tanpa cetak
     setPrintMode(m); };
-  const newProject = (base, label) => { if (store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); const q = ensureCloud({ ...normalizeProject(base), cloud: null }, user);
+  // opts.demo: proyek contoh untuk latihan — hanya di perangkat, tidak dikirim ke cloud dan tidak memakai kuota proyek FREE
+  const newProject = (base, label, opts = {}) => { if (!opts.demo && store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); let q = ensureCloud({ ...normalizeProject(base), cloud: null }, user); if (opts.demo) q = { ...q, cloud: { ...q.cloud, demo: true } };
     if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
   const duplicateProject = async (it) => { if (store && it.ownerUid && it.ownerUid !== user.uid && !user.admin) { setToast('Proyek milik pengguna lain tidak dapat disalin.'); return; } const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
   const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
@@ -10314,7 +10319,7 @@ function App({ user, api }) {
           <div className="flex flex-wrap items-center gap-1">
             <Btn variant="dark" icon="FolderOpen" onClick={() => setLibOpen(true)} title="Daftar berkas kerja / proyek">Proyek</Btn>
             <Btn variant="dark" icon="FilePlus2" onClick={() => newProject(createEmptyProject(), 'Proyek baru')} title="Buat proyek kosong (proyek saat ini tetap tersimpan)">Baru</Btn>
-            <Btn variant="dark" icon="BookOpen" onClick={() => newProject(createExampleProject())} title="Buat proyek baru dari contoh">Contoh</Btn>
+            <Btn variant="dark" icon="BookOpen" onClick={() => newProject(createExampleProject(), undefined, { demo: true })} title="Buka proyek contoh untuk latihan (tidak memakai kuota proyek)">Contoh</Btn>
             <Btn variant="dark" icon="Undo2" disabled={!histLen} onClick={undo} title="Urungkan (Ctrl+Z)">Urungkan</Btn>
             <span className="w-px h-6 bg-white/15 mx-1" />
             <Btn variant="dark" icon="Download" onClick={saveFile} title="Simpan proyek ke berkas .json (Ctrl+S)">Simpan .json</Btn>
@@ -10336,9 +10341,15 @@ function App({ user, api }) {
           </button>)}
         </nav>
       </header>}
+      {project.cloud.demo && <div id="demo-banner" className="shrink-0 bg-sky-50 border-b border-sky-200 text-sky-900 text-[12.5px] px-4 py-1.5 flex flex-wrap items-center gap-2">
+        <Icon name="BookOpen" size={14} /><span className="flex-1 min-w-[200px]"><b>Proyek contoh untuk latihan.</b> Silakan dicoba bebas; tersimpan di perangkat ini saja dan tidak memakai kuota proyek Anda.</span>
+        <Btn id="demo-new" variant="outline" icon="FilePlus2" onClick={() => newProject(createEmptyProject(), 'Proyek baru')}>Buat proyek baru</Btn>
+        <Btn id="demo-save" variant="outline" icon="CloudUpload" onClick={() => { const p = newProject({ ...project, cloud: null }, project.meta.name || 'Proyek saya'); if (p) setToast('Disimpan sebagai proyek Anda'); }}>Simpan sebagai proyek saya</Btn></div>}
       {readOnly && <div className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-900 text-[12.5px] px-4 py-1.5 flex flex-wrap items-center gap-2">
         <Icon name="Eye" size={14} /><span id="ro-banner" className="flex-1 min-w-[200px]">{netOnly ? <>Proyek milik <b>{project.cloud.ownerName}</b>: Anda hanya dapat melihat jaringan pipanya. Lembar lain dan pengeditan hanya untuk pemilik & admin.</>
-          : <>Hanya-baca: proyek ini milik <b>{project.cloud.ownerName}</b>. Anda ditunjuk sebagai petugas review: dapat melihat & menandatangani, tetapi tidak dapat mengubah isinya.</>}</span></div>}
+          : <>Hanya-baca: proyek ini milik <b>{project.cloud.ownerName}</b> dan sedang dalam tahap pemeriksaan/persetujuan. Anda dapat melihat & menandatangani; pengeditan dibuka lagi bila dikembalikan untuk revisi.</>}</span></div>}
+      {crewEdit && project.cloud.ownerUid !== user.uid && <div id="crew-banner" className="shrink-0 bg-aqua-50 border-b border-aqua-100 text-aqua-900 text-[12.5px] px-4 py-1.5 flex flex-wrap items-center gap-2">
+        <Icon name="Users" size={14} /><span className="flex-1 min-w-[200px]">Anda bekerja bersama di proyek milik <b>{project.cloud.ownerName}</b>. Perubahan Anda tersimpan ke proyek ini.{!Billing.isPro() && Billing.get().managed ? ' Akun Anda FREE: fitur PRO (cetak, e-sign, kalkulator & RAB lanjutan) tidak tersedia.' : ''}</span></div>}
       {mobile && store && ['offline', 'error', 'conflict'].includes(sync.state) && <div className="shrink-0 bg-white border-b border-line text-[12px] px-3 py-1"><SyncBadge sync={sync} /></div>}
       <main className="flex-1 min-h-0 relative">
         {netOnly ? <NetViewer project={project} mobile={mobile} /> : <>{tab === 'map' && <MapWorkspace project={project} setProject={setProject} hyd={hyd} selection={selection} setSelection={setSelection} field={field} />}
@@ -10376,7 +10387,7 @@ function App({ user, api }) {
         <div className="flex justify-end"><Btn variant="outline" onClick={() => setPendingLoad(null)}>Batal</Btn></div>
       </div></div>}
     {libOpen && <ProjectLibrary user={user} store={store} currentId={project.cloud.id} onClose={() => setLibOpen(false)} onOpen={openProject}
-      onNew={(k) => newProject(k === 'example' ? createExampleProject() : createEmptyProject(), k === 'example' ? undefined : 'Proyek baru')} onDuplicate={duplicateProject} onDelete={deleteProject} onImport={() => { setLibOpen(false); fileRef.current.click(); }} />}
+      onNew={(k) => newProject(k === 'example' ? createExampleProject() : createEmptyProject(), k === 'example' ? undefined : 'Proyek baru', { demo: k === 'example' })} onDuplicate={duplicateProject} onDelete={deleteProject} onImport={() => { setLibOpen(false); fileRef.current.click(); }} />}
     {reviewOpen && !netOnly && <ReviewDialog project={project} user={user} api={api} onClose={() => setReviewOpen(false)} onAct={(to, note, extra) => { reviewAct(to, note, extra); setToast(to === 'sign' ? 'Tanda tangan tersimpan' : to === 'assign' ? 'Penunjukan disimpan' : `Status proyek: ${PSTATUS[to][0]}`); setTimeout(() => { if (store) pushCloud(projectRef.current); }, 400); }} />}
     {conflict && <ConflictDialog info={conflict} canOverwrite={conflict.project.cloud.ownerUid === user.uid || user.admin} onClose={() => setConflict(null)}
       onCloud={async () => { try { const r = await store.load(conflict.project.cloud.id); localLib.put(user.uid, r.project); localLib.setSync(r.project.cloud.id, { rev: r.rev, dirty: false }); if (conflict.project.cloud.id === projectRef.current.cloud.id) switchTo(r.project); setConflict(null); setSync({ state: 'saved', at: new Date() }); } catch (e) { setToast(e.message); } }}
@@ -10418,7 +10429,7 @@ function App({ user, api }) {
           ['Calculator', 'Kalkulator air, node & pompa', () => setCalcOpen(true)],
           ['FileText', 'Cetak laporan', () => printAs('report')],
           ['Printer', 'Cetak DED', () => printAs('ded')],
-          ['BookOpen', 'Proyek baru dari contoh', () => newProject(createExampleProject())],
+          ['BookOpen', 'Buka proyek contoh (latihan)', () => newProject(createExampleProject(), undefined, { demo: true })],
           ['FilePlus2', 'Proyek baru (kosong)', () => newProject(createEmptyProject(), 'Proyek baru')],
           ['LogOut', 'Keluar akun', () => setLogoutAsk(true), false, true],
         ].map(([ic, l, fn, dis, danger], i) => <button key={i} type="button" disabled={dis} onClick={() => { setMenuOpen(false); fn(); }} className={danger ? 'w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line text-red-700 font-semibold hover:bg-red-50' : "w-full flex items-center gap-3 px-4 py-3.5 text-[14px] text-left border-b border-line/60 disabled:opacity-40 active:bg-slate-50"}><Icon name={ic} size={19} className={danger ? 'text-red-600' : 'text-aqua-700'} />{l}</button>)}

@@ -46,6 +46,16 @@ service cloud.firestore {
     function mayAssignCrew(d) {
       return crewIsOwner(d) || isAdmin() || !billingOn() || isPro(d.ownerUid);
     }
+    function isCrewOf(d) {
+      return request.auth != null && request.auth.uid in [d.get('checkerUid', ''), d.get('approverUid', ''), d.get('surveyorUid', ''), d.get('drafterUid', '')];
+    }
+    // Perpindahan status (ajukan, periksa, setujui, kembalikan) = alur e-sign WASHLY PRO milik pelakunya sendiri.
+    // Kembali ke 'draft' selalu boleh (isi diubah setelah diperiksa/disetujui).
+    function statusMoveOk() {
+      return request.resource.data.get('status', 'draft') == resource.data.get('status', 'draft')
+        || request.resource.data.get('status', 'draft') == 'draft'
+        || isAdmin() || !billingOn() || isPro(request.auth.uid);
+    }
     // Akun aktif: pendaftaran tidak lagi menunggu persetujuan admin ('pending' lama dianggap aktif).
     // Admin tetap bisa menangguhkan ('suspended') atau menolak ('rejected') akun.
     function approved() {
@@ -93,6 +103,7 @@ service cloud.firestore {
       // Pemilik (status tetap / belum disetujui), admin, atau petugas yang ditunjuk (hanya langkahnya, tanpa mengubah penunjukan)
       allow update: if approved()
         && request.resource.data.ownerUid == resource.data.ownerUid
+        && statusMoveOk()
         && (isAdmin()
           || (resource.data.ownerUid == request.auth.uid
               && (request.resource.data.status == resource.data.status || !(request.resource.data.status in ['checked', 'approved']))
@@ -102,7 +113,11 @@ service cloud.firestore {
           || ((resource.data.get('surveyorUid', '') == request.auth.uid || resource.data.get('drafterUid', '') == request.auth.uid) && sameCrew()
               && request.resource.data.status == resource.data.status && resource.data.status in ['draft', 'revisi'])
           || (resource.data.get('approverUid', '') == request.auth.uid && sameCrew()
-              && request.resource.data.status in ['review', 'checked', 'approved', 'revisi']));
+              && request.resource.data.status in ['review', 'checked', 'approved', 'revisi'])
+          // kerja bersama: tim yang ditunjuk ikut mengedit selama draft/revisi (tanpa mengubah tim & status)
+          || (isCrewOf(resource.data) && sameCrew()
+              && request.resource.data.get('status', 'draft') == resource.data.get('status', 'draft')
+              && resource.data.get('status', 'draft') in ['draft', 'revisi']));
       allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
     // Isi lengkap proyek (terkompresi): hanya pemilik, admin, dan petugas yang ditunjuk

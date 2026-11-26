@@ -108,6 +108,12 @@ otomatis memakai nilai bawaan di atas.
 * **Penunjukan tim = fitur PRO.** Pemilik PRO menunjuk surveyor, penggambar, pemeriksa, dan penyetuju di *Status & review* dengan mengetik
   e-mail akun WASHLY. Fungsi `projectFindUser` memeriksa paket PRO pemilik lalu mencari akun itu (tanpa membuka daftar pengguna).
   `firestore.rules` (`mayAssignCrew`) menolak penunjukan orang lain oleh pemilik FREE; tim yang sudah ada tetap tersimpan bila PRO berakhir.
+* **Kerja bersama:** tim yang ditunjuk ikut mengedit proyek selama tahap `draft`/`revisi` (aturan `isCrewOf` + `sameCrew`), dan isi dikunci
+  di aplikasi saat diperiksa/disetujui. Fitur mengikuti paket **masing-masing** anggota: anggota FREE bekerja dengan fitur FREE, anggota PRO
+  dengan semua fitur. `projectFindUser` mengembalikan paket akun (label PRO/FREE saat menunjuk). Perpindahan status (ajukan, periksa,
+  setujui, kembalikan) wajib PRO milik pelakunya (`statusMoveOk`); kembali ke `draft` selalu boleh.
+* **Proyek contoh** (tombol *Contoh* & akun baru) dibuka sebagai latihan di perangkat (`cloud.demo`), tidak dikirim ke cloud dan tidak
+  memakai kuota 3 proyek FREE. *Simpan sebagai proyek saya* menjadikannya proyek biasa (masuk kuota).
 * **Ditegakkan di server:** `projects`, `projectNet`, `projectData`, dan `photos` hanya terbaca oleh pemilik, admin, dan tim proyeknya;
   `users` hanya terbaca oleh pemilik akun & admin. Teruji di emulator (`npm run test:rules`).
 * Tampilan penampil selalu memangkas data ke jaringan saja, bahkan bila perangkat masih menyimpan salinan lengkap di cache.

@@ -407,6 +407,9 @@ test('tim proyek: pemilik PRO mencari anggota lewat e-mail; FREE ditolak; e-mail
   await db.collection('entitlements').doc('own').set({ tier: 'PRO', accessUntil: T0 + 30 * DAY });
   const r = await s.findProjectMember(auth('own', 'own@x.org'), { email: '  MEM@x.org ' });
   assert.deepEqual({ uid: r.uid, email: r.email, name: r.name }, { uid: 'mem', email: 'mem@x.org', name: 'MEM' });
+  assert.equal(r.plan, 'FREE', 'anggota tanpa langganan = FREE');
+  await db.collection('entitlements').doc('mem').set({ tier: 'PRO', accessUntil: T0 + 5 * DAY });
+  assert.equal((await s.findProjectMember(auth('own', 'own@x.org'), { email: 'mem@x.org' })).plan, 'PRO');
   await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'nobody@x.org' }), { code: 'not-found' });
   await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'sus@x.org' }), { code: 'failed-precondition' });
   await assert.rejects(s.findProjectMember(auth('own', 'own@x.org'), { email: 'bukan-email' }), { code: 'invalid-argument' });

@@ -498,7 +498,9 @@ function makeService(deps) {
     if (q.empty) throw new BillingError('not-found', 'Belum ada akun WASHLY dengan e-mail itu. Minta orang tersebut mendaftar dulu (gratis), lalu coba lagi.');
     const d = q.docs[0]; const x = d.data();
     if (!['approved', 'pending'].includes(x.status)) throw new BillingError('failed-precondition', 'Akun dengan e-mail itu sedang tidak aktif.');
-    return { uid: d.id, email: e, name: x.name || e, role: x.role || '' };
+    const ed = await col('entitlements').doc(d.id).get(); const ex = ed.exists ? ed.data() : null;
+    const plan = ex && ex.tier === 'PRO' && +ex.accessUntil > now() ? 'PRO' : 'FREE'; // anggota FREE ikut bekerja dengan fitur FREE
+    return { uid: d.id, email: e, name: x.name || e, role: x.role || '', plan };
   }
   async function myAccountId(auth) { return { accountId: accountIdFor(needAuth(auth)) }; }
   async function refreshMe(auth) { const uid = needAuth(auth); return { entitlement: await recomputeEntitlement(uid) }; }
