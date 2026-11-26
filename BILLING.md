@@ -90,9 +90,12 @@ Fitur (sesuai fitur yang **benar-benar ada** di aplikasi). FREE memuat alat dasa
 | Penulangan beton (BBS) & jembatan pipa | — | ✓ | `structural_design` |
 | Rehabilitasi sistem existing | — | ✓ | `rehab_module` |
 | Analisis potensi air tanah · Profil DEM detail · Gambar manual DED · Mode AI | — | ✓ | masing-masing |
-| Proyek tersimpan di cloud | 3 proyek (bisa diatur) | tanpa batas | `newProject` + **firestore.rules** |
+| Proyek tersimpan di cloud | 3 proyek (bisa diatur), **permanen: tidak bisa dihapus** | tanpa batas, bisa dihapus | `newProject` + **firestore.rules** (`allow delete` hanya PRO/admin) |
 
-Proyek & data yang sudah ada **tidak pernah dikunci atau dihapus** saat turun ke FREE. Semua pembatasan melalui satu pintu:
+Proyek & data yang sudah ada **tidak pernah dikunci atau dihapus** saat turun ke FREE.
+Akun FREE **tidak bisa menghapus proyek cloud** (tombol hapus disembunyikan & ditolak rules), jadi kuota FREE tidak bisa "didaur ulang":
+untuk proyek baru setelah kuota penuh harus berlangganan PRO. Proyek contoh (demo) & proyek lokal yang belum terunggah tetap bisa dihapus.
+**Hapus akun** tetap tersedia untuk semua (wajib Google Play) lewat Cloud Function `accountDelete`, yang menghapus proyek milik pengguna di server. Semua pembatasan melalui satu pintu:
 `Billing.has(feature)` / `Billing.require(feature)` / `<ProGate feature>`. Konfigurasi lama di Firestore yang belum memuat kunci fitur baru
 otomatis memakai nilai bawaan di atas.
 

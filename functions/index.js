@@ -38,6 +38,7 @@ function service() {
     appUrl: APP_URL.value(), ntfyTopic: NTFY_TOPIC.value(),
     midtrans: midtransClient({ serverKey: MIDTRANS_SERVER_KEY.value(), signatureKey: MIDTRANS_SIGNATURE_KEY.value(), isProduction: MIDTRANS_IS_PRODUCTION.value() === 'true', notificationUrl: WEBHOOK_URL }),
     midtransFactory: (o) => midtransClient({ ...o, notificationUrl: WEBHOOK_URL }),
+    deleteAuthUser: (uid) => admin.auth().deleteUser(uid).catch(e => { if (e.code !== 'auth/user-not-found') throw e; }),
     play: playClient({ packageName: PLAY_PACKAGE_NAME.value(), getAccessToken: async () => (await (await gauth.getClient()).getAccessToken()).token }),
   });
   return svc;
@@ -58,6 +59,8 @@ exports.playVerify = onCall(callOpts, wrap(s => s.playVerify));
 exports.billingVaCharge = onCall(callOpts, wrap(s => s.createVaCharge));
 // Pemilik PRO mencari anggota tim proyek (surveyor, penggambar, pemeriksa, penyetuju) lewat e-mail
 exports.projectFindUser = onCall(callOpts, wrap(s => s.findProjectMember));
+// Hapus akun sendiri beserta (opsional) proyeknya — wajib Google Play; dicek login ulang
+exports.accountDelete = onCall(callOpts, wrap(s => s.deleteMyAccount));
 exports.manualOrder = onCall(callOpts, wrap(s => s.createManualOrder));
 exports.manualProof = onCall({ ...callOpts, memory: '512MiB' }, wrap(s => s.submitManualProof));
 exports.adminManualList = onCall({ ...callOpts, memory: '512MiB' }, wrap(s => s.adminManualList));

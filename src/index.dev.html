@@ -8581,6 +8581,8 @@ async function makeFirebaseAuth() {
     async deleteAccount({ password, withProjects }) {
       const u = auth.currentUser; if (!u) throw new Error('Tidak ada sesi login.');
       await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, password)).catch(e => { throw new Error(fbErr(e)); });
+      if (BILLING_CFG.functions === true) { // lewat server: menghapus proyek (bila dipilih), profil & akun Firebase Auth sekaligus
+        await u.getIdToken(true).catch(() => {}); await callFn('accountDelete', { withProjects: !!withProjects }); await auth.signOut().catch(() => {}); return; }
       const me = u.uid; const delWhere = async (col, f, v) => { const s = await db.collection(col).where(f, '==', v).get().catch(() => null); if (s) for (const d of s.docs) await db.collection(col).doc(d.id).delete().catch(() => {}); };
       if (withProjects) { await delWhere('photos', 'ownerUid', me); const ps = await db.collection('projects').where('ownerUid', '==', me).get().catch(() => null);
         if (ps) for (const d of ps.docs) { await db.collection('projectData').doc(d.id).delete().catch(() => {}); await db.collection('projectNet').doc(d.id).delete().catch(() => {}); await db.collection('projects').doc(d.id).delete().catch(() => {}); } }
@@ -8916,6 +8918,8 @@ function SyncBadge({ sync, compact }) {
 function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, onDelete, onClose, onImport }) {
   const [tab, setTab] = useState('mine'); const [items, setItems] = useState(null); const [err, setErr] = useState(''); const [q, setQ] = useState(''); const [st, setSt] = useState('');
   const [busy, setBusy] = useState(''); const [del, setDel] = useState(null);
+  // Paket FREE: proyek yang sudah tersimpan di cloud tidak bisa dihapus (kuota proyek permanen). PRO & admin boleh.
+  const canDelCloud = !store || !Billing.get().managed || Billing.isPro();
   const load = async () => {
     setItems(null); setErr('');
     const local = localLib.list(user.uid).map(m => ({ ...m, local: true, dirty: localLib.sync(m.id).dirty, synced: localLib.sync(m.id).rev != null }));
@@ -8946,8 +8950,9 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
       <div className="p-5 pt-3 overflow-y-auto space-y-2 text-[13px]">
         {err && <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">{err}</div>}
         {!items && <p className="text-slate-500">Memuat daftar proyek…</p>}
+        {store && !canDelCloud && !user.admin && <div id="lib-free-note" className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 px-3 py-2 text-[12.5px]">Paket FREE: proyek yang sudah tersimpan tidak dapat dihapus, dan kuota {Billing.cloudLimit()} proyek berlaku permanen. Untuk menambah proyek tanpa batas (dan bisa menghapus proyek), <button type="button" className="font-semibold underline" onClick={() => Billing.set({ pricing: true })}>berlangganan WASHLY PRO</button>.</div>}
         {items && shown.length === 0 && <p className="text-slate-500">Belum ada proyek{q || st ? ' yang cocok dengan pencarian' : ''}.</p>}
-        {shown.map(it => { const mine = it.ownerUid === user.uid; const canEdit = mine || user.admin; const cur = it.id === currentId; const S = PSTATUS[it.status] || PSTATUS.draft;
+        {shown.map(it => { const mine = it.ownerUid === user.uid; const canEdit = mine || user.admin; const canDel = user.admin || (mine && (canDelCloud || it.demo || it.pendingUpload)); const cur = it.id === currentId; const S = PSTATUS[it.status] || PSTATUS.draft;
           return <div key={it.id} className={`rounded-lg border p-3 flex flex-wrap items-center gap-3 ${cur ? 'border-aqua-500 bg-aqua-50' : 'border-line'}`}>
             <div className="flex-1 min-w-[220px]">
               <div className="font-semibold flex flex-wrap items-center gap-1.5">{it.name}{cur && <span className="pill s-src">sedang dibuka</span>}{!canEdit && <span className="pill s-idle">hanya-baca</span>}{it.demo ? <span className="pill s-idle">contoh · di perangkat</span> : (it.dirty || it.pendingUpload) && <span className="pill s-low">belum tersinkron</span>}</div>
@@ -8958,7 +8963,7 @@ function ProjectLibrary({ user, store, currentId, onOpen, onNew, onDuplicate, on
             <div className="flex flex-wrap gap-1.5">
               <Btn variant={cur ? 'outline' : 'primary'} icon="FolderOpen" disabled={cur || !!busy} onClick={() => run('o' + it.id, () => onOpen(it))}>{busy === 'o' + it.id ? 'Membuka…' : cur ? 'Terbuka' : 'Buka'}</Btn>
               <Btn variant="outline" icon="FilePlus2" disabled={!!busy} title="Simpan salinan sebagai proyek baru milik Anda" onClick={() => run('d' + it.id, () => onDuplicate(it))}>Salin</Btn>
-              {canEdit && !cur && (del === it.id ? <><Btn variant="danger" onClick={() => run('x' + it.id, async () => { await onDelete(it); setDel(null); await load(); })}>Ya, hapus</Btn><Btn variant="outline" onClick={() => setDel(null)}>Batal</Btn></>
+              {canDel && !cur && (del === it.id ? <><Btn variant="danger" onClick={() => run('x' + it.id, async () => { await onDelete(it); setDel(null); await load(); })}>Ya, hapus</Btn><Btn variant="outline" onClick={() => setDel(null)}>Batal</Btn></>
                 : <Btn variant="ghost" icon="Trash2" title="Hapus proyek" onClick={() => setDel(it.id)} />)}
             </div>
           </div>; })}
@@ -9303,7 +9308,7 @@ const FEAT = {
   map_survey: ['Pemetaan, GPS & survei lapangan'], hydraulics: ['Analisis hidrolis jaringan'], calc_basic: ['Kalkulator kebutuhan air & jumlah node'],
   pump_basic: ['Head, daya & kurva pompa sumur bor'], boq_cost: ['BoQ & RAB umum (volume, harga bawaan, ubah harga satuan)'], report_preview: ['Pratinjau laporan teknis (bertanda air)'],
   data_export: ['Simpan/muat .json & .gpx'], assistant_offline: ['Asisten (basis pengetahuan luring)'],
-  cloud_projects: ['Proyek tersimpan di cloud', 'Paket FREE menyimpan proyek di cloud dengan batas jumlah. PRO tanpa batas (sesuai kapasitas sistem), sehingga semua pekerjaan tim tersinkron antarperangkat.'],
+  cloud_projects: ['Proyek tersimpan di cloud', 'Paket FREE menyimpan proyek di cloud dengan batas jumlah yang berlaku permanen: proyek yang sudah tersimpan tidak dapat dihapus untuk mengosongkan kuota. PRO tanpa batas dan proyek bisa dihapus kapan saja, sehingga semua pekerjaan tim tersinkron antarperangkat.'],
   calc_advanced: ['Kalkulator debit sumber & daya pompa', 'Kalkulator debit sumber air (ember, pelampung, V-notch, uji pompa, embung, air hujan) dan daya pompa sumur bor memakai perhitungan lanjutan.'],
   pump_advanced: ['Daya pompa min/ideal/maks, spesifikasi pengadaan & paket all-in', 'Perbandingan daya motor minimal/ideal/maksimal, tabel spesifikasi pompa untuk pengadaan, dan estimasi paket sumur bor all-in.'],
   treatment_design: ['Desain pengolahan air (aerator, filter, membran)', 'Desain instalasi pengolahan air lengkap: aerator, filter media & FRP, membran, filter rumah tangga, beserta gambar dan RAB-nya.'],
@@ -10188,7 +10193,7 @@ function App({ user, api }) {
   const newProject = (base, label, opts = {}) => { if (!opts.demo && store && !Billing.canCreateCloudProject()) { Billing.set({ ask: 'cloud_projects' }); return; } saveCurrentLocal(); let q = ensureCloud({ ...normalizeProject(base), cloud: null }, user); if (opts.demo) q = { ...q, cloud: { ...q.cloud, demo: true } };
     if (label) q.meta = { ...q.meta, name: label }; if (!q.nodes.length && q.meta.lat == null) setTimeout(() => setDialog('proj'), 50); localLib.put(user.uid, q); localLib.setSync(q.cloud.id, { rev: null, dirty: true }); switchTo(q); cleanRef.current = { id: q.cloud.id, str: '' }; setLibOpen(false); return q; };
   const duplicateProject = async (it) => { if (store && it.ownerUid && it.ownerUid !== user.uid && !user.admin) { setToast('Proyek milik pengguna lain tidak dapat disalin.'); return; } const p = it.id === project.cloud.id ? project : await fetchProject(it); newProject(p, (p.meta.name || 'Proyek') + ' (salinan)'); setToast('Salinan dibuat dan dibuka'); };
-  const deleteProject = async (it) => { if (store && !(it.pendingUpload)) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
+  const deleteProject = async (it) => { if (store && !it.demo && !it.pendingUpload && !user.admin && Billing.get().managed && !Billing.isPro()) { Billing.set({ ask: 'cloud_projects' }); return; } if (store && !(it.pendingUpload) && !it.demo) await store.remove(it.id); localLib.remove(user.uid, it.id); setToast(`Proyek "${it.name}" dihapus`); };
   const reviewAct = (to, note, extra = {}) => {
     const p0 = projectRef.current; const c0 = p0.cloud; const me = { uid: user.uid, name: user.name || user.email, email: user.email };
     const mgr = !store || c0.ownerUid === user.uid || user.admin;

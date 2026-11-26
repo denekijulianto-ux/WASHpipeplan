@@ -418,3 +418,18 @@ test('tim proyek: pemilik PRO mencari anggota lewat e-mail; FREE ditolak; e-mail
   assert.equal((await s.findProjectMember(auth('boss', 'boss@x.org'), { email: 'mem@x.org' })).uid, 'mem'); // admin
   await assert.rejects(s.findProjectMember(null, { email: 'mem@x.org' }), { code: 'unauthenticated' });
 });
+
+test('hapus akun lewat server: wajib login ulang; menghapus proyek (opsional), profil & akun Auth', async () => {
+  const { db } = setup(); const deleted = [];
+  const s2 = makeService({ db, now: () => T0, adminEmails: ['boss@x.org'], deleteAuthUser: async (uid) => deleted.push(uid) });
+  await db.collection('users').doc('u').set({ email: 'u@x.org', status: 'approved' }); await db.collection('profiles').doc('u').set({ a: 1 });
+  for (const id of ['p1', 'p2']) { await db.collection('projects').doc(id).set({ ownerUid: 'u' }); await db.collection('projectData').doc(id).set({ ownerUid: 'u' }); await db.collection('projectNet').doc(id).set({ ownerUid: 'u' }); }
+  await db.collection('projects').doc('px').set({ ownerUid: 'v' }); await db.collection('photos').doc('f1').set({ ownerUid: 'u' });
+  const a = (secAgo) => ({ uid: 'u', token: { email: 'u@x.org', email_verified: true, auth_time: Math.floor((T0 - secAgo * 1000) / 1000) } });
+  await assert.rejects(s2.deleteMyAccount(a(3600), { withProjects: true }), { code: 'failed-precondition' }); // login sudah lama
+  assert.ok((await db.collection('projects').doc('p1').get()).exists);
+  const r = await s2.deleteMyAccount(a(30), { withProjects: true });
+  assert.equal(r.projects, 2); assert.deepEqual(deleted, ['u']);
+  for (const [c, id] of [['projects', 'p1'], ['projectData', 'p2'], ['projectNet', 'p1'], ['photos', 'f1'], ['users', 'u'], ['profiles', 'u']]) assert.equal((await db.collection(c).doc(id).get()).exists, false, c + '/' + id);
+  assert.ok((await db.collection('projects').doc('px').get()).exists, 'proyek orang lain tidak tersentuh');
+});

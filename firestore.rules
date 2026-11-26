@@ -118,7 +118,8 @@ service cloud.firestore {
           || (isCrewOf(resource.data) && sameCrew()
               && request.resource.data.get('status', 'draft') == resource.data.get('status', 'draft')
               && resource.data.get('status', 'draft') in ['draft', 'revisi']));
-      allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      // Paket FREE: kuota proyek permanen, proyek tidak bisa dihapus (hapus akun lewat server). PRO & admin boleh.
+      allow delete: if isAdmin() || (approved() && resource.data.ownerUid == request.auth.uid && (!billingOn() || isPro(request.auth.uid)));
     }
     // Isi lengkap proyek (terkompresi): hanya pemilik, admin, dan petugas yang ditunjuk
     match /projectData/{pid} {
@@ -130,14 +131,16 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/projects/$(pid)).data.get('approverUid', '') == request.auth.uid
           || get(/databases/$(database)/documents/projects/$(pid)).data.get('surveyorUid', '') == request.auth.uid
           || get(/databases/$(database)/documents/projects/$(pid)).data.get('drafterUid', '') == request.auth.uid);
-      allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      // Paket FREE: kuota proyek permanen, proyek tidak bisa dihapus (hapus akun lewat server). PRO & admin boleh.
+      allow delete: if isAdmin() || (approved() && resource.data.ownerUid == request.auth.uid && (!billingOn() || isPro(request.auth.uid)));
     }
     // Ringkasan jaringan pipa; privat seperti proyeknya (pemilik, tim yang ditunjuk, admin)
     match /projectNet/{pid} {
       allow read: if approved() && (resource.data.ownerUid == request.auth.uid || projectMember(pid));
       allow create: if approved() && request.resource.data.ownerUid == request.auth.uid;
       allow update: if approved() && request.resource.data.ownerUid == resource.data.ownerUid && projectMember(pid);
-      allow delete: if approved() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      // Paket FREE: kuota proyek permanen, proyek tidak bisa dihapus (hapus akun lewat server). PRO & admin boleh.
+      allow delete: if isAdmin() || (approved() && resource.data.ownerUid == request.auth.uid && (!billingOn() || isPro(request.auth.uid)));
     }
     // Foto asesmen: hanya pengunggah, admin, dan anggota proyeknya; hanya pengunggah/admin yang boleh mengubah/menghapus
     match /photos/{id} {

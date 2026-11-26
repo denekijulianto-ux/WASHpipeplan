@@ -502,11 +502,28 @@ function makeService(deps) {
     const plan = ex && ex.tier === 'PRO' && +ex.accessUntil > now() ? 'PRO' : 'FREE'; // anggota FREE ikut bekerja dengan fitur FREE
     return { uid: d.id, email: e, name: x.name || e, role: x.role || '', plan };
   }
+  // Hapus akun sendiri (wajib Google Play). Lewat server karena pemilik FREE tidak boleh menghapus proyek satu per satu
+  // (kuota proyek FREE permanen). Wajib login ulang < 10 menit sebelumnya.
+  async function deleteMyAccount(auth, { withProjects } = {}) {
+    const uid = needAuth(auth); const at = +((auth.token && auth.token.auth_time) || 0) * 1000;
+    if (!at || now() - at > 10 * 60e3) throw new BillingError('failed-precondition', 'Demi keamanan, masukkan ulang kata sandi Anda lalu coba lagi.');
+    const del = async (c, id) => { await col(c).doc(id).delete(); }; let projects = 0;
+    if (withProjects) {
+      const ps = await col('projects').where('ownerUid', '==', uid).get();
+      for (const d of ps.docs) { await del('projectData', d.id); await del('projectNet', d.id); await del('projects', d.id); projects++; }
+      const ph = await col('photos').where('ownerUid', '==', uid).get(); for (const d of ph.docs) await del('photos', d.id);
+    }
+    const email = normEmail(auth.token && auth.token.email);
+    if (email) { const n = await col('notifications').where('toEmail', '==', email).get(); for (const d of n.docs) await del('notifications', d.id); }
+    await del('profiles', uid); await del('users', uid);
+    if (deps.deleteAuthUser) await deps.deleteAuthUser(uid);
+    return { ok: true, projects };
+  }
   async function myAccountId(auth) { return { accountId: accountIdFor(needAuth(auth)) }; }
   async function refreshMe(auth) { const uid = needAuth(auth); return { entitlement: await recomputeEntitlement(uid) }; }
 
   return { BillingError, getConfig, recomputeEntitlement, recountUsage, createCheckout, verifyMidtransSignature, handleMidtransNotification, applyMidtransStatus, refreshOrder, cancelWeb,
-    playVerify, handleRtdn, sweep, adminGetMidtrans, adminSetMidtrans, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, findProjectMember, isAdmin };
+    playVerify, handleRtdn, sweep, adminGetMidtrans, adminSetMidtrans, createVaCharge, createManualOrder, submitManualProof, adminManualList, adminManualDecide, adminMetrics, adminUsers, adminUserDetail, adminGrant, adminRevoke, adminSaveConfig, myAccountId, refreshMe, findProjectMember, deleteMyAccount, isAdmin };
 }
 
 module.exports = { makeService, BillingError, accountIdFor, sha256 };

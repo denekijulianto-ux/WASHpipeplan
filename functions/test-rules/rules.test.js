@@ -128,6 +128,14 @@ test('kerja bersama: tim ikut mengedit di draft/revisi; dikunci saat diperiksa; 
   await mk('checked'); await assertSucceeds(updateDoc(doc(u(), 'projects/p1'), { status: 'draft' }));  // kembali ke draft selalu boleh
 });
 
+test('hapus proyek: pemilik FREE tidak bisa (kuota permanen); PRO & admin bisa', async () => {
+  const mk = async (ent) => { await env.clearFirestore(); await seed(async db => { await base(db, { ent }); for (const c of ['projects', 'projectData', 'projectNet']) await setDoc(doc(db, c + '/p1'), { ownerUid: 'u', name: 'P', status: 'draft' }); }); };
+  const { deleteDoc } = require('firebase/firestore'); const u = () => user('u', 'u@x.org');
+  await mk({ tier: 'FREE' }); for (const c of ['projects', 'projectData', 'projectNet']) await assertFails(deleteDoc(doc(u(), c + '/p1')));
+  await mk({ tier: 'PRO', accessUntilTs: Timestamp.fromMillis(Date.now() + 864e5) }); for (const c of ['projectData', 'projectNet', 'projects']) await assertSucceeds(deleteDoc(doc(u(), c + '/p1')));
+  await mk({ tier: 'FREE' }); await assertSucceeds(deleteDoc(doc(user('a', ADMIN), 'projects/p1')));
+});
+
 test('bukti transfer: hanya pengirim & admin yang bisa membaca; tidak ada yang bisa menulis dari aplikasi', async () => {
   await seed(async db => { await setDoc(doc(db, 'users/u'), { email: 'u@x.org', status: 'approved' }); await setDoc(doc(db, 'payment_proofs/T1'), { userId: 'u', image: 'data:x' }); });
   await assertSucceeds(getDoc(doc(user('u', 'u@x.org'), 'payment_proofs/T1')));
