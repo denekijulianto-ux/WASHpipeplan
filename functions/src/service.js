@@ -474,7 +474,14 @@ function makeService(deps) {
     // Uji ke Midtrans: kunci yang benar menjawab 404 (order uji memang tidak ada), kunci salah menjawab 401
     const client = deps.midtransFactory({ serverKey, signatureKey, isProduction: mode === 'production' });
     const ping = await client.ping().catch(e => ({ ok: false, error: String(e.message || e) }));
-    if (!ping.ok) throw new BillingError('failed-precondition', ping.unauthorized ? `Midtrans menolak Server Key ini (401${ping.message ? ': ' + ping.message : ''}). Pastikan kunci disalin utuh dan dari lingkungan ${mode === 'production' ? 'Production' : 'Sandbox'}.` + (mode === 'production' ? ' Catatan: selama akun Midtrans Production masih "activation in progress", Midtrans menolak semua Server Key Production; gunakan Sandbox dulu sampai aktivasi disetujui.' : '') : 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
+    if (!ping.ok && ping.unauthorized) {
+      // Cek silang: kunci yang ditolak di satu lingkungan sering kali kunci dari lingkungan lain (format kunci baru tidak selalu berawalan "SB-")
+      const other = mode === 'production' ? 'sandbox' : 'production', OtherName = other === 'production' ? 'Production' : 'Sandbox', Name = mode === 'production' ? 'Production' : 'Sandbox';
+      const alt = await deps.midtransFactory({ serverKey, signatureKey, isProduction: other === 'production' }).ping().catch(() => ({ ok: false }));
+      if (alt.ok) throw new BillingError('failed-precondition', `Server Key ini adalah kunci ${OtherName}, bukan ${Name}. Di dashboard Midtrans, ganti Environment (kiri atas) ke ${Name}, lalu salin Server Key dari Settings → Access Keys. Atau pilih "${OtherName}" di atas bila memang ingin memakai ${OtherName}.`);
+      throw new BillingError('failed-precondition', `Midtrans menolak Server Key ini (401${ping.message ? ': ' + ping.message : ''}). Kunci tidak dikenali di Production maupun Sandbox: kemungkinan tersalin tidak utuh, sudah dihapus/diganti di dashboard, atau yang tersalin bukan Server Key. Salin ulang dengan ikon salin di Settings → Access Keys → Server Keys.`);
+    }
+    if (!ping.ok) throw new BillingError('failed-precondition', 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
     const t = now();
     await col('billing_secrets').doc('midtrans').set({ serverKey, signatureKey: signatureKey || null, mode, updatedAt: t, updatedBy: auth.uid, lastCheck: { at: t, ok: true } });
     // Jangan pernah membuat dokumen konfigurasi setengah jadi (tanpa 'enforce' → pembatasan FREE dianggap mati)

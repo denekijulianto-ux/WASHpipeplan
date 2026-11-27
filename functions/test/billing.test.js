@@ -360,7 +360,7 @@ test('Midtrans 2026: notifikasi bertanda tangan Signature Secret Key diterima; k
 test('Pengaturan Midtrans dari aplikasi: hanya admin, format & lingkungan divalidasi, kunci diuji ke Midtrans, kunci tidak pernah dikembalikan; transaksi memakai kunci baru', async () => {
   const db = makeDb(); const made = [];
   const factory = (o) => { made.push(o); return { serverKey: o.serverKey, signatureKeys: [o.signatureKey, o.serverKey].filter(Boolean), isProduction: o.isProduction,
-    ping: async () => o.serverKey.endsWith('SALAH1234') ? { ok: false, unauthorized: true } : { ok: true, code: '404' },
+    ping: async () => o.serverKey.endsWith('SALAH1234') || (o.serverKey.endsWith('SBNEW1234') && o.isProduction) ? { ok: false, unauthorized: true } : { ok: true, code: '404' },
     charge: async () => ({ status_code: '201', va_numbers: [{ va_number: 'VA-' + o.serverKey.slice(-4) }] }), getStatus: async () => null }; };
   await db.collection('users').doc('boss').set({ email: 'boss@x.org', name: 'Boss', status: 'approved' });
   await db.collection('users').doc('u').set({ email: 'u@x.org', name: 'U', status: 'approved' });
@@ -370,6 +370,7 @@ test('Pengaturan Midtrans dari aplikasi: hanya admin, format & lingkungan divali
   await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'Mid-client-ABCDEFGH12', mode: 'sandbox' }), { code: 'invalid-argument' });
   await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'Mid-server-ABCDEFGH12', mode: 'sandbox' }), { code: 'invalid-argument' }); // kunci Production di mode Sandbox
   await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'SB-Mid-server-SALAH1234', mode: 'sandbox' }), { code: 'failed-precondition' }); // ditolak Midtrans
+  await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'Mid-server-SBNEW1234', mode: 'production' }), (e) => e.code === 'failed-precondition' && /kunci Sandbox/.test(e.message)); // kunci Sandbox format baru di mode Production
   const r = await sv.adminSetMidtrans(A, { serverKey: 'SB-Mid-server-BENAR9999', signatureKey: 'Mid-server-SIGNATURE77', mode: 'sandbox' });
   assert.equal(r.serverKeyHint, '…9999'); assert.ok(!JSON.stringify(r).includes('BENAR'));
   const g = await sv.adminGetMidtrans(A); assert.equal(g.configured, true); assert.ok(!JSON.stringify(g).includes('BENAR') && !JSON.stringify(g).includes('SIGNATURE'));
