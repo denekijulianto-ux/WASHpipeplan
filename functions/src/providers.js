@@ -29,7 +29,7 @@ function midtransClient({ serverKey, signatureKey, isProduction, notificationUrl
     async ping() {
       const r = await fetchImpl(apiBase + '/v2/WASHLY-CEK-' + Date.now() + '/status', { headers: headers() });
       const j = await r.json().catch(() => ({})); const code = String(j.status_code || r.status);
-      return { ok: code === '404' || code === '200', unauthorized: code === '401' || r.status === 401, code };
+      return { ok: code === '404' || code === '200', unauthorized: code === '401' || r.status === 401, code, message: String(j.status_message || (j.error_messages || []).join('; ') || '').slice(0, 200) };
     },
     async getStatus(orderId) {
       const r = await fetchImpl(apiBase + '/v2/' + encodeURIComponent(orderId) + '/status', { headers: headers() });

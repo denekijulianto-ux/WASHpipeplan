@@ -474,7 +474,7 @@ function makeService(deps) {
     // Uji ke Midtrans: kunci yang benar menjawab 404 (order uji memang tidak ada), kunci salah menjawab 401
     const client = deps.midtransFactory({ serverKey, signatureKey, isProduction: mode === 'production' });
     const ping = await client.ping().catch(e => ({ ok: false, error: String(e.message || e) }));
-    if (!ping.ok) throw new BillingError('failed-precondition', ping.unauthorized ? `Midtrans menolak Server Key ini (401). Pastikan kunci disalin utuh dan dari lingkungan ${mode === 'production' ? 'Production' : 'Sandbox'}.` : 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
+    if (!ping.ok) throw new BillingError('failed-precondition', ping.unauthorized ? `Midtrans menolak Server Key ini (401${ping.message ? ': ' + ping.message : ''}). Pastikan kunci disalin utuh dan dari lingkungan ${mode === 'production' ? 'Production' : 'Sandbox'}.` + (mode === 'production' ? ' Catatan: selama akun Midtrans Production masih "activation in progress", Midtrans menolak semua Server Key Production; gunakan Sandbox dulu sampai aktivasi disetujui.' : '') : 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
     const t = now();
     await col('billing_secrets').doc('midtrans').set({ serverKey, signatureKey: signatureKey || null, mode, updatedAt: t, updatedBy: auth.uid, lastCheck: { at: t, ok: true } });
     // Jangan pernah membuat dokumen konfigurasi setengah jadi (tanpa 'enforce' → pembatasan FREE dianggap mati)
