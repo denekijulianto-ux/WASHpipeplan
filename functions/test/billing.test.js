@@ -319,9 +319,9 @@ test('transfer manual: konfigurasi divalidasi & tagihan kedaluwarsa setelah bata
 test('Virtual Account: nomor VA tampil di aplikasi; lunas lewat webhook → PRO otomatis; tagihan terbuka dipakai ulang', async () => {
   const { s, db, mid, seedUser, auth, midSettle, ent } = setup(); await seedUser('u', 'u@x.org');
   await assert.rejects(s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bank-palsu' }), { code: 'invalid-argument' });
-  const r = await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' });
+  const r = await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bni' });
   assert.equal(r.va.number, '123453'); assert.equal(mid.charged[0].payment_type, 'bank_transfer'); assert.equal(mid.charged[0].transaction_details.gross_amount, 125000);
-  assert.equal((await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' })).orderId, r.orderId);
+  assert.equal((await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bni' })).orderId, r.orderId);
   const m = await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_YEARLY', bank: 'mandiri' }); assert.equal(m.va.billKey, '7001234'); assert.equal(m.va.billerCode, '70012');
   assert.equal((await s.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_YEARLY', bank: 'permata' })).va.number, '8562000111');
   assert.ok(!(await ent('u')), 'belum dibayar → belum PRO');
@@ -335,9 +335,9 @@ test('Sandbox Midtrans: hanya admin yang boleh membuat transaksi (cegah PRO grat
   for (const [u, e] of [['u', 'u@x.org'], ['boss', 'boss@x.org']]) await db.collection('users').doc(u).set({ email: e, name: u, status: 'approved' });
   const sv = makeService({ db, now: () => T0, adminEmails: ['boss@x.org'], midtrans: { serverKey: SERVER_KEY, isProduction: false,
     createSnap: async (p) => ({ token: 't', redirect_url: 'https://pay/x' }), charge: async (p) => ({ status_code: '201', va_numbers: [{ va_number: '111' }] }), getStatus: async () => null } });
-  await assert.rejects(sv.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' }), { code: 'failed-precondition' });
+  await assert.rejects(sv.createVaCharge(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bni' }), { code: 'failed-precondition' });
   await assert.rejects(sv.createCheckout(auth('u', 'u@x.org'), { planCode: 'PRO_MONTHLY' }), { code: 'failed-precondition' });
-  assert.equal((await sv.createVaCharge(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bca' })).va.number, '111');
+  assert.equal((await sv.createVaCharge(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY', bank: 'bni' })).va.number, '111');
   assert.ok((await sv.createCheckout(auth('boss', 'boss@x.org'), { planCode: 'PRO_MONTHLY' })).redirectUrl);
 });
 

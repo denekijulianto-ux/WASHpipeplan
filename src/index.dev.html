@@ -9331,7 +9331,7 @@ const FEAT_FREE = ['map_survey', 'hydraulics', 'calc_basic', 'pump_basic', 'boq_
 const BILLING_DEFAULT = {
   enforce: false, currency: 'IDR', graceDays: 3, reminderDays: [7, 1], pendingHours: 24, freeLimits: { cloudProjects: 3 },
   paymentsPublic: false,
-  va: { enabled: true, banks: ['bca', 'bni', 'bri', 'mandiri', 'permata'] },
+  va: { enabled: true, banks: ['bni', 'bri', 'mandiri', 'permata', 'cimb'] }, // BCA VA tidak tersedia di akun Midtrans ini; bisa diaktifkan di Dasbor → Paket & harga
   manual: { enabled: false, bankName: '', accountNumber: '', accountName: '', qris: '', instructions: '', hours: 72 },
   plans: { FREE: { code: 'FREE', name: 'WASHLY FREE', tier: 'FREE', months: 0, price: 0, active: true },
     PRO_MONTHLY: { code: 'PRO_MONTHLY', name: 'WASHLY PRO Bulanan', tier: 'PRO', months: 1, price: 125000, active: true, playProductId: 'washly_pro', playBasePlanId: 'monthly' },
@@ -9616,7 +9616,7 @@ function PricingDialog({ user, onClose }) {
           : IS_NATIVE ? <>
             <p>Pembayaran lewat <b>Google Play</b>. Langganan diperpanjang otomatis setiap periode sampai Anda membatalkannya di Google Play (Profil → Langganan → Kelola). Setelah dibatalkan, PRO tetap aktif sampai akhir periode yang sudah dibayar.</p>
           </> : <>
-            <p>Pembayaran web lewat <b>Virtual Account</b> (BCA, BNI, BRI, Mandiri, Permata) dengan konfirmasi otomatis, atau <b>QRIS, e-wallet & kartu</b> lewat Midtrans. Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada {cfg.graceDays} hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.</p>
+            <p>Pembayaran web lewat <b>Virtual Account</b> (bank yang dipilih admin) dengan konfirmasi otomatis, atau <b>QRIS, e-wallet & kartu</b> lewat Midtrans. Tidak ada penagihan otomatis: sebelum periode berakhir Anda mendapat pengingat dan bisa memperpanjang dengan membayar lagi. Jika tidak diperpanjang, akses PRO tetap ada {cfg.graceDays} hari masa tenggang, lalu akun kembali ke FREE tanpa kehilangan proyek.</p>
           </>}
           <p>Harga sudah termasuk pajak yang berlaku. PRO aktif setelah pembayaran diverifikasi oleh server. Langganan melekat pada akun WASHLY Anda, bukan perangkat.</p>
           <p><a className="text-aqua-700 underline" href="syarat.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a className="text-aqua-700 underline" href="refund.html" target="_blank" rel="noopener">Pembatalan &amp; Refund</a></p>
@@ -9832,6 +9832,8 @@ function AdminBillingDialog({ onClose }) {
               <Field label="Masa tenggang web (hari)"><input type="number" className="tp-field" value={cfg.graceDays} onChange={e => setCfg(x => ({ ...x, graceDays: +e.target.value }))} /></Field>
               <Field label="Pengingat (hari sebelum)"><input className="tp-field" value={(cfg.reminderDays || []).join(', ')} onChange={e => setCfg(x => ({ ...x, reminderDays: e.target.value.split(',').map(s => +s.trim()).filter(Boolean) }))} /></Field>
               <Field label="Batas bayar tagihan (jam)"><input type="number" className="tp-field" value={cfg.pendingHours} onChange={e => setCfg(x => ({ ...x, pendingHours: +e.target.value }))} /></Field></div></div>
+          <div id="cfg-va" className="rounded-lg border border-line bg-white p-3"><b>Bank Virtual Account</b><p className="text-[12px] text-slate-500">Centang hanya bank yang sudah <b>aktif</b> di dashboard Midtrans (Settings → Payment Methods). Bank yang belum aktif akan gagal saat pengguna membayar.</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">{Object.keys(VA_BANK).map(bk => { const on = ((cfg.va && cfg.va.banks) || []).includes(bk); return <label key={bk} className="flex items-center gap-1.5 text-[12.5px]"><input id={'cfg-va-' + bk} type="checkbox" checked={on} onChange={e => setCfg(x => { const cur = (x.va && x.va.banks) || []; return { ...x, va: { ...(x.va || {}), enabled: true, banks: e.target.checked ? [...cur.filter(b => b !== bk), bk] : cur.filter(b => b !== bk) } }; })} />{VA_BANK[bk]}</label>; })}</div></div>
           <div className="rounded-lg border border-line bg-white p-3"><b>Paket</b><p className="text-[12px] text-slate-500">Harga di sini dipakai untuk pembayaran web & laporan. Harga Google Play diatur di Play Console (Monetize → Subscriptions) dan harus disamakan secara manual.</p>
             <div className="overflow-x-auto"><table className="w-full text-[12px] mt-1"><thead><tr className="text-left text-slate-500"><th>Kode</th><th>Nama</th><th>Bulan</th><th>Harga (Rp)</th><th>Aktif</th><th>Produk / base plan Play</th></tr></thead><tbody>
               {Object.values(cfg.plans).map(pl => <tr key={pl.code} className="border-t border-line"><td className="py-1 font-mono">{pl.code}</td><td><input className="tp-field" value={pl.name} onChange={e => setPlan(pl.code, 'name', e.target.value)} /></td>

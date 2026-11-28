@@ -51,7 +51,7 @@ const DEFAULT_CONFIG = {
   promo: { enabled: false, codes: {} },
   // Transfer bank / QRIS manual: pengguna transfer, admin mengecek mutasi lalu mengonfirmasi di dasbor.
   // Virtual Account lewat Midtrans Core API (nomor VA tampil di aplikasi, PRO aktif otomatis lewat webhook)
-  va: { enabled: true, banks: ['bca', 'bni', 'bri', 'mandiri', 'permata'] },
+  va: { enabled: true, banks: ['bni', 'bri', 'mandiri', 'permata', 'cimb'] }, // BCA VA tidak tersedia di akun Midtrans ini; bisa diaktifkan di Dasbor → Paket & harga
   manual: { enabled: false, bankName: '', accountNumber: '', accountName: '', qris: '', instructions: '', hours: 72 },
   features: Object.fromEntries(Object.entries(FEATURES).map(([k, v]) => [k, { free: v.free, pro: v.pro }])),
 };

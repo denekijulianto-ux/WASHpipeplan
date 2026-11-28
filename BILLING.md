@@ -205,7 +205,7 @@ Admin: **Pendapatan → Pembayaran online**. Pilih **Sandbox/Production**, tempe
 
 ### Virtual Account di dalam aplikasi (Midtrans Core API)
 Saat `payments: true`, tombol beli di web membuka **Pilih metode pembayaran**:
-* **Virtual Account** BCA / BNI / BRI / Mandiri (biller code + bill key) / Permata. `billingVaCharge` memanggil `POST /v2/charge`
+* **Virtual Account** BNI / BRI / Mandiri (biller code + bill key) / Permata / CIMB Niaga (BCA bisa dicentang di Dasbor → Paket & harga bila sudah aktif di Midtrans). `billingVaCharge` memanggil `POST /v2/charge`
   (`bank_transfer` / `echannel` / `permata`) dan nomor VA tampil langsung di aplikasi beserta langkah bayar per bank.
   Setelah nasabah membayar, Midtrans memanggil `midtransWebhook` (tanda tangan + cek API status), lalu **PRO aktif otomatis** dan dialog VA ikut berubah.
   Tagihan VA yang masih berlaku dipakai ulang. Nama merchant yang tampil di aplikasi bank adalah nama merchant Midtrans, bukan nama pribadi.
