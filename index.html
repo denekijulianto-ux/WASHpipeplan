@@ -39659,7 +39659,7 @@ function AdminBillingDialog({
         bank: 'bni'
       });
       if (r.redirectUrl) {
-        window.open(r.redirectUrl, '_blank');
+        setErr('Nomor VA langsung DITOLAK Midtrans, jadi pengguna dialihkan ke halaman Midtrans. Jawaban Midtrans: ' + (r.adminDetail || '(tidak ada detail)') + '. Kirim teks ini ke support Midtrans dan minta Core API / Virtual Account diaktifkan untuk akun Production Anda.');
         setBusy('');
         return;
       }
@@ -39958,7 +39958,17 @@ function AdminBillingDialog({
     icon: "FlaskConical",
     disabled: busy === 'tp',
     onClick: testPay
-  }, busy === 'tp' ? 'Membuat VA…' : 'Buat VA uji')), React.createElement("div", {
+  }, busy === 'tp' ? 'Membuat VA…' : 'Buat VA uji')), mt && mt.configured && mt.mode === 'production' && React.createElement("div", {
+    className: "rounded-lg border border-line bg-white p-3 space-y-2"
+  }, React.createElement("b", null, "Cek Virtual Account langsung"), React.createElement("p", {
+    className: "text-[12.5px] text-slate-600"
+  }, "Membuat satu tagihan VA BNI untuk akun admin guna memastikan nomor VA bisa tampil langsung di WASHLY. ", React.createElement("b", null, "Tidak perlu dibayar"), "; tagihan kedaluwarsa sendiri. Bila ditolak, jawaban Midtrans ditampilkan di atas untuk dikirim ke support Midtrans."), React.createElement(Btn, {
+    id: "mt-test-prod",
+    variant: "outline",
+    icon: "FlaskConical",
+    disabled: busy === 'tp',
+    onClick: testPay
+  }, busy === 'tp' ? 'Memeriksa…' : 'Cek VA langsung')), React.createElement("div", {
     className: "rounded-lg border border-line bg-white p-3 space-y-1"
   }, React.createElement("label", {
     className: "flex items-start gap-2"

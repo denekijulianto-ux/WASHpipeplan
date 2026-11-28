@@ -153,7 +153,7 @@ function makeService(deps) {
           enabled_payments: [SNAP_VA[bank]], callbacks: { finish: (deps.appUrl || '') + '?billing=finish&order=' + encodeURIComponent(orderId) }, expiry: { unit: 'hour', duration: hours } });
         await col('payments').doc(orderId).update({ method: 'snap_va_' + bank, snapToken: snap.token, redirectUrl: snap.redirect_url, chargeError: detail, updatedAt: now() });
         await logEvents([{ type: 'payment_initiated', method: 'snap_va_' + bank }], { userId: uid, subscriptionId: pay.subscriptionId, paymentId: orderId, provider: 'midtrans', planCode: plan.code, amount });
-        return { orderId, amount, bank, redirectUrl: snap.redirect_url, token: snap.token, snapFallback: true };
+        return { orderId, amount, bank, redirectUrl: snap.redirect_url, token: snap.token, snapFallback: true, ...(isAdmin(auth) ? { adminDetail: detail } : {}) };
       } catch (e2) {
         const d2 = String(e2 && e2.message || e2).slice(0, 300);
         await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'charge_error', chargeError: detail, snapError: d2, updatedAt: now() });
