@@ -27,9 +27,12 @@ function midtransClient({ serverKey, signatureKey, isProduction, notificationUrl
     },
     // Uji kunci tanpa membuat transaksi: order acak → 404 bila kunci benar, 401 bila salah
     async ping() {
-      const r = await fetchImpl(apiBase + '/v2/WASHLY-CEK-' + Date.now() + '/status', { headers: headers() });
-      const j = await r.json().catch(() => ({})); const code = String(j.status_code || r.status);
-      return { ok: code === '404' || code === '200', unauthorized: code === '401' || r.status === 401, code, message: String(j.status_message || (j.error_messages || []).join('; ') || '').slice(0, 200) };
+      const h = headers(); delete h['X-Override-Notification'];
+      const r = await fetchImpl(apiBase + '/v2/WASHLY-CEK-' + Date.now() + '/status', { headers: h });
+      const raw = await r.text().catch(() => ''); let j = {}; try { j = JSON.parse(raw); } catch (e) { /* bukan JSON */ }
+      const code = String(j.status_code || r.status);
+      const message = String(j.status_message || (j.error_messages || []).join('; ') || raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 160);
+      return { ok: code === '404' || code === '200', unauthorized: code === '401' || r.status === 401, code, http: r.status, message };
     },
     async getStatus(orderId) {
       const r = await fetchImpl(apiBase + '/v2/' + encodeURIComponent(orderId) + '/status', { headers: headers() });

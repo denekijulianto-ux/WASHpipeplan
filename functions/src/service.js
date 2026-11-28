@@ -479,7 +479,9 @@ function makeService(deps) {
       const other = mode === 'production' ? 'sandbox' : 'production', OtherName = other === 'production' ? 'Production' : 'Sandbox', Name = mode === 'production' ? 'Production' : 'Sandbox';
       const alt = await deps.midtransFactory({ serverKey, signatureKey, isProduction: other === 'production' }).ping().catch(() => ({ ok: false }));
       if (alt.ok) throw new BillingError('failed-precondition', `Server Key ini adalah kunci ${OtherName}, bukan ${Name}. Di dashboard Midtrans, ganti Environment (kiri atas) ke ${Name}, lalu salin Server Key dari Settings → Access Keys. Atau pilih "${OtherName}" di atas bila memang ingin memakai ${OtherName}.`);
-      throw new BillingError('failed-precondition', `Midtrans menolak Server Key ini (401${ping.message ? ': ' + ping.message : ''}). Kunci tidak dikenali di Production maupun Sandbox: kemungkinan tersalin tidak utuh, sudah dihapus/diganti di dashboard, atau yang tersalin bukan Server Key. Salin ulang dengan ikon salin di Settings → Access Keys → Server Keys.`);
+      const pre = (serverKey.match(/^(SB-)?Mid-server-/i) || [''])[0];
+      const diag = `Diagnosis: kunci yang diterima server ${serverKey.length} karakter, ${pre ? 'diawali "' + pre + '"' : 'TIDAK diawali "Mid-server-"'}${signatureKey && signatureKey === serverKey ? ', sama dengan Signature Secret Key' : ''}. Jawaban Midtrans ${Name}: HTTP ${ping.http || ping.code}${ping.message ? ' "' + ping.message + '"' : ''}; ${OtherName}: HTTP ${alt.http || alt.code || '-'}${alt.message ? ' "' + alt.message + '"' : ''}.`;
+      throw new BillingError('failed-precondition', `Midtrans menolak Server Key ini (401). Kunci tidak dikenali di Production maupun Sandbox: kemungkinan tersalin tidak utuh, sudah dihapus/diganti di dashboard, atau yang tersalin bukan Server Key. Salin ulang dengan ikon salin di Settings → Access Keys → Server Keys. ${diag}`);
     }
     if (!ping.ok) throw new BillingError('failed-precondition', 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
     const t = now();
