@@ -144,7 +144,22 @@ function makeService(deps) {
       : bank === 'permata' ? { ...base, payment_type: 'permata' } : { ...base, payment_type: 'bank_transfer', bank_transfer: { bank } };
     let r;
     try { r = await M.charge(payload); }
-    catch (e) { await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'charge_error', updatedAt: now() }); throw new BillingError('unavailable', 'Virtual Account tidak dapat dibuat saat ini. Coba lagi atau pilih bank lain.'); }
+    catch (e) {
+      const detail = String(e && e.message || e).slice(0, 300);
+      // Core API ditolak (mis. akun belum diizinkan membuat VA langsung) → buat tagihan Snap yang hanya menampilkan VA bank ini
+      const SNAP_VA = { bca: 'bca_va', bni: 'bni_va', bri: 'bri_va', permata: 'permata_va', mandiri: 'echannel', cimb: 'cimb_va' };
+      try {
+        const snap = await M.createSnap({ transaction_details: base.transaction_details, item_details: base.item_details, customer_details: base.customer_details, custom_field1: uid,
+          enabled_payments: [SNAP_VA[bank]], callbacks: { finish: (deps.appUrl || '') + '?billing=finish&order=' + encodeURIComponent(orderId) }, expiry: { unit: 'hour', duration: hours } });
+        await col('payments').doc(orderId).update({ method: 'snap_va_' + bank, snapToken: snap.token, redirectUrl: snap.redirect_url, chargeError: detail, updatedAt: now() });
+        await logEvents([{ type: 'payment_initiated', method: 'snap_va_' + bank }], { userId: uid, subscriptionId: pay.subscriptionId, paymentId: orderId, provider: 'midtrans', planCode: plan.code, amount });
+        return { orderId, amount, bank, redirectUrl: snap.redirect_url, token: snap.token, snapFallback: true };
+      } catch (e2) {
+        const d2 = String(e2 && e2.message || e2).slice(0, 300);
+        await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'charge_error', chargeError: detail, snapError: d2, updatedAt: now() });
+        throw new BillingError('unavailable', 'Virtual Account tidak dapat dibuat saat ini. Coba lagi atau pilih bank lain.' + (isAdmin(auth) ? ` [admin] Midtrans: ${detail} · Snap: ${d2}` : ''));
+      }
+    }
     const va = bank === 'mandiri' ? { billerCode: r.biller_code, billKey: r.bill_key } : { number: r.permata_va_number || (r.va_numbers && r.va_numbers[0] && r.va_numbers[0].va_number) };
     if (!va.number && !va.billKey) { await col('payments').doc(orderId).update({ status: 'FAILED', failureReason: 'no_va', updatedAt: now() }); throw new BillingError('unavailable', 'Nomor Virtual Account tidak diterima dari bank.'); }
     const exp = Date.parse(String(r.expiry_time || '').replace(' ', 'T') + '+07:00') || pay.expiresAt;

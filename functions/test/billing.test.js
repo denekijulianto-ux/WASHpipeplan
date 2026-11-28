@@ -453,3 +453,14 @@ test('hapus akun lewat server: wajib login ulang; menghapus proyek (opsional), p
   for (const [c, id] of [['projects', 'p1'], ['projectData', 'p2'], ['projectNet', 'p1'], ['photos', 'f1'], ['users', 'u'], ['profiles', 'u']]) assert.equal((await db.collection(c).doc(id).get()).exists, false, c + '/' + id);
   assert.ok((await db.collection('projects').doc('px').get()).exists, 'proyek orang lain tidak tersentuh');
 });
+
+test('VA: bila Core API menolak charge, server membuat tagihan Snap khusus VA bank itu', async () => {
+  const db = makeDb(); let snapReq = null;
+  await db.collection('users').doc('u').set({ email: 'u@x.org', name: 'U', status: 'approved' });
+  const M = { serverKey: 'Mid-server-X', isProduction: true, signatureKeys: ['k'], charge: async () => { throw new Error('Midtrans charge 403 : forbidden'); },
+    createSnap: async (p) => { snapReq = p; return { token: 'tok', redirect_url: 'https://app.midtrans.com/snap/v4/redirection/tok' }; }, getStatus: async () => null };
+  const sv = makeService({ db, now: () => T0, adminEmails: ['boss@x.org'], midtrans: M });
+  const r = await sv.createVaCharge({ uid: 'u', token: { email: 'u@x.org', email_verified: true } }, { planCode: 'PRO_MONTHLY', bank: 'bni' });
+  assert.equal(r.snapFallback, true); assert.match(r.redirectUrl, /midtrans/); assert.deepEqual(snapReq.enabled_payments, ['bni_va']);
+  const pd = (await db.collection('payments').doc(r.orderId).get()).data(); assert.equal(pd.status, 'PENDING'); assert.equal(pd.method, 'snap_va_bni'); assert.match(pd.chargeError, /403/);
+});

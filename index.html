@@ -38983,6 +38983,13 @@ function PricingDialog({
           planCode: p.code,
           bank
         });
+        if (r.redirectUrl) {
+          try {
+            sessionStorage.setItem('washly-pending-order', r.orderId);
+          } catch (e) {}
+          window.location.assign(r.redirectUrl);
+          return;
+        }
         setChoose(null);
         setVaOrder({
           ...r,
@@ -39651,6 +39658,11 @@ function AdminBillingDialog({
         planCode: 'PRO_MONTHLY',
         bank: 'bni'
       });
+      if (r.redirectUrl) {
+        window.open(r.redirectUrl, '_blank');
+        setBusy('');
+        return;
+      }
       setTestVa({
         ...r,
         planCode: 'PRO_MONTHLY',

@@ -9563,7 +9563,7 @@ function PricingDialog({ user, onClose }) {
     try { sessionStorage.setItem('washly-pending-order', r.orderId); } catch (e) {} window.location.assign(r.redirectUrl); };
   const pick = async (kind, bank) => { const p = choose; setErr(''); setBusy(kind === 'va' ? 'va-' + bank : kind);
     try {
-      if (kind === 'va') { const r = await callFn('billingVaCharge', { planCode: p.code, bank }); setChoose(null); setVaOrder({ ...r, planCode: p.code, createdAt: Date.now() }); }
+      if (kind === 'va') { const r = await callFn('billingVaCharge', { planCode: p.code, bank }); if (r.redirectUrl) { try { sessionStorage.setItem('washly-pending-order', r.orderId); } catch (e) {} window.location.assign(r.redirectUrl); return; } setChoose(null); setVaOrder({ ...r, planCode: p.code, createdAt: Date.now() }); }
       else if (kind === 'manual') { const r = await callFn('manualOrder', { planCode: p.code }); setChoose(null); setManual({ ...r, planCode: p.code }); }
       else { await startSnap(p); return; }
     } catch (e) { setErr(e.message || String(e)); setChoose(null); }
@@ -9719,7 +9719,7 @@ function AdminBillingDialog({ onClose }) {
   const loadMt = async () => { try { const r = await callFn('adminGetMidtrans'); setMt(r); if (r.mode) setMf(f => ({ ...f, mode: r.mode })); } catch (e) { setErr(e.message); } };
   useEffect(() => { if (tab === 'online') loadMt(); }, [tab]);
   const saveMt = async () => { setErr(''); setMtMsg(''); setBusy('mt'); try { const r = await callFn('adminSetMidtrans', mf); setMtMsg(`Terhubung ke Midtrans ${r.mode === 'production' ? 'Production' : 'Sandbox'} ✓ (Server Key ${r.serverKeyHint}${r.signatureKeyHint ? ', Signature Key ' + r.signatureKeyHint : ''}).` + (r.coreApi === false ? ' Catatan: akun Midtrans ini belum mengizinkan Core API, jadi tombol Virtual Account langsung di aplikasi dimatikan. Pengguna tetap bisa membayar dengan VA, QRIS, GoPay & kartu lewat halaman pembayaran Midtrans. Isi juga Signature Secret Key agar konfirmasi pembayaran otomatis.' : '')); setMf(f => ({ ...f, serverKey: '', signatureKey: '' })); await loadMt(); } catch (e) { setErr(e.message); } setBusy(''); };
-  const testPay = async () => { setErr(''); setBusy('tp'); try { const r = await callFn('billingVaCharge', { planCode: 'PRO_MONTHLY', bank: 'bni' }); setTestVa({ ...r, planCode: 'PRO_MONTHLY', createdAt: Date.now() }); } catch (e) { setErr(e.message); } setBusy(''); };
+  const testPay = async () => { setErr(''); setBusy('tp'); try { const r = await callFn('billingVaCharge', { planCode: 'PRO_MONTHLY', bank: 'bni' }); if (r.redirectUrl) { window.open(r.redirectUrl, '_blank'); setBusy(''); return; } setTestVa({ ...r, planCode: 'PRO_MONTHLY', createdAt: Date.now() }); } catch (e) { setErr(e.message); } setBusy(''); };
   const setPublic = async (on) => { setErr(''); setBusy('pub'); try { const nc = { ...cfg, paymentsPublic: on }; const r = await callFn('adminBillingConfig', { config: nc, reason: on ? 'Buka pembayaran online untuk semua' : 'Tutup pembayaran online untuk umum' }); setCfg(r.config); } catch (e) { setErr(e.message); } setBusy(''); };
   const [mList, setMList] = useState(null); const [mFilter, setMFilter] = useState('PENDING'); const [zoom, setZoom] = useState('');
   const loadMan = async () => { setErr(''); setBusy('man'); try { setMList(await callFn('adminManualList', { status: mFilter })); } catch (e) { setErr(e.message); } setBusy(''); };
