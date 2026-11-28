@@ -34,6 +34,14 @@ function midtransClient({ serverKey, signatureKey, isProduction, notificationUrl
       const message = String(j.status_message || (j.error_messages || []).join('; ') || raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 160);
       return { ok: code === '404' || code === '200', unauthorized: code === '401' || r.status === 401, code, http: r.status, message };
     },
+    // Uji kunci lewat Snap tanpa membuat transaksi: badan permintaan sengaja tidak lengkap → 400 bila kunci benar, 401 bila salah
+    async pingSnap() {
+      const h = headers(); delete h['X-Override-Notification'];
+      const r = await fetchImpl(snapBase + '/snap/v1/transactions', { method: 'POST', headers: h, body: '{}' });
+      const raw = await r.text().catch(() => ''); let j = {}; try { j = JSON.parse(raw); } catch (e) { /* bukan JSON */ }
+      const message = String((j.error_messages || []).join('; ') || j.status_message || raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 160);
+      return { ok: r.status === 400 || r.status === 201, unauthorized: r.status === 401, http: r.status, code: String(r.status), message };
+    },
     async getStatus(orderId) {
       const r = await fetchImpl(apiBase + '/v2/' + encodeURIComponent(orderId) + '/status', { headers: headers() });
       const j = await r.json().catch(() => null);

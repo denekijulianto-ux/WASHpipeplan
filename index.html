@@ -39631,7 +39631,7 @@ function AdminBillingDialog({
     setBusy('mt');
     try {
       const r = await callFn('adminSetMidtrans', mf);
-      setMtMsg(`Terhubung ke Midtrans ${r.mode === 'production' ? 'Production' : 'Sandbox'} ✓ (Server Key ${r.serverKeyHint}${r.signatureKeyHint ? ', Signature Key ' + r.signatureKeyHint : ''}).`);
+      setMtMsg(`Terhubung ke Midtrans ${r.mode === 'production' ? 'Production' : 'Sandbox'} ✓ (Server Key ${r.serverKeyHint}${r.signatureKeyHint ? ', Signature Key ' + r.signatureKeyHint : ''}).` + (r.coreApi === false ? ' Catatan: akun Midtrans ini belum mengizinkan Core API, jadi tombol Virtual Account langsung di aplikasi dimatikan. Pengguna tetap bisa membayar dengan VA, QRIS, GoPay & kartu lewat halaman pembayaran Midtrans. Isi juga Signature Secret Key agar konfirmasi pembayaran otomatis.' : ''));
       setMf(f => ({
         ...f,
         serverKey: '',

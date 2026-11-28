@@ -386,6 +386,25 @@ test('Pengaturan Midtrans dari aplikasi: hanya admin, format & lingkungan divali
   await assert.rejects(sv.adminSetMidtrans(A, { serverKey: 'Mid-server-ABCDEFGH12', signatureKey: 'Mid-server-ABCDEFGH12', mode: 'production' }), { code: 'invalid-argument' });
 });
 
+test('Midtrans: kunci dikenali tetapi Core API 403 → uji lewat Snap, VA aplikasi dimatikan, webhook memakai notifikasi bertanda tangan', async () => {
+  const db = makeDb(); const crypto = require('crypto');
+  const factory = (o) => ({ serverKey: o.serverKey, signatureKeys: [o.signatureKey, o.serverKey].filter(Boolean), isProduction: o.isProduction,
+    ping: async () => ({ ok: false, unauthorized: false, http: 403, code: '403', message: 'forbidden' }), pingSnap: async () => ({ ok: true, http: 400 }),
+    getStatus: async () => { throw new Error('Midtrans status 403'); } });
+  await db.collection('users').doc('boss').set({ email: 'boss@x.org', name: 'Boss', status: 'approved' });
+  const sv = makeService({ db, now: () => T0, adminEmails: ['boss@x.org'], midtrans: { serverKey: 'NOT_CONFIGURED', isProduction: false, getStatus: async () => null }, midtransFactory: factory });
+  const A = { uid: 'boss', token: { email: 'boss@x.org', email_verified: true } };
+  const r = await sv.adminSetMidtrans(A, { serverKey: 'Mid-server-CORE403KEY', signatureKey: 'SIGKEY-1234567890', mode: 'production' });
+  assert.equal(r.coreApi, false);
+  const cfg = (await db.collection('billing_config').doc('main').get()).data(); assert.equal(cfg.va.enabled, false); assert.equal(cfg.enforce, true);
+  await db.collection('payments').doc('WSH-X1').set({ id: 'WSH-X1', userId: 'boss', subscriptionId: 'web_boss', provider: 'midtrans', planCode: 'PRO_MONTHLY', amount: 125000, listPrice: 125000, currency: 'IDR', status: 'PENDING', createdAt: T0 });
+  const n = { order_id: 'WSH-X1', status_code: '200', gross_amount: '125000.00', transaction_status: 'settlement', payment_type: 'bank_transfer', transaction_id: 't1', currency: 'IDR' };
+  n.signature_key = crypto.createHash('sha512').update(n.order_id + n.status_code + n.gross_amount + 'SIGKEY-1234567890').digest('hex');
+  await sv.handleMidtransNotification(n);
+  assert.equal((await db.collection('payments').doc('WSH-X1').get()).data().status, 'PAID');
+  await assert.rejects(sv.handleMidtransNotification({ ...n, signature_key: 'x'.repeat(128) }), { code: 'permission-denied' });
+});
+
 test('Webhook: notifikasi uji dari dashboard (order tak dikenal Midtrans) diabaikan tanpa error', async () => {
   const { s, db } = setup();
   const n = { order_id: 'test-notif-123', status_code: '200', gross_amount: '10000.00', transaction_status: 'settlement' };

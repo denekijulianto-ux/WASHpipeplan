@@ -209,7 +209,9 @@ function makeService(deps) {
     const payload = { order_id: body.order_id, transaction_status: body.transaction_status, status_code: body.status_code, gross_amount: body.gross_amount, payment_type: body.payment_type, transaction_id: body.transaction_id, fraud_status: body.fraud_status || null };
     await wref.set({ provider: 'midtrans', eventType: body.transaction_status, payload, payloadHash: sha256(JSON.stringify(body)), status: 'RECEIVED', receivedAt: now(), attempts: (prev.exists ? prev.data().attempts || 0 : 0) + 1 });
     try {
-      const st = await M.getStatus(body.order_id).catch(e => /\b404\b/.test(String(e.message)) ? null : Promise.reject(e)); // sumber kebenaran: API status Midtrans
+      let st = await M.getStatus(body.order_id).catch(e => /\b404\b/.test(String(e.message)) ? null : /\b403\b/.test(String(e.message)) ? 'FORBIDDEN' : Promise.reject(e)); // sumber kebenaran: API status Midtrans
+      // Merchant tanpa akses API status (403): pakai isi notifikasi yang tanda tangannya (SHA-512 dengan kunci rahasia) sudah terverifikasi di atas
+      if (st === 'FORBIDDEN') st = { ...payload, currency: body.currency };
       if (!st || String(st.status_code) === '404') { await wref.update({ status: 'IGNORED', processedAt: now(), error: 'transaksi tidak dikenal Midtrans (mis. notifikasi uji)' }); return { ignored: 'unknown transaction' }; }
       if (st.order_id !== body.order_id) throw new Error('Status API tidak cocok');
       const r = await applyMidtransStatus(st, 'webhook');
@@ -473,7 +475,15 @@ function makeService(deps) {
     if (signatureKey && (signatureKey.length < 10 || signatureKey.length > 300 || !/^[\x21-\x7E]+$/.test(signatureKey))) throw new BillingError('invalid-argument', 'Signature Secret Key tidak dikenali. Salin dari baris "Signature Secret Key" (ikon salin).');
     // Uji ke Midtrans: kunci yang benar menjawab 404 (order uji memang tidak ada), kunci salah menjawab 401
     const client = deps.midtransFactory({ serverKey, signatureKey, isProduction: mode === 'production' });
-    const ping = await client.ping().catch(e => ({ ok: false, error: String(e.message || e) }));
+    let ping = await client.ping().catch(e => ({ ok: false, error: String(e.message || e) }));
+    let coreApi = true, coreNote = null;
+    // 403 di API status = kunci dikenali tetapi akses Core API dibatasi untuk merchant ini → uji lewat Snap (halaman pembayaran Midtrans)
+    if (!ping.ok && !ping.unauthorized && client.pingSnap) {
+      const sp = await client.pingSnap().catch(e => ({ ok: false, error: String(e.message || e) }));
+      if (sp.ok) { coreApi = false; coreNote = `API status/Core API menjawab HTTP ${ping.http || ping.code}${ping.message ? ' "' + ping.message + '"' : ''}`; ping = { ok: true }; }
+      else if (sp.unauthorized) ping = { ok: false, unauthorized: true, http: 401, message: sp.message };
+      else ping = { ...ping, message: [ping.message, 'Snap: HTTP ' + (sp.http || sp.error || '-') + (sp.message ? ' "' + sp.message + '"' : '')].filter(Boolean).join(' · ') };
+    }
     if (!ping.ok && ping.unauthorized) {
       // Cek silang: kunci yang ditolak di satu lingkungan sering kali kunci dari lingkungan lain (format kunci baru tidak selalu berawalan "SB-")
       const other = mode === 'production' ? 'sandbox' : 'production', OtherName = other === 'production' ? 'Production' : 'Sandbox', Name = mode === 'production' ? 'Production' : 'Sandbox';
@@ -483,16 +493,18 @@ function makeService(deps) {
       const diag = `Diagnosis: kunci yang diterima server ${serverKey.length} karakter, ${pre ? 'diawali "' + pre + '"' : 'TIDAK diawali "Mid-server-"'}${signatureKey && signatureKey === serverKey ? ', sama dengan Signature Secret Key' : ''}. Jawaban Midtrans ${Name}: HTTP ${ping.http || ping.code}${ping.message ? ' "' + ping.message + '"' : ''}; ${OtherName}: HTTP ${alt.http || alt.code || '-'}${alt.message ? ' "' + alt.message + '"' : ''}.`;
       throw new BillingError('failed-precondition', `Midtrans menolak Server Key ini (401). Kunci tidak dikenali di Production maupun Sandbox: kemungkinan tersalin tidak utuh, sudah dihapus/diganti di dashboard, atau yang tersalin bukan Server Key. Salin ulang dengan ikon salin di Settings → Access Keys → Server Keys. ${diag}`);
     }
-    if (!ping.ok) throw new BillingError('failed-precondition', 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ping.code || 'tidak diketahui'));
+    if (!ping.ok) throw new BillingError('failed-precondition', 'Tidak dapat menghubungi Midtrans: ' + (ping.error || ('HTTP ' + (ping.http || ping.code))) + (ping.message ? ' — ' + ping.message : ''));
     const t = now();
-    await col('billing_secrets').doc('midtrans').set({ serverKey, signatureKey: signatureKey || null, mode, updatedAt: t, updatedBy: auth.uid, lastCheck: { at: t, ok: true } });
+    await col('billing_secrets').doc('midtrans').set({ serverKey, signatureKey: signatureKey || null, mode, updatedAt: t, updatedBy: auth.uid, lastCheck: { at: t, ok: true, coreApi, note: coreNote } });
     // Jangan pernah membuat dokumen konfigurasi setengah jadi (tanpa 'enforce' → pembatasan FREE dianggap mati)
     const cref = col('billing_config').doc('main'); const cd = await cref.get();
-    if (cd.exists) await cref.set({ midtrans: { configured: true, mode, updatedAt: t } }, { merge: true });
-    else await cref.set({ ...(await getConfig()), enforce: true, midtrans: { configured: true, mode, updatedAt: t }, updatedAt: t, updatedBy: auth.uid });
+    // Core API (Virtual Account langsung di aplikasi) tidak diizinkan untuk merchant ini → matikan VA di aplikasi; pengguna tetap bisa memilih VA di halaman pembayaran Midtrans (Snap)
+    const vaPatch = coreApi ? {} : { va: { ...((await getConfig()).va || {}), enabled: false } };
+    if (cd.exists) await cref.set({ midtrans: { configured: true, mode, coreApi, updatedAt: t }, ...vaPatch }, { merge: true });
+    else await cref.set({ ...(await getConfig()), enforce: true, midtrans: { configured: true, mode, coreApi, updatedAt: t }, ...vaPatch, updatedAt: t, updatedBy: auth.uid });
     mtCache = null;
     await audit(auth, 'midtrans_keys', 'billing_secrets/midtrans', 'Kunci Midtrans diperbarui', { mode, serverKeyHint: '…' + serverKey.slice(-4), signature: !!signatureKey });
-    return { ok: true, mode, serverKeyHint: '…' + serverKey.slice(-4), signatureKeyHint: signatureKey ? '…' + signatureKey.slice(-4) : null };
+    return { ok: true, mode, coreApi, note: coreNote, serverKeyHint: '…' + serverKey.slice(-4), signatureKeyHint: signatureKey ? '…' + signatureKey.slice(-4) : null };
   }
   // Pemilik PRO mencari anggota tim proyek lewat e-mail (daftar pengguna tidak lagi terbuka untuk semua akun)
   async function findProjectMember(auth, { email } = {}) {
